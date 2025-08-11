@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 1rem;
+}
+.text-brand {
+  color: #2E7D32; /* Verde Handee */
+}
+.bg-brand {
+  background-color: #2E7D32;
+}
+
+html, body, :root {
+  height: 100%;
+}
+
+body {
+  @apply bg-white text-neutral-900;
+}
+
+.dark body {
+  @apply bg-neutral-950 text-neutral-100;
+}
+.text-brand { color: #1f3c44; }     /* azul verdoso oscuro como Glide */
+.bg-brand { background-color: #1f3c44; }
