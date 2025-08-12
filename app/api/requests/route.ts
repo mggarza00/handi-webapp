@@ -1,156 +1,60 @@
-// app/api/requests/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { google } from "googleapis";
+import { NextResponse } from "next/server";
+import { appendRequest, listRequests } from "@/lib/sheets";
 
-// Carga credenciales desde env (Vercel y local)
-function getAuth() {
-  const clientEmail = process.env.CLIENT_EMAIL;
-  const privateKey = (process.env.PRIVATE_KEY || "").replace(/\\n/g, "\n");
-  const projectId = process.env.PROJECT_ID;
-
-  if (!clientEmail || !privateKey || !projectId) {
-    throw new Error("Faltan variables de entorno: PROJECT_ID, CLIENT_EMAIL o PRIVATE_KEY");
-  }
-
-  return new google.auth.JWT({
-    email: clientEmail,
-    key: privateKey,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
+function bad(msg: string, status = 400) {
+  return NextResponse.json({ ok: false, error: msg }, { status });
 }
 
-async function getSheets() {
-  const auth = getAuth();
-  return google.sheets({ version: "v4", auth });
-}
-
-const SHEET_ID = process.env.SHEET_ID!;
-const TAB = "Requests";
-
-type RequestRow = {
-  id: string;
-  createdAt: string; // ISO
-  name: string;
-  phone: string;
-  category: string;
-  subcategory: string;
-  description: string;
-  city: string;
-  status: string;
-};
-
-// Mapea filas de Sheets a objetos
-function rowsToObjects(rows: any[][]): RequestRow[] {
-  const [header, ...data] = rows;
-  const idx: Record<string, number> = {};
-  header.forEach((h, i) => (idx[String(h).trim()] = i));
-
-  return data
-    .filter((r) => r && r.length > 0)
-    .map((r) => ({
-      id: r[idx["id"]] ?? "",
-      createdAt: r[idx["createdAt"]] ?? "",
-      name: r[idx["name"]] ?? "",
-      phone: r[idx["phone"]] ?? "",
-      category: r[idx["category"]] ?? "",
-      subcategory: r[idx["subcategory"]] ?? "",
-      description: r[idx["description"]] ?? "",
-      city: r[idx["city"]] ?? "",
-      status: r[idx["status"]] ?? "",
-    }));
-}
-
-// GET /api/requests?status=new&city=Monterrey
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
-    if (!SHEET_ID) throw new Error("Falta SHEET_ID");
-
-    const sheets = await getSheets();
-    const range = `${TAB}!A1:I`;
-    const resp = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
-    const values = (resp.data.values || []) as any[][];
-    if (values.length === 0) return NextResponse.json({ data: [] });
-
-    let items = rowsToObjects(values);
-
-    // Filtros opcionales
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const city = searchParams.get("city");
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? Number(limitParam) : undefined;
 
-    if (status) items = items.filter((x) => x.status === status);
-    if (city) items = items.filter((x) => x.city?.toLowerCase() === city.toLowerCase());
-
-    // Orden más reciente primero
-    items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-
-    return NextResponse.json({ data: items });
+    const data = await listRequests(limit);
+    return NextResponse.json({ ok: true, data });
   } catch (err: any) {
-    console.error("GET /api/requests error:", err);
+    console.error("[/api/requests] GET error", err);
     return NextResponse.json(
-      { error: "No se pudo leer las solicitudes", detail: err.message },
+      { ok: false, error: err?.message ?? "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
 }
 
-// POST /api/requests
-// body: { name, phone, category, subcategory, description, city }
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    if (!SHEET_ID) throw new Error("Falta SHEET_ID");
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return bad("INVALID_JSON_BODY");
 
-    const body = await req.json();
-    const required = ["name", "phone", "category", "subcategory", "description", "city"];
-    const missing = required.filter((k) => !body?.[k]);
-    if (missing.length) {
-      return NextResponse.json(
-        { error: `Faltan campos: ${missing.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const required = ["title", "description", "city", "category", "subcategory", "created_by"];
+    const missing = required.filter((k) => !body[k]);
+    if (missing.length) return bad(`MISSING_FIELDS: ${missing.join(", ")}`);
 
-    const sheets = await getSheets();
+    const id = crypto.randomUUID();
     const now = new Date().toISOString();
-    const id = `REQ_${Date.now()}`;
 
-    const row: RequestRow = {
+    const rowData = {
       id,
-      createdAt: now,
-      name: String(body.name),
-      phone: String(body.phone),
-      category: String(body.category),
-      subcategory: String(body.subcategory),
+      title: String(body.title),
       description: String(body.description),
       city: String(body.city),
-      status: "new",
+      category: String(body.category),
+      subcategory: String(body.subcategory),
+      budget: body.budget ?? "",
+      required_at: body.required_at ?? "",
+      status: body.status ?? "active",
+      created_by: String(body.created_by),
+      created_at: now,
+      updated_at: now,
     };
 
-    // Append al final
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: `${TAB}!A1`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [[
-          row.id,
-          row.createdAt,
-          row.name,
-          row.phone,
-          row.category,
-          row.subcategory,
-          row.description,
-          row.city,
-          row.status
-        ]],
-      },
-    });
-
-    return NextResponse.json({ ok: true, id, createdAt: now });
+    await appendRequest(rowData);
+    return NextResponse.json({ ok: true, id });
   } catch (err: any) {
-    console.error("POST /api/requests error:", err);
+    console.error("[/api/requests] POST error", err);
     return NextResponse.json(
-      { error: "No se pudo crear la solicitud", detail: err.message },
+      { ok: false, error: err?.message ?? "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

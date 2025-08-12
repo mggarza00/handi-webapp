@@ -1,74 +1,88 @@
-import type { sheets_v4 } from "googleapis";
-import { getSheets } from "./sheets";
+// lib/usersMapper.ts
+import { getSheets } from "@/lib/sheets";
 
-const TAB = "Usuarios"; // tu pestaña con headers: user_id, roles_permitidos, rol_actual, status_profesional, application_step
-
-export type UsuarioRow = {
+export type UserRow = {
   user_id: string;
-  roles_permitidos: string;   // ej: "cliente, profesional" o "cliente"
-  rol_actual: "cliente" | "profesional";
-  status_profesional: "no_iniciado" | "en_proceso" | "enviado" | "aprobado" | "rechazado";
-  application_step: number | string;
+  nombre?: string;
+  rol_actual?: "cliente" | "profesional";
+  roles_permitidos?: string; // ej: "cliente,profesional"
+  status_profesional?: "no_iniciado" | "en_proceso" | "enviado" | "aprobado" | "rechazado";
+  application_step?: number;
 };
 
-function a1Col(n: number) {
-  let s = ""; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
-  return s;
-}
+const SHEET_NAME = "Usuarios";
+const HEADERS: (keyof UserRow)[] = [
+  "user_id",
+  "nombre",
+  "rol_actual",
+  "roles_permitidos",
+  "status_profesional",
+  "application_step",
+];
 
-export async function getHeaderMap() {
+async function ensureHeader() {
   const { sheets, spreadsheetId } = await getSheets();
-  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB}!1:1` });
-  const headers = (res.data.values?.[0] || []) as string[];
-  const map: Record<string, number> = {};
-  headers.forEach((h, i) => (map[(h || "").trim()] = i + 1));
-  return map;
-}
-
-// Busca la fila (1-based) donde user_id == value
-export async function findUserRow(userId: string) {
-  const { sheets, spreadsheetId } = await getSheets();
-  const map = await getHeaderMap();
-  const col = map["user_id"];
-  if (!col) throw new Error("Header 'user_id' no encontrado en Usuarios");
-
-  const colLetter = a1Col(col);
-  const range = `${TAB}!${colLetter}2:${colLetter}`;
+  const range = `${SHEET_NAME}!A1:F1`;
   const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
-  const rows = res.data.values || [];
-  for (let i = 0; i < rows.length; i++) {
-    if ((rows[i]?.[0] ?? "") === userId) {
-      return 1 + 1 + i; // header(1) + offset + index
-    }
+  const first = res.data.values?.[0] || [];
+  if (first.length < HEADERS.length || HEADERS.some((h, i) => (first[i] || "") !== h)) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range,
+      valueInputOption: "RAW",
+      requestBody: { values: [HEADERS as string[]] },
+    });
   }
-  return null;
 }
 
-export async function readUser(rowIndex: number): Promise<Partial<UsuarioRow>> {
+export async function findUserRow(userId: string): Promise<number> {
   const { sheets, spreadsheetId } = await getSheets();
-  const map = await getHeaderMap();
-  const fields = ["user_id","roles_permitidos","rol_actual","status_profesional","application_step"];
-  const ranges = fields.map(h => `${TAB}!${a1Col(map[h])}${rowIndex}`);
-  const res = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges });
-  const out: any = {};
-  fields.forEach((h, i) => out[h] = res.data.valueRanges?.[i]?.values?.[0]?.[0] ?? "");
-  return out;
+  await ensureHeader();
+  const colRange = `${SHEET_NAME}!A2:A`; // user_id
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range: colRange });
+  const rows = res.data.values || [];
+  const idx = rows.findIndex((r) => (r?.[0] || "").trim() === userId.trim());
+  if (idx === -1) return -1;
+  return idx + 2; // 1-based, considerando encabezado en fila 1
 }
 
-export async function writeUser(rowIndex: number, data: Partial<UsuarioRow>) {
+export async function readUser(rowIndex: number): Promise<UserRow> {
   const { sheets, spreadsheetId } = await getSheets();
-  const map = await getHeaderMap();
-  const dataRanges: sheets_v4.Schema$ValueRange[] = [];
+  const range = `${SHEET_NAME}!A${rowIndex}:F${rowIndex}`; // <-- A1 válido
+  const res = await sheets.spreadsheets.values.get({ spreadsheetId, range });
+  const row = res.data.values?.[0] || [];
+  const obj: any = {};
+  for (let i = 0; i < HEADERS.length; i++) obj[HEADERS[i]] = row[i] ?? "";
+  if (obj.application_step !== "") obj.application_step = Number(obj.application_step);
+  return obj as UserRow;
+}
 
-  Object.entries(data).forEach(([h, v]) => {
-    const col = map[h];
-    if (!col) throw new Error(`Header '${h}' no encontrado en Usuarios`);
-    dataRanges.push({ range: `${TAB}!${a1Col(col)}${rowIndex}`, values: [[v as any]] });
-  });
+export async function writeUser(rowIndex: number, patch: Partial<UserRow>) {
+  const { sheets, spreadsheetId } = await getSheets();
+  // merge con lo existente (si no hay, queda objeto vacío)
+  const current = await readUser(rowIndex).catch(() => ({} as UserRow));
+  const merged: any = { ...current, ...patch };
 
-  await sheets.spreadsheets.values.batchUpdate({
+  const values = [HEADERS.map((h) => merged[h] ?? "")];
+  const range = `${SHEET_NAME}!A${rowIndex}:F${rowIndex}`; // <-- A1 válido
+  await sheets.spreadsheets.values.update({
     spreadsheetId,
-    requestBody: { valueInputOption: "USER_ENTERED", data: dataRanges },
+    range,
+    valueInputOption: "RAW",
+    requestBody: { values },
   });
-  return { ok: true };
+}
+
+export async function appendUser(row: UserRow) {
+  const { sheets, spreadsheetId } = await getSheets();
+  await ensureHeader();
+  const values = [HEADERS.map((h) => (row as any)[h] ?? "")];
+  const range = `${SHEET_NAME}!A1:F1`;
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range,
+    valueInputOption: "RAW",
+    insertDataOption: "INSERT_ROWS",
+    requestBody: { values },
+  });
 }

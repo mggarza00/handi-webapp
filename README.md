@@ -1,26 +1,21 @@
-# Handee Webapp (Next.js + Tailwind)
+# Handee Webapp
 
-Stack:
-- Next.js (App Router)
-- React 18
-- TailwindCSS
-- next-themes (modo oscuro)
-- lucide-react (íconos)
+Next.js 14 (App Router) + Google Sheets (Service Account).
 
-## Desarrollo
+## Requisitos
+- Node.js 18+
+- NPM o PNPM
+- Acceso a Google Sheet (Service Account con permiso Editor)
+
+## Variables de entorno
+Copia `.env.example` a `.env.local` y rellena:
+- `PROJECT_ID`
+- `CLIENT_EMAIL`
+- `PRIVATE_KEY` (usar `\n` en una sola línea si el código hace `replace(/\\n/g, '\n')`)
+- `SHEET_ID`
+
+## Desarrollo local
 ```bash
 npm install
-npm run dev
-```
-Abre http://localhost:3000
-
-## Estructura
-- `/app` páginas (landing, dashboard, solicitudes, profesionales).
-- `/components` UI básica (botón, card, navbar, sidebar, paleta de comandos).
-- `/lib/cn.ts` util de clases.
-- Modo oscuro con `next-themes` y toggle en Navbar.
-- Paleta de comandos (Ctrl/Cmd + K).
-
-## Personalizar
-- Cambia textos en `app/page.tsx` y logo en `components/navbar.tsx`.
-- Agrega llamadas reales a API/DB en páginas del grupo `(app)`.
+npm run check        # typecheck + lint (opcional pero recomendado)
+npm run dev          # http://localhost:3000
