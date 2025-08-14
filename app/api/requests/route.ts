@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
 export const runtime = "nodejs";
 
 function json(data: unknown, init?: number | ResponseInit) {
-  const res = NextResponse.json(data, init);
+  const res = NextResponse.json(data, typeof init === "number" ? { status: init } : init);
   res.headers.set("Content-Type", "application/json; charset=utf-8");
   return res;
 }
@@ -30,7 +30,7 @@ function getSupabase() {
   });
 }
 
-// GET /api/requests  → lista (RLS aplica: activas + propias)
+// GET /api/requests  â†’ lista (RLS aplica: activas + propias)
 // Soporta ?limit= & ?offset=
 export async function GET(req: NextRequest) {
   try {
@@ -38,9 +38,9 @@ export async function GET(req: NextRequest) {
 
     const { data: { user } } = await supabase.auth.getUser();
     // No es estrictamente obligatorio para ver requests activas,
-    // pero lo solicitamos para que RLS permita también "propias".
+    // pero lo solicitamos para que RLS permita tambiÃ©n "propias".
     if (!user) {
-      // usuario anónimo: sólo verá activas por política RLS
+      // usuario anÃ³nimo: sÃ³lo verÃ¡ activas por polÃ­tica RLS
     }
 
     const { searchParams } = new URL(req.url);
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/requests → crear (RLS: created_by debe ser el usuario actual)
+// POST /api/requests â†’ crear (RLS: created_by debe ser el usuario actual)
 export async function POST(req: NextRequest) {
   try {
     const supabase = getSupabase();
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // Validaciones mínimas
+    // Validaciones mÃ­nimas
     const title = String(body?.title ?? "").trim();
     if (!title) return json({ ok: false, error: "title es requerido" }, { status: 400 });
 
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       budget: body?.budget ?? null,
       required_at: body?.required_at ?? null,
       attachments: Array.isArray(body?.attachments) ? body.attachments : [],
-      created_by: user.id, // ¡Clave para pasar RLS!
+      created_by: user.id, // Â¡Clave para pasar RLS!
     };
 
     const { data, error } = await supabase
@@ -98,3 +98,4 @@ export async function POST(req: NextRequest) {
     return json({ ok: false, error: err?.message ?? "Error inesperado" }, { status: 500 });
   }
 }
+

@@ -32,10 +32,10 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
 
   const map = new Map<string, any>();
   for (const r of rows ?? []) {
-    const p = r.professional;
-    if (!p || p.is_active === false) continue;
-    if (!map.has(p.id)) map.set(p.id, { ...p, categories: new Set<string>() });
-    map.get(p.id).categories.add(`${r.category}/${r.subcategory}`);
+    const p = (r as any).professional as any;
+    if (!p || (p as any).is_active === false) continue;
+    if (!map.has((p as any).id)) map.set((p as any).id, { ...p, categories: new Set<string>() });
+    (map.get((p as any).id) as any).categories.add(`${r.category}/${r.subcategory}`);
   }
 
   const list = Array.from(map.values()).map((p: any) => ({
@@ -43,7 +43,7 @@ export async function GET(_req: Request, ctx: { params: { id: string } }) {
     headline: p.headline,
     rating: p.rating,
     is_featured: p.is_featured,
-    is_active: p.is_active,
+    is_active: (p as any).is_active,
     skills: p.skills,
     categories: Array.from(p.categories),
     created_at: p.created_at,
