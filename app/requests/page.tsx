@@ -1,104 +1,110 @@
-
 "use client";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-
-type Item = {
+type RequestRow = {
   id: string;
-  title?: string;
-  description?: string;
-  city?: string;
-  category?: string;
-  subcategory?: string;
-  budget?: string | number;
-  required_at?: string;
-  status?: string;
+  title: string;
+  city: string | null;
+  category: string | null;
+  subcategory: string | null;
+  created_at: string;
+  status: "active" | "closed";
 };
 
-function fmtDate(d?: string) {
-  if (!d) return "";
-  try {
-    const dt = new Date(d);
-    return dt.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch {
-    return d ?? "";
-  }
+function StatusBadge({ status }: { status: "active" | "closed" }) {
+  const cls = status === "active" ? "bg-green-600" : "bg-gray-600";
+  const label = status === "active" ? "active" : "closed";
+  return <span className={`text-xs px-2 py-1 rounded text-white ${cls}`}>{label}</span>;
 }
 
 export default function RequestsPage() {
-  const [data, setData] = useState<Item[]>([]);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialStatus = useMemo(() => {
+    const s = (searchParams.get("status") || "active").toLowerCase();
+    return (["active","closed","all"].includes(s) ? s : "active") as "active"|"closed"|"all";
+  }, [searchParams]);
+  const initialMineOnly = useMemo(() => searchParams.get("mine") === "1", [searchParams]);
+
+  const [items, setItems] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [status, setStatus] = useState<"active" | "closed" | "all">(initialStatus);
+  const [mineOnly, setMineOnly] = useState<boolean>(initialMineOnly);
+
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/requests?limit=50", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (alive) setData(json.data ?? []);
-      } catch (e: any) {
-        if (alive) setError(e?.message ?? "Error al cargar");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, []);
+    const sp = new URLSearchParams();
+    sp.set("status", status);
+    if (mineOnly) sp.set("mine", "1");
+    router.replace(`/requests?${sp.toString()}`);
+  }, [status, mineOnly, router]);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const url = `/api/requests?limit=20&page=1&status=${status}${mineOnly ? "&mine=1" : ""}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "No se pudieron cargar solicitudes");
+      setItems(json.data || []);
+    } catch (e:any) { setError(e?.message || "Error de red"); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [status, mineOnly]);
+
+  const Tab = ({value,label}:{value:"active"|"closed"|"all";label:string}) => (
+    <button onClick={()=>setStatus(value)} className={`px-3 py-1 rounded border ${status===value ? "bg-black text-white" : "bg-white"}`}>{label}</button>
+  );
 
   return (
-    <main className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Solicitudes activas</h1>
+    <div className="max-w-3xl mx-auto p-6 space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Solicitudes</h1>
+        <a href="/requests/new" className="px-3 py-2 rounded bg-black text-white">Nueva solicitud</a>
+      </div>
 
-      {loading && <div className="text-neutral-500">Cargando...</div>}
-      {error && <div className="text-red-600">Error: {error}</div>}
+      <div className="flex items-center gap-2">
+        <Tab value="active" label="Activas" />
+        <Tab value="closed" label="Cerradas" />
+        <Tab value="all" label="Todas" />
+        <label className="ml-4 text-sm flex items-center gap-2">
+          <input type="checkbox" checked={mineOnly} onChange={e=>setMineOnly(e.target.checked)} />
+          Solo mis solicitudes
+        </label>
+      </div>
 
-      {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border border-neutral-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-neutral-50">
-              <tr className="text-left">
-                <th className="px-4 py-3">Título</th>
-                <th className="px-4 py-3">Ciudad</th>
-                <th className="px-4 py-3">Categoría</th>
-                <th className="px-4 py-3">Subcategoría</th>
-                <th className="px-4 py-3">Presupuesto</th>
-                <th className="px-4 py-3">Fecha requerida</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((r) => (
-                <tr key={r.id} className="border-t hover:bg-neutral-50">
-                  <td className="px-4 py-3 font-medium">{r.title || "(sin título)"}</td>
-                  <td className="px-4 py-3">{r.city}</td>
-                  <td className="px-4 py-3">{r.category}</td>
-                  <td className="px-4 py-3">{r.subcategory}</td>
-                  <td className="px-4 py-3">{r.budget ?? ""}</td>
-                  <td className="px-4 py-3">{fmtDate(r.required_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/requests/${r.id}`}
-                      className="inline-flex items-center rounded-lg px-3 py-1.5 border border-neutral-300 hover:bg-white"
-                    >
-                      Ver detalles
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-              {data.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="px-4 py-6 text-neutral-500 text-center">
-                    No hay solicitudes aún.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </main>
+      {loading && <p>Cargando…</p>}
+      {error && <p className="text-red-600">{error}</p>}
+
+      {!loading && !error && items.length === 0 && <p className="text-gray-600">No hay solicitudes para este filtro.</p>}
+
+      <ul className="space-y-3">
+        {items.map((r) => (
+          <li key={r.id} className="border rounded p-3">
+            <div className="flex items-center justify-between gap-3">
+              <a href={`/requests/${r.id}`} className="font-medium underline">{r.title}</a>
+              <div className="flex items-center gap-2">
+                <StatusBadge status={r.status} />
+                <span className="text-xs text-gray-500">{new Date(r.created_at).toLocaleString()}</span>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700">
+              {r.category || "—"} / {r.subcategory || "—"} {r.city ? `· ${r.city}` : ""}
+            </p>
+            <div className="mt-2 flex gap-2">
+              <a href={`/requests/${r.id}`} className="px-3 py-1 rounded bg-black text-white">Ver detalle</a>
+              <button className="px-3 py-1 rounded border" onClick={() => { navigator.clipboard.writeText(r.id); alert("Request ID copiado."); }}>
+                Copiar ID
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

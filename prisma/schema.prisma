@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role { 
+  contractor
+  professional
+  admin
+}
+enum RequestStatus { 
+  active
+  closed
+}
+enum ApplicationStatus { 
+  pending
+  accepted
+  rejected
+}
+
+model Profile {
+  id        String   @id @default(uuid()) @db.Uuid      // = auth.users.id
+  email     String?  @unique
+  name      String?
+  role      Role     @default(contractor)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt       @map("updated_at") @db.Timestamptz(6)
+
+  requests      Request[]     @relation("RequestOwner")
+  professionals Professional[]
+
+  @@map("profiles")
+}
+
+model Request {
+  id            String        @id @default(uuid()) @db.Uuid
+  title         String
+  description   String?
+  city          String?
+  category      String?
+  subcategory   String?
+  budget        Decimal?      @db.Decimal(12, 2)
+  requiredAt    DateTime?     @map("required_at") @db.Timestamptz(6)
+  status        RequestStatus @default(active)
+  createdBy     String        @map("created_by") @db.Uuid          // NOT NULL (RLS)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @updatedAt       @map("updated_at") @db.Timestamptz(6)
+
+  owner         Profile       @relation("RequestOwner", fields: [createdBy], references: [id], onDelete: Cascade)
+  applications  Application[]
+
+  @@map("requests")
+  @@index([createdBy], map: "idx_requests_created_by")
+  @@index([createdAt(sort: Desc)], map: "idx_requests_created_at")
+  @@index([category, city], map: "idx_requests_cat_city")
+}
+
+model Professional {
+  id         String   @id @default(uuid()) @db.Uuid
+  profileId  String   @map("profile_id") @db.Uuid
+  headline   String?
+  skills     String[]
+  rating     Decimal? @db.Decimal(3, 2)
+  isFeatured Boolean  @default(false) @map("is_featured")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt       @map("updated_at") @db.Timestamptz(6)
+
+  profile      Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@map("professionals")
+  @@unique([profileId], map: "uq_professional_profile") // 1–a–1 con Profile
+  @@index([profileId], map: "idx_professionals_profile")
+}
+
+model Application {
+  id              String            @id @default(uuid()) @db.Uuid
+  requestId       String            @map("request_id") @db.Uuid
+  professionalId  String            @map("professional_id") @db.Uuid
+  coverLetter     String?           @map("cover_letter")
+  proposedBudget  Decimal?          @map("proposed_budget") @db.Decimal(12, 2)
+  status          ApplicationStatus @default(pending)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt       @map("updated_at") @db.Timestamptz(6)
+
+  request      Request      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@map("applications")
+  @@unique([requestId, professionalId])
+  @@index([requestId], map: "idx_applications_req")
+  @@index([professionalId], map: "idx_applications_prof")
+}

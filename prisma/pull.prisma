@@ -1,0 +1,8 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = "postgresql://postgres.hdbzgaqqdpdklntfxapi:Y%21mSgw%23rB%269X%2AnJ@aws-0-us-east-2.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1"
+}

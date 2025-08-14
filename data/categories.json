@@ -1,0 +1,374 @@
+[
+  {
+    "id": "construccion-y-remodelacion",
+    "name": "Construcci√≥n y Remodelaci√≥n",
+    "subcategories": [
+      {
+        "id": "construccion-y-remodelacion-albanileria",
+        "name": "Alba√±iler√≠a",
+        "description": "Trabajos de obra civil, levantamiento de muros, cimientos, etc.",
+        "icon": "Ì∑±"
+      },
+      {
+        "id": "construccion-y-remodelacion-carpinteria",
+        "name": "Carpinter√≠a",
+        "description": "Instalaci√≥n y fabricaci√≥n de estructuras y muebles de madera.",
+        "icon": "Ì∫ö"
+      },
+      {
+        "id": "construccion-y-remodelacion-obra-negra",
+        "name": "Obra negra",
+        "description": "Construcci√≥n estructural, cimentaci√≥n, colado de losas, etc.",
+        "icon": "ÔøΩÔøΩÔ∏è"
+      },
+      {
+        "id": "construccion-y-remodelacion-obra-blanca",
+        "name": "Obra blanca",
+        "description": "Terminados como instalaci√≥n de puertas, ventanas, yeso, etc.",
+        "icon": "Ì∫™"
+      },
+      {
+        "id": "construccion-y-remodelacion-supervision-de-obra",
+        "name": "Supervisi√≥n de obra",
+        "description": "Coordinaci√≥n y control de trabajos en sitio.",
+        "icon": "Ì≥ã"
+      }
+    ]
+  },
+  {
+    "id": "instalaciones",
+    "name": "Instalaciones",
+    "subcategories": [
+      {
+        "id": "instalaciones-plomeria",
+        "name": "Plomer√≠a",
+        "description": "Instalaci√≥n y reparaci√≥n de tuber√≠as, muebles de ba√±o, fugas, etc.",
+        "icon": "Ì∫∞"
+      },
+      {
+        "id": "instalaciones-electricidad",
+        "name": "Electricidad",
+        "description": "Cableado, centros de carga, contactos, l√°mparas, protecci√≥n.",
+        "icon": "Ì≤°"
+      },
+      {
+        "id": "instalaciones-aire-acondicionado",
+        "name": "Aire acondicionado",
+        "description": "Instalaci√≥n, mantenimiento y carga de gas de equipos A/A.",
+        "icon": "‚ùÑÔ∏è"
+      },
+      {
+        "id": "instalaciones-gas",
+        "name": "Gas",
+        "description": "Instalaci√≥n y verificaci√≥n de l√≠neas y conexiones de gas.",
+        "icon": "Ì¥•"
+      },
+      {
+        "id": "instalaciones-canceles-y-aluminio",
+        "name": "Canceles y aluminio",
+        "description": "Instalaci√≥n de canceles, ventanas y perfiler√≠a de aluminio.",
+        "icon": "Ì∫ü"
+      }
+    ]
+  },
+  {
+    "id": "mantenimiento-del-hogar",
+    "name": "Mantenimiento del Hogar",
+    "subcategories": [
+      {
+        "id": "mantenimiento-del-hogar-reparaciones-generales",
+        "name": "Reparaciones generales",
+        "description": "Detalles varios, ajustes y arreglos menores.",
+        "icon": "Ì∑∞"
+      },
+      {
+        "id": "mantenimiento-del-hogar-pintura",
+        "name": "Pintura",
+        "description": "Pintado interior y exterior, resanes, selladores.",
+        "icon": "Ìæ®"
+      },
+      {
+        "id": "mantenimiento-del-hogar-impermeabilizacion",
+        "name": "Impermeabilizaci√≥n",
+        "description": "Aplicaci√≥n de sistemas impermeables en azoteas.",
+        "icon": "Ì∑¥"
+      },
+      {
+        "id": "mantenimiento-del-hogar-jardineria",
+        "name": "Jardiner√≠a",
+        "description": "Poda, dise√±o y mantenimiento de √°reas verdes.",
+        "icon": "Ìºø"
+      },
+      {
+        "id": "mantenimiento-del-hogar-limpieza-profunda",
+        "name": "Limpieza profunda",
+        "description": "Limpiezas residenciales y post-obra.",
+        "icon": "Ì∑π"
+      }
+    ]
+  },
+  {
+    "id": "electromecanico",
+    "name": "Electromec√°nico",
+    "subcategories": [
+      {
+        "id": "electromecanico-motores-y-bombas",
+        "name": "Motores y bombas",
+        "description": "Instalaci√≥n, diagn√≥stico y mantenimiento.",
+        "icon": "‚öôÔ∏è"
+      },
+      {
+        "id": "electromecanico-tableros-electricos",
+        "name": "Tableros el√©ctricos",
+        "description": "Armado, cableado y pruebas de tableros.",
+        "icon": "Ì∑≤"
+      },
+      {
+        "id": "electromecanico-instrumentacion",
+        "name": "Instrumentaci√≥n",
+        "description": "Sensores, control de procesos y calibraciones b√°sicas.",
+        "icon": "Ì∑™"
+      },
+      {
+        "id": "electromecanico-neumatica-hidraulica",
+        "name": "Neum√°tica/Hidr√°ulica",
+        "description": "L√≠neas neum√°ticas e hidr√°ulicas, sellos, actuadores.",
+        "icon": "Ìª†Ô∏è"
+      }
+    ]
+  },
+  {
+    "id": "tecnologia",
+    "name": "Tecnolog√≠a",
+    "subcategories": [
+      {
+        "id": "tecnologia-redes-e-internet",
+        "name": "Redes/Internet",
+        "description": "Routers, Wi‚ÄëFi, enlaces y optimizaci√≥n de cobertura.",
+        "icon": "Ì≥∂"
+      },
+      {
+        "id": "tecnologia-cableado-estructurado",
+        "name": "Cableado estructurado",
+        "description": "Tendido, canalizaci√≥n y certificaci√≥n b√°sica.",
+        "icon": "Ì∑µ"
+      },
+      {
+        "id": "tecnologia-domotica",
+        "name": "Dom√≥tica",
+        "description": "Automatizaci√≥n residencial: iluminaci√≥n, persianas, escenas.",
+        "icon": "Ìø†"
+      },
+      {
+        "id": "tecnologia-audio-video",
+        "name": "Audio/Video",
+        "description": "Instalaci√≥n de TVs, teatros en casa, cableado AV.",
+        "icon": "ÔøΩÔøΩ"
+      },
+      {
+        "id": "tecnologia-cctv",
+        "name": "C√°maras/CCTV",
+        "description": "Instalaci√≥n y configuraci√≥n de videovigilancia.",
+        "icon": "Ì≥∑"
+      }
+    ]
+  },
+  {
+    "id": "metal-y-soldadura",
+    "name": "Metal y Soldadura",
+    "subcategories": [
+      {
+        "id": "metal-y-soldadura-estructuras",
+        "name": "Estructuras",
+        "description": "Fabricaci√≥n y montajes met√°licos.",
+        "icon": "ÌøóÔ∏è"
+      },
+      {
+        "id": "metal-y-soldadura-herreria",
+        "name": "Herrer√≠a",
+        "description": "Portones, barandales, protecciones.",
+        "icon": "Ìª°Ô∏è"
+      },
+      {
+        "id": "metal-y-soldadura-tig-mig",
+        "name": "TIG/MIG",
+        "description": "Soldadura especializada en distintos materiales.",
+        "icon": "Ì¥•"
+      },
+      {
+        "id": "metal-y-soldadura-inoxidable",
+        "name": "Inoxidable",
+        "description": "Trabajos en acero inoxidable y acabados.",
+        "icon": "Ì¥©"
+      }
+    ]
+  },
+  {
+    "id": "madera-y-acabados",
+    "name": "Madera y Acabados",
+    "subcategories": [
+      {
+        "id": "madera-y-acabados-closets",
+        "name": "Closets",
+        "description": "Dise√±o e instalaci√≥n de closets a medida.",
+        "icon": "Ì∫™"
+      },
+      {
+        "id": "madera-y-acabados-cocinas-integrales",
+        "name": "Cocinas integrales",
+        "description": "Dise√±o, fabricaci√≥n e instalaci√≥n de cocinas.",
+        "icon": "ÌΩΩÔ∏è"
+      },
+      {
+        "id": "madera-y-acabados-puertas",
+        "name": "Puertas",
+        "description": "Colocaci√≥n y ajuste de puertas interiores y exteriores.",
+        "icon": "Ì∫™"
+      },
+      {
+        "id": "madera-y-acabados-pisos-de-madera",
+        "name": "Pisos de madera",
+        "description": "Instalaci√≥n y mantenimiento de pisos de madera.",
+        "icon": "Ì∫µ"
+      }
+    ]
+  },
+  {
+    "id": "acabados-y-pisos",
+    "name": "Acabados y Pisos",
+    "subcategories": [
+      {
+        "id": "acabados-y-pisos-azulejos-y-porcelanatos",
+        "name": "Azulejos y porcelanatos",
+        "description": "Colocaci√≥n de pisos y recubrimientos cer√°micos.",
+        "icon": "Ì∑±"
+      },
+      {
+        "id": "acabados-y-pisos-pisos-vinilicos",
+        "name": "Pisos vin√≠licos",
+        "description": "Instalaci√≥n de vinil, SPC, PVC.",
+        "icon": "Ì≥è"
+      },
+      {
+        "id": "acabados-y-pisos-pulido-y-sellado",
+        "name": "Pulido y sellado",
+        "description": "Pulido de concreto, m√°rmol y sellados.",
+        "icon": "Ì∑¥"
+      }
+    ]
+  },
+  {
+    "id": "vidrio-y-canceleria",
+    "name": "Vidrio y Canceler√≠a",
+    "subcategories": [
+      {
+        "id": "vidrio-y-canceleria-canceles-de-bano",
+        "name": "Canceles de ba√±o",
+        "description": "Instalaci√≥n y mantenimiento.",
+        "icon": "Ì∫ø"
+      },
+      {
+        "id": "vidrio-y-canceleria-ventanas",
+        "name": "Ventanas",
+        "description": "Vidrio templado y aluminio.",
+        "icon": "Ì∫ü"
+      }
+    ]
+  },
+  {
+    "id": "seguridad-y-cercos",
+    "name": "Seguridad y Cercos",
+    "subcategories": [
+      {
+        "id": "seguridad-y-cercos-cercas-y-portones",
+        "name": "Cercas y portones",
+        "description": "Soldado y automatizaci√≥n.",
+        "icon": "Ì∫ß"
+      },
+      {
+        "id": "seguridad-y-cercos-mallas-y-alambre",
+        "name": "Mallas y alambre",
+        "description": "Per√≠metro y contenci√≥n.",
+        "icon": "Ì∑±"
+      }
+    ]
+  },
+  {
+    "id": "automotriz",
+    "name": "Automotriz",
+    "subcategories": [
+      {
+        "id": "automotriz-mecanica",
+        "name": "Mec√°nica",
+        "description": "Mec√°nica general.",
+        "icon": "Ì¥ß"
+      },
+      {
+        "id": "automotriz-hojalateria-y-pintura",
+        "name": "Hojalater√≠a y pintura",
+        "description": "Reparaci√≥n y pintura automotriz.",
+        "icon": "Ì∫ó"
+      },
+      {
+        "id": "automotriz-aire-acondicionado",
+        "name": "Aire acondicionado",
+        "description": "Servicio de clima automotriz.",
+        "icon": "‚ùÑÔ∏è"
+      }
+    ]
+  },
+  {
+    "id": "jardineria-y-exteriores",
+    "name": "Jardiner√≠a y Exteriores",
+    "subcategories": [
+      {
+        "id": "jardineria-y-exteriores-paisajismo",
+        "name": "Paisajismo",
+        "description": "Dise√±o y ejecuci√≥n de exteriores.",
+        "icon": "Ìº≥"
+      },
+      {
+        "id": "jardineria-y-exteriores-riego",
+        "name": "Riego",
+        "description": "Sistemas de riego y bombeo.",
+        "icon": "Ì≤ß"
+      }
+    ]
+  },
+  {
+    "id": "fumigacion-y-sanitizacion",
+    "name": "Fumigaci√≥n y Sanitizaci√≥n",
+    "subcategories": [
+      {
+        "id": "fumigacion-y-sanitizacion-control-de-plagas",
+        "name": "Control de plagas",
+        "description": "Tratamientos residenciales y comerciales.",
+        "icon": "Ì∞ú"
+      },
+      {
+        "id": "fumigacion-y-sanitizacion-sanitizacion",
+        "name": "Sanitizaci√≥n",
+        "description": "Nebulizaci√≥n y desinfecci√≥n de espacios.",
+        "icon": "Ì∑¥"
+      }
+    ]
+  },
+  {
+    "id": "limpieza",
+    "name": "Limpieza",
+    "subcategories": [
+      {
+        "id": "limpieza-domestica",
+        "name": "Limpieza dom√©stica",
+        "description": "Servicio por evento u horas.",
+        "icon": "Ì∑Ω"
+      },
+      {
+        "id": "limpieza-post-obra",
+        "name": "Limpieza post-obra",
+        "description": "Finales de obra y profundidad.",
+        "icon": "Ì∑π"
+      }
+    ]
+  }
+]

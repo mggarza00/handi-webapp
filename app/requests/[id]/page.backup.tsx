@@ -1,5 +1,4 @@
 "use client";
-import * as React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -167,23 +166,9 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
             </div>
           )}
 
-    {isOwner && data && (
-      <div className="pt-6">
-        <h2 className="text-lg font-semibold mb-2">Prospectos (matching automático)</h2>
-        <Prospects requestId={data.id} />
-      </div>
-    )}
-
           {/* Postulaciones recibidas (solo dueño) */}
           {isOwner && (
             <div className="pt-4">
-    {isOwner && data && (
-      <div className="pt-6">
-        <h2 className="text-lg font-semibold mb-2">Prospectos (matching automático)</h2>
-        <Prospects requestId={data.id} />
-      </div>
-    )}
-
               <h2 className="text-lg font-semibold mb-2">Postulaciones recibidas ({apps.length})</h2>
               {apps.length === 0 && <p className="text-gray-600 text-sm">Aún no hay postulaciones.</p>}
               <ul className="space-y-3">
@@ -210,46 +195,5 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
         </div>
       )}
     </div>
-  );
-}
-
-function Prospects({ requestId }: { requestId: string }) {
-  const [items, setItems] = React.useState<any[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [err, setErr] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const r = await fetch(`/api/requests/${requestId}/prospects`).then(res => res.json());
-        if (!r.ok) throw new Error(r.error || "No se pudieron cargar prospectos");
-        if (alive) setItems(r.data || []);
-      } catch (e:any) {
-        if (alive) setErr(e?.message || "Error de red");
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [requestId]);
-
-  if (loading) return <p>Cargando prospectos…</p>;
-  if (err) return <p className="text-red-600">{err}</p>;
-  if (!items.length) return <p className="text-gray-600 text-sm">Aún no hay prospectos para esta categoría.</p>;
-
-  return (
-    <ul className="space-y-3">
-      {items.map((p) => (
-        <li key={p.id} className="border rounded p-3 flex items-center justify-between">
-          <div>
-            <div className="font-medium">{p.headline || "Profesional"}</div>
-            <div className="text-sm text-gray-600">Categorías: {p.categories.join(", ")}</div>
-            <div className="text-sm">Rating: {p.rating ?? "—"}</div>
-          </div>
-          <a href={`/profiles/${p.id}`} className="px-3 py-1 rounded bg-black text-white">Ver perfil</a>
-        </li>
-      ))}
-    </ul>
   );
 }

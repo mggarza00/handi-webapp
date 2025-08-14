@@ -1,61 +1,100 @@
-import { NextResponse } from "next/server";
-import { appendRequest, listRequests } from "@/lib/sheets";
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-function bad(msg: string, status = 400) {
-  return NextResponse.json({ ok: false, error: msg }, { status });
+export const runtime = "nodejs";
+
+function json(data: unknown, init?: number | ResponseInit) {
+  const res = NextResponse.json(data, init);
+  res.headers.set("Content-Type", "application/json; charset=utf-8");
+  return res;
 }
 
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const limitParam = searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : undefined;
+function getSupabase() {
+  const cookieStore = cookies();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  if (!url || !anon) throw new Error("Faltan NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  return createServerClient(url, anon, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set(name: string, value: string, options: any) {
+        cookieStore.set({ name, value, ...options });
+      },
+      remove(name: string, options: any) {
+        cookieStore.set({ name, value: "", ...options });
+      },
+    },
+  });
+}
 
-    const data = await listRequests(limit);
-    return NextResponse.json({ ok: true, data });
+// GET /api/requests  → lista (RLS aplica: activas + propias)
+// Soporta ?limit= & ?offset=
+export async function GET(req: NextRequest) {
+  try {
+    const supabase = getSupabase();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    // No es estrictamente obligatorio para ver requests activas,
+    // pero lo solicitamos para que RLS permita también "propias".
+    if (!user) {
+      // usuario anónimo: sólo verá activas por política RLS
+    }
+
+    const { searchParams } = new URL(req.url);
+    const limit = Math.max(1, Math.min(50, Number(searchParams.get("limit") ?? 20)));
+    const offset = Math.max(0, Number(searchParams.get("offset") ?? 0));
+
+    const { data, error } = await supabase
+      .from("requests")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) return json({ ok: false, error: error.message }, { status: 400 });
+    return json({ ok: true, data });
   } catch (err: any) {
-    console.error("[/api/requests] GET error", err);
-    return NextResponse.json(
-      { ok: false, error: err?.message ?? "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return json({ ok: false, error: err?.message ?? "Error inesperado" }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+// POST /api/requests → crear (RLS: created_by debe ser el usuario actual)
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => null);
-    if (!body || typeof body !== "object") return bad("INVALID_JSON_BODY");
+    const supabase = getSupabase();
 
-    const required = ["title", "description", "city", "category", "subcategory", "created_by"];
-    const missing = required.filter((k) => !body[k]);
-    if (missing.length) return bad(`MISSING_FIELDS: ${missing.join(", ")}`);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return json({ ok: false, error: "No autenticado" }, { status: 401 });
 
-    const id = crypto.randomUUID();
-    const now = new Date().toISOString();
+    const body = await req.json();
 
-    const rowData = {
-      id,
-      title: String(body.title),
-      description: String(body.description),
-      city: String(body.city),
-      category: String(body.category),
-      subcategory: String(body.subcategory),
-      budget: body.budget ?? "",
-      required_at: body.required_at ?? "",
-      status: body.status ?? "active",
-      created_by: String(body.created_by),
-      created_at: now,
-      updated_at: now,
+    // Validaciones mínimas
+    const title = String(body?.title ?? "").trim();
+    if (!title) return json({ ok: false, error: "title es requerido" }, { status: 400 });
+
+    const payload = {
+      title,
+      description: body?.description ?? null,
+      city: body?.city ?? null,
+      category: body?.category ?? null,
+      subcategories: Array.isArray(body?.subcategories) ? body.subcategories : [],
+      budget: body?.budget ?? null,
+      required_at: body?.required_at ?? null,
+      attachments: Array.isArray(body?.attachments) ? body.attachments : [],
+      created_by: user.id, // ¡Clave para pasar RLS!
     };
 
-    await appendRequest(rowData);
-    return NextResponse.json({ ok: true, id });
+    const { data, error } = await supabase
+      .from("requests")
+      .insert(payload)
+      .select("*")
+      .single();
+
+    if (error) return json({ ok: false, error: error.message }, { status: 400 });
+    return json({ ok: true, data }, { status: 201 });
   } catch (err: any) {
-    console.error("[/api/requests] POST error", err);
-    return NextResponse.json(
-      { ok: false, error: err?.message ?? "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return json({ ok: false, error: err?.message ?? "Error inesperado" }, { status: 500 });
   }
 }

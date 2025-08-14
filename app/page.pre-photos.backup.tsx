@@ -37,9 +37,7 @@ export default function Page() {
       </header>
 
       {/* Hero */}
-      <section className="relative relative overflow-hidden border-b border-slate-200 bg-white">
-  <div className="absolute inset-0 z-0" style={{backgroundImage: 'none', backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat"}}></div>
-
+      <section className="relative overflow-hidden border-b border-slate-200 bg-white">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-white to-white" />
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
@@ -115,7 +113,7 @@ export default function Page() {
 
       {/* Features */}
       <section className="border-y border-slate-200 bg-white" id="como-funciona">
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
+        <div className="mx-auto max-w-5xl px-4 py-12">
           <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">Cómo funciona</h2>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
@@ -140,7 +138,7 @@ export default function Page() {
 
       {/* Steps */}
       <section className="bg-slate-50">
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
+        <div className="mx-auto max-w-5xl px-4 py-12">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <StepCard step="1" title="Publica lo que necesitas" desc="Describe tu trabajo, presupuesto y fecha." />
             <StepCard step="2" title="Recibe postulaciones" desc="Compara perfiles, reseñas y cotizaciones." />
@@ -308,21 +306,3 @@ function PinIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

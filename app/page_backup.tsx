@@ -3,16 +3,16 @@
 import Link from "next/link";
 import Image from "next/image";
 
+/** URLs de fotos (cámbialas tras tu visto bueno) */
+const IMG_BG_CATEGORIES = "https://images.unsplash.com/photo-1707343847741-5e9a95a11b46?q=80&w=1600&auto=format&fit=crop"; // herramientas/hogar tenue
+const IMG_STEP_FIND    = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"; // mapa/ubicación
+const IMG_STEP_VERIFY  = "https://images.unsplash.com/photo-1516383607781-913a19294fd1?q=80&w=1200&auto=format&fit=crop"; // documentos/ID
+const IMG_STEP_REVIEWS = "https://images.unsplash.com/photo-1551836022-aadb801c60be?q=80&w=1200&auto=format&fit=crop"; // estrellas/reseñas
+
 export default function Page() {
   const categories = [
-    "Electricidad",
-    "Plomería",
-    "Albañilería",
-    "Pintura",
-    "Carpintería",
-    "Jardinería",
-    "Aire acondicionado",
-    "Limpieza",
+    "Electricidad","Plomería","Albañilería","Pintura",
+    "Carpintería","Jardinería","Aire acondicionado","Limpieza",
   ];
 
   return (
@@ -36,10 +36,8 @@ export default function Page() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative relative overflow-hidden border-b border-slate-200 bg-white">
-  <div className="absolute inset-0 z-0" style={{backgroundImage: 'none', backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat"}}></div>
-
+      {/* Hero con video (igual que antes) */}
+      <section className="relative overflow-hidden border-b border-slate-200 bg-white">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-white to-white" />
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
@@ -54,27 +52,18 @@ export default function Page() {
               Encuentra profesionales confiables cerca de ti o publica tus servicios para que nuevos clientes te encuentren.
             </p>
             <div className="flex flex-col items-stretch gap-3 sm:flex-row">
-              <Link
-                href="/search"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-black"
-              >
+              <Link href="/search" className="group inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-black">
                 <MagnifierIcon className="h-4 w-4" />
                 Quiero contratar un profesional
               </Link>
-              <Link
-                href="/postulate"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50"
-              >
+              <Link href="/postulate" className="group inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-50">
                 <IdCardIcon className="h-4 w-4" />
                 Quiero ofrecer mis servicios
               </Link>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              ¿Ya tienes cuenta? Ve a tu perfil o revisa tus solicitudes en el menú.
-            </p>
+            <p className="mt-3 text-xs text-slate-500">¿Ya tienes cuenta? Ve a tu perfil o revisa tus solicitudes en el menú.</p>
           </div>
 
-          {/* Video */}
           <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
             <div className="aspect-video w-full">
               <iframe
@@ -90,18 +79,24 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Quick ask */}
-      <section className="bg-slate-50">
-        <div className="mx-auto max-w-5xl px-4 py-10">
+      {/* ¿Qué necesitas hoy? con fondo tenue */}
+      <section className="relative bg-slate-50" id="categorias">
+        <div className="absolute inset-0 -z-10">
+          <Image src="/images/bg-categorias.jpg" alt="" fill className="object-cover opacity-5" />
+          <div className="absolute inset-0 bg-slate-50/70" />
+        </div>
+
+        <div className="mx-auto max-w-5xl px-4 py-12">
           <h2 className="mb-2 text-xl font-semibold tracking-tight">¿Qué necesitas hoy?</h2>
           <p className="mb-5 text-sm text-slate-600">Elige una categoría para empezar rápido o explora todas.</p>
 
-          <div id="categorias" className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <Link
                 key={c}
                 href={`/search?category=${encodeURIComponent(c)}`}
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
+                aria-label={`Buscar profesionales de ${c}`}
               >
                 {c}
               </Link>
@@ -113,23 +108,26 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Cómo funciona con imágenes tenues */}
       <section className="border-y border-slate-200 bg-white" id="como-funciona">
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
+        <div className="mx-auto max-w-5xl px-4 py-12">
           <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">Cómo funciona</h2>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <FeatureCard
+              imageSrc={IMG_STEP_FIND}
               icon={<PinIcon className="h-5 w-5" />}
               title="Encuentra cerca de ti"
               desc="Filtra por ciudad, categoría y disponibilidad."
             />
             <FeatureCard
+              imageSrc={IMG_STEP_VERIFY}
               icon={<ShieldIcon className="h-5 w-5" />}
               title="Perfiles verificados"
               desc="Revisamos referencias, documentos y desempeño."
             />
             <FeatureCard
+              imageSrc={IMG_STEP_REVIEWS}
               icon={<StarIcon className="h-5 w-5" />}
               title="Calificaciones reales"
               desc="Retroalimentación de contratantes como tú."
@@ -140,7 +138,7 @@ export default function Page() {
 
       {/* Steps */}
       <section className="bg-slate-50">
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
+        <div className="mx-auto max-w-5xl px-4 py-12">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <StepCard step="1" title="Publica lo que necesitas" desc="Describe tu trabajo, presupuesto y fecha." />
             <StepCard step="2" title="Recibe postulaciones" desc="Compara perfiles, reseñas y cotizaciones." />
@@ -150,7 +148,7 @@ export default function Page() {
       </section>
 
       {/* Trust badges */}
-      <section className="border-t border-slate-200 bg-white">
+      <section className="border-t border-slate-200 bg-white" id="preguntas">
         <div className="mx-auto max-w-5xl px-4 py-10">
           <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
             <div className="text-center md:text-left">
@@ -185,7 +183,7 @@ export default function Page() {
                 <li><Link href="/privacy" className="hover:text-slate-900">Aviso de privacidad</Link></li>
               </ul>
             </div>
-            <div id="preguntas">
+            <div>
               <p className="mb-2 text-sm font-medium">Soporte</p>
               <ul className="space-y-1 text-sm text-slate-600">
                 <li>WhatsApp: <a href="https://wa.me/5218181611335" className="hover:text-slate-900">+52 1 81 8161 1335</a></li>
@@ -193,21 +191,33 @@ export default function Page() {
               </ul>
             </div>
           </div>
-          <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500"> {new Date().getFullYear()} Handee. Todos los derechos reservados.</div>
+          <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500">© {new Date().getFullYear()} Handee. Todos los derechos reservados.</div>
         </div>
       </footer>
     </main>
   );
 }
 
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+/** Componentes */
+function FeatureCard({
+  icon, title, desc, imageSrc,
+}: {
+  icon: React.ReactNode; title: string; desc: string; imageSrc?: string;
+}) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white">
-        {icon}
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {imageSrc ? (
+        <div className="absolute inset-0 -z-10">
+          <Image src={imageSrc} alt="" fill className="object-cover opacity-5" />
+        </div>
+      ) : null}
+      <div className="p-6">
+        <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white">
+          {icon}
+        </div>
+        <h3 className="mb-1 font-semibold text-slate-900">{title}</h3>
+        <p className="text-sm text-slate-600">{desc}</p>
       </div>
-      <h3 className="mb-1 font-semibold text-slate-900">{title}</h3>
-      <p className="text-sm text-slate-600">{desc}</p>
     </div>
   );
 }
@@ -222,106 +232,42 @@ function StepCard({ step, title, desc }: { step: string; title: string; desc: st
   );
 }
 
-/* --- Inline Icons (no external deps) --- */
+/* --- Inline Icons --- */
 function MagnifierIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   );
 }
 function IdCardIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <line x1="7" y1="8" x2="13" y2="8" />
-      <circle cx="8.5" cy="14" r="2" />
-      <path d="M12 16c0-1.657 1.79-3 4-3" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" /><line x1="7" y1="8" x2="13" y2="8" /><circle cx="8.5" cy="14" r="2" /><path d="M12 16c0-1.657 1.79-3 4-3" />
     </svg>
   );
 }
 function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
 }
 function StarIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9 12 2" />
     </svg>
   );
 }
 function PinIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M12 21s-6-5.686-6-10a6 6 0 1 1 12 0c0 4.314-6 10-6 10z" />
-      <circle cx="12" cy="11" r="2.5" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12 21s-6-5.686-6-10a6 6 0 1 1 12 0c0 4.314-6 10-6 10z" /><circle cx="12" cy="11" r="2.5" />
     </svg>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

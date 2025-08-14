@@ -37,9 +37,7 @@ export default function Page() {
       </header>
 
       {/* Hero */}
-      <section className="relative relative overflow-hidden border-b border-slate-200 bg-white">
-  <div className="absolute inset-0 z-0" style={{backgroundImage: 'none', backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat"}}></div>
-
+      <section className="relative overflow-hidden border-b border-slate-200 bg-white">
         <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-100 via-white to-white" />
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
@@ -308,9 +306,6 @@ function PinIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
-
-
-
 
 
 
