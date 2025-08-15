@@ -9,3 +9,11 @@ pnpm-debug.log*
 .DS_Store
 .env.local
 /generated/prisma
+.env*
+*.key
+*.pem
+node_modules/
+.next/
+*.log
+*.tar.gz
+supabase/
