@@ -1,52 +1,61 @@
-// app/api/users/[id]/role/route.ts
 import { NextResponse } from "next/server";
-import { findUserRow, readUser, writeUser } from "@/lib/usersMapper";
+import { z } from "zod";
 
-export const runtime = "nodejs";
-export const revalidate = 0;
+import { getSupabaseServer } from "@/lib/_supabase-server";
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+const IdParam = z.string().uuid();
+const BodySchema = z.object({ role: z.enum(["client", "pro"]) });
+
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
+export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   try {
-    const body = (await req.json().catch(() => ({}))) as { newRole?: "cliente" | "profesional" };
-    const newRole = body?.newRole;
-    if (newRole !== "cliente" && newRole !== "profesional") {
-      return NextResponse.json({ ok: false, error: "INVALID_ROLE" }, { status: 400 });
+    const supabase = getSupabaseServer();
+    const { data: auth } = await supabase.auth.getUser();
+    const me = auth.user?.id;
+    if (!me) {
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
     }
 
-    const userId = (params.id || "").trim();
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "MISSING_USER_ID" }, { status: 400 });
+    const id = IdParam.safeParse(ctx.params.id);
+    if (!id.success) {
+      return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 400, headers: JSONH });
     }
 
-    const rowIndex = await findUserRow(userId);
-    if (rowIndex == null || rowIndex < 2) {
-      return NextResponse.json({ ok: false, error: "USER_NOT_FOUND" }, { status: 404 });
+    if (me !== id.data) {
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
     }
 
-    const user = await readUser(rowIndex);
-    const allowed = String(user.roles_permitidos || "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-
-    // Solo permite profesional si está autorizado
-    if (newRole === "profesional" && !allowed.includes("profesional")) {
-      return NextResponse.json({ ok: false, error: "ROLE_NOT_ALLOWED" }, { status: 403 });
+    const ct = (req.headers.get("content-type") || "").toLowerCase();
+    if (!ct.includes("application/json")) {
+      return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
     }
 
-    await writeUser(rowIndex, { rol_actual: newRole });
+    const body = await req.json();
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: "VALIDATION_ERROR", detail: parsed.error.issues.map(i => i.message) },
+        { status: 400, headers: JSONH },
+      );
+    }
 
-    return NextResponse.json({
-      ok: true,
-      user: { ...user, rol_actual: newRole },
-    });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL_ERROR", details: err?.message },
-      { status: 500 }
-    );
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ role: parsed.data.role })
+      .eq("id", id.data)
+      .select("id, role")
+      .single();
+
+    if (error) {
+      const status = /permission|rls/i.test(error.message) ? 403 : 400;
+      return NextResponse.json({ ok: false, error: "UPDATE_FAILED", detail: error.message }, { status, headers: JSONH });
+    }
+
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "UNKNOWN";
+    const status = (err as { status?: number })?.status ?? 500;
+    return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", detail: msg }, { status, headers: JSONH });
   }
 }

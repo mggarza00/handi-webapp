@@ -1,55 +1,88 @@
 import { NextResponse } from "next/server";
-import { getUserOrThrow } from "@/lib/supabase-server";
+import { z } from "zod";
 
-const allowed = ["active","in_process","completed","cancelled"] as const;
-type ReqStatus = (typeof allowed)[number];
+import { getSupabaseServer } from "@/lib/_supabase-server";
 
-/**
- * PATCH /api/requests/:id
- * Actualiza el status de una solicitud. RLS asegura que solo el dueño puede actualizar.
- * Body: { status: "active" | "in_process" | "completed" | "cancelled" }
- */
-export async function PATCH(req: Request, ctx: { params: { id: string } }) {
-  try {
-    const { supabase, user } = await getUserOrThrow();
-    const body = await req.json().catch(() => ({} as any));
-    const status: ReqStatus = body?.status;
+const IdParam = z.string().uuid();
+const PatchSchema = z.object({
+  status: z.enum(["active", "in_process", "completed", "cancelled"]).optional(),
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(10_000).optional(),
+  city: z.string().max(120).optional(),
+  category: z.string().max(120).optional(),
+  subcategories: z.array(z.string()).max(6).optional(),
+  budget: z.number().nonnegative().nullable().optional(),
+  required_at: z.string().datetime().optional(),
+});
 
-    if (!allowed.includes(status)) {
-      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
-    }
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-    const { data, error } = await supabase
-      .from("requests")
-      .update({ status })
-      .eq("id", ctx.params.id)
-      .eq("created_by", user.id) // extra safety además de RLS
-      .select()
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, request: data });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function GET(_: Request, ctx: { params: { id: string } }) {
+  const id = IdParam.safeParse(ctx.params.id);
+  if (!id.success) {
+    return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 400, headers: JSONH });
   }
+
+  const supabase = getSupabaseServer();
+  const { data, error } = await supabase.from("requests").select("*").eq("id", id.data).single();
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: "NOT_FOUND", detail: error.message }, { status: 404, headers: JSONH });
+  }
+
+  return NextResponse.json({ ok: true, data }, { headers: JSONH });
 }
 
-/**
- * GET /api/requests/:id
- * Devuelve la solicitud si es activa o si es del usuario autenticado (RLS lo controla).
- */
-export async function GET(_req: Request, ctx: { params: { id: string } }) {
+export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   try {
-    const { supabase } = await getUserOrThrow(); // si no hay sesión, 401
+    const supabase = getSupabaseServer();
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth.user?.id;
+    if (!userId) {
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+    }
+
+    const id = IdParam.safeParse(ctx.params.id);
+    if (!id.success) {
+      return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 400, headers: JSONH });
+    }
+
+    const ct = (req.headers.get("content-type") || "").toLowerCase();
+    if (!ct.includes("application/json")) {
+      return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
+    }
+
+    const body = await req.json();
+    const parsed = PatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: "VALIDATION_ERROR", detail: parsed.error.issues.map(i => i.message) },
+        { status: 400, headers: JSONH },
+      );
+    }
+
+    const patch: Record<string, unknown> = { ...parsed.data };
+    if (parsed.data.required_at) patch.required_at = parsed.data.required_at.split("T")[0];
+
     const { data, error } = await supabase
       .from("requests")
+      .update(patch)
+      .eq("id", id.data)
       .select("*")
-      .eq("id", ctx.params.id)
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, request: data });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (error) {
+      const status = /permission|rls/i.test(error.message) ? 403 : 400;
+      return NextResponse.json(
+        { ok: false, error: "UPDATE_FAILED", detail: error.message, user_id: userId },
+        { status, headers: JSONH },
+      );
+    }
+
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "UNKNOWN";
+    const status = (err as { status?: number })?.status ?? 500;
+    return NextResponse.json({ ok: false, error: "INTERNAL_ERROR", detail: msg }, { status, headers: JSONH });
   }
 }

@@ -1,25 +1,21 @@
-﻿// app/api/me/route.ts
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase-server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 export async function GET() {
-  const supabase = supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = createRouteHandlerClient({ cookies });
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ ok: false, error: "NO_SESSION" }, { status: 401 });
+  if (error || !user) {
+    return NextResponse.json({ ok: false, user: null }, { status: 401 });
   }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
   return NextResponse.json({
     ok: true,
-    user: { id: user.id, email: user.email },
-    profile,
-    profileError: error?.message ?? null
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.user_metadata?.full_name ?? null,
+      avatar_url: user.user_metadata?.avatar_url ?? null,
+    },
   });
 }

@@ -32,14 +32,15 @@ export default function Jobs() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error');
       setItems(json.data || []);
-    } catch (e: any) {
-      setErr(e.message);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : (typeof e === "string" ? e : "Error desconocido"));
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [q, city]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+useEffect(() => { load(); }, [q, city]);
 
   return (
     <div className="space-y-6">

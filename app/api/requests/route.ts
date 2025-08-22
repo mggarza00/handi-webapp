@@ -1,117 +1,86 @@
 import { NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabase/server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-type ReqBody = {
-  title: string;
-  description?: string;
-  city?: string;
-  category?: string;
-  subcategories?: Array<{ id: string; name: string }>|string[]|null;
-  budget?: number|null;
-  required_at?: string|null; // YYYY-MM-DD
-  attachments?: Array<{ url: string; mime?: string; size?: number }>|null;
-};
+import { RequestCreateSchema } from "@/lib/validators/requests";
 
-function bad(msg: string, code = 400) {
-  return NextResponse.json({ ok: false, error: msg }, { status: code, headers: { "Content-Type": "application/json; charset=utf-8" } });
+function getSupabase() {
+  const cookieStore = cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
 }
 
-export async function GET() {
-  const supabase = getSupabaseServer();
+// GET /api/requests?mine=1&status=active&city=Monterrey
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const mine = searchParams.get("mine") === "1";
+  const status = searchParams.get("status") ?? undefined;
+  const city = searchParams.get("city") ?? undefined;
 
-  // RLS ya limita: (status='active') OR (created_by=auth.uid())
-  const { data, error } = await supabase
-    .from("requests")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(50);
+  const supabase = getSupabase();
+  const {
+    data: { user },
+    error: userErr,
+  } = await supabase.auth.getUser();
 
-  if (error) {
-    return bad(`DB_ERROR: ${error.message}`, 500);
-  }
+  if (userErr) return NextResponse.json({ error: userErr.message }, { status: 401 });
 
-  return NextResponse.json({ ok: true, data }, { headers: { "Content-Type": "application/json; charset=utf-8" } });
+  let query = supabase.from("requests").select("*").order("created_at", { ascending: false }).limit(50);
+
+  if (mine && user?.id) query = query.eq("created_by", user.id);
+  if (status) query = query.eq("status", status);
+  if (city) query = query.eq("city", city);
+
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ ok: true, data });
 }
 
+// POST /api/requests
 export async function POST(req: Request) {
-  if (req.headers.get("content-type")?.toLowerCase().includes("application/json") !== true) {
-    return bad("CONTENT_TYPE_REQUIRED: application/json; charset=utf-8");
-  }
+  const supabase = getSupabase();
+  const {
+    data: { user },
+    error: authErr,
+  } = await supabase.auth.getUser();
+  if (authErr || !user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
-  const supabase = getSupabaseServer();
-
-  // Requiere sesión
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth?.user;
-  if (!user?.id) {
-    return bad("UNAUTHORIZED: inicia sesión", 401);
-  }
-
-  let body: ReqBody;
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
-    return bad("INVALID_JSON");
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
 
-  // Validación mínima
-  const title = (body.title || "").toString().trim();
-  if (title.length < 4) return bad("TITLE_MIN_4");
-  const description = (body.description ?? "").toString().trim();
-  const city = (body.city ?? "").toString().trim();
-  const category = (body.category ?? "").toString().trim();
-
-  // Normalización de subcategorías
-  let subcategories: any = null;
-  if (Array.isArray(body.subcategories)) {
-    // admitir string[] o {id,name}[]
-    subcategories = body.subcategories.map((s: any) =>
-      typeof s === "string" ? { id: s, name: s } : { id: String(s.id ?? s.name ?? ""), name: String(s.name ?? s.id ?? "") }
-    );
+  const parsed = RequestCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Validación", details: parsed.error.flatten() }, { status: 422 });
   }
 
-  // Budget numérico opcional
-  let budget: number|null = null;
-  if (body.budget !== undefined && body.budget !== null) {
-    const n = Number(body.budget);
-    if (Number.isNaN(n) || n < 0) return bad("BUDGET_INVALID");
-    budget = n;
-  }
-
-  // Fecha requerida opcional (YYYY-MM-DD)
-  let required_at: string|null = null;
-  if (body.required_at) {
-    const iso = String(body.required_at);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return bad("REQUIRED_AT_FORMAT_YYYY_MM_DD");
-    required_at = iso;
-  }
-
-  // Attachments opcional
-  const attachments = Array.isArray(body.attachments) ? body.attachments : null;
-
-  const payload = {
-    title,
-    description: description || null,
-    city: city || null,
-    category: category || null,
-    subcategories: subcategories ?? null,
-    budget,
-    required_at,
-    attachments: attachments ?? null,
-    created_by: user.id, // RLS exige que coincida con auth.uid()
-    status: "active" as const,
+  const payload = parsed.data;
+  const insert = {
+    title: payload.title,
+    description: payload.description,
+    city: payload.city,
+    category: payload.category,
+    subcategories: payload.subcategories ?? [],
+    budget: payload.budget ?? null,
+    required_at: payload.required_at ?? null,
+    attachments: payload.attachments ?? [],
+    created_by: user.id, // RLS exige que sea = auth.uid()
   };
 
-  const { data, error } = await supabase
-    .from("requests")
-    .insert(payload)
-    .select("*")
-    .single();
+  const { data, error } = await supabase.from("requests").insert(insert).select("*").single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  if (error) {
-    // Errores típicos RLS/constraints
-    return bad(`DB_ERROR: ${error.message}`, 400);
-  }
-
-  return NextResponse.json({ ok: true, data }, { status: 201, headers: { "Content-Type": "application/json; charset=utf-8" } });
+  return NextResponse.json({ ok: true, data }, { status: 201 });
 }

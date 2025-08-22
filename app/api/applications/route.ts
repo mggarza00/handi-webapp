@@ -1,48 +1,83 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { supabaseServer, getUserOrThrow } from "@/lib/supabase-server";
+import type { PostgrestError } from "@supabase/supabase-js";
 
-const applySchema = z.object({
-  requestId: z.string().uuid(),
-  coverLetter: z.string().optional(),
-  proposedBudget: z.number().optional(),
+import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
+
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
+const createSchema = z.object({
+  request_id: z.string().uuid(),
+  note: z.string().max(2000).optional().nullable(),
 });
+
+export async function GET() {
+  try {
+    const { supabase, user } = await getUserOrThrow();
+
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("professional_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return new NextResponse(
+        JSON.stringify({ ok: false, error: "LIST_FAILED", detail: error.message }),
+        { status: 500, headers: JSONH },
+      );
+    }
+
+    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+  } catch (e) {
+    const err = e as ApiError;
+    const status = err?.status ?? 401;
+    return new NextResponse(JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }), {
+      status,
+      headers: JSONH,
+    });
+  }
+}
 
 export async function POST(req: Request) {
   try {
-    const user = await getUserOrThrow();
-    const body = await req.json();
-    const parsed = applySchema.parse(body);
-
-    const supabase = supabaseServer();
-
-    // Buscar Professional del usuario
-    const { data: prof, error: e1 } = await supabase
-      .from("professionals")
-      .select("id")
-      .eq("profile_id", user.id)
-      .single();
-
-    if (e1 || !prof?.id) {
-      return NextResponse.json({ ok: false, error: "PROFESSIONAL_NOT_FOUND" }, { status: 404 });
+    const ct = (req.headers.get("content-type") || "").toLowerCase();
+    if (!ct.includes("application/json")) {
+      return new NextResponse(JSON.stringify({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }), {
+        status: 415,
+        headers: JSONH,
+      });
     }
+
+    const { supabase, user } = await getUserOrThrow();
+    const body = createSchema.parse(await req.json());
 
     const { data, error } = await supabase
       .from("applications")
       .insert({
-        request_id: parsed.requestId,
-        professional_id: prof.id,
-        cover_letter: parsed.coverLetter ?? null,
-        proposed_budget: parsed.proposedBudget ?? null,
-        status: "pending",
+        request_id: body.request_id,
+        professional_id: user.id,
+        note: body.note ?? null,
       })
       .select()
       .single();
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
-    const status = e?.status ?? 500;
-    return NextResponse.json({ ok: false, error: e?.message ?? "INTERNAL_ERROR" }, { status });
+    if (error) {
+      const pgErr = error as PostgrestError;
+      const code = pgErr.code === "23505" ? "ALREADY_APPLIED" : "CREATE_FAILED";
+      return new NextResponse(JSON.stringify({ ok: false, error: code, detail: pgErr.message }), {
+        status: 400,
+        headers: JSONH,
+      });
+    }
+
+    return NextResponse.json({ ok: true, data }, { status: 201, headers: JSONH });
+  } catch (e) {
+    const err = e as ApiError;
+    const status = err?.status ?? 401;
+    return new NextResponse(JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }), {
+      status,
+      headers: JSONH,
+    });
   }
 }

@@ -1,55 +1,41 @@
 import { cookies } from "next/headers";
-import { createServerClient as createSSRClient } from "@supabase/ssr";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { createServerClient as _createClient, type CookieOptions } from "@supabase/ssr";
+import type { Session, User } from "@supabase/supabase-js";
 
-/**
- * Cliente SSR con cookies (Next.js App Router).
- * Requiere NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY.
- */
-export function createServerClient(): SupabaseClient {
+/** Wrapper de 0 args para RSC/route handlers con cookies SSR */
+export function createServerClient() {
   const cookieStore = cookies();
-  const supabase = createSSRClient(
+  return _createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch { /* no-op en entornos edge sin mutación */ }
-        },
-        remove(name: string, options: any) {
-          try {
-            cookieStore.set({ name, value: "", ...options });
-          } catch { /* no-op */ }
-        },
+        get(name: string) { return cookieStore.get(name)?.value; },
+        set(name: string, value: string, options: CookieOptions) { cookieStore.set({ name, value, ...options }); },
+        remove(name: string, options: CookieOptions) { cookieStore.set({ name, value: "", ...options, expires: new Date(0) }); },
       },
     }
   );
-  return supabase as unknown as SupabaseClient;
 }
 
-/** Alias legacy: varios archivos importan esto. */
-export const supabaseServer = () => createServerClient();
-
-/** Alias legacy: algunos archivos importan este nombre. */
+/** Aliases de compatibilidad */
+export const getSupabaseServerClient = createServerClient;
+export const _supabaseServer = createServerClient;
 export const createSupabaseServerClient = createServerClient;
 
-/**
- * Devuelve user (o lanza si no hay sesión). Útil en rutas API.
- * Uso:
- *   const { supabase, user } = await getUserOrThrow();
- */
-export async function getUserOrThrow(s?: SupabaseClient): Promise<{ supabase: SupabaseClient; user: User; }> {
-  const supabase = s ?? createServerClient();
+/** Sesión/usuario */
+export async function getSession(): Promise<Session | null> {
+  const supabase = createServerClient();
+  const { data } = await supabase.auth.getSession();
+  return data.session ?? null;
+}
+
+/** NUEVO: retorna { supabase, user } para los handlers que lo desestructuran */
+export async function getUserOrThrow(): Promise<{ supabase: ReturnType<typeof createServerClient>; user: User }> {
+  const supabase = createServerClient();
   const { data, error } = await supabase.auth.getUser();
-  const user = data?.user;
-  if (error || !user) {
-    // Lanzamos Error simple; las rutas pueden capturarlo y responder 401.
-    throw new Error("Unauthorized");
-  }
+  if (error) throw error;
+  const user = data.user;
+  if (!user) throw new Error("UNAUTHORIZED");
   return { supabase, user };
 }

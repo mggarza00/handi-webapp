@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Search, Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { Button } from "@/components/ui/button";
 
 export default function Navbar({ onOpenCommand }: { onOpenCommand: () => void }) {
   const { theme, setTheme } = useTheme();

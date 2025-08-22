@@ -1,35 +1,35 @@
 import { NextResponse } from "next/server";
-import { findUserRow, writeUser } from "@/lib/usersMapper";
-import { logError } from "@/lib/log";
 import { z } from "zod";
 
-export async function PATCH(req: Request) {
+import { supabaseServer, getUserOrThrow } from "@/lib/_supabase-server";
+import { getErrorMessage } from "@/lib/errors";
+
+const BodySchema = z.object({
+  application_id: z.string().uuid(),
+  action: z.enum(["accept", "reject", "complete"]),
+});
+
+export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const schema = z.object({
-      userId: z.string().min(1, "userId is required"),
-      step: z.number().int().min(0, "step must be >= 0"),
-    });
-    // Permitir step como string numérico
-    const parsedStep = typeof body.step === 'string' ? Number(body.step) : body.step;
-    const parse = schema.safeParse({ userId: body.userId, step: parsedStep });
-    if (!parse.success) {
-      console.warn("[PATCH /api/professionals/applications/step] Validation error", parse.error.issues);
-      return NextResponse.json({ ok: false, error: parse.error.issues.map((e: any) => e.message) }, { status: 400 });
+    const _supabase = await supabaseServer();
+    await getUserOrThrow(); // valida sesión; RLS protege
+    const json = await req.json().catch(() => ({}));
+    const parsed = BodySchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: "Validation error", issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })) },
+        { status: 400 },
+      );
     }
-    const { userId, step } = parse.data;
-    const rowIndex = await findUserRow(userId);
-    if (!rowIndex || rowIndex < 2) {
-      console.warn(`[PATCH /api/professionals/applications/step] USER_NOT_FOUND for userId=${userId}`);
-      return NextResponse.json({ ok: false, error: "USER_NOT_FOUND" }, { status: 404 });
-    }
-    await writeUser(rowIndex, { application_step: step });
-    return NextResponse.json({ ok: true, step });
-  } catch (err: any) {
-  logError("/api/professionals/applications/step", "PATCH error", err);
+
+    // Nota: sólo dejamos stub para compilar; implementaremos la transición real después.
     return NextResponse.json(
-      { ok: false, error: "INTERNAL_ERROR", details: err?.message },
-      { status: 500 }
+      { ok: false, error: "Not implemented", detail: "Transiciones de estado pendientes (accept/reject/complete)" },
+      { status: 501 },
     );
+  } catch (e: unknown) {
+    const message = getErrorMessage(e);
+    const isAuth = /auth|session|jwt/i.test(message);
+    return NextResponse.json({ ok: false, error: message }, { status: isAuth ? 401 : 500 });
   }
 }

@@ -3,7 +3,7 @@ import { useState } from "react";
 
 export default function DevCreateRequest() {
   const [loading, setLoading] = useState(false);
-  const [resp, setResp] = useState<any>(null);
+  const [resp, setResp] = useState<unknown>(null);
 
   async function create() {
     setLoading(true);

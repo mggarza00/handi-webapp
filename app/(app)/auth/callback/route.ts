@@ -1,12 +1,19 @@
-﻿import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase-server";
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-export async function GET(request: Request) {
-  const supabase = supabaseServer();
-  const { data: { user } } = await supabase.auth.getUser();
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-  const url = new URL(request.url);
-  const redirectTo = url.searchParams.get("redirect_to") ?? "/";
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
 
-  return NextResponse.redirect(new URL(redirectTo, request.url));
+  if (code) {
+    const supabase = createRouteHandlerClient({ cookies });
+    await supabase.auth.exchangeCodeForSession(code).catch(() => {});
+  }
+
+  // Redirige al home (ajústalo si necesitas otra ruta)
+  return NextResponse.redirect(new URL("/", req.url));
 }

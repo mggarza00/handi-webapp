@@ -1,11 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
   experimental: {
-    typedRoutes: false, // Desactiva el chequeo estricto de rutas
+    appDir: true,
   },
-  eslint: { ignoreDuringBuilds: true },
-  typescript: { ignoreBuildErrors: true },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      // Evita problemas de caché en Windows/OneDrive
+      config.cache = false;
+    }
+    return config;
+  },
 };
-
 export default nextConfig;

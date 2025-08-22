@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export default function LoginPage() {
@@ -10,8 +11,8 @@ export default function LoginPage() {
   const search = useSearchParams();
 
   useEffect(() => {
-    const e = search.get("e");
-    if (e) setMsg(decodeURIComponent(e));
+    const e = (search ?? new URLSearchParams()).get("e");
+if (e) setMsg(decodeURIComponent(e));
   }, [search]);
 
   function loginGoogle() {

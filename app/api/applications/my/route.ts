@@ -1,39 +1,53 @@
-import { NextResponse } from "next/server";
-import { supabaseServer, getUserOrThrow } from "@/lib/supabase-server";
+import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
-export async function GET(req: Request) {
+
+import type { Application } from "@/types/handee";
+import { jsonOk, jsonFail } from "@/lib/errors";
+
+/**
+ * GET /api/applications/my
+ * Retorna las applications del profesional autenticado (RLS activo).
+ * Respuesta: { ok: true, data: Application[] }
+ */
+export async function GET() {
   try {
-    const user = await getUserOrThrow();
-    const supabase = supabaseServer();
-    const { searchParams } = new URL(req.url);
-    const requestId = searchParams.get("requestId");
-    if (!requestId) {
-      return NextResponse.json({ ok: false, error: "MISSING_REQUEST_ID" }, { status: 400 });
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          // En route handlers, Next maneja el set/remove; no-op aquí.
+          set() {},
+          remove() {},
+        },
+      }
+    );
+
+    const { data: auth, error: authError } = await supabase.auth.getUser();
+    if (authError || !auth?.user) {
+      return jsonFail("Unauthorized", 401, { authError: authError?.message });
     }
 
-    // Obtener Professional del usuario (si no tiene, devolvemos null sin error)
-    const { data: prof, error: e1 } = await supabase
-      .from("professionals")
-      .select("id")
-      .eq("profile_id", user.id)
-      .single();
-
-    if (e1 || !prof?.id) {
-      return NextResponse.json({ ok: true, data: null });
-    }
-
-    // ¿Existe una application para este request y este professional?
+    // Por RLS solo verá sus propias rows; filtramos por seguridad adicional.
     const { data, error } = await supabase
       .from("applications")
       .select("*")
-      .eq("request_id", requestId)
-      .eq("professional_id", prof.id)
-      .maybeSingle();
+      .eq("professional_id", auth.user.id)
+      .order("created_at", { ascending: false });
 
-    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, data });
-  } catch (e: any) {
-    const status = e?.status ?? 500;
-    return NextResponse.json({ ok: false, error: e?.message ?? "INTERNAL_ERROR" }, { status });
+    if (error) {
+      return jsonFail("Failed to fetch applications", 500, { dbError: error.message });
+    }
+
+    // Tipar explícitamente el arreglo
+    const apps: Application[] = (data ?? []) as Application[];
+    return jsonOk<Application[]>(apps);
+  } catch (e) {
+    return jsonFail("Unexpected failure", 500, { error: (e as Error).message });
   }
 }

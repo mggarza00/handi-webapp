@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabaseServer } from "@/lib/supabase-server";
+
+import { supabaseServer } from "@/lib/_supabase-server";
 
 // Devuelve las postulaciones de un request.
 // RLS permite verlas si eres el dueño del request o el dueño de la postulación.

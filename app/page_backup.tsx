@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 /** URLs de fotos (cámbialas tras tu visto bueno) */
-const IMG_BG_CATEGORIES = "https://images.unsplash.com/photo-1707343847741-5e9a95a11b46?q=80&w=1600&auto=format&fit=crop"; // herramientas/hogar tenue
+const _IMG_BG_CATEGORIES = "https://images.unsplash.com/photo-1707343847741-5e9a95a11b46?q=80&w=1600&auto=format&fit=crop"; // herramientas/hogar tenue
 const IMG_STEP_FIND    = "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop"; // mapa/ubicación
 const IMG_STEP_VERIFY  = "https://images.unsplash.com/photo-1516383607781-913a19294fd1?q=80&w=1200&auto=format&fit=crop"; // documentos/ID
 const IMG_STEP_REVIEWS = "https://images.unsplash.com/photo-1551836022-aadb801c60be?q=80&w=1200&auto=format&fit=crop"; // estrellas/reseñas

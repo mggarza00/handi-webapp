@@ -1,40 +1,23 @@
-// app/api/users/[id]/route.ts
 import { NextResponse } from "next/server";
-import { findUserRow, readUser } from "@/lib/usersMapper";
 
-export const runtime = "nodejs";
-export const revalidate = 0;
+import { getUserOrThrow, supabaseServer } from "@/lib/_supabase-server";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const userId = (params.id || "").trim();
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "MISSING_USER_ID" }, { status: 400 });
-    }
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-    const rowIndex = await findUserRow(userId);
-    // fila 1 = headers; datos desde la fila 2
-    if (rowIndex == null || rowIndex < 2) {
-      return NextResponse.json({ ok: false, error: "USER_NOT_FOUND" }, { status: 404 });
-    }
+type Ctx = { params: { id: string } };
 
-    const user = await readUser(rowIndex);
+export async function GET(_req: Request, { params }: Ctx) {
+  await getUserOrThrow(); // exige sesión (RLS en profiles permite ver solo el propio)
+  const supabase = supabaseServer();
 
-    return NextResponse.json({
-      ok: true,
-      user: {
-        rol_actual: user.rol_actual ?? "cliente",
-        roles_permitidos: user.roles_permitidos ?? "cliente",
-        // puedes exponer más campos si te sirven
-      },
-    });
-  } catch (err: any) {
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL_ERROR", details: err?.message },
-      { status: 500 }
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", params.id).single();
+
+  if (error) {
+    return new NextResponse(
+      JSON.stringify({ ok: false, error: "NOT_FOUND", detail: error.message }),
+      { status: 404, headers: JSONH },
     );
   }
+
+  return NextResponse.json({ ok: true, data }, { headers: JSONH });
 }

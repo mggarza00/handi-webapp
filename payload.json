@@ -1,0 +1,5 @@
+﻿{
+  "to": "delivered@resend.dev",
+  "subject": "Test Resend",
+  "html": "<p>Hola, prueba Resend ✅</p>"
+}

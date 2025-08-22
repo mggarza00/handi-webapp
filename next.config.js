@@ -1,11 +1,12 @@
-﻿/** @type {import("next").NextConfig} */
+/** @type {import('next').NextConfig} */
 const nextConfig = {
-  images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "images.unsplash.com" },
-      { protocol: "https", hostname: "source.unsplash.com" },
-      { protocol: "https", hostname: "img.youtube.com" }
-    ],
+  reactStrictMode: true,
+  // No reescribas /api; deja que el App Router sirva las rutas de app/api/**
+  async rewrites() {
+    return [
+      // ejemplo: ninguna rewrite que afecte /api
+    ];
   },
 };
+
 module.exports = nextConfig;

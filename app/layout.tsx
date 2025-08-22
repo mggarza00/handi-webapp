@@ -1,31 +1,13 @@
-﻿import "./globals.css";
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "Handee — Encuentra profesionales confiables cerca de ti",
-  description: "Publica lo que necesitas u ofrece tus servicios. Perfiles verificados y reseñas reales.",
-  metadataBase: new URL("https://handee.mx"),
-  openGraph: {
-    title: "Handee — Encuentra, conecta, resuelve.",
-    description: "Conecta con profesionales validados para arreglar, construir o mejorar lo que necesites.",
-    url: "https://handee.mx",
-    siteName: "Handee",
-    images: [{ url: "/og-handee.jpg", width: 1200, height: 630, alt: "Handee" }],
-    locale: "es_MX",
-    type: "website"
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Handee — Encuentra, conecta, resuelve.",
-    description: "Perfiles verificados, reseñas reales y respuesta rápida.",
-    images: ["/og-handee.jpg"]
-  }
-};
+import "./globals.css";
+import SiteHeader from "@/components/site-header";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body className="min-h-screen bg-slate-50">{children}</body>
+      <body className="min-h-screen bg-gray-50">
+        <SiteHeader />
+        <main className="pt-16">{children}</main>
+      </body>
     </html>
   );
 }

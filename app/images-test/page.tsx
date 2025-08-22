@@ -1,9 +1,19 @@
-﻿export default function Page() {
+import Image from "next/image";
+
+export default function ImagesTestPage() {
   return (
-    <main style={{padding: 32}}>
-      <h1>Test imagen pública</h1>
-      <p>Deberías ver la imagen debajo:</p>
-      <img src="/images/bg-categorias.jpg?v=9" alt="test" style={{maxWidth: 480, border: "1px solid #ddd"}} />
+    <main className="p-6">
+      <h1 className="text-xl font-semibold mb-4">Images Test</h1>
+      <Image
+        src="/vercel.svg"
+        alt="Demo"
+        width={200}
+        height={200}
+        priority
+      />
+      <p className="mt-4 text-sm text-muted-foreground">
+        Ejemplo usando next/image (LCP optimizado).
+      </p>
     </main>
   );
 }
