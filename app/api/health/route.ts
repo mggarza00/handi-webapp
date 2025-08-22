@@ -6,4 +6,3 @@ export async function GET() {
     { status: 200, headers: { "Content-Type": "application/json; charset=utf-8" } }
   );
 }
-# Inserta una línea inválida y prueba commit; debe FALLAR y no crear commit.

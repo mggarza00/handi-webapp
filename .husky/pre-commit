@@ -1,0 +1,6 @@
+# Husky v9+/v10 compatible (sin shebang ni husky.sh)
+set -e
+
+echo "Ì¥ç Running lint & typecheck..."
+npm run -s lint -- --max-warnings=0
+npm run -s typecheck
