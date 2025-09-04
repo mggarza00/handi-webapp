@@ -53,7 +53,7 @@ export default function Page() {
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-medium text-white shadow-sm hover:bg-black"
               >
                 <MagnifierIcon className="h-4 w-4" />
-                Quiero contratar un profesional
+                Quiero solicitar un servicio
               </Link>
               <Link
                 href="/postulate"
