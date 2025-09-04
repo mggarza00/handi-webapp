@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     const amount = (body.amount_mxn ?? DEFAULT_FEE) * 100; // a centavos
 
     // Ajuste de versión API según typings instalados
-    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-08-27.basil" });
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-07-30.basil" });
     const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
     const session = await stripe.checkout.sessions.create({
