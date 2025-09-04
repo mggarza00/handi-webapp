@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     return new NextResponse(JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:STRIPE_KEYS" }), { status: 500, headers: JSONH });
   }
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-08-27.basil" });
+  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-07-30.basil" });
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
