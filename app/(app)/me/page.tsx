@@ -1,7 +1,14 @@
-import { getSupabaseServer } from "@/lib/_supabase-server";
+import { cookies } from "next/headers";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import ProfileEdit from "./profile-edit.client";
+
+import type { Database } from "@/types/supabase";
+import UpdateEmailForm from "@/components/UpdateEmailForm";
+import { Button } from "@/components/ui/button";
 
 export default async function MePage() {
-  const supabase = getSupabaseServer();
+  const supabase = createServerComponentClient<Database>({ cookies });
   const { data, error } = await supabase.auth.getUser();
 
   if (error) {
@@ -33,7 +40,14 @@ export default async function MePage() {
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-semibold">Mi perfil</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Mi perfil</h1>
+        <form action="/auth/sign-out" method="post">
+          <Button type="submit" variant="destructive" size="sm">
+            Cerrar sesión
+          </Button>
+        </form>
+      </div>
 
       <section className="mt-6 space-y-3">
         <div className="rounded border border-slate-200 bg-white p-4">
@@ -59,6 +73,11 @@ export default async function MePage() {
             </div>
           </dl>
         </div>
+
+        <UpdateEmailForm currentEmail={user.email ?? null} />
+
+        {/* Edición de perfil básico */}
+        <ProfileEdit />
 
         <div className="rounded border border-slate-200 bg-white p-4">
           <h2 className="text-lg font-medium">Raw (debug)</h2>

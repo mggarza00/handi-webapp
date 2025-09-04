@@ -16,7 +16,7 @@ export interface FileAttachment {
 export interface Profile {
   id: UUID;
   full_name: string | null;
-  role: 'client' | 'pro';
+  role: 'client' | 'pro' | 'admin';
   avatar_url: string | null;
   headline: string | null;
   bio: string | null;

@@ -1,5 +1,6 @@
-﻿"use client";
+"use client";
 
+import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -27,7 +28,7 @@ export default function Page() {
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
           }}
-        ></div>
+        />
 
         <div
           aria-hidden
@@ -63,8 +64,7 @@ export default function Page() {
               </Link>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              ¿Ya tienes cuenta? Ve a tu perfil o revisa tus solicitudes en el
-              menú.
+              ¿Ya tienes cuenta? Ve a tu perfil o revisa tus solicitudes en el menú.
             </p>
           </div>
 
@@ -87,12 +87,8 @@ export default function Page() {
       {/* Quick ask */}
       <section className="bg-slate-50">
         <div className="mx-auto max-w-5xl px-4 py-10">
-          <h2 className="mb-2 text-xl font-semibold tracking-tight">
-            ¿Qué necesitas hoy?
-          </h2>
-          <p className="mb-5 text-sm text-slate-600">
-            Elige una categoría para empezar rápido o explora todas.
-          </p>
+          <h2 className="mb-2 text-xl font-semibold tracking-tight">¿Qué necesitas hoy?</h2>
+          <p className="mb-5 text-sm text-slate-600">Elige una categoría para empezar rápido o explora todas.</p>
 
           <div id="categorias" className="flex flex-wrap gap-2">
             {categories.map((c) => (
@@ -111,35 +107,32 @@ export default function Page() {
               Ver todas las categorías
             </Link>
           </div>
+
+          {/* Figura debajo de categorías, alineada a la derecha */}
+          <div className="mt-6 flex justify-end">
+            <div className="relative h-32 w-32">
+              <Image
+                src="/images/handee_mascota.gif"
+                alt="Handee mascota"
+                fill
+                className="object-contain"
+                unoptimized
+                priority
+              />
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Features */}
-      <section
-        className="border-y border-slate-200 bg-white"
-        id="como-funciona"
-      >
+      <section className="border-y border-slate-200 bg-white" id="como-funciona">
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
-          <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">
-            Cómo funciona
-          </h2>
+          <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">Cómo funciona</h2>
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-            <FeatureCard
-              icon={<PinIcon className="h-5 w-5" />}
-              title="Encuentra cerca de ti"
-              desc="Filtra por ciudad, categoría y disponibilidad."
-            />
-            <FeatureCard
-              icon={<ShieldIcon className="h-5 w-5" />}
-              title="Perfiles verificados"
-              desc="Revisamos referencias, documentos y desempeño."
-            />
-            <FeatureCard
-              icon={<StarIcon className="h-5 w-5" />}
-              title="Calificaciones reales"
-              desc="Retroalimentación de contratantes como tú."
-            />
+            <FeatureCard icon={<PinIcon className="h-5 w-5" />} title="Encuentra cerca de ti" desc="Filtra por ciudad, categoría y disponibilidad." />
+            <FeatureCard icon={<ShieldIcon className="h-5 w-5" />} title="Perfiles verificados" desc="Revisamos referencias, documentos y desempeño." />
+            <FeatureCard icon={<StarIcon className="h-5 w-5" />} title="Calificaciones reales" desc="Retroalimentación de contratantes como tú." />
           </div>
         </div>
       </section>
@@ -148,21 +141,9 @@ export default function Page() {
       <section className="bg-slate-50">
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <StepCard
-              step="1"
-              title="Publica lo que necesitas"
-              desc="Describe tu trabajo, presupuesto y fecha."
-            />
-            <StepCard
-              step="2"
-              title="Recibe postulaciones"
-              desc="Compara perfiles, reseñas y cotizaciones."
-            />
-            <StepCard
-              step="3"
-              title="Contrata con confianza"
-              desc="Acorde al alcance y paga directo al profesional."
-            />
+            <StepCard step="1" title="Publica lo que necesitas" desc="Describe tu trabajo, presupuesto y fecha." />
+            <StepCard step="2" title="Recibe postulaciones" desc="Compara perfiles, reseñas y cotizaciones." />
+            <StepCard step="3" title="Contrata con confianza" desc="Acorde al alcance y paga directo al profesional." />
           </div>
         </div>
       </section>
@@ -172,24 +153,13 @@ export default function Page() {
         <div className="mx-auto max-w-5xl px-4 py-10">
           <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
             <div className="text-center md:text-left">
-              <p className="text-sm font-medium text-slate-900">
-                Confianza y transparencia
-              </p>
-              <p className="text-sm text-slate-600">
-                Política de bajas automáticas ante calificaciones bajas
-                recurrentes.
-              </p>
+              <p className="text-sm font-medium text-slate-900">Confianza y transparencia</p>
+              <p className="text-sm text-slate-600">Política de bajas automáticas ante calificaciones bajas recurrentes.</p>
             </div>
             <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span className="rounded-full border border-slate-200 px-3 py-1">
-                Identidad verificada
-              </span>
-              <span className="rounded-full border border-slate-200 px-3 py-1">
-                Referencias
-              </span>
-              <span className="rounded-full border border-slate-200 px-3 py-1">
-                Historial y reseñas
-              </span>
+              <span className="rounded-full border border-slate-200 px-3 py-1">Identidad verificada</span>
+              <span className="rounded-full border border-slate-200 px-3 py-1">Referencias</span>
+              <span className="rounded-full border border-slate-200 px-3 py-1">Historial y reseñas</span>
             </div>
           </div>
         </div>
@@ -201,64 +171,33 @@ export default function Page() {
           <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
             <div>
               <div className="mb-3 flex items-center gap-2">
-                <Image
-                  src="/handee-logo.png"
-                  alt="Handee"
-                  width={28}
-                  height={28}
-                />
+                <Image src="/handee-logo.png" alt="Handee" width={28} height={28} />
                 <span className="font-semibold">Handee</span>
               </div>
-              <p className="text-sm text-slate-600">
-                Encuentra, conecta, resuelve.
-              </p>
+              <p className="text-sm text-slate-600">Encuentra, conecta, resuelve.</p>
             </div>
             <div>
               <p className="mb-2 text-sm font-medium">Enlaces</p>
               <ul className="space-y-1 text-sm text-slate-600">
-                <li>
-                  <Link href="/search" className="hover:text-slate-900">
-                    Buscar profesionales
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/postulate" className="hover:text-slate-900">
-                    Ofrecer mis servicios
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/privacy" className="hover:text-slate-900">
-                    Aviso de privacidad
-                  </Link>
-                </li>
+                <li><Link href="/search" className="hover:text-slate-900">Buscar profesionales</Link></li>
+                <li><Link href="/postulate" className="hover:text-slate-900">Ofrecer mis servicios</Link></li>
+                <li><Link href="/privacy" className="hover:text-slate-900">Aviso de privacidad</Link></li>
               </ul>
             </div>
             <div id="preguntas">
               <p className="mb-2 text-sm font-medium">Soporte</p>
               <ul className="space-y-1 text-sm text-slate-600">
                 <li>
-                  WhatsApp:{" "}
-                  <a
-                    href="https://wa.me/5218181611335"
-                    className="hover:text-slate-900"
-                  >
-                    +52 1 81 8161 1335
-                  </a>
+                  WhatsApp: <a href="https://wa.me/5218181611335" className="hover:text-slate-900">+52 1 81 8161 1335</a>
                 </li>
                 <li>
-                  Email:{" "}
-                  <a
-                    href="mailto:hola@handee.mx"
-                    className="hover:text-slate-900"
-                  >
-                    hola@handee.mx
-                  </a>
+                  Email: <a href="mailto:hola@handee.mx" className="hover:text-slate-900">hola@handee.mx</a>
                 </li>
               </ul>
             </div>
           </div>
           <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500">
-            {new Date().getFullYear()} Handee. Todos los derechos reservados.
+            © {new Date().getFullYear()} Handee. Todos los derechos reservados.
           </div>
         </div>
       </footer>
@@ -266,77 +205,39 @@ export default function Page() {
   );
 }
 
-/* --- Components --- */
-function FeatureCard({
-  icon,
-  title,
-  desc,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
+// Components
+function FeatureCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white">
-        {icon}
-      </div>
+      <div className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white">{icon}</div>
       <h3 className="mb-1 font-semibold text-slate-900">{title}</h3>
       <p className="text-sm text-slate-600">{desc}</p>
     </div>
   );
 }
 
-function StepCard({
-  step,
-  title,
-  desc,
-}: {
-  step: string;
-  title: string;
-  desc: string;
-}) {
+function StepCard({ step, title, desc }: { step: string; title: string; desc: string }) {
   return (
     <div className="relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="absolute -top-3 left-6 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600">
-        Paso {step}
-      </div>
+      <div className="absolute -top-3 left-6 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600">Paso {step}</div>
       <h3 className="mb-1 font-semibold text-slate-900">{title}</h3>
       <p className="text-sm text-slate-600">{desc}</p>
     </div>
   );
 }
 
-/* --- Inline Icons --- */
 function MagnifierIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <circle cx="11" cy="11" r="8" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   );
 }
+
 function IdCardIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <line x1="7" y1="8" x2="13" y2="8" />
       <circle cx="8.5" cy="14" r="2" />
@@ -344,50 +245,26 @@ function IdCardIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
 function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
 }
+
 function StarIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <polygon points="12 2 15 9 22 9 17 14 19 22 12 18 5 22 7 14 2 9 9 9 12 2" />
     </svg>
   );
 }
+
 function PinIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
       <path d="M12 21s-6-5.686-6-10a6 6 0 1 1 12 0c0 4.314-6 10-6 10z" />
       <circle cx="12" cy="11" r="2.5" />
     </svg>

@@ -1,5 +1,7 @@
 import { ufetch } from "@/lib/http";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   const res = await ufetch("/api/applications/my", {
     method: "GET",

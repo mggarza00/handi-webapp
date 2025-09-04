@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function MyRequests() {
   // Secciones Activa / Cerrada como en Glide
   return (
@@ -22,9 +24,9 @@ export default function MyRequests() {
         </div>
       </div>
       <div className="pt-2">
-        <a href="/requests/new" className="inline-flex h-10 items-center justify-center rounded-2xl px-4 border border-neutral-300 dark:border-neutral-800">
+        <Link href="/requests/new" className="inline-flex h-10 items-center justify-center rounded-2xl px-4 border border-neutral-300 dark:border-neutral-800">
           Crear nueva solicitud
-        </a>
+        </Link>
       </div>
     </div>
   );

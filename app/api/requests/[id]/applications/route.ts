@@ -2,32 +2,18 @@ import { NextResponse } from "next/server";
 
 import { supabaseServer } from "@/lib/_supabase-server";
 
-// Devuelve las postulaciones de un request.
-// RLS permite verlas si eres el dueño del request o el dueño de la postulación.
-// Aquí se usa sólo para el dueño del request.
+// Devuelve las postulaciones de un request con datos básicos del profesional.
+// Usa RPC con security definer que valida: dueño del request o profesional.
 export async function GET(
-  req: Request,
-  ctx: { params: { id: string } }
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = supabaseServer();
-  const requestId = ctx.params.id;
+  const { id: requestId } = await params;
 
-  const { data, error } = await supabase
-    .from("applications")
-    .select(`
-      id,
-      cover_letter,
-      proposed_budget,
-      status,
-      created_at,
-      professional:professional_id (
-        id,
-        headline,
-        rating,
-        skills
-      )
-    `)
-    .eq("request_id", requestId)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .rpc("get_applications_with_profile_basic", { p_request_id: requestId })
     .order("created_at", { ascending: false });
 
   if (error) {

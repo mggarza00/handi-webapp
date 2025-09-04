@@ -1,127 +1,71 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import Stripe from "stripe";
 import { z } from "zod";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { getUserOrThrow } from "@/lib/_supabase-server";
 
-const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8" } as const;
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 const BodySchema = z.object({
-  agreement_id: z.string().uuid().optional(),
+  request_id: z.string().uuid(),         // ID de la solicitud de servicio
+  amount_mxn: z.number().int().positive().optional(), // opcional; por defecto usa NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN
+  agreement_id: z.string().uuid().optional(), // opcional; si existe, se marca como paid en webhook
 });
-type Body = z.infer<typeof BodySchema>;
-
-function getBaseUrl(req: Request): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (envUrl && /^https?:\/\//i.test(envUrl)) return envUrl.replace(/\/+$/, "");
-  const u = new URL(req.url);
-  return `${u.protocol}//${u.host}`;
-}
-
-export async function GET(req: Request) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { session }, error: sesErr } = await supabase.auth.getSession();
-
-    const hasStripeKey = Boolean(process.env.STRIPE_SECRET_KEY);
-    const feeStr = process.env.STRIPE_FEE_AMOUNT_MXN ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN ?? "";
-    const fee = Number(feeStr);
-
-    return NextResponse.json(
-      {
-        ok: true,
-        diag: {
-          stripeKeyPresent: hasStripeKey,
-          feeConfigured: Number.isFinite(fee) && fee > 0,
-          stripeImportOk: await import("stripe").then(() => true).catch(() => false),
-          hasUser: Boolean(session?.user),
-          supabaseError: sesErr?.message ?? null,
-          baseUrl: getBaseUrl(req),
-          fee
-        }
-      },
-      { status: 200, headers: JSON_HEADERS }
-    );
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unexpected_error";
-    return NextResponse.json({ ok: false, error: "unexpected_failure", detail: msg }, { status: 500, headers: JSON_HEADERS });
-  }
-}
 
 export async function POST(req: Request) {
   try {
-    // 1) GUARDIA DE SESIÓN (antes que nada)
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { session }, error: sesErr } = await supabase.auth.getSession();
-    if (sesErr || !session?.user) {
-      return NextResponse.json(
-        { ok: false, error: "unauthorized", detail: sesErr?.message ?? "no_session" },
-        { status: 401, headers: JSON_HEADERS }
-      );
-    }
-    const user = session.user;
-
-    // 2) Validar ENV Stripe y monto
-    const stripeSecret = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecret) {
-      return NextResponse.json(
-        { ok: false, error: "stripe_misconfigured", detail: "STRIPE_SECRET_KEY requerido (solo servidor)." },
-        { status: 500, headers: JSON_HEADERS }
-      );
-    }
-    const feeStr =
-      process.env.STRIPE_FEE_AMOUNT_MXN ??
-      process.env.NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN ??
-      "";
-    const fee = Number(feeStr);
-    if (!Number.isFinite(fee) || fee <= 0) {
-      return NextResponse.json(
-        { ok: false, error: "fee_not_configured", detail: "Configura STRIPE_FEE_AMOUNT_MXN o NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN." },
-        { status: 500, headers: JSON_HEADERS }
-      );
+    const ct = (req.headers.get("content-type") || "").toLowerCase();
+    if (!ct.includes("application/json")) {
+      return new NextResponse(JSON.stringify({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }), { status: 415, headers: JSONH });
     }
 
-    // 3) Validar body
-    const bodyUnknown = await req.json().catch(() => ({}));
-    const parsed = BodySchema.safeParse(bodyUnknown);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { ok: false, error: "invalid_body", issues: parsed.error.flatten() },
-        { status: 400, headers: JSON_HEADERS }
-      );
+    const { user } = await getUserOrThrow();
+
+    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+    const DEFAULT_FEE = Number(process.env.NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN ?? "0");
+    if (!STRIPE_SECRET_KEY) {
+      return new NextResponse(JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY" }), { status: 500, headers: JSONH });
     }
-    const input: Body = parsed.data;
+    if (!DEFAULT_FEE) {
+      return new NextResponse(JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:DEFAULT_FEE" }), { status: 500, headers: JSONH });
+    }
 
-    // 4) Stripe: import dinámico y crear sesión
-    const { default: Stripe } = await import("stripe");
-    const stripe = new Stripe(stripeSecret, { apiVersion: "2025-07-30.basil" });
+    const body = BodySchema.parse(await req.json());
+    const amount = (body.amount_mxn ?? DEFAULT_FEE) * 100; // a centavos
 
-    const baseUrl = getBaseUrl(req);
-    const sessionStripe = await stripe.checkout.sessions.create({
+    // Ajuste de versión API según typings instalados
+    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-08-27.basil" });
+    const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
+    const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-      line_items: [{
-        price_data: {
-          currency: "mxn",
-          product_data: { name: "Comisión Handee" },
-          unit_amount: Math.round(fee * 100),
+      success_url: `${origin}/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/payments/cancel`,
+      line_items: [
+        {
+          price_data: {
+            currency: "mxn",
+            product_data: { name: "Handee Service Fee" },
+            unit_amount: amount,
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
-      customer_email: user.email ?? undefined,
-      metadata: { user_id: user.id, agreement_id: input.agreement_id ?? "" },
-      success_url: `${baseUrl}/payments/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/payments/cancelled`,
+      ],
+      metadata: {
+        request_id: body.request_id,
+        user_id: user.id,
+        agreement_id: body.agreement_id ?? "",
+      },
     });
 
-    return NextResponse.json({ ok: true, url: sessionStripe.url }, { status: 200, headers: JSON_HEADERS });
+    return NextResponse.json({ ok: true, id: session.id, url: session.url }, { status: 201, headers: JSONH });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "unexpected_error";
-    return NextResponse.json(
-      { ok: false, error: "unexpected_failure", detail: msg },
-      { status: 500, headers: JSON_HEADERS }
-    );
+    const msg = e instanceof Error ? e.message : "UNKNOWN";
+    return new NextResponse(JSON.stringify({ ok: false, error: "CHECKOUT_FAILED", detail: msg }), { status: 400, headers: JSONH });
   }
+}
+
+export function GET() {
+  return new NextResponse(JSON.stringify({ ok: false, error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: JSONH });
 }

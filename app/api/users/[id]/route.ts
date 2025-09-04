@@ -4,13 +4,13 @@ import { getUserOrThrow, supabaseServer } from "@/lib/_supabase-server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type Ctx = { params: { id: string } };
+type CtxP = { params: Promise<{ id: string }> };
 
-export async function GET(_req: Request, { params }: Ctx) {
+export async function GET(_req: Request, { params }: CtxP) {
   await getUserOrThrow(); // exige sesión (RLS en profiles permite ver solo el propio)
   const supabase = supabaseServer();
-
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", params.id).single();
+  const { id } = await params;
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", id).single();
 
   if (error) {
     return new NextResponse(

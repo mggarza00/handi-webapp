@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "autoApprove": true,
+  "rules": [
+    {
+      "action": "file.edit",
+      "allow": ["**/*"],
+      "deny": [
+        "**/.env",
+        "**/.env.*",
+        "**/secrets/**",
+        "**/.secrets/**",
+        "**/keys/**",
+        "**/*.pem",
+        "**/*.key"
+      ]
+    },
+    {
+      "action": "file.create",
+      "allow": ["**/*"],
+      "deny": [
+        "**/.env",
+        "**/.env.*",
+        "**/secrets/**",
+        "**/.secrets/**",
+        "**/keys/**",
+        "**/*.pem",
+        "**/*.key"
+      ]
+    },
+    {
+      "action": "file.delete",
+      "allow": ["**/*"],
+      "deny": [
+        "**/.env",
+        "**/.env.*",
+        "**/secrets/**",
+        "**/.secrets/**",
+        "**/keys/**",
+        "**/*.pem",
+        "**/*.key"
+      ]
+    },
+    {
+      "action": "terminal.run",
+      "allow": [
+        "rg( .*)?",
+        "git (status|log|show|diff|rev-parse|ls-files)( .*)?",
+        "(cat|type|more|findstr|ls|dir)( .*)?",
+        "node( .*)?",
+        "npm ci( .*)?",
+        "npm install( .*)?",
+        "pnpm i( .*)?",
+        "yarn( .*)?",
+        "npm run( .*)?",
+        "npx( .*)?",
+        "git add( .*)?",
+        "git commit -m .*",
+        "npx (next|playwright|prisma)( .*)?",
+        "next (dev|build|start|lint)( .*)?",
+        "npm (run )?(dev|build|start|typecheck|lint|check|test:e2e(:ui)?)( .*)?",
+        "pnpm (run )?.*",
+        "yarn( run)? .*",
+        "playwright( .*)?",
+        "tsc( .*)?",
+        "prisma (generate|migrate|db push)( .*)?"
+      ],
+      "deny": [
+        "rm( | -).*",
+        "rmdir( .*)? /S /Q",
+        "del( .*)? /s /q.*",
+        "git (reset|clean|rebase|checkout -f)( .*)?",
+        "git push( .*)?",
+        "git push( .*)? --force( .*)?",
+        "git push( .*)? --force-with-lease( .*)?",
+        "docker (push|login)( .*)?",
+        "(aws|gcloud|az)( .*)?",
+        "curl( .*)?",
+        "wget( .*)?",
+        "Invoke-WebRequest( .*)?",
+        "iwr( .*)?",
+        "scp( .*)?",
+        "sftp( .*)?",
+        "rsync( .*)?",
+        "npm publish( .*)?",
+        "pnpm publish( .*)?",
+        "yarn publish( .*)?",
+        "prisma migrate reset( .*)?",
+        "(cat|type|more|findstr)( .*)?\.env(\..*)?"
+      ]
+    },
+    {
+      "action": "env.read",
+      "deny": [
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "SERVICE_ROLE_KEY",
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "NEXTAUTH_SECRET"
+      ]
+    },
+    {
+      "action": "network.request",
+      "deny": ["http(s)?://metadata.google.internal/.*"]
+    }
+    ,
+    {
+      "action": "config.write",
+      "allow": [
+        "**/*.json",
+        "**/*.yml",
+        "**/*.yaml",
+        "**/*.js",
+        "**/*.cjs",
+        "**/*.ts"
+      ]
+    },
+    {
+      "action": "workflow.create",
+      "allow": [".github/workflows/**"]
+    },
+    {
+      "action": "workflow.update",
+      "allow": [".github/workflows/**"]
+    }
+  ],
+  "limits": {
+    "maxTerminalCommands": 200,
+    "maxFilesPerChange": 200,
+    "maxCommandDurationMs": 900000,
+    "maxFileBytes": 1048576,
+    "maxCreateBytes": 2097152,
+    "maxDeleteCount": 100,
+    "maxNetworkRequests": 100,
+    "maxNetworkBytes": 104857600
+  }
+}

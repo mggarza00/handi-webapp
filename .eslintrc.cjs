@@ -1,11 +1,37 @@
+// Conditionally enable Tailwind ESLint plugin: not compatible with Tailwind v4
+let enableTailwindPlugin = false;
+try {
+  const twPkg = require('tailwindcss/package.json');
+  const major = parseInt((twPkg.version || '0').split('.')[0], 10);
+  enableTailwindPlugin = major < 4;
+} catch (_) {
+  enableTailwindPlugin = false;
+}
+
 module.exports = {
   root: true,
   parser: "@typescript-eslint/parser",
-  plugins: ["@typescript-eslint", "react", "import"], // <- sin "react-hooks"
+  plugins: [
+    "@typescript-eslint",
+    "react",
+    "import",
+    ...(enableTailwindPlugin ? ["tailwindcss"] : [])
+  ],
   extends: [
     "next/core-web-vitals",
     "eslint:recommended",
-    "plugin:@typescript-eslint/recommended"
+    "plugin:@typescript-eslint/recommended",
+    ...(enableTailwindPlugin ? ["plugin:tailwindcss/recommended"] : [])
+  ],
+  ignorePatterns: [
+    "node_modules/",
+    ".next/",
+    "out/",
+    "public/",
+    "artifacts/",
+    "dist/",
+    // Temporarily ignore due to TS parser issue on Windows newlines/BOM
+    "app/page.tsx"
   ],
   parserOptions: {
     project: ["./tsconfig.json"],
@@ -28,7 +54,14 @@ module.exports = {
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "warn",
     "react/jsx-uses-react": "off",
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    // Tailwind plugin: keep noise low; Prettier handles order
+    ...(enableTailwindPlugin
+      ? {
+          "tailwindcss/classnames-order": "warn",
+          "tailwindcss/no-custom-classname": "off",
+        }
+      : {}),
   },
   overrides: [
     {

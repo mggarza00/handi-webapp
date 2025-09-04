@@ -9,7 +9,7 @@ export interface Tables {
     Row: {
       id: string;
       full_name: string | null;
-      role: 'client' | 'pro' | null;
+      role: 'client' | 'pro' | 'admin' | null;
       avatar_url: string | null;
       headline: string | null;
       bio: string | null;

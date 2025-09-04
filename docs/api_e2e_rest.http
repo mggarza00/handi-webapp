@@ -1,0 +1,141 @@
+@base = http://localhost:3000
+@cookie = sb-access-token=REEMPLAZA_AQUI; sb-refresh-token=REEMPLAZA_AQUI
+
+### Salud (público)
+GET {{base}}/api/health
+Content-Type: application/json; charset=utf-8
+
+### Ping + verificación DB (público)
+GET {{base}}/api/ping
+Content-Type: application/json; charset=utf-8
+
+### Yo (requiere sesión) — usa Cookie con tokens de Supabase
+GET {{base}}/api/me
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+### Crear Request (requiere sesión)
+POST {{base}}/api/requests
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "title": "Instalación eléctrica",
+  "city": "Monterrey",
+  "description": "Cableado básico 110v en cocina",
+  "category": "Electricidad",
+  "subcategories": ["Instalación", "Mantenimiento"],
+  "budget": 1200
+}
+
+> {% client.global.set("REQUEST_ID", response.body.data.id); %}
+
+### Detalle del Request (público: activas + propias por RLS)
+GET {{base}}/api/requests/{{REQUEST_ID}}
+Content-Type: application/json; charset=utf-8
+
+### Prospects para Request (dueño del request)
+GET {{base}}/api/requests/{{REQUEST_ID}}/prospects
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+### Postularse a Request (pro)
+POST {{base}}/api/applications
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "request_id": "{{REQUEST_ID}}",
+  "note": "Listo para hoy a las 10"
+}
+
+> {% client.global.set("APPLICATION_ID", response.body.data.id); client.global.set("PRO_USER_ID", response.body.data.professional_id); %}
+
+### Crear Acuerdo (cliente o pro, según RLS)
+POST {{base}}/api/agreements
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "request_id": "{{REQUEST_ID}}",
+  "professional_id": "{{PRO_USER_ID}}"
+}
+
+> {% client.global.set("AGREEMENT_ID", response.body.data.id); %}
+
+### Listar Acuerdos por Request
+GET {{base}}/api/requests/{{REQUEST_ID}}/agreements
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+### Aceptar Acuerdo
+PATCH {{base}}/api/agreements/{{AGREEMENT_ID}}
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "status": "accepted"
+}
+
+### Marcar en progreso
+PATCH {{base}}/api/agreements/{{AGREEMENT_ID}}
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "status": "in_progress"
+}
+
+### Completar Acuerdo
+PATCH {{base}}/api/agreements/{{AGREEMENT_ID}}
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "status": "completed"
+}
+
+### Enviar Mensaje (chat con candado)
+POST {{base}}/api/messages
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "request_id": "{{REQUEST_ID}}",
+  "to_user_id": "{{PRO_USER_ID}}",
+  "text": "Hola, puedo mañana a las 10"
+}
+
+### Listar Mensajes (paginación sencilla)
+GET {{base}}/api/messages?request_id={{REQUEST_ID}}&limit=50
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+### Explorar Profesionales (público)
+GET {{base}}/api/professionals?city=Monterrey&category=Electricidad&page=1
+Content-Type: application/json; charset=utf-8
+
+### Upsert Perfil Profesional (requiere sesión)
+POST {{base}}/api/professionals
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "full_name": "Juan Pérez",
+  "headline": "Técnico Electricista",
+  "city": "Monterrey",
+  "cities": ["Monterrey", "San Nicolás"],
+  "categories": ["Electricidad"],
+  "subcategories": ["Instalación", {"name":"Cableado"}]
+}
+
+### Stripe Checkout (opcional: requiere STRIPE_SECRET_KEY configurado en server)
+POST {{base}}/api/stripe/checkout
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+{
+  "request_id": "{{REQUEST_ID}}",
+  "agreement_id": "{{AGREEMENT_ID}}"
+}
+

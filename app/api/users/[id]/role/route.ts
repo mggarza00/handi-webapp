@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseServer } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
 
 const IdParam = z.string().uuid();
 const BodySchema = z.object({ role: z.enum(["client", "pro"]) });
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-export async function PATCH(req: Request, ctx: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const supabase = getSupabaseServer();
     const { data: auth } = await supabase.auth.getUser();
@@ -17,7 +18,8 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
     }
 
-    const id = IdParam.safeParse(ctx.params.id);
+    const { id: rid } = await params;
+    const id = IdParam.safeParse(rid);
     if (!id.success) {
       return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 400, headers: JSONH });
     }
@@ -40,9 +42,10 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
       );
     }
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from("profiles")
-      .update({ role: parsed.data.role })
+      .update({ role: parsed.data.role } as Database["public"]["Tables"]["profiles"]["Update"])
       .eq("id", id.data)
       .select("id, role")
       .single();

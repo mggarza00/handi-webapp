@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json(
         { ok: false, error: "INVALID_BODY", issues: parsed.error.flatten() },
-        { status: 400 },
+        { status: 400, headers: { "Content-Type": "application/json; charset=utf-8" } },
       );
     }
 
@@ -25,19 +25,22 @@ export async function POST(req: Request) {
     if (!apiKey) {
       return NextResponse.json(
         { ok: false, error: "MISSING_MAIL_PROVIDER_KEY" },
-        { status: 500 },
+        { status: 500, headers: { "Content-Type": "application/json; charset=utf-8" } },
       );
     }
 
     // Aquí iría el envío real (Resend/SMTP). V1: respondemos éxito simulado.
     // Importante: no exponer la KEY en respuesta.
-    return NextResponse.json({ ok: true, sent: { to, subject } });
+    return NextResponse.json(
+      { ok: true, sent: { to, subject } },
+      { headers: { "Content-Type": "application/json; charset=utf-8" } },
+    );
   } catch (e: unknown) {
     const err = e as { name?: string; message?: string };
     const status = err?.name === "ZodError" ? 400 : 500;
     return NextResponse.json(
       { ok: false, error: err?.message ?? "INTERNAL_ERROR" },
-      { status },
+      { status, headers: { "Content-Type": "application/json; charset=utf-8" } },
     );
   }
 }

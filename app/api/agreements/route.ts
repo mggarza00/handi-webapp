@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getSupabaseServer } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
+import { notifyAgreementCreated } from "@/lib/notifications";
 
 const BodySchema = z.object({
   request_id: z.string().uuid(),
@@ -28,13 +30,15 @@ export async function POST(req: Request) {
     }
 
     const supabase = getSupabaseServer();
-    const { data, error } = await supabase
+    // Tipado de Supabase puede no inferir correctamente en esta ruta; relajamos sólo la llamada.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from("agreements")
       .insert({
         request_id: parsed.data.request_id,
         professional_id: parsed.data.professional_id,
         amount: parsed.data.amount ?? null,
-      })
+      } as Database["public"]["Tables"]["agreements"]["Insert"])
       .select("id, status, created_at")
       .single();
 
@@ -42,6 +46,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "DB_ERROR", detail: error.message }, { status: 500, headers: JSONH });
     }
 
+    try {
+      await notifyAgreementCreated({ request_id: parsed.data.request_id, professional_id: parsed.data.professional_id, agreement_id: data.id });
+    } catch {
+      // no-op
+    }
     return NextResponse.json({ ok: true, data }, { status: 201, headers: JSONH });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "UNKNOWN";

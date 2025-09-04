@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
+import { notifyApplicationCreated } from "@/lib/notifications";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -52,13 +54,14 @@ export async function POST(req: Request) {
     const { supabase, user } = await getUserOrThrow();
     const body = createSchema.parse(await req.json());
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from("applications")
       .insert({
         request_id: body.request_id,
         professional_id: user.id,
         note: body.note ?? null,
-      })
+      } as Database["public"]["Tables"]["applications"]["Insert"])
       .select()
       .single();
 
@@ -71,6 +74,11 @@ export async function POST(req: Request) {
       });
     }
 
+    try {
+      await notifyApplicationCreated({ request_id: data.request_id, professional_id: user.id });
+    } catch {
+      // no-op
+    }
     return NextResponse.json({ ok: true, data }, { status: 201, headers: JSONH });
   } catch (e) {
     const err = e as ApiError;

@@ -26,11 +26,17 @@ export async function GET() {
     // De momento respondemos una lista vacía válida para compilar.
     const list: MatchItem[] = [];
 
-    return NextResponse.json({ ok: true, data: list });
+    return NextResponse.json(
+      { ok: true, data: list },
+      { headers: { "Content-Type": "application/json; charset=utf-8" } },
+    );
   } catch (e: unknown) {
     // Manejo seguro de errores con unknown
     const msg = errorMessage(e);
     const status = msg === "UNAUTHORIZED" ? 401 : 500;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status, headers: { "Content-Type": "application/json; charset=utf-8" } },
+    );
   }
 }

@@ -2,7 +2,7 @@
 export interface Profile {
   id: string;
   full_name?: string;
-  role: "client" | "pro";
+  role: "client" | "pro" | "admin";
   avatar_url?: string;
   headline?: string;
   bio?: string;

@@ -1,12 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // No reescribas /api; deja que el App Router sirva las rutas de app/api/**
-  async rewrites() {
-    return [
-      // ejemplo: ninguna rewrite que afecte /api
-    ];
+  webpack: (config, { dev }) => {
+    // Avoid webpack persistent file cache issues on OneDrive/Windows
+    if (dev) {
+      config.cache = { type: 'memory' };
+    }
+    return config;
   },
 };
 
 module.exports = nextConfig;
+

@@ -1,4 +1,8 @@
-﻿create extension if not exists "uuid-ossp";
+﻿-- DEPRECATED FILE — Do NOT use for new deployments.
+-- This SQL is outdated and kept only for reference.
+-- Use supabase/schema_v1.sql as the single source of truth.
+
+create extension if not exists "uuid-ossp";
 create extension if not exists pgcrypto;
 
 create table if not exists public.profiles (

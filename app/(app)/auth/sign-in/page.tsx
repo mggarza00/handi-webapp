@@ -66,6 +66,7 @@ export default function SignInPage() {
             <input
               type="email"
               required
+              pattern="^[^@\s]+@[^@\s]+\.[^@\s]+$"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tucorreo@ejemplo.com"

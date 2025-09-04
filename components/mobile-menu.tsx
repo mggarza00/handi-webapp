@@ -12,7 +12,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-export interface NavLink { href: string; label: string; }
+export interface NavLink {
+  href: string;
+  label: string;
+  variant?: "default" | "outline" | "secondary" | "ghost" | "destructive";
+  size?: "sm" | "lg" | "default";
+}
 
 const DEFAULT_LINKS: NavLink[] = [
   { href: "/requests", label: "Solicitudes" },
@@ -39,13 +44,15 @@ export default function MobileMenu({ links }: { links?: NavLink[] }) {
           </SheetHeader>
           <nav className="mt-6 flex flex-col gap-2">
             {items.map((l) => (
-              <Link
+              <Button
                 key={l.href}
-                href={l.href}
-                className="rounded-lg px-3 py-2 text-base hover:bg-muted"
+                asChild
+                variant={l.variant ?? "ghost"}
+                size={l.size ?? "default"}
+                className="w-full justify-start text-base"
               >
-                {l.label}
-              </Link>
+                <Link href={l.href}>{l.label}</Link>
+              </Button>
             ))}
           </nav>
         </SheetContent>

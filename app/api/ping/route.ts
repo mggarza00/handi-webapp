@@ -17,7 +17,10 @@ export async function GET() {
 
   // Si faltan envs críticas, responde de una vez
   if (envMissing.length > 0) {
-    return NextResponse.json({ ok: false, env: { missing: envMissing } }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, env: { missing: envMissing } },
+      { status: 500, headers: { "Content-Type": "application/json; charset=utf-8" } },
+    );
   }
 
   const cookieStore = cookies();
@@ -45,11 +48,14 @@ export async function GET() {
     db_error = getErrorMessage(e);
   }
 
-  return NextResponse.json({
-    ok: db_ok,
-    env: { missing: envMissing },
-    supabase_url: url,
-    db: { ok: db_ok, error: db_error },
-    timestamp: new Date().toISOString(),
-  }, { status: db_ok ? 200 : 500 });
+  return NextResponse.json(
+    {
+      ok: db_ok,
+      env: { missing: envMissing },
+      supabase_url: url,
+      db: { ok: db_ok, error: db_error },
+      timestamp: new Date().toISOString(),
+    },
+    { status: db_ok ? 200 : 500, headers: { "Content-Type": "application/json; charset=utf-8" } },
+  );
 }
