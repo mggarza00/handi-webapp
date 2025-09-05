@@ -15,8 +15,9 @@ const SidebarContext = React.createContext<SidebarContextValue | null>(null);
 
 function useSidebar() {
   const ctx = React.useContext(SidebarContext);
-  if (!ctx) throw new Error("Sidebar components must be used within <SidebarProvider>");
-  return ctx;
+  // Fallback seguro: evita crash si se usa fuera del provider
+  const [fallbackOpen, setFallbackOpen] = React.useState(false);
+  return ctx ?? { open: fallbackOpen, setOpen: setFallbackOpen };
 }
 
 function SidebarProvider({ children, defaultOpen = false }: { children: React.ReactNode; defaultOpen?: boolean }) {
