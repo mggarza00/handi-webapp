@@ -144,3 +144,18 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  /* Oculta el ícono nativo del date picker cuando usemos un botón personalizado */
+  .hide-native-calendar::-webkit-calendar-picker-indicator {
+    opacity: 0;
+    display: none;
+  }
+}

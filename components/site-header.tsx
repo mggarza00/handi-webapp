@@ -77,15 +77,8 @@ async function getSessionInfoSafe() {
 export default async function SiteHeader() {
   const { isAuth, role, avatar_url, full_name } = await getSessionInfoSafe();
 
-  const leftHref = !isAuth
-    ? "/"
-    : role === "client"
-    ? "/dashboard"
-    : role === "pro"
-    ? "/pro/dashboard"
-    : role === "admin"
-    ? "/admin"
-    : "/";
+  // El logo siempre debe redirigir a la página de inicio
+  const leftHref = "/";
 
   const rightLinks: {
     href: string;
@@ -93,17 +86,13 @@ export default async function SiteHeader() {
     variant?: "default" | "outline" | "secondary" | "ghost" | "destructive";
     size?: "sm" | "lg" | "default";
   }[] = [];
-  if (process.env.NODE_ENV !== "production") {
-    rightLinks.push({ href: "/biblioteca", label: "Biblioteca", variant: "ghost", size: "sm" });
-  }
+  // Eliminado botón "Biblioteca" del header/menú
   if (!isAuth) {
     rightLinks.push({ href: "/auth/sign-in", label: "Iniciar sesión", variant: "ghost", size: "sm" });
     rightLinks.push({ href: "/profile/setup", label: "Postúlate como profesional", variant: "default", size: "lg" });
   } else if (role === "client") {
     rightLinks.push(
-      { href: "/requests/new", label: "Publicar solicitud", variant: "default", size: "lg" },
-      { href: "/requests", label: "Mis solicitudes", variant: "ghost", size: "sm" },
-      { href: "/professionals", label: "Buscar profesionales", variant: "ghost", size: "sm" },
+      { href: "/requests?mine=1", label: "Mis solicitudes", variant: "ghost", size: "sm" },
     );
   } else if (role === "pro") {
     rightLinks.push(
@@ -120,25 +109,33 @@ export default async function SiteHeader() {
     );
   }
 
-  // Enlaces para el menú móvil (excluye iniciar sesión; agrega ajustes/cerrar si autenticado)
+  // Asegurar que "Mis solicitudes" esté visible solo para clientes (o rol aún no asignado) y administradores
+  if (isAuth && (role === "client" || role == null || role === "admin")) {
+    const hasRequestsLink = rightLinks.some((l) => l.href.startsWith("/requests"));
+    if (!hasRequestsLink) {
+      const href = role === "admin" ? "/requests" : "/requests?mine=1";
+      rightLinks.push({ href, label: "Mis solicitudes", variant: "ghost", size: "sm" });
+    }
+  }
+
+  // Enlaces para el menú móvil (excluye iniciar sesión; apariencia idéntica al header)
   const mobileLinks = (() => {
     const base = rightLinks.filter((x) => x.href !== "/auth/sign-in");
-    if (isAuth) {
-      base.push(
-        { href: "/profile/setup", label: "Configura tu perfil", variant: "ghost", size: "default" },
-        { href: "/settings", label: "Configuración", variant: "ghost", size: "default" },
-        { href: "/auth/sign-out", label: "Salir", variant: "destructive", size: "default" },
-      );
-    }
     return base;
   })();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b bg-white">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b bg-white/50 dark:bg-neutral-900/50 backdrop-blur-md">
       <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
         {/* Lado izquierdo: botón menú móvil */}
         <div className="md:hidden">
-          <MobileMenu links={mobileLinks} />
+          <MobileMenu
+            links={mobileLinks}
+            isAuth={isAuth}
+            role={role}
+            avatarUrl={avatar_url}
+            fullName={full_name}
+          />
         </div>
 
         {/* Logo: centrado en móvil, alineado a la izquierda en desktop */}
@@ -158,11 +155,20 @@ export default async function SiteHeader() {
 
         {/* Navegación derecha - desktop */}
         <nav className="hidden md:flex items-center gap-2">
-          {rightLinks.map((l) => (
-            <Button key={l.href} asChild size={l.size ?? "sm"} variant={l.variant ?? "outline"}>
-              <Link href={l.href}>{l.label}</Link>
-            </Button>
-          ))}
+          {rightLinks.map((l) => {
+            const isRequests = l.href.startsWith("/requests");
+            return (
+              <Button
+                key={l.href}
+                asChild
+                size={l.size ?? "sm"}
+                variant={l.variant ?? "outline"}
+                className={isRequests ? "!text-[#11314B] hover:!text-[#11314B]" : undefined}
+              >
+                <Link href={l.href}>{l.label}</Link>
+              </Button>
+            );
+          })}
           {isAuth ? (
             <details className="relative">
               <summary className="list-none inline-flex items-center rounded-full focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none cursor-pointer">
