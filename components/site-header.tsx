@@ -8,6 +8,9 @@ import MobileMenu from "@/components/mobile-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database } from "@/types/supabase";
+import HeaderMenu from "@/components/header-menu.client";
+import ProMobileTabbar from "@/components/pro-mobile-tabbar.client";
+import AvatarDropdown from "@/components/AvatarDropdown.client";
 
 type Role = "client" | "pro" | "admin";
 
@@ -18,37 +21,47 @@ async function getSessionInfo() {
   const supabase = createServerComponentClient<Database>({ cookies });
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
-  if (!user) return { isAuth: false as const, role: null as null, avatar_url: null as null, full_name: null as null };
+  if (!user)
+    return {
+      isAuth: false as const,
+      role: null as null,
+  is_admin: false as const,
+      avatar_url: null as null,
+      full_name: null as null,
+    };
 
   let { data: profileRaw } = await supabase
     .from("profiles")
-    .select("role, avatar_url, full_name")
+    .select("role, is_admin, avatar_url, full_name")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!profileRaw) {
     // Autoaprovisionar perfil mínimo en primer login
     try {
-      await supabase
-        .from("profiles")
-        .insert({
-          id: user.id,
-          full_name: user.user_metadata?.full_name ?? null,
-          avatar_url: user.user_metadata?.avatar_url ?? null,
-          last_active_at: new Date().toISOString(),
-          active: true,
-        } satisfies Database["public"]["Tables"]["profiles"]["Insert"]);
+      await supabase.from("profiles").insert({
+        id: user.id,
+        full_name: user.user_metadata?.full_name ?? null,
+        avatar_url: user.user_metadata?.avatar_url ?? null,
+        last_active_at: new Date().toISOString(),
+        active: true,
+      } satisfies Database["public"]["Tables"]["profiles"]["Insert"]);
     } catch (err) {
       void err; // ignore insert errors (profile may already exist)
     }
     const retry = await supabase
       .from("profiles")
-      .select("role, avatar_url, full_name")
+  .select("role, is_admin, avatar_url, full_name")
       .eq("id", user.id)
       .maybeSingle();
     profileRaw = retry.data ?? null;
   }
-  const profile = (profileRaw ?? null) as (null | { role: Role | null; avatar_url: string | null; full_name: string | null });
+  const profile = (profileRaw ?? null) as null | {
+    role: Role | null;
+    is_admin: boolean | null;
+    avatar_url: string | null;
+    full_name: string | null;
+  };
   const role = (profile?.role ?? null) as Role | null;
   type UserMeta = { avatar_url?: string | null; full_name?: string | null };
   const meta = (user.user_metadata as unknown as UserMeta) || {};
@@ -57,6 +70,7 @@ async function getSessionInfo() {
   return {
     isAuth: true as const,
     role,
+  is_admin: profile?.is_admin === true,
     avatar_url: avatarUrl,
     full_name: fullName,
   };
@@ -64,79 +78,222 @@ async function getSessionInfo() {
 
 async function getSessionInfoSafe() {
   try {
-    const hasEnv = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    // Mock de rol para dev/CI: si existe cookie 'handee_role', simula sesión
+    // Válido sólo fuera de producción o con CI=true
+    try {
+      const allowMock =
+        process.env.NODE_ENV !== "production" || process.env.CI === "true";
+      if (allowMock) {
+        const c = cookies();
+        const mock = c.get("handee_role")?.value || "guest";
+        const m = mock as "guest" | "client" | "professional" | "admin";
+        if (m !== "guest") {
+          const mappedRole: Role = m === "professional" ? "pro" : (m as "client" | "admin");
+          return {
+            isAuth: true as const,
+            role: mappedRole,
+            is_admin: m === "admin",
+            avatar_url: null as null,
+            full_name: null as null,
+          };
+        }
+      }
+    } catch {
+      // ignore mock errors
+    }
+
+    const hasEnv =
+      !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!hasEnv) {
-      return { isAuth: false as const, role: null as null, avatar_url: null as null, full_name: null as null };
+      return {
+        isAuth: false as const,
+        role: null as null,
+        is_admin: false as const,
+        avatar_url: null as null,
+        full_name: null as null,
+      };
     }
     return await getSessionInfo();
   } catch {
-    return { isAuth: false as const, role: null as null, avatar_url: null as null, full_name: null as null };
+    return {
+      isAuth: false as const,
+      role: null as null,
+      is_admin: false as const,
+      avatar_url: null as null,
+      full_name: null as null,
+    };
   }
 }
 
 export default async function SiteHeader() {
-  const { isAuth, role, avatar_url, full_name } = await getSessionInfoSafe();
+  const { isAuth, role, is_admin, avatar_url, full_name } = await getSessionInfoSafe();
+  const cookieStore = cookies();
+  const proApply = cookieStore.get("handee_pro_apply")?.value === "1";
 
   // El logo siempre debe redirigir a la página de inicio
   const leftHref = "/";
 
-  const rightLinks: {
+  let rightLinks: {
     href: string;
     label: string;
     variant?: "default" | "outline" | "secondary" | "ghost" | "destructive";
     size?: "sm" | "lg" | "default";
+    className?: string;
+    testId?: string;
   }[] = [];
   // Eliminado botón "Biblioteca" del header/menú
   if (!isAuth) {
-    rightLinks.push({ href: "/auth/sign-in", label: "Iniciar sesión", variant: "ghost", size: "sm" });
-    rightLinks.push({ href: "/profile/setup", label: "Postúlate como profesional", variant: "default", size: "lg" });
+    rightLinks.push({
+      href: "/auth/sign-in",
+      label: "Iniciar sesión",
+      variant: "ghost",
+      size: "sm",
+      testId: "btn-login",
+    });
+    // CTA de aplicar como profesional visible para invitados (para E2E: btn-apply)
+    rightLinks.push({
+      href: "/pro-apply",
+      label: "Ofrecer servicios",
+      variant: "outline",
+      size: "sm",
+      testId: "btn-apply",
+    });
   } else if (role === "client") {
     rightLinks.push(
-      { href: "/requests?mine=1", label: "Mis solicitudes", variant: "ghost", size: "sm" },
+      {
+        href: "/requests/new",
+        label: "Nueva solicitud",
+        variant: "ghost",
+        size: "lg",
+        className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
+      },
+      {
+        href: "/requests?mine=1",
+        label: "Mis solicitudes",
+        variant: "ghost",
+        size: "lg",
+        className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
+        // Marcar nav del cliente para E2E
+        testId: "nav-client",
+      },
     );
   } else if (role === "pro") {
+    // Both pro buttons should use the compact 'Trabajos realizados' design
     rightLinks.push(
-      { href: "/requests/explore", label: "Ver solicitudes", variant: "default", size: "lg" },
-      { href: "/applied", label: "Mis postulaciones", variant: "ghost", size: "sm" },
-      { href: "/pro/profile", label: "Mi perfil profesional", variant: "ghost", size: "sm" },
+      {
+        href: "/requests/explore",
+        label: "Trabajos disponibles",
+        variant: "ghost",
+        size: "sm",
+        className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
+        // Marcar nav del profesional para E2E
+        testId: "nav-professional",
+      },
+      {
+        href: "/applied",
+        label: "Trabajos realizados",
+        variant: "ghost",
+        size: "sm",
+        className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
+      },
     );
-  } else if (role === "admin") {
+  } else if (role === "admin" || is_admin) {
     rightLinks.push(
-      { href: "/admin", label: "Panel", variant: "default", size: "lg" },
+      {
+        href: "/admin",
+        label: "Panel",
+        variant: "default",
+        size: "lg",
+        // Marcar nav de admin para E2E
+        testId: "nav-admin",
+      },
       { href: "/admin/users", label: "Usuarios", variant: "ghost", size: "sm" },
-      { href: "/admin/requests", label: "Solicitudes", variant: "ghost", size: "sm" },
-      { href: "/admin/professionals", label: "Profesionales", variant: "ghost", size: "sm" },
+      {
+        href: "/admin/requests",
+        label: "Solicitudes",
+        variant: "ghost",
+        size: "sm",
+      },
+      {
+        href: "/admin/applications",
+        label: "Postulaciones",
+        variant: "ghost",
+        size: "sm",
+      },
+      {
+        href: "/admin/pro-applications",
+        label: "Altas Pro",
+        variant: "ghost",
+        size: "sm",
+      },
+      {
+        href: "/admin/professionals",
+        label: "Profesionales",
+        variant: "ghost",
+        size: "sm",
+      },
     );
   }
 
   // Asegurar que "Mis solicitudes" esté visible solo para clientes (o rol aún no asignado) y administradores
-  if (isAuth && (role === "client" || role == null || role === "admin")) {
-    const hasRequestsLink = rightLinks.some((l) => l.href.startsWith("/requests"));
+  if (
+    !proApply &&
+    isAuth &&
+    (role === "client" || role == null || role === "admin" || is_admin)
+  ) {
+    const hasRequestsLink = rightLinks.some((l) =>
+      l.href.startsWith("/requests"),
+    );
     if (!hasRequestsLink) {
-      const href = role === "admin" ? "/requests" : "/requests?mine=1";
-      rightLinks.push({ href, label: "Mis solicitudes", variant: "ghost", size: "sm" });
+  const href = role === "admin" || is_admin ? "/requests" : "/requests?mine=1";
+      rightLinks.push({
+        href,
+        label: "Mis solicitudes",
+        variant: "ghost",
+        size: "sm",
+      });
     }
+  }
+
+  // Si estamos en flujo de pro-apply, eliminar cualquier enlace a "Mis solicitudes".
+  if (proApply) {
+    rightLinks = rightLinks.filter(
+      (l) =>
+        l.label !== "Mis solicitudes" && !/\/requests\?mine=1/.test(l.href),
+    );
   }
 
   // Enlaces para el menú móvil (excluye iniciar sesión; apariencia idéntica al header)
   const mobileLinks = (() => {
     const base = rightLinks.filter((x) => x.href !== "/auth/sign-in");
+    // Para profesionales, ocultar en el menú móvil los botones que ya están en el tab bar
+    if (role === "pro") {
+      return base.filter(
+        (l) => l.href !== "/requests/explore" && l.href !== "/applied",
+      );
+    }
     return base;
   })();
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b bg-white/50 dark:bg-neutral-900/50 backdrop-blur-md">
+    <>
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
       <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-        {/* Lado izquierdo: botón menú móvil */}
-        <div className="md:hidden">
-          <MobileMenu
-            links={mobileLinks}
-            isAuth={isAuth}
-            role={role}
-            avatarUrl={avatar_url}
-            fullName={full_name}
-          />
-        </div>
+        {/* Lado izquierdo: botón menú móvil (solo autenticado) */}
+        {isAuth ? (
+          <div className="md:hidden">
+            <MobileMenu
+              links={mobileLinks}
+              isAuth={isAuth}
+              role={role}
+              avatarUrl={avatar_url}
+              fullName={full_name}
+            />
+          </div>
+        ) : (
+          <div className="md:hidden" />
+        )}
 
         {/* Logo: centrado en móvil, alineado a la izquierda en desktop */}
         <Link
@@ -153,44 +310,164 @@ export default async function SiteHeader() {
           />
         </Link>
 
+        {/* Botones centrados (cliente y profesional) - desktop */}
+        {role === "client" ? (
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
+            {/* Orden: Mis solicitudes (izq), Nueva Solicitud (der) */}
+            {rightLinks
+              .filter(
+                (l) =>
+                  l.label === "Mis solicitudes" ||
+                  l.label === "Nueva solicitud",
+              )
+              .sort((a, _b) => (a.label === "Mis solicitudes" ? -1 : 1))
+              .map((l) => (
+                <Button
+                  key={l.href}
+                  asChild
+                  size={l.size ?? "sm"}
+                  variant={l.variant ?? "outline"}
+                  className={[l.className, "w-[12.32rem] justify-center hover:bg-neutral-200"]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <Link
+                    href={l.href}
+                    data-testid={l.testId}
+                    className={`inline-flex items-center gap-2 whitespace-nowrap ${l.label === "Nueva solicitud" ? "pl-1" : ""}`}
+                  >
+                    {l.label === "Mis solicitudes" ? (
+                      <Image
+                        src="/images/icono-mis-solicitudes.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : l.label === "Nueva solicitud" ? (
+                      <Image
+                        src="/images/icono-nueva-solicitud.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : null}
+                    <span>{l.label}</span>
+                  </Link>
+                </Button>
+              ))}
+          </div>
+        ) : null}
+
+        {role === "pro" ? (
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
+            {rightLinks
+              .filter((l) => l.href === "/requests/explore" || l.href === "/applied")
+              .map((l) => (
+                <Button
+                  key={l.href}
+                  asChild
+                  size={l.size ?? "sm"}
+                  variant={l.variant ?? "ghost"}
+                  className={[l.className, "w-[12.32rem] justify-center"]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  <Link href={l.href} className={`inline-flex items-center gap-2 whitespace-nowrap`}>
+                    {l.href === "/requests/explore" ? (
+                      <Image
+                        src="/images/icono-trabajos-disponibles.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : l.href === "/applied" ? (
+                      <Image
+                        src="/images/icono-trabajos-realizados.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : null}
+                    <span>{l.label}</span>
+                  </Link>
+                </Button>
+              ))}
+          </div>
+        ) : null}
+
         {/* Navegación derecha - desktop */}
-        <nav className="hidden md:flex items-center gap-2">
-          {rightLinks.map((l) => {
-            const isRequests = l.href.startsWith("/requests");
-            return (
-              <Button
-                key={l.href}
-                asChild
-                size={l.size ?? "sm"}
-                variant={l.variant ?? "outline"}
-                className={isRequests ? "!text-[#11314B] hover:!text-[#11314B]" : undefined}
-              >
-                <Link href={l.href}>{l.label}</Link>
-              </Button>
-            );
-          })}
+  <nav className="hidden md:flex items-center gap-2">
+          {rightLinks
+            // Evitar duplicar los botones centrados del cliente
+            .filter((l) => {
+              if (
+                role === "client" &&
+                (l.label === "Mis solicitudes" || l.label === "Nueva solicitud")
+              )
+                return false;
+              return true;
+            })
+            .map((l) => {
+              const isRequests = l.href.startsWith("/requests") && !l.className;
+              const variant = l.variant ?? "outline";
+              const wantsGrayHover =
+                variant !== "default" && variant !== "destructive";
+              const grayHover = wantsGrayHover ? "hover:bg-neutral-200" : "";
+              const extra = l.className
+                ? `${l.className} ${grayHover}`.trim()
+                : [
+                    grayHover,
+                    isRequests ? "!text-[#11314B] hover:!text-[#11314B]" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+              return (
+                <Button
+                  key={l.href}
+                  asChild
+                  size={l.size ?? "sm"}
+                  variant={l.variant ?? "outline"}
+                  className={extra || undefined}
+                >
+                  <Link
+                    href={l.href}
+                    data-testid={l.testId}
+                    className="inline-flex items-center gap-2"
+                  >
+                    {l.label === "Mis solicitudes" ? (
+                      <Image
+                        src="/images/icono-mis-solicitudes.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : l.label === "Nueva solicitud" ? (
+                      <Image
+                        src="/images/icono-nueva-solicitud.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : null}
+                    <span>{l.label}</span>
+                  </Link>
+                </Button>
+              );
+            })}
           {isAuth ? (
-            <details className="relative">
-              <summary className="list-none inline-flex items-center rounded-full focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none cursor-pointer">
-                <Avatar className="h-8 w-8">
-                  {avatar_url ? <AvatarImage src={avatar_url} alt={full_name ?? "Usuario"} /> : null}
-                  <AvatarFallback>
-                    {(full_name?.trim()?.split(/\s+/)?.map((p) => p[0])?.slice(0, 2)?.join("") || "U").toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </summary>
-              <div className="absolute right-0 mt-2 w-56 rounded-md border bg-white shadow-md p-1 z-50">
-                <div className="px-2 py-1.5 text-sm font-semibold">{full_name ?? "Cuenta"}</div>
-                <div className="my-1 h-px bg-neutral-200" />
-                <Link href="/me" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">Mi perfil</Link>
-                <Link href="/profile/setup" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">Configura tu perfil</Link>
-                <Link href="/settings" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">Configuración</Link>
-                <div className="my-1 h-px bg-neutral-200" />
-                <form action="/auth/sign-out" method="post">
-                  <button type="submit" className="w-full text-left block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">Salir</button>
-                </form>
-              </div>
-            </details>
+            <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} />
+          ) : null}
+          {/* Botón de menú a la derecha del avatar; solo autenticado */}
+          {isAuth ? (
+            <div className="ml-4">
+              <HeaderMenu />
+            </div>
           ) : null}
         </nav>
 
@@ -203,9 +480,18 @@ export default async function SiteHeader() {
           ) : (
             <Link href="/me" className="inline-flex items-center">
               <Avatar className="h-8 w-8">
-                {avatar_url ? <AvatarImage src={avatar_url} alt={full_name ?? "Usuario"} /> : null}
+                {avatar_url ? (
+                  <AvatarImage src={avatar_url} alt={full_name ?? "Usuario"} />
+                ) : null}
                 <AvatarFallback>
-                  {(full_name?.trim()?.split(/\s+/)?.map((p) => p[0])?.slice(0, 2)?.join("") || "U").toUpperCase()}
+                  {(
+                    full_name
+                      ?.trim()
+                      ?.split(/\s+/)
+                      ?.map((p) => p[0])
+                      ?.slice(0, 2)
+                      ?.join("") || "U"
+                  ).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Link>
@@ -213,5 +499,8 @@ export default async function SiteHeader() {
         </div>
       </div>
     </header>
+  {/* Pro mobile tabbar removed as requested */}
+  {isAuth && role === "pro" ? <ProMobileTabbar /> : null}
+    </>
   );
 }

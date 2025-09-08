@@ -17,9 +17,9 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: #11304a; /* brand primary */
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
+  --secondary: #f9e7c9; /* brand secondary */
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
@@ -42,9 +42,20 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+    Gutter horizontal global (10% total en pantallas no muy grandes)
+    10% total = 5% por lado; usa clamp para no exceder ni quedar muy pequeño
+    Mantener compat: mapear gutter-x a site-gutter
+  */
+  --gutter-total: 10vw; /* 10% del viewport */
+  --site-gutter: clamp(16px, 5vw, 48px);
+  --gutter-x: var(--site-gutter);
 }
 
-html, body, :root {
+html,
+body,
+:root {
   height: 100%;
 }
 
@@ -56,12 +67,12 @@ body {
   @apply bg-neutral-950 text-neutral-100;
 }
 
-.text-brand { 
-  color: #1f3c44; /* azul verdoso oscuro como Glide */ 
+.text-brand {
+  color: #11304a; /* color de marca primario */
 }
 
-.bg-brand { 
-  background-color: #1f3c44; 
+.bg-brand {
+  background-color: #11304a;
 }
 
 @theme inline {
@@ -109,10 +120,10 @@ body {
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary: #11304a; /* brand primary in dark as well */
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
+  --secondary: #f9e7c9; /* brand secondary in dark as well */
+  --secondary-foreground: #11304a; /* ensure contrast on light secondary */
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
@@ -143,19 +154,114 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Ajuste sutil de márgenes en desktop (versión web)
+     Ensancha levemente contenedores comunes y reduce padding horizontal estándar */
+  @media (width >= 768px) {
+    .max-w-5xl {
+      max-width: 70rem !important;
+    } /* antes 64rem */
+    .px-4 {
+      padding-left: 0.75rem !important;
+      padding-right: 0.75rem !important;
+    } /* antes 1rem */
+  }
+
+  /* Cuando el layout está "pegado" a los márgenes (viewport <= max container), reducir gutters 10% */
+  @media (768px <= width <= 70rem) {
+    .px-4 {
+      padding-left: 0.675rem !important;
+      padding-right: 0.675rem !important;
+    }
+  }
 }
 
 @layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .chango-regular {
+    font-family: Chango, sans-serif;
+    font-weight: 400;
+    font-style: normal;
+  }
+  .itim-regular {
+    font-family: Itim, cursive;
+    font-weight: 400;
+    font-style: normal;
+  }
+  .bebas-regular {
+    font-family: "Bebas Neue", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+  }
+  .passion-one {
+    font-family: "Passion One", sans-serif;
+  }
+  .bungee-regular {
+    font-family: Bungee, sans-serif;
+    font-weight: 400;
+    font-style: normal;
+  }
+  .rubik {
+    font-family: Rubik, sans-serif;
+    font-style: normal;
+  }
+  .font-350 {
+    font-weight: 350;
+  }
+  .font-concert-cdn {
+    font-family: "Concert One", system-ui, sans-serif;
+  }
+  .font-chango {
+    font-family: Chango, system-ui, sans-serif;
+  }
   .line-clamp-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  
+
   /* Oculta el ícono nativo del date picker cuando usemos un botón personalizado */
   .hide-native-calendar::-webkit-calendar-picker-indicator {
     opacity: 0;
     display: none;
+  }
+
+  /* Animación sutil para la mascota de Handee */
+  @keyframes handee-bounce-subtle {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+
+  .animate-bounce-subtle {
+    animation: handee-bounce-subtle 2.8s ease-in-out infinite;
+  }
+
+  /* Utilidad para aplicar gutter horizontal responsivo */
+  .gutter-x {
+    padding-left: var(--site-gutter);
+    padding-right: var(--site-gutter);
+  }
+
+  /* Aplica el gutter principalmente cuando la página está pegada a los márgenes (<= ancho máx del contenedor) */
+  @media (768px <= width <= 70rem) {
+    .gutter-x {
+      padding-left: var(--site-gutter);
+      padding-right: var(--site-gutter);
+    }
+  }
+}
+
+/* Respeta preferencias de movimiento reducido */
+@media (prefers-reduced-motion: reduce) {
+  .animate-bounce-subtle {
+    animation: none !important;
   }
 }
