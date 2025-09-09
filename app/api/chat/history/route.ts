@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getUserFromRequestOrThrow, getDbClientForRequest } from "@/lib/auth-route";
+import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader } from "@/lib/auth-route";
+import { createServerClient as createServiceClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -14,8 +16,10 @@ const QuerySchema = z.object({
 export async function GET(req: Request) {
   try {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { user } = await getUserFromRequestOrThrow(req);
-    const supabase = await getDbClientForRequest(req);
+    let usedDevFallback = false;
+    let { user } = await getDevUserFromHeader(req) ?? { user: null as any };
+    if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
+    const supabase = usedDevFallback ? (createServiceClient() as any) : await getDbClientForRequest(req);
     const { searchParams } = new URL(req.url);
     const parsed = QuerySchema.safeParse({
       conversationId: searchParams.get("conversationId"),
@@ -60,7 +64,8 @@ export async function GET(req: Request) {
   } catch (e) {
     const anyE = e as unknown as { status?: number; code?: string; message?: string; stack?: string };
     const msg = anyE?.code || (e instanceof Error ? e.message : "UNAUTHORIZED");
-    const status = typeof anyE?.status === "number" ? anyE.status : msg === "UNAUTHORIZED" ? 401 : 500;
+    const isAuthErr = msg === "UNAUTHORIZED" || msg === "MISSING_AUTH" || msg === "INVALID_TOKEN";
+    const status = typeof anyE?.status === "number" ? anyE.status : isAuthErr ? 401 : 500;
     if (process.env.NODE_ENV !== "production") {
       // eslint-disable-next-line no-console
       console.error("/api/chat/history error:", e);

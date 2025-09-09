@@ -1,6 +1,6 @@
-'use client';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
 type RequestRow = {
   id: string;
@@ -15,8 +15,8 @@ type RequestRow = {
 };
 
 export default function Jobs() {
-  const [q, setQ] = useState('');
-  const [city, setCity] = useState('');
+  const [q, setQ] = useState("");
+  const [city, setCity] = useState("");
   const [items, setItems] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -26,21 +26,29 @@ export default function Jobs() {
       setLoading(true);
       setErr(null);
       const params = new URLSearchParams();
-      if (q) params.set('q', q);
-      if (city) params.set('city', city);
-      const res = await fetch(`/api/requests?${params}`, { cache: 'no-store' });
+      if (q) params.set("q", q);
+      if (city) params.set("city", city);
+      const res = await fetch(`/api/requests?${params}`, { cache: "no-store" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Error');
+      if (!res.ok) throw new Error(json.error || "Error");
       setItems(json.data || []);
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : (typeof e === "string" ? e : "Error desconocido"));
+      setErr(
+        e instanceof Error
+          ? e.message
+          : typeof e === "string"
+            ? e
+            : "Error desconocido",
+      );
     } finally {
       setLoading(false);
     }
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-useEffect(() => { load(); }, [q, city]);
+  useEffect(() => {
+    load();
+  }, [q, city]);
 
   return (
     <div className="space-y-6">
@@ -63,7 +71,9 @@ useEffect(() => { load(); }, [q, city]);
 
       {loading && <div className="text-sm text-neutral-500">Cargando…</div>}
       {err && <div className="text-sm text-red-600">{err}</div>}
-      {!loading && items.length === 0 && <div className="text-neutral-500">No hay solicitudes.</div>}
+      {!loading && items.length === 0 && (
+        <div className="text-neutral-500">No hay solicitudes.</div>
+      )}
 
       <div className="space-y-2 text-sm">
         {items.map((r) => (
@@ -75,7 +85,7 @@ useEffect(() => { load(); }, [q, city]);
             <div className="font-medium">{r.title}</div>
             <div className="text-neutral-500">{r.description}</div>
             <div className="text-xs text-neutral-500 mt-1">
-              {r.category} · {r.city} · {r.required_at || 'Fecha por definir'}
+              {r.category} · {r.city} · {r.required_at || "Fecha por definir"}
             </div>
           </Link>
         ))}
