@@ -1,3 +1,10 @@
 {
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.handi.mx" }],
+      "destination": "https://handi.mx/$1",
+      "permanent": true
+    }
+  ]
 }
