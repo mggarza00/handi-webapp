@@ -1,17 +1,41 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
+  // Canonical host redirect in production
   try {
-    const supabase = createMiddlewareClient({ req, res });
-    // Refresca la sesión si es necesario (SSR cookies)
-    await supabase.auth.getSession();
-  } catch (_) {
-    // noop: no bloquear la request si falla el refresco
+    if (process.env.VERCEL_ENV === "production") {
+      const host = req.headers.get("host") || "";
+      const canonical = "handi.mx";
+      if (host && host !== canonical) {
+        const url = new URL(req.nextUrl);
+        url.host = canonical;
+        url.protocol = "https:";
+        return NextResponse.redirect(url, 308);
+      }
+    }
+  } catch {
+    // ignore
   }
-  return res;
+
+  // Redirect legacy /requests to /requests?mine=1
+  const { pathname, searchParams, origin } = req.nextUrl;
+  if (pathname === "/requests") {
+    const mine = (searchParams.get("mine") || "").toLowerCase();
+    if (mine !== "1" && mine !== "true") {
+      const url = new URL("/requests", origin);
+      url.searchParams.set("mine", "1");
+      // Preserve other params if any
+      for (const [k, v] of searchParams.entries()) {
+        if (k !== "mine") url.searchParams.set(k, v);
+      }
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Mantener middleware ligero y compatible con Edge Runtime.
+  // La sesión de Supabase se refresca en SSR usando `@supabase/ssr` en rutas/layots.
+  return NextResponse.next();
 }
 
 export const config = {
