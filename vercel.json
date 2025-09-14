@@ -8,7 +8,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/icons/favicon.png", "destination": "/icons/Favicon v1 png.png" },
     { "source": "/favicon.ico", "destination": "/icons/Handi-favicon.gif" }
   ]
 }
