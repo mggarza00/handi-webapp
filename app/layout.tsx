@@ -46,13 +46,15 @@ export const metadata: Metadata = {
     images: ["/handi-logo.gif"],
   },
   icons: {
+    // Primary favicon (animated GIF)
     icon: [
-      { url: "/icons/favicon.png", type: "image/png", sizes: "16x16" },
-      { url: "/icons/favicon.png", type: "image/png", sizes: "32x32" },
+      { url: "/icons/Handi-favicon.gif", type: "image/gif" },
     ],
-    shortcut: ["/icons/favicon.png", "/favicon.ico"],
+    // Keep ICO route for broader browser support
+    shortcut: ["/favicon.ico", "/icons/Handi-favicon.gif"],
+    // Apple touch icons prefer PNG; fallback to GIF if not provided
     apple: [
-      { url: "/icons/favicon.png", sizes: "180x180" },
+      { url: "/icons/Handi-favicon.gif" },
     ],
   },
 };
