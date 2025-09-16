@@ -4,6 +4,7 @@ export async function getProspectsForRequest(requestId: string) {
     method: "GET",
     headers: { "Content-Type": "application/json; charset=utf-8" },
     cache: "no-store",
+    credentials: "include",
   });
   if (!res.ok) {
     const text = await res.text();

@@ -35,7 +35,7 @@ CLIENT_JSON="$(
   curl -sS -X POST "$SUPABASE_URL/auth/v1/admin/users" \
     -H "apikey: $SERVICE_ROLE" -H "Authorization: Bearer $SERVICE_ROLE" \
     -H "Content-Type: application/json; charset=utf-8" \
-    --data "{\"email\":\"client+$TS@handee.test\",\"email_confirm\":true}"
+    --data "{\"email\":\"client+$TS@handi.test\",\"email_confirm\":true}"
 )"
 CLIENT_ID="$(printf '%s' "$CLIENT_JSON" | extract_user_id)"
 if [ -z "$CLIENT_ID" ]; then
@@ -48,7 +48,7 @@ PRO_JSON="$(
   curl -sS -X POST "$SUPABASE_URL/auth/v1/admin/users" \
     -H "apikey: $SERVICE_ROLE" -H "Authorization: Bearer $SERVICE_ROLE" \
     -H "Content-Type: application/json; charset=utf-8" \
-    --data "{\"email\":\"pro+$TS@handee.test\",\"email_confirm\":true}"
+    --data "{\"email\":\"pro+$TS@handi.test\",\"email_confirm\":true}"
 )"
 PRO_ID="$(printf '%s' "$PRO_JSON" | extract_user_id)"
 if [ -z "$PRO_ID" ]; then

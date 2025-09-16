@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import { supabaseServer } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-// Lista acuerdos de un request. RLS: sólo dueño del request o profesional involucrado.
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const supabase = supabaseServer();
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const supabase = createRouteHandlerClient<Database>({ cookies });
   const { id: requestId } = await params;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,7 +22,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
   if (error) {
     return new NextResponse(
-      JSON.stringify({ ok: false, error: "LIST_FAILED", detail: error.message }),
+      JSON.stringify({
+        ok: false,
+        error: "LIST_FAILED",
+        detail: error.message,
+      }),
       { status: 400, headers: JSONH },
     );
   }

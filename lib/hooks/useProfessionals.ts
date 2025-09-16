@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-import { getProfessionals, type ProfessionalsQuery } from "@/lib/queries/professionals";
+import {
+  getProfessionals,
+  type ProfessionalsQuery,
+} from "@/lib/queries/professionals";
 
 export function useProfessionals(params: ProfessionalsQuery = {}) {
   const [data, setData] = useState<unknown[] | null>(null);

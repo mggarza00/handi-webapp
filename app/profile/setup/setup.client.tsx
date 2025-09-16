@@ -16,7 +16,10 @@ const FormSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ? Number(v) : undefined))
-    .refine((v) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= 80), "Años inválidos"),
+    .refine(
+      (v) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= 80),
+      "Años inválidos",
+    ),
   city: z.string().min(2).max(120),
   categories: z.string().optional(), // CSV simple
   subcategories: z.string().optional(), // CSV simple
@@ -42,15 +45,25 @@ export default function SetupForm({ initial }: { initial: Profile }) {
   const [avatarUrl, setAvatarUrl] = React.useState(initial?.avatar_url ?? "");
   const [headline, setHeadline] = React.useState(initial?.headline ?? "");
   const [bio, setBio] = React.useState(initial?.bio ?? "");
-  const [years, setYears] = React.useState(initial?.years_experience?.toString() ?? "");
+  const [years, setYears] = React.useState(
+    initial?.years_experience?.toString() ?? "",
+  );
   const [city, setCity] = React.useState(initial?.city ?? "");
   const [categories, setCategories] = React.useState(
-    (initial?.categories ?? [])?.map((x) => x?.name).filter(Boolean).join(", ")
+    (initial?.categories ?? [])
+      ?.map((x) => x?.name)
+      .filter(Boolean)
+      .join(", "),
   );
   const [subcategories, setSubcategories] = React.useState(
-    (initial?.subcategories ?? [])?.map((x) => x?.name).filter(Boolean).join(", ")
+    (initial?.subcategories ?? [])
+      ?.map((x) => x?.name)
+      .filter(Boolean)
+      .join(", "),
   );
-  const [gallery, setGallery] = React.useState<Array<{ url: string; path: string; name: string; size: number | null }>>([]);
+  const [gallery, setGallery] = React.useState<
+    Array<{ url: string; path: string; name: string; size: number | null }>
+  >([]);
   const [uploading, setUploading] = React.useState(false);
   const [meId, setMeId] = React.useState<string | null>(null);
 
@@ -58,19 +71,27 @@ export default function SetupForm({ initial }: { initial: Profile }) {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/api/me", { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store" });
+        const r = await fetch("/api/me", {
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          cache: "no-store",
+        });
         const j = await r.json();
         const uid = j?.user?.id as string | undefined;
         if (!uid) return;
         if (!cancelled) setMeId(uid);
-        const g = await fetch(`/api/profiles/${uid}/gallery`, { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store" });
+        const g = await fetch(`/api/profiles/${uid}/gallery`, {
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          cache: "no-store",
+        });
         const gj = await g.json();
         if (!cancelled && g.ok && gj?.data) setGallery(gj.data);
       } catch {
         /* ignore */
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
@@ -137,47 +158,88 @@ export default function SetupForm({ initial }: { initial: Profile }) {
 
       <div>
         <label className="block text-sm mb-1">Nombre completo</label>
-        <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Tu nombre" />
+        <Input
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Tu nombre"
+        />
       </div>
 
       <div>
         <label className="block text-sm mb-1">Titular (headline)</label>
-        <Input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Ej. Electricista residencial certificado" />
+        <Input
+          value={headline}
+          onChange={(e) => setHeadline(e.target.value)}
+          placeholder="Ej. Electricista residencial certificado"
+        />
       </div>
 
       <div>
         <label className="block text-sm mb-1">Ciudad principal</label>
-        <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Monterrey, N.L." />
+        <Input
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder="Monterrey, N.L."
+        />
       </div>
 
       <div>
         <label className="block text-sm mb-1">Años de experiencia</label>
-        <Input value={years} onChange={(e) => setYears(e.target.value)} placeholder="5" inputMode="numeric" />
+        <Input
+          value={years}
+          onChange={(e) => setYears(e.target.value)}
+          placeholder="5"
+          inputMode="numeric"
+        />
       </div>
 
       <div>
-        <label className="block text-sm mb-1">Categorías (separadas por coma)</label>
-        <Input value={categories} onChange={(e) => setCategories(e.target.value)} placeholder="Electricidad, Plomería" />
+        <label className="block text-sm mb-1">
+          Categorías (separadas por coma)
+        </label>
+        <Input
+          value={categories}
+          onChange={(e) => setCategories(e.target.value)}
+          placeholder="Electricidad, Plomería"
+        />
       </div>
 
       <div>
-        <label className="block text-sm mb-1">Subcategorías (separadas por coma)</label>
-        <Input value={subcategories} onChange={(e) => setSubcategories(e.target.value)} placeholder="Instalación, Mantenimiento" />
+        <label className="block text-sm mb-1">
+          Subcategorías (separadas por coma)
+        </label>
+        <Input
+          value={subcategories}
+          onChange={(e) => setSubcategories(e.target.value)}
+          placeholder="Instalación, Mantenimiento"
+        />
       </div>
 
       <div>
         <label className="block text-sm mb-1">Bio</label>
-        <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} placeholder="Cuéntanos sobre tu experiencia y servicios." />
+        <Textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          rows={4}
+          placeholder="Cuéntanos sobre tu experiencia y servicios."
+        />
       </div>
 
       <div>
         <label className="block text-sm mb-1">Avatar URL (opcional)</label>
-        <Input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
+        <Input
+          value={avatarUrl}
+          onChange={(e) => setAvatarUrl(e.target.value)}
+          placeholder="https://..."
+        />
       </div>
 
       <div>
         <h3 className="text-sm font-medium mb-1">Galería profesional</h3>
-        <p className="text-xs text-slate-600 mb-2">Sube imágenes de tus trabajos (máx 5MB c/u). Se mostrarán en tu perfil público.</p>
+        <p className="text-xs text-slate-600 mb-2">
+          Sube imágenes de tus trabajos (máx 5MB c/u). Se mostrarán en tu perfil
+          público.
+        </p>
         <Input
           type="file"
           accept="image/*"
@@ -189,17 +251,25 @@ export default function SetupForm({ initial }: { initial: Profile }) {
             try {
               for (const f of list) {
                 const max = 5 * 1024 * 1024;
-                if (f.size > max) throw new Error(`El archivo ${f.name} excede 5MB`);
-                if (!/^image\//i.test(f.type)) throw new Error(`Tipo inválido para ${f.name}`);
+                if (f.size > max)
+                  throw new Error(`El archivo ${f.name} excede 5MB`);
+                if (!/^image\//i.test(f.type))
+                  throw new Error(`Tipo inválido para ${f.name}`);
                 const path = `${meId}/${Date.now()}-${encodeURIComponent(f.name)}`;
-                const up = await supabaseBrowser.storage.from("profiles-gallery").upload(path, f, { contentType: f.type, upsert: false });
+                const up = await supabaseBrowser.storage
+                  .from("profiles-gallery")
+                  .upload(path, f, { contentType: f.type, upsert: false });
                 if (up.error) throw new Error(up.error.message);
               }
-              const g = await fetch(`/api/profiles/${meId}/gallery`, { headers: { "Content-Type": "application/json; charset=utf-8" } });
+              const g = await fetch(`/api/profiles/${meId}/gallery`, {
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+              });
               const gj = await g.json();
               if (g.ok) setGallery(gj.data ?? []);
             } catch (err) {
-              alert(err instanceof Error ? err.message : "Error al subir imágenes");
+              alert(
+                err instanceof Error ? err.message : "Error al subir imágenes",
+              );
             } finally {
               setUploading(false);
               e.currentTarget.value = "";
@@ -211,15 +281,30 @@ export default function SetupForm({ initial }: { initial: Profile }) {
             {gallery.map((g) => (
               <li key={g.path} className="relative group">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={g.url} alt={g.name} className="w-full h-32 object-cover rounded border" />
+                <img
+                  src={g.url}
+                  alt={g.name}
+                  className="w-full h-32 object-cover rounded border"
+                />
                 <button
                   type="button"
                   className="absolute top-2 right-2 text-xs rounded px-2 py-1 bg-white/90 border opacity-0 group-hover:opacity-100"
                   disabled={uploading || !meId}
                   onClick={async () => {
                     if (!meId) return;
-                    const del = await fetch(`/api/profiles/${meId}/gallery?path=${encodeURIComponent(g.path)}`, { method: "DELETE", headers: { "Content-Type": "application/json; charset=utf-8" } });
-                    if (del.ok) setGallery((prev) => prev.filter((x) => x.path !== g.path));
+                    const del = await fetch(
+                      `/api/profiles/${meId}/gallery?path=${encodeURIComponent(g.path)}`,
+                      {
+                        method: "DELETE",
+                        headers: {
+                          "Content-Type": "application/json; charset=utf-8",
+                        },
+                      },
+                    );
+                    if (del.ok)
+                      setGallery((prev) =>
+                        prev.filter((x) => x.path !== g.path),
+                      );
                   }}
                 >
                   Eliminar
@@ -231,7 +316,9 @@ export default function SetupForm({ initial }: { initial: Profile }) {
       </div>
 
       <div className="pt-2">
-        <Button type="submit" disabled={loading}>{loading ? "Guardando…" : "Guardar perfil"}</Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Guardando…" : "Guardar perfil"}
+        </Button>
       </div>
     </form>
   );

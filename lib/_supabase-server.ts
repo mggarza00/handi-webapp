@@ -1,18 +1,11 @@
 // lib/_supabase-server.ts
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/supabase";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error("Faltan variables NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY");
-}
-
-type DBClient = SupabaseClient<Database, 'public', 'public'>;
+type DBClient = SupabaseClient<Database, "public", "public">;
 
 export type AuthContext = {
   supabase: DBClient;
@@ -32,37 +25,25 @@ export class ApiError extends Error {
 }
 
 export function getSupabaseServer(): DBClient {
-  const cookieStore = cookies();
-
-  // Importante: En Server Components, Next.js no permite mutar cookies.
-  // Por eso, set/remove son NO-OP aquí para evitar el error
-  // "Cookies can only be modified in a Server Action or Route Handler".
-  const client = createServerClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set(_name: string, _value: string, _options: CookieOptions) {
-        // no-op en RSC
-      },
-      remove(_name: string, _options: CookieOptions) {
-        // no-op en RSC
-      },
-    },
-  });
-  return client as unknown as DBClient;
+  return createRouteHandlerClient<Database>({ cookies });
 }
 
 export const supabaseServer = getSupabaseServer;
 
-export async function getAuthContext(): Promise<AuthContext> {
-  const supabase = getSupabaseServer();
-  const { data } = await supabase.auth.getUser();
+export async function getAuthContext(client?: DBClient): Promise<AuthContext> {
+  const supabase = client ?? getSupabaseServer();
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    throw new ApiError(401, "INVALID_TOKEN", error.message);
+  }
   return { supabase, user: data.user ?? null };
 }
 
-export async function getUserOrThrow(): Promise<{ supabase: DBClient; user: User }> {
-  const { supabase, user } = await getAuthContext();
+export async function getUserOrThrow(client?: DBClient): Promise<{
+  supabase: DBClient;
+  user: User;
+}> {
+  const { supabase, user } = await getAuthContext(client);
   if (!user) throw new ApiError(401, "UNAUTHORIZED");
   return { supabase, user };
 }

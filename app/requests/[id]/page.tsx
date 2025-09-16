@@ -1,222 +1,203 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import * as React from "react";
-import { headers } from "next/headers";
+import type { Metadata } from "next";
+import { headers, cookies } from "next/headers";
+import { redirect } from "next/navigation";
+// import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
-import PostulateClient from "./Postulate.client";
-import ApplicationsClient from "./Applications.client";
-import ProspectsClient from "./Prospects.client";
-import ChatClient from "./Chat.client";
-import AgreementsClient from "./Agreements.client";
+import RequestDetailClient from "./RequestDetailClient";
+import RequestHeaderActions from "./RequestHeaderActions.client";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+// Removed pre-card PhotoGallery to avoid duplicate images
+import ProfessionalsList from "@/components/professionals/ProfessionalsList";
+import type { Database } from "@/types/supabase";
 
-type Params = { params: { id: string } };
+type Params = {
+  params: { id: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+};
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  try { return JSON.stringify(e); } catch { return String(e); }
-}
-
-function formatDate(s?: string | null): string {
-  if (!s) return "";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return String(s).slice(0, 10);
-  return d.toISOString().slice(0, 10);
-}
-
-export default async function RequestDetailPage({ params }: Params) {
+function getBaseUrl() {
   const h = headers();
   const host = h.get("x-forwarded-host") || h.get("host");
   const proto = h.get("x-forwarded-proto") || "http";
-  const base = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : "http://localhost:3000");
-
-  const res = await fetch(`${base}/api/requests/${params.id}`, {
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    cache: "no-store",
-  }).catch<unknown>(e => ({ ok: false, error: e }));
-
-  if (typeof res === "object" && res && "ok" in (res as any) && (res as any).ok === false) {
-    const msg = getErrorMessage((res as any).error);
-    return <div className="p-6">Error: {msg}</div>;
-  }
-
-  let json: any;
-  try {
-    // @ts-expect-error: fetch puede haber fallado arriba; protegemos acceso
-    json = await res.json();
-  } catch (e: unknown) {
-    return <div className="p-6">Error: {getErrorMessage(e)}</div>;
-  }
-
-  if (!json?.ok) {
-    return <div className="p-6">{getErrorMessage(json?.error ?? "No encontrado")}</div>;
-  }
-
-  const data = json.data as any;
-  const attachmentsRaw = Array.isArray(data.attachments) ? data.attachments : [];
-  const subcategories = Array.isArray(data.subcategories) ? data.subcategories : [];
-
   return (
-    <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="lg:col-span-2 space-y-4">
-        <Breadcrumbs
-          items={[
-            { label: "Inicio", href: "/" },
-            { label: "Solicitudes", href: "/requests" },
-            { label: data.title ?? "Solicitud" },
-          ]}
-        />
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">{data.title ?? "(sin título)"}</h1>
-          <Badge variant="secondary">{data.status ?? "active"}</Badge>
-        </div>
-        <p className="text-sm text-gray-600">Ciudad: {data.city ?? "—"} · Fecha: {formatDate(data.created_at)}</p>
-        {data.description && (
-          <Card className="p-4 text-sm leading-6 whitespace-pre-line">
-            {data.description}
-          </Card>
-        )}
-
-        {subcategories?.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {subcategories.map((s: any, idx: number) => (
-              <Badge key={idx} variant="outline">{typeof s === "string" ? s : s?.name}</Badge>
-            ))}
-          </div>
-        )}
-
-        {attachmentsRaw?.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {await (async () => {
-              const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
-              const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
-              let signed: Array<{ url: string; mime?: string; size?: number }> = [];
-              if (url && serviceRole) {
-                const admin = createClient(url, serviceRole);
-                const items = await Promise.all(
-                  attachmentsRaw.map(async (f: any) => {
-                    const mime = f?.mime ?? "attachment";
-                    const size = f?.size ?? 0;
-                    if (f?.path) {
-                      const s = await admin.storage.from("requests").createSignedUrl(f.path, 60 * 60).catch(() => null);
-                      const href = s?.data?.signedUrl ?? null;
-                      if (href) return { url: href, mime, size };
-                    }
-                    if (f?.url) return { url: f.url as string, mime, size };
-                    return null;
-                  })
-                );
-                signed = items.filter(Boolean) as Array<{ url: string; mime?: string; size?: number }>;
-              } else {
-                // Fallback: usar url si existe
-                signed = attachmentsRaw
-                  .map((f: any) => (f?.url ? { url: f.url as string, mime: f?.mime, size: f?.size } : null))
-                  .filter(Boolean) as Array<{ url: string; mime?: string; size?: number }>;
-              }
-              return signed.map((f, idx) => (
-                <a key={idx} href={f.url} target="_blank" rel="noreferrer" className="block group">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={f.url} alt={f.mime ?? "attachment"} className="rounded border object-cover w-full h-40 group-hover:opacity-90" />
-                  <p className="text-xs mt-1 text-gray-600 truncate">{f.mime} · {(f.size ?? 0) / 1000} KB</p>
-                </a>
-              ));
-            })()}
-          </div>
-        )}
-      </div>
-
-      <div className="lg:col-span-1 space-y-4">
-        <Card className="p-4 space-y-3">
-          <h2 className="font-medium">Prospectos</h2>
-          <p className="text-sm text-gray-600">Sugeridos por matching/ranking.</p>
-          <ProspectsClient requestId={params.id} />
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <h2 className="font-medium">¿Eres profesional?</h2>
-          <p className="text-sm text-gray-600">Postúlate para que el cliente te contacte. Se aplica RLS.</p>
-          <PostulateClient requestId={params.id} />
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <h2 className="font-medium">Postulaciones</h2>
-          <p className="text-sm text-gray-600">Visible sólo para el dueño de la solicitud.</p>
-          <ApplicationsClient requestId={params.id} createdBy={data.created_by ?? null} />
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <h2 className="font-medium">Acuerdos</h2>
-          <p className="text-sm text-gray-600">Acuerdos creados para esta solicitud.</p>
-          <AgreementsClient requestId={params.id} createdBy={data.created_by ?? null} />
-        </Card>
-
-        <Card className="p-4 space-y-3">
-          <h2 className="font-medium">Chat</h2>
-          <p className="text-sm text-gray-600">No compartas datos personales (candado activo).</p>
-          <ChatClient requestId={params.id} createdBy={data.created_by ?? null} />
-        </Card>
-      </div>
-    </div>
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (host ? `${proto}://${host}` : "http://localhost:3000")
   );
 }
 
-export async function generateMetadata({ params }: Params) {
-  const h = headers();
-  const host = h.get("x-forwarded-host") || h.get("host");
-  const proto = h.get("x-forwarded-proto") || "http";
-  const base = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${proto}://${host}` : "http://localhost:3000");
-  try {
-    const res = await fetch(`${base}/api/requests/${params.id}`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      cache: "no-store",
-    });
-    const j = await res.json();
-    const d = j?.data as { title?: string | null; city?: string | null; description?: string | null; attachments?: Array<any> } | undefined;
-    const t = d?.title?.trim() || "Solicitud";
-    const city = d?.city ? ` · ${d.city}` : "";
-    const descSrc = (d?.description || "").trim();
-    const desc = descSrc ? (descSrc.length > 140 ? `${descSrc.slice(0, 137)}…` : descSrc) : `Solicitud en Handee${city}`;
-    // OG image: usa primer adjunto (firmado) si existe
-    let imageUrl = `${base}/handee-logo.png`;
-    try {
-      const att = Array.isArray(d?.attachments) ? d!.attachments : [];
-      const first = att.find((x) => x && (x.path || x.url)) || null;
-      if (first?.path) {
-        const urlEnv = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
-        const sr = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
-        if (urlEnv && sr) {
-          const admin = createClient(urlEnv, sr);
-          const s = await admin.storage.from("requests").createSignedUrl(first.path as string, 60 * 60).catch(() => null);
-          if (s?.data?.signedUrl) imageUrl = s.data.signedUrl;
-        }
-      } else if (first?.url) {
-        imageUrl = first.url as string;
-      }
-    } catch {
-      // ignore
-    }
-    return {
-      title: `${t} — Handee`,
-      description: desc,
-      openGraph: {
-        title: `${t} — Handee`,
-        description: desc,
-        url: `${base}/requests/${params.id}`,
-        images: [imageUrl],
-        siteName: "Handee",
-        type: "article",
-      },
-      twitter: {
-        card: "summary_large_image",
-        title: `${t} — Handee`,
-        description: desc,
-        images: [imageUrl],
-      },
-    };
-  } catch {
-    return { title: "Solicitud — Handee" };
+export const dynamic = "force-dynamic";
+
+export default async function RequestDetailPage({ params }: Params) {
+  const base = getBaseUrl();
+  const disablePros = (process.env.NEXT_PUBLIC_DISABLE_PROS || "").trim() === "1";
+  const disableDetail = (process.env.NEXT_PUBLIC_DISABLE_DETAIL || "").trim() === "1";
+
+  // Forward cookies for SSR fetch
+  // Forward raw cookie values to internal API (do NOT URL-encode).
+  // Encoding breaks auth tokens (e.g., Supabase JWTs) and can lead to
+  // "Auth session missing" on subsequent requests.
+  const ck = cookies();
+  const cookieHeader = ck
+    .getAll()
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+
+  const res = await fetch(`${base}/api/requests/${params.id}`, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    },
+    cache: "no-store",
+  });
+  const j = await res.json().catch(() => null);
+  if (!res.ok || !j?.ok) {
+    return (
+      <main className="mx-auto max-w-6xl p-6">
+        No se encontrÃ³ la solicitud.
+      </main>
+    );
   }
+
+  const d = j.data as Record<string, unknown>;
+
+  // Owner-only guard: only the creator can view this client detail page
+  try {
+    const supabase = createServerComponentClient<Database>({ cookies });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const ownerId = (d.created_by as string | undefined) ?? null;
+    if (!user || !ownerId || user.id !== ownerId) {
+      redirect(`/requests/explore/${params.id}`);
+    }
+  } catch {
+    redirect(`/requests/explore/${params.id}`);
+  }
+
+  // Map subcategory with fallback: prefer JSON array (subcategories), otherwise legacy string field (subcategory)
+  let subcategory = "";
+  const subs = d.subcategories as unknown;
+  if (Array.isArray(subs) && subs.length > 0) {
+    const first = subs[0] as unknown;
+    subcategory =
+      typeof first === "string"
+        ? first
+        : ((first as { name?: string }).name ?? "");
+  } else if (typeof d.subcategory === "string" && d.subcategory.trim()) {
+    subcategory = d.subcategory.trim();
+  }
+
+  // Build gallery photos from attachments with signed URLs if needed
+  const photos: Array<{ url: string; alt?: string | null }> = [];
+  const atts = d.attachments as unknown;
+  if (Array.isArray(atts)) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
+    const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as
+      | string
+      | undefined;
+    for (const raw of atts) {
+      const f = raw as Record<string, unknown>;
+      let href = (typeof f.url === "string" ? f.url : undefined) as
+        | string
+        | undefined;
+      if (!href && typeof f.path === "string" && url && serviceRole) {
+        try {
+          const admin = createClient(url, serviceRole);
+          const s = await admin.storage
+            .from("requests")
+            .createSignedUrl(f.path as string, 60 * 60);
+          href = s?.data?.signedUrl ?? undefined;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (href)
+        photos.push({ url: href, alt: (f.mime as string | undefined) ?? null });
+    }
+  }
+
+  // Important: spread the original row first, then override with normalized fields
+  const initial = {
+    // Debug panel and any extra fields preserved
+    ...d,
+    id: String(d.id ?? params.id),
+    title: (d.title as string | null) ?? null,
+    description: (d.description as string | null) ?? null,
+    status: (d.status as string | null) ?? null,
+    city: (d.city as string | null) ?? null,
+    category: (d.category as string | null) ?? null,
+    subcategory,
+    budget: typeof d.budget === "number" ? (d.budget as number) : null,
+    required_at: (d.required_at as string | null) ?? null,
+    photos,
+  };
+
+  const category = (initial.category ?? "").toString() || undefined;
+  const subcat = (initial.subcategory ?? "").toString() || undefined;
+  const city = (initial.city ?? "").toString() || undefined;
+  // budgetFmt no se usa; si se requiere mostrar, usar Intl a demanda.
+
+  return (
+    <main className="mx-auto max-w-6xl px-4 py-6">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_360px] gap-6 items-start">
+        <section className="space-y-4">
+          <Breadcrumbs
+            items={[
+              { label: "Inicio", href: "/" },
+              { label: "Solicitudes", href: "/requests?mine=1" },
+              { label: initial.title ?? "Solicitud" },
+            ]}
+          />
+          {/* Page header: title + actions */}
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-3xl font-semibold text-slate-900">
+              {initial.title ?? "Solicitud"}
+            </h1>
+            <RequestHeaderActions requestId={initial.id} />
+          </div>
+
+          {/* Photo gallery removed here; it is rendered after the detail card within RequestDetailClient */}
+
+          {!disableDetail ? (
+            <RequestDetailClient initial={initial} hideHeader compactActions />
+          ) : (
+            <div className="rounded border bg-white p-4 text-sm text-slate-600">
+              Detalle desactivado por NEXT_PUBLIC_DISABLE_DETAIL=1
+            </div>
+          )}
+        </section>
+
+        <aside className="order-last md:order-none md:sticky md:top-4 space-y-4">
+          {!disablePros ? (
+            <Card className="p-4">
+              <h2 className="font-medium mb-2">Profesionales disponibles</h2>
+              <ProfessionalsList
+                requestId={initial.id}
+                category={category}
+                subcategory={subcat}
+                city={city}
+              />
+            </Card>
+          ) : null}
+        </aside>
+      </div>
+
+      {/* Trust badges removed per request */}
+      
+    </main>
+  );
 }
+
+export const metadata: Metadata = { title: "Solicitud | Handi" };
+
+
+
+
+
+

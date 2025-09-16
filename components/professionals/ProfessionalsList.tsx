@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import RatingStars from "@/components/ui/RatingStars";
-import ChatPanel from "@/components/chat/ChatPanel";
+import { toast } from "sonner";
+import dynamic from "next/dynamic";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 type Professional = {
@@ -43,37 +44,41 @@ export default function ProfessionalsList({
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [meId, setMeId] = React.useState<string | null>(null);
+  const [mounted, setMounted] = React.useState(false);
 
-  // Obtener el id de usuario desde el cliente de Supabase (no depende de /api/me)
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!cancelled && data?.user?.id) setMeId(data.user.id);
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase]);
+  // Lazy-load ChatPanel only when needed to avoid pulling its chunk during initial hydration
+  const ChatPanel = React.useMemo(
+    () =>
+      dynamic(() => import("@/components/chat/ChatPanel"), {
+        ssr: false,
+        loading: () => null,
+      }),
+    [],
+  );
+
+  // NOTE: Evitar doble resolución del user id desde el cliente para no interferir con la hidratación.
+  // Usamos únicamente /api/me, que ya contempla fallback dev con Authorization: Bearer.
 
   React.useEffect(() => {
-    let cancelled = false;
+    const ac = new AbortController();
     (async () => {
       try {
-        const r = await fetch(`/api/me`, { cache: "no-store", credentials: "include" });
+        const r = await fetch(`/api/me`, {
+          cache: "no-store",
+          credentials: "include",
+          signal: ac.signal,
+        });
         const j = await r.json().catch(() => ({}));
-        if (!cancelled && r.ok && j?.user?.id) setMeId(j.user.id as string);
+        if (!ac.signal.aborted && r.ok && j?.user?.id) setMeId(j.user.id as string);
       } catch {
-        /* ignore */
+        // ignore AbortError or network issues silently
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => ac.abort();
+  }, []);
+
+  React.useEffect(() => {
+    setMounted(true);
   }, []);
 
   React.useEffect(() => {
@@ -126,6 +131,7 @@ export default function ProfessionalsList({
     };
   }, [category, subcategory, city]);
 
+  if (!mounted) return <div className={className}>Cargando…</div>;
   if (loading) return <div className={className}>Cargando profesionales…</div>;
   if (error)
     return (
@@ -196,6 +202,7 @@ export default function ProfessionalsList({
                         ...(session?.access_token
                           ? { "x-access-token": session.access_token }
                           : {}),
+                        ...(meId ? { "x-user-id": meId } : {}),
                       },
                       credentials: "include",
                       body: JSON.stringify({ requestId, proId: p.id }),
@@ -212,8 +219,9 @@ export default function ProfessionalsList({
                       setOpenConvId(convId);
                       setChatOpen(true);
                     }
-                  } catch {
-                    // opcional: toast de error
+                  } catch (e) {
+                    const msg = e instanceof Error ? e.message : "No se pudo iniciar el chat";
+                    toast.error(msg);
                   } finally {
                     setStartingFor(null);
                   }

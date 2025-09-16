@@ -1,23 +1,51 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import { getUserOrThrow, supabaseServer } from "@/lib/_supabase-server";
+import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type CtxP = { params: Promise<{ id: string }> };
+type CtxP = { params: { id: string } };
 
 export async function GET(_req: Request, { params }: CtxP) {
-  await getUserOrThrow(); // exige sesión (RLS en profiles permite ver solo el propio)
-  const supabase = supabaseServer();
-  const { id } = await params;
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", id).single();
+  const supabase = createRouteHandlerClient<Database>({ cookies });
 
-  if (error) {
+  try {
+    await getUserOrThrow(supabase);
+  } catch (e) {
+    const err = e as ApiError;
+    const isAuthErr =
+      err?.status === 401 ||
+      err?.code === "UNAUTHORIZED" ||
+      err?.code === "MISSING_AUTH" ||
+      err?.code === "INVALID_TOKEN";
     return new NextResponse(
-      JSON.stringify({ ok: false, error: "NOT_FOUND", detail: error.message }),
-      { status: 404, headers: JSONH },
+      JSON.stringify({ ok: false, error: err?.code || "UNAUTHORIZED" }),
+      { status: isAuthErr ? 401 : 500, headers: JSONH },
     );
   }
 
-  return NextResponse.json({ ok: true, data }, { headers: JSONH });
+  try {
+    const { id } = params;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error || !data) {
+      return new NextResponse(
+        JSON.stringify({ ok: false, error: "NOT_FOUND", detail: error?.message || null }),
+        { status: 404, headers: JSONH },
+      );
+    }
+    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+  } catch {
+    return new NextResponse(
+      JSON.stringify({ ok: false, error: "INTERNAL_ERROR" }),
+      { status: 500, headers: JSONH },
+    );
+  }
 }

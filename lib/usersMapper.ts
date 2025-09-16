@@ -74,7 +74,7 @@ export async function readUser(rowIndex: number): Promise<UserRow> {
 // Actualiza por ID (rowIndex)
 export async function writeUser(
   rowIndex: number,
-  patch: Partial<UserRow>
+  patch: Partial<UserRow>,
 ): Promise<void> {
   // Nunca permitas cambiar el id ni user_id aquí sin control explícito
   const { error } = await sb()

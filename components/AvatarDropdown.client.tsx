@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 import UserTypeInfo from "@/components/UserTypeInfo.client";
 
 type Role = "client" | "pro" | "admin" | null;
@@ -51,6 +52,7 @@ export default function AvatarDropdown({
       ?.join("") || "U"
   ).toUpperCase();
 
+  const avatarSrc = normalizeAvatarUrl(avatarUrl);
   return (
     <details ref={detailsRef} className="relative">
       <summary
@@ -58,7 +60,7 @@ export default function AvatarDropdown({
         data-testid="avatar"
       >
         <Avatar className="h-8 w-8">
-          {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} /> : null}
+          {avatarSrc ? <AvatarImage src={avatarSrc} alt={fullName ?? "Usuario"} /> : null}
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </summary>

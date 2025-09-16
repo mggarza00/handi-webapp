@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 import Image from "next/image";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
@@ -7,10 +8,13 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import MobileMenu from "@/components/mobile-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { Database } from "@/types/supabase";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 import HeaderMenu from "@/components/header-menu.client";
 import ProMobileTabbar from "@/components/pro-mobile-tabbar.client";
 import AvatarDropdown from "@/components/AvatarDropdown.client";
+import HeaderAuthRefresh from "@/components/HeaderAuthRefresh.client";
+import type { Database } from "@/types/supabase";
+import ClientNoSessionOnly from "@/components/ClientNoSessionOnly.client";
 
 type Role = "client" | "pro" | "admin";
 
@@ -43,8 +47,6 @@ async function getSessionInfo() {
         id: user.id,
         full_name: user.user_metadata?.full_name ?? null,
         avatar_url: user.user_metadata?.avatar_url ?? null,
-        last_active_at: new Date().toISOString(),
-        active: true,
       } satisfies Database["public"]["Tables"]["profiles"]["Insert"]);
     } catch (err) {
       void err; // ignore insert errors (profile may already exist)
@@ -78,14 +80,14 @@ async function getSessionInfo() {
 
 async function getSessionInfoSafe() {
   try {
-    // Mock de rol para dev/CI: si existe cookie 'handee_role', simula sesión
+    // Mock de rol para dev/CI: si existe cookie 'handi_role' (o legacy 'handee_role'), simula sesión
     // Válido sólo fuera de producción o con CI=true
     try {
       const allowMock =
         process.env.NODE_ENV !== "production" || process.env.CI === "true";
       if (allowMock) {
         const c = cookies();
-        const mock = c.get("handee_role")?.value || "guest";
+        const mock = c.get("handi_role")?.value || c.get("handee_role")?.value || "guest";
         const m = mock as "guest" | "client" | "professional" | "admin";
         if (m !== "guest") {
           const mappedRole: Role = m === "professional" ? "pro" : (m as "client" | "admin");
@@ -127,9 +129,24 @@ async function getSessionInfoSafe() {
 }
 
 export default async function SiteHeader() {
+  const minimal = (process.env.NEXT_PUBLIC_HEADER_MINIMAL || "").trim() === "1";
+  if (minimal) {
+    return (
+      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
+        <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+          <Link href="/" className="flex items-center">
+            <Image src="/handi-logo.gif" alt="Handi" width={64} height={64} priority className="h-16 w-16 object-contain" />
+          </Link>
+          <nav className="hidden md:flex items-center gap-2" />
+        </div>
+      </header>
+    );
+  }
   const { isAuth, role, is_admin, avatar_url, full_name } = await getSessionInfoSafe();
   const cookieStore = cookies();
-  const proApply = cookieStore.get("handee_pro_apply")?.value === "1";
+  const proApply =
+    cookieStore.get("handi_pro_apply")?.value === "1" ||
+    cookieStore.get("handee_pro_apply")?.value === "1";
 
   // El logo siempre debe redirigir a la página de inicio
   const leftHref = "/";
@@ -150,14 +167,6 @@ export default async function SiteHeader() {
       variant: "ghost",
       size: "sm",
       testId: "btn-login",
-    });
-    // CTA de aplicar como profesional visible para invitados (para E2E: btn-apply)
-    rightLinks.push({
-      href: "/pro-apply",
-      label: "Ofrecer servicios",
-      variant: "outline",
-      size: "sm",
-      testId: "btn-apply",
     });
   } else if (role === "client") {
     rightLinks.push(
@@ -278,6 +287,8 @@ export default async function SiteHeader() {
 
   return (
     <>
+    {/* If SSR thinks unauth but client has session, trigger a gentle refresh */}
+    {!isAuth ? <HeaderAuthRefresh enabled={!isAuth} /> : null}
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
       <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
         {/* Lado izquierdo: botón menú móvil (solo autenticado) */}
@@ -301,8 +312,8 @@ export default async function SiteHeader() {
           className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
         >
           <Image
-            src="/handee-logo.png"
-            alt="Handee"
+            src="/handi-logo.gif"
+            alt="Handi"
             width={64}
             height={64}
             priority
@@ -402,13 +413,20 @@ export default async function SiteHeader() {
         {/* Navegación derecha - desktop */}
   <nav className="hidden md:flex items-center gap-2">
           {rightLinks
-            // Evitar duplicar los botones centrados del cliente
+            // Evitar duplicar los botones centrados del cliente y profesional
             .filter((l) => {
               if (
                 role === "client" &&
                 (l.label === "Mis solicitudes" || l.label === "Nueva solicitud")
-              )
+              ) {
                 return false;
+              }
+              if (
+                role === "pro" &&
+                (l.href === "/requests/explore" || l.href === "/applied")
+              ) {
+                return false;
+              }
               return true;
             })
             .map((l) => {
@@ -425,41 +443,47 @@ export default async function SiteHeader() {
                   ]
                     .filter(Boolean)
                     .join(" ");
+              // Si es el botón de login, renderiza normal y ocúltalo en cliente si ya hay sesión
+              const wrapLogin = (node: React.ReactNode) =>
+                l.testId === "btn-login" ? <ClientNoSessionOnly key={l.href}>{node}</ClientNoSessionOnly> : node;
               return (
-                <Button
-                  key={l.href}
-                  asChild
-                  size={l.size ?? "sm"}
-                  variant={l.variant ?? "outline"}
-                  className={extra || undefined}
-                >
-                  <Link
-                    href={l.href}
-                    data-testid={l.testId}
-                    className="inline-flex items-center gap-2"
+                wrapLogin(
+                  <Button
+                    key={l.href}
+                    asChild
+                    size={l.size ?? "sm"}
+                    variant={l.variant ?? "outline"}
+                    className={extra || undefined}
                   >
-                    {l.label === "Mis solicitudes" ? (
-                      <Image
-                        src="/images/icono-mis-solicitudes.gif"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : l.label === "Nueva solicitud" ? (
-                      <Image
-                        src="/images/icono-nueva-solicitud.gif"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : null}
-                    <span>{l.label}</span>
-                  </Link>
-                </Button>
+                    <Link
+                      href={l.href}
+                      data-testid={l.testId}
+                      className="inline-flex items-center gap-2"
+                    >
+                      {l.label === "Mis solicitudes" ? (
+                        <Image
+                          src="/images/icono-mis-solicitudes.gif"
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="h-8 w-8"
+                        />
+                      ) : l.label === "Nueva solicitud" ? (
+                        <Image
+                          src="/images/icono-nueva-solicitud.gif"
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="h-8 w-8"
+                        />
+                      ) : null}
+                      <span>{l.label}</span>
+                    </Link>
+                  </Button>,
+                )
               );
             })}
+          
           {isAuth ? (
             <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} />
           ) : null}
@@ -474,14 +498,16 @@ export default async function SiteHeader() {
         {/* Lado derecho - móvil y CTA secundarios (sin botón de menú) */}
         <div className="md:hidden flex items-center gap-2">
           {!isAuth ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href="/auth/sign-in">Iniciar sesión</Link>
-            </Button>
+            <ClientNoSessionOnly>
+              <Button asChild size="sm" variant="outline">
+                <Link href="/auth/sign-in">Iniciar sesión</Link>
+              </Button>
+            </ClientNoSessionOnly>
           ) : (
             <Link href="/me" className="inline-flex items-center">
               <Avatar className="h-8 w-8">
-                {avatar_url ? (
-                  <AvatarImage src={avatar_url} alt={full_name ?? "Usuario"} />
+                {normalizeAvatarUrl(avatar_url) ? (
+                  <AvatarImage src={normalizeAvatarUrl(avatar_url)!} alt={full_name ?? "Usuario"} />
                 ) : null}
                 <AvatarFallback>
                   {(
@@ -504,3 +530,4 @@ export default async function SiteHeader() {
     </>
   );
 }
+/* eslint-disable import/order */

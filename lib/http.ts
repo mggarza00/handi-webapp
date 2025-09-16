@@ -25,7 +25,7 @@ export function getBaseUrl() {
   const host = xfHost || h.get("host") || "";
   // Si es localhost o 127.*, asume http (Next dev)
   const isLocal = /^(localhost|127\.0\.0\.1)(:\d+)?$/i.test(host);
-  const proto = isLocal ? "http" : (xfProto || "https");
+  const proto = isLocal ? "http" : xfProto || "https";
 
   if (host) return `${proto}://${host}`;
 
@@ -41,7 +41,7 @@ export async function ufetch(path: string, init: FetchInit = {}) {
   // SSR: necesita URL absoluta + reenviar cookies para auth
   if (typeof window === "undefined") {
     const h = nextHeaders();
-    const cookie = forwardCookies ? h.get("cookie") ?? "" : "";
+    const cookie = forwardCookies ? (h.get("cookie") ?? "") : "";
 
     const res = await fetch(`${getBaseUrl()}${path}`, {
       headers: {

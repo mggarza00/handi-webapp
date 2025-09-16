@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         { status: 415, headers: JSONH },
       );
 
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production" && process.env.DEBUG_API === "1") {
       const hasCookiePre = !!(req.headers.get("cookie") || "");
       const hasAuthPre = !!(req.headers.get("authorization") || req.headers.get("Authorization"));
       // eslint-disable-next-line no-console
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     let usedDevFallback = false;
     let { user } = await getDevUserFromHeader(req) ?? { user: null as any };
     if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV !== "production" && process.env.DEBUG_API === "1") {
       const hasCookie = !!(req.headers.get("cookie") || "");
       const hasAuth = !!(req.headers.get("authorization") || req.headers.get("Authorization"));
       // eslint-disable-next-line no-console
@@ -50,14 +50,34 @@ export async function POST(req: Request) {
     // Si estamos en fallback dev, usar Service Role; si no, RLS
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db: any = usedDevFallback ? createServiceClient() : await getDbClientForRequest(req);
+
+    // Obtener dueño de la solicitud para soportar inicio de conversación desde el profesional
+    const reqRow = await db
+      .from("requests")
+      .select("id, created_by")
+      .eq("id", requestId)
+      .maybeSingle();
+    if (reqRow.error || !reqRow.data) {
+      return NextResponse.json(
+        { ok: false, error: "REQUEST_NOT_FOUND" },
+        { status: 404, headers: JSONH },
+      );
+    }
+    const ownerId = reqRow.data.created_by as string;
+
+    // Si el usuario autenticado es el profesional, tratamos como inicio desde pro
+    const isProInitiator = user.id === proId;
+    const customer_id = isProInitiator ? ownerId : user.id;
+    const pro_id = isProInitiator ? user.id : proId;
+
     const up = await db
       .from("conversations")
       .upsert(
         [
           {
             request_id: requestId,
-            customer_id: user.id,
-            pro_id: proId,
+            customer_id,
+            pro_id,
           },
         ],
         { onConflict: "request_id,customer_id,pro_id" },
@@ -74,7 +94,8 @@ export async function POST(req: Request) {
     const anyE = e as unknown as { status?: number; code?: string; message?: string; stack?: string };
     const msg = anyE?.code || (e instanceof Error ? e.message : "INTERNAL_ERROR");
     const isAuthErr = msg === "UNAUTHORIZED" || msg === "MISSING_AUTH" || msg === "INVALID_TOKEN";
-    const status = typeof anyE?.status === "number" ? anyE.status : isAuthErr ? 401 : 500;
+    // Avoid redirect loops in dev by not returning 401 for auth errors
+    const status = typeof anyE?.status === "number" ? anyE.status : (isAuthErr && process.env.NODE_ENV !== "production") ? 200 : isAuthErr ? 401 : 500;
     if (process.env.NODE_ENV !== "production") {
       // eslint-disable-next-line no-console
       console.error("/api/chat/start error:", e);

@@ -3,12 +3,15 @@
 import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState } from "react";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import { useEffect, useRef, useState } from "react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
 export default function Page() {
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
   const [categories, setCategories] = useState<string[]>([]);
+  type Subcat = { name: string; icon: string | null };
+  const [subcategories, setSubcategories] = useState<Subcat[]>([]);
   const [_loadingCats, setLoadingCats] = useState(false);
 
   useEffect(() => {
@@ -24,15 +27,27 @@ export default function Page() {
           const j = await r.json();
           if (!r.ok || j?.ok === false)
             throw new Error(j?.detail || j?.error || "fetch_failed");
-          const rows: Array<{ category?: string | null }> = j?.data ?? [];
-          const list = Array.from(
+          const rows: Array<{ category?: string | null; subcategory?: string | null; icon?: string | null }> = j?.data ?? [];
+          const listCats = Array.from(
             new Set(
               (rows || [])
                 .map((x) => (x?.category ?? "").toString().trim())
                 .filter((s) => s.length > 0),
             ),
           ).sort((a, b) => a.localeCompare(b));
-          if (!cancelled) setCategories(list);
+          const subMap = new Map<string, string | null>();
+          (rows || []).forEach((r) => {
+            const name = (r?.subcategory ?? "").toString().trim();
+            const icon = (r?.icon ?? "").toString().trim() || null;
+            if (name && !subMap.has(name)) subMap.set(name, icon);
+          });
+          const listSubs: Subcat[] = Array.from(subMap.entries())
+            .map(([name, icon]) => ({ name, icon }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (!cancelled) {
+            setCategories(listCats);
+            setSubcategories(listSubs);
+          }
           return;
         } catch {
           // continúa al fallback
@@ -40,7 +55,7 @@ export default function Page() {
 
         // 2) Fallback directo con cliente público (si RLS lo permite)
         try {
-          const { data, error } = await supabaseBrowser
+          const sb = createClientComponentClient(); const { data, error } = await sb
             .from("categories_subcategories")
             .select('"Categoría","Subcategoría","Activa","Ícono"');
           if (error) throw error;
@@ -56,7 +71,7 @@ export default function Page() {
               s === "x"
             );
           };
-          const list = Array.from(
+          const listCats = Array.from(
             new Set(
               (data || [])
                 .filter((row: Record<string, unknown>) =>
@@ -68,9 +83,26 @@ export default function Page() {
                 .filter((s) => s.length > 0),
             ),
           ).sort((a, b) => a.localeCompare(b));
-          if (!cancelled) setCategories(list);
+          const subMap = new Map<string, string | null>();
+          (data || [])
+            .filter((row: Record<string, unknown>) => isActive(row?.["Activa"]))
+            .forEach((row: Record<string, unknown>) => {
+              const name = (row?.["Subcategoría"] ?? "").toString().trim();
+              const icon = (row?.["Ícono"] ?? "").toString().trim() || null;
+              if (name && !subMap.has(name)) subMap.set(name, icon);
+            });
+          const listSubs: Subcat[] = Array.from(subMap.entries())
+            .map(([name, icon]) => ({ name, icon }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+          if (!cancelled) {
+            setCategories(listCats);
+            setSubcategories(listSubs);
+          }
         } catch {
-          if (!cancelled) setCategories([]);
+          if (!cancelled) {
+            setCategories([]);
+            setSubcategories([]);
+          }
         }
       } finally {
         if (!cancelled) setLoadingCats(false);
@@ -80,6 +112,68 @@ export default function Page() {
       cancelled = true;
     };
   }, []);
+
+  // Video controls + dynamic poster (last frame)
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [showControls, setShowControls] = useState(false);
+  const [posterUrl, setPosterUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const v = document.createElement("video");
+        v.src = "/video/Video Demo Handi.mp4";
+        v.preload = "auto";
+        await new Promise<void>((resolve, reject) => {
+          const onLoaded = () => resolve();
+          const onError = () => reject(new Error("metadata_error"));
+          v.addEventListener("loadedmetadata", onLoaded, { once: true });
+          v.addEventListener("error", onError, { once: true });
+        });
+        const seekTime = Math.max(0, (v.duration || 0) - 0.1);
+        await new Promise<void>((resolve, reject) => {
+          const onSeeked = () => resolve();
+          const onError = () => reject(new Error("seek_error"));
+          v.addEventListener("seeked", onSeeked, { once: true });
+          v.addEventListener("error", onError, { once: true });
+          try {
+            v.currentTime = seekTime;
+          } catch {
+            reject(new Error("set_time_error"));
+          }
+        });
+        const w = v.videoWidth || 0;
+        const h = v.videoHeight || 0;
+        if (w > 0 && h > 0) {
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(v as HTMLVideoElement, 0, 0, w, h);
+            const url = canvas.toDataURL("image/jpeg", 0.86);
+            if (!cancelled) setPosterUrl(url);
+          }
+        }
+      } catch {
+        // ignore; fallback poster will be used
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isUrl = (s: string | null) => {
+    if (!s) return false;
+    try {
+      const u = new URL(s);
+      return u.protocol === "http:" || u.protocol === "https:";
+    } catch {
+      return false;
+    }
+  };
 
   function MagnifierIcon(props: React.SVGProps<SVGSVGElement>) {
     return (
@@ -192,7 +286,7 @@ export default function Page() {
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
             <h1 className="rubik font-medium mb-6 text-2xl sm:text-3xl md:text-4xl leading-tight tracking-wide text-center whitespace-nowrap text-[#11304a]">
-              Bienvenido a <span>Handee.mx</span>
+              Bienvenido a <span>Handi</span>
             </h1>
             <p className="mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance">
               La plataforma que te conecta con expertos de confianza para
@@ -228,15 +322,35 @@ export default function Page() {
 
           {/* Video */}
           <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-            <div className="aspect-video w-full">
-              <iframe
-                className="h-full w-full"
-                src="https://www.youtube.com/embed/xkAzsjDQj9s?rel=0&modestbranding=1&playsinline=1"
-                title="Video Bienvenida Handee"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
+            <div className="relative aspect-video w-full">
+              <video
+                ref={videoRef}
+                className="h-full w-full object-cover"
+                src="/video/Video Demo Handi.mp4"
+                title="Video Bienvenida Handi"
+                controls={showControls}
+                poster={posterUrl ?? "/images/poster.png"}
+                playsInline
               />
+              {!showControls && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowControls(true);
+                    try {
+                      videoRef.current?.play().catch(() => {});
+                    } catch {}
+                  }}
+                  aria-label="Reproducir video"
+                  className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
+                >
+                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon fill="currentColor" stroke="none" points="9,7 19,12 9,17" />
+                    </svg>
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -266,10 +380,10 @@ export default function Page() {
                   </Link>
                 ))}
                 <Link
-                  href="/search"
+                  href="/categorias"
                   className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-100"
                 >
-                  Ver todas las categorías
+                  Ver todas las categorías disponibles
                 </Link>
               </div>
             </div>
@@ -278,7 +392,7 @@ export default function Page() {
               <div className="relative h-[104px] w-[104px] md:h-28 md:w-28 lg:h-32 lg:w-32 animate-bounce-subtle md:animate-none">
                 <Image
                   src="/images/handee_mascota.gif"
-                  alt="Handee mascota"
+                  alt="Handi mascota"
                   fill
                   className="object-contain"
                   unoptimized
@@ -287,6 +401,67 @@ export default function Page() {
               </div>
             </div>
           </div>
+
+          {/* Subcategorías (carrusel) */}
+          {subcategories.length > 0 && (
+            <div className="mt-6">
+              <p className="mb-2 text-sm font-medium text-slate-700">Subcategorías</p>
+              <div className="marquee" style={{ ["--marquee-duration" as any]: "150s" }}>
+                <div className="marquee__inner">
+                  <div className="marquee__group">
+                    {subcategories.map((s) => (
+                      <Link
+                        key={`subcat-a-${s.name}`}
+                        href={`/search?subcategory=${encodeURIComponent(s.name)}`}
+                        className="rounded-full border border-slate-200 bg-white px-[0.8rem] py-[0.4rem] text-[0.7rem] text-slate-700 shadow-sm hover:bg-slate-100 inline-flex items-center gap-1"
+                      >
+                        {s.icon ? (
+                          isUrl(s.icon) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={s.icon}
+                              alt=""
+                              className="h-3.5 w-3.5 object-contain"
+                            />
+                          ) : (
+                            <span className="text-sm leading-none">{s.icon}</span>
+                          )
+                        ) : null}
+                        <span>{s.name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  {/* Duplicado para bucle continuo */}
+                  <div className="marquee__group" aria-hidden="true">
+                    {subcategories.map((s) => (
+                      <Link
+                        key={`subcat-b-${s.name}`}
+                        href={`/search?subcategory=${encodeURIComponent(s.name)}`}
+                        className="rounded-full border border-slate-200 bg-white px-[0.8rem] py-[0.4rem] text-[0.7rem] text-slate-700 shadow-sm hover:bg-slate-100 inline-flex items-center gap-1"
+                      >
+                        {s.icon ? (
+                          isUrl(s.icon) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={s.icon}
+                              alt=""
+                              className="h-3.5 w-3.5 object-contain"
+                            />
+                          ) : (
+                            <span className="text-sm leading-none">{s.icon}</span>
+                          )
+                        ) : null}
+                        <span>{s.name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Nearby professionals carousel */}
+          <NearbyCarousel />
         </div>
       </section>
 
@@ -371,71 +546,6 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Image
-                  src="/handee-logo.png"
-                  alt="Handee"
-                  width={28}
-                  height={28}
-                />
-                <span className="font-semibold">Handee.mx</span>
-              </div>
-              <p className="text-sm text-slate-600">Conecta con expertos de confianza.</p>
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium">Enlaces</p>
-              <ul className="space-y-1 text-sm text-slate-600">
-                <li>
-                  <Link href="/search" className="hover:text-slate-900">
-                    Buscar profesionales
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/pro-apply" className="hover:text-slate-900">
-                    Ofrecer mis servicios
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/privacy" className="hover:text-slate-900">
-                    Aviso de privacidad
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div id="preguntas">
-              <p className="mb-2 text-sm font-medium">Soporte</p>
-              <ul className="space-y-1 text-sm text-slate-600">
-                <li>
-                  WhatsApp:{" "}
-                  <a
-                    href="https://wa.me/5218181611335"
-                    className="hover:text-slate-900"
-                  >
-                    +52 1 81 8161 1335
-                  </a>
-                </li>
-                <li>
-                  Email:{" "}
-                  <a
-                    href="mailto:hola@handee.mx"
-                    className="hover:text-slate-900"
-                  >
-                    hola@handee.mx
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500">
-            © {new Date().getFullYear()} Handee.mx. Todos los derechos reservados.
-          </div>
-        </div>
-      </footer>
     </main>
   );
 }
@@ -504,3 +614,5 @@ function StepCard({
     </div>
   );
 }
+
+

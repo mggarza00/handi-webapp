@@ -44,8 +44,9 @@ export async function upsertMyProfile(body: ProfileUpsertBody) {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`POST /api/professionals -> ${res.status} ${res.statusText}\n${text}`);
+    throw new Error(
+      `POST /api/professionals -> ${res.status} ${res.statusText}\n${text}`,
+    );
   }
   return (await res.json()) as { ok: true; id: string };
 }
-

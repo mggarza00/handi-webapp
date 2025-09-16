@@ -1,38 +1,100 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useMemo, useState } from "react";
+import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function SignInPage() {
   const supabase = createClientComponentClient();
-  const [email, setEmail] = useState('');
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [facebookLoading, setFacebookLoading] = useState(false);
+  const sp = useSearchParams();
+  const next = useMemo(() => {
+    const n = sp?.get("next");
+    if (n && n.startsWith("/")) return n;
+    if (typeof window !== "undefined") {
+      try {
+        const rt = window.localStorage.getItem("returnTo");
+        if (rt && rt.startsWith("/")) return rt;
+      } catch {
+        /* ignore */
+      }
+    }
+    return "/";
+  }, [sp]);
+
+  const resolveBaseUrl = () => window.location.origin.replace(/\/$/, "");
 
   const handleGoogle = async () => {
     setError(null);
-    const origin = window.location.origin;
+    setGoogleLoading(true);
+    const base = resolveBaseUrl();
     await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${origin}/auth/callback?next=/` }
+      provider: "google",
+      options: {
+        redirectTo: `${base}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
     });
   };
 
-  const handleEmail = async (e: React.FormEvent) => {
+  const handleFacebook = async () => {
+    setError(null);
+    setFacebookLoading(true);
+    const base = resolveBaseUrl();
+    await supabase.auth.signInWithOAuth({
+      provider: "facebook",
+      options: {
+        redirectTo: `${base}/auth/callback?next=${encodeURIComponent(next)}`,
+      },
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSent(false);
     setSending(true);
     try {
-      const origin = window.location.origin;
-      const { error } = await supabase.auth.signInWithOtp({
+      const base = resolveBaseUrl();
+      const pwd = password.trim();
+      if (pwd.length > 0) {
+        const { error: passwordError } = await supabase.auth.signInWithPassword({
+          email,
+          password: pwd,
+        });
+        if (passwordError) throw passwordError;
+        setPassword("");
+        router.replace(next);
+        router.refresh();
+        return;
+      }
+
+      const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
-        options: { emailRedirectTo: `${origin}/auth/callback?next=/` }
+        options: {
+          emailRedirectTo: `${base}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
       });
-      if (error) throw error;
+      if (otpError) throw otpError;
       setSent(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : (typeof err === "string" ? err : "Error al enviar el enlace"));
+      setError(
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+          ? err
+          : "Error al iniciar sesion",
+      );
     } finally {
       setSending(false);
     }
@@ -41,17 +103,37 @@ export default function SignInPage() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl shadow p-6 border bg-white dark:bg-neutral-900">
-        <h1 className="text-2xl font-semibold mb-2">Iniciar sesión</h1>
+        <h1 className="text-2xl font-semibold mb-2">Iniciar sesion</h1>
         <p className="text-sm text-neutral-500 mb-6">
-          Entra con Google o recibe un enlace mágico por correo.
+          Entra con Google o Facebook, o recibe un enlace magico por correo.
         </p>
 
-        <button
+        <Button
+          variant="outline"
           onClick={handleGoogle}
-          className="w-full rounded-2xl px-4 py-2 mb-4 border shadow hover:shadow-md transition"
+          disabled={googleLoading || facebookLoading || sending}
+          className="w-full rounded-xl mb-4"
         >
-          Entrar con Google
-        </button>
+          {googleLoading ? (
+            <Spinner />
+          ) : (
+            <Image src="/icons/google.svg" width={18} height={18} alt="" />
+          )}
+          <span>{googleLoading ? "Redirigiendo" : "Ingresar con Google"}</span>
+        </Button>
+
+        <Button
+          onClick={handleFacebook}
+          disabled={googleLoading || facebookLoading || sending}
+          className="w-full rounded-xl mb-4 bg-[#1877F2] text-white hover:bg-[#1877F2]/90"
+        >
+          {facebookLoading ? (
+            <Spinner />
+          ) : (
+            <Image src="/icons/facebook.svg" width={18} height={18} alt="" />
+          )}
+          <span>{facebookLoading ? "Redirigiendo" : "Ingresar con Facebook"}</span>
+        </Button>
 
         <div className="text-xs uppercase tracking-wide text-neutral-400 text-center my-4">
           o con tu correo
@@ -62,27 +144,55 @@ export default function SignInPage() {
             Te enviamos un enlace de acceso. Revisa tu correo.
           </div>
         ) : (
-          <form onSubmit={handleEmail} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
             <input
+              data-testid="email"
               type="email"
               required
               pattern="^[^@\s]+@[^@\s]+\.[^@\s]+$"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tucorreo@ejemplo.com"
-              className="w-full rounded-2xl border px-4 py-2"
+              className="w-full rounded-xl border px-4 py-2"
+              autoComplete="email"
             />
-            <button
+            <input
+              data-testid="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Contrasena (opcional)"
+              className="w-full rounded-xl border px-4 py-2"
+              autoComplete="current-password"
+            />
+            <Button
+              data-testid="sign-in-btn"
               type="submit"
-              disabled={sending}
-              className="w-full rounded-2xl px-4 py-2 bg-black text-white hover:opacity-90 disabled:opacity-60"
+              disabled={sending || googleLoading || facebookLoading}
+              className="w-full rounded-xl"
             >
-              {sending ? 'Enviando…' : 'Enviar enlace'}
-            </button>
+              {sending ? (
+                <>
+                  <Spinner />
+                  <span>Enviando</span>
+                </>
+              ) : password.trim().length > 0 ? (
+                "Iniciar sesion"
+              ) : (
+                "Enviar enlace"
+              )}
+            </Button>
           </form>
         )}
 
         {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
+
+        <div className="mt-6 border-t pt-4 text-xs text-neutral-500">
+          <div className="flex items-center justify-between">
+            <span>(c) {new Date().getFullYear()} Handi</span>
+            <a href="/" className="hover:underline">Inicio</a>
+          </div>
+        </div>
       </div>
     </div>
   );

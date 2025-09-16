@@ -5,9 +5,24 @@ export default function Dashboard() {
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold">Panel</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card><CardHeader>Profesionales activos</CardHeader><CardContent><div className="text-3xl font-bold">128</div></CardContent></Card>
-        <Card><CardHeader>Solicitudes abiertas</CardHeader><CardContent><div className="text-3xl font-bold">42</div></CardContent></Card>
-        <Card><CardHeader>Calificación promedio</CardHeader><CardContent><div className="text-3xl font-bold">4.7</div></CardContent></Card>
+        <Card>
+          <CardHeader>Profesionales activos</CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">128</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>Solicitudes abiertas</CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">42</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>Calificación promedio</CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">4.7</div>
+          </CardContent>
+        </Card>
       </div>
       <Card>
         <CardHeader>Actividad reciente</CardHeader>

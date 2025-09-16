@@ -1,24 +1,12 @@
 {
-  "deno.enablePaths": [
-    "supabase/functions"
-  ],
-  "deno.lint": true,
-  "deno.unstable": [
-    "bare-node-builtins",
-    "byonm",
-    "sloppy-imports",
-    "unsafe-proto",
-    "webgpu",
-    "broadcast-channel",
-    "worker-options",
-    "cron",
-    "kv",
-    "ffi",
-    "fs",
-    "http",
-    "net"
-  ],
-  "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
-  }
+  // Opcional: fuerza Git Bash como terminal por defecto en Windows
+  "terminal.integrated.defaultProfile.windows": "Git Bash",
+  "terminal.integrated.profiles.windows": {
+    "Git Bash": {
+      "path": "C:\\Program Files\\Git\\bin\\bash.exe"
+    }
+  },
+
+  // Clave: abre la terminal en la carpeta del proyecto (tu workspace actual)
+  "terminal.integrated.cwd": "${workspaceFolder}"
 }

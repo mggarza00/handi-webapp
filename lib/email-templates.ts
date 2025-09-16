@@ -29,7 +29,7 @@ export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
     <span class="preheader">${safePre}</span>
     <div class="container">
       <div style="margin: 0 0 12px;">
-        <a class="brand" href="https://handee.local">Handee</a>
+        <a class="brand" href="https://handi.local">Handi</a>
       </div>
       <div class="card">
         ${childrenHtml}
@@ -42,18 +42,29 @@ export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
  </html>`;
 }
 
-export function applicationCreatedHtml(opts: { requestTitle?: string; linkUrl?: string }) {
+export function applicationCreatedHtml(opts: {
+  requestTitle?: string;
+  linkUrl?: string;
+}) {
   const title = "Nueva postulación";
   const body = `
     <h1>${title}</h1>
     <p>Recibiste una nueva postulación en: <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
-    <p>Ingresa a Handee para revisar el perfil y crear un acuerdo.</p>
+    <p>Ingresa a Handi para revisar el perfil y crear un acuerdo.</p>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir solicitud</a></p>` : ""}
   `;
-  return emailLayout({ title, preheader: "Tienes una nueva postulación", childrenHtml: body });
+  return emailLayout({
+    title,
+    preheader: "Tienes una nueva postulación",
+    childrenHtml: body,
+  });
 }
 
-export function applicationUpdatedHtml(opts: { requestId: string; status: string; linkUrl?: string }) {
+export function applicationUpdatedHtml(opts: {
+  requestId: string;
+  status: string;
+  linkUrl?: string;
+}) {
   const title = `Tu postulación cambió a: ${opts.status}`;
   const body = `
     <h1>${title}</h1>
@@ -63,7 +74,11 @@ export function applicationUpdatedHtml(opts: { requestId: string; status: string
   return emailLayout({ title, preheader: title, childrenHtml: body });
 }
 
-export function agreementCreatedHtml(opts: { requestTitle?: string; agreementIdShort: string; linkUrl?: string }) {
+export function agreementCreatedHtml(opts: {
+  requestTitle?: string;
+  agreementIdShort: string;
+  linkUrl?: string;
+}) {
   const title = `Nuevo acuerdo #${opts.agreementIdShort}`;
   const body = `
     <h1>${title}</h1>
@@ -74,7 +89,12 @@ export function agreementCreatedHtml(opts: { requestTitle?: string; agreementIdS
   return emailLayout({ title, preheader: title, childrenHtml: body });
 }
 
-export function agreementUpdatedHtml(opts: { requestTitle?: string; agreementIdShort: string; status: string; linkUrl?: string }) {
+export function agreementUpdatedHtml(opts: {
+  requestTitle?: string;
+  agreementIdShort: string;
+  status: string;
+  linkUrl?: string;
+}) {
   const title = `Acuerdo actualizado: ${opts.status}`;
   const body = `
     <h1>${title}</h1>
@@ -84,7 +104,11 @@ export function agreementUpdatedHtml(opts: { requestTitle?: string; agreementIdS
   return emailLayout({ title, preheader: title, childrenHtml: body });
 }
 
-export function messageReceivedHtml(opts: { requestTitle?: string; preview: string; linkUrl?: string }) {
+export function messageReceivedHtml(opts: {
+  requestTitle?: string;
+  preview: string;
+  linkUrl?: string;
+}) {
   const title = "Nuevo mensaje";
   const body = `
     <h1>${title}</h1>
@@ -92,5 +116,31 @@ export function messageReceivedHtml(opts: { requestTitle?: string; preview: stri
     <blockquote>${opts.preview}</blockquote>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir conversación</a></p>` : ""}
   `;
-  return emailLayout({ title, preheader: "Tienes un nuevo mensaje", childrenHtml: body });
+  return emailLayout({
+    title,
+    preheader: "Tienes un nuevo mensaje",
+    childrenHtml: body,
+  });
+}
+
+export function proApplicationAcceptedHtml(opts: { linkUrl?: string }) {
+  const title = "¡Has sido aceptado como profesional!";
+  const body = `
+    <h1>${title}</h1>
+    <p>Tu solicitud para unirte como profesional en Handi fue <strong>aceptada</strong>.</p>
+    <p>Ya puedes completar tu perfil y comenzar a recibir oportunidades.</p>
+    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ir a mi perfil</a></p>` : ""}
+  `;
+  return emailLayout({ title, preheader: title, childrenHtml: body });
+}
+
+export function proApplicationRejectedHtml(opts: { linkUrl?: string }) {
+  const title = "Resultado de tu solicitud";
+  const body = `
+    <h1>${title}</h1>
+    <p>Tu solicitud para unirte como profesional fue <strong>rechazada</strong> en esta ocasión.</p>
+    <p>Puedes actualizar tu información y volver a intentarlo más adelante.</p>
+    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Revisar mi perfil</a></p>` : ""}
+  `;
+  return emailLayout({ title, preheader: title, childrenHtml: body });
 }

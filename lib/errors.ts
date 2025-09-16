@@ -8,7 +8,7 @@ export class HttpError extends Error {
   detail?: unknown;
   constructor(status: number, message: string, detail?: unknown) {
     super(message);
-    this.name = 'HttpError';
+    this.name = "HttpError";
     this.status = status;
     this.detail = detail;
   }
@@ -17,25 +17,29 @@ export class HttpError extends Error {
 export function toError(e: unknown): Error {
   if (e instanceof Error) return e;
   try {
-    return new Error(typeof e === 'string' ? e : JSON.stringify(e));
+    return new Error(typeof e === "string" ? e : JSON.stringify(e));
   } catch {
-    return new Error('Unknown error');
+    return new Error("Unknown error");
   }
 }
 
 /** Retrocompat: devuelve mensaje legible desde unknown */
 export function getErrorMessage(e: unknown): string {
   const err = toError(e);
-  return err.message || 'Unknown error';
+  return err.message || "Unknown error";
 }
 
 /** Lanza HttpError con status y mensaje. */
-export function httpError(status: number, message: string, detail?: unknown): never {
+export function httpError(
+  status: number,
+  message: string,
+  detail?: unknown,
+): never {
   throw new HttpError(status, message, detail);
 }
 
 /** Asegura que no haya casos no manejados en switches exhaustivos. */
-export function assertNever(x: never, msg = 'Unexpected variant'): never {
+export function assertNever(x: never, msg = "Unexpected variant"): never {
   throw new Error(`${msg}: ${String(x)}`);
 }
 
@@ -54,7 +58,10 @@ export async function readJson<T>(req: Request): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch (e) {
-    httpError(400, 'Invalid JSON body', { parseError: toError(e).message, text });
+    httpError(400, "Invalid JSON body", {
+      parseError: toError(e).message,
+      text,
+    });
   }
 }
 
@@ -68,6 +75,6 @@ export async function runHandler<T>(fn: () => Promise<T>) {
     if (e instanceof HttpError) {
       return jsonFail(e.message, e.status, e.detail);
     }
-    return jsonFail(err.message || 'Unexpected failure', 500);
+    return jsonFail(err.message || "Unexpected failure", 500);
   }
 }

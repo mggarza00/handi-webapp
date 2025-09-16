@@ -1,4 +1,4 @@
-﻿node_modules
+node_modules
 .next
 .out
 .vercel
@@ -18,3 +18,5 @@ node_modules/
 *.tar.gz
 supabase/
 package-lock.json
+.aider*
+!supabase/**

@@ -7,9 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -20,7 +32,7 @@ export default function UIPage() {
     <TooltipProvider>
       <div className="min-h-screen p-6 md:p-10 space-y-8">
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold">UI Kit Handee</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">UI Kit Handi</h1>
           <Badge variant="secondary">v1 • shadcn/ui</Badge>
         </header>
 
@@ -33,7 +45,13 @@ export default function UIPage() {
             <CardContent className="flex gap-3 flex-wrap">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button onClick={() => toast("Acción ejecutada", { description: "Ejemplo con sonner" })}>
+                  <Button
+                    onClick={() =>
+                      toast("Acción ejecutada", {
+                        description: "Ejemplo con sonner",
+                      })
+                    }
+                  >
                     Primario
                   </Button>
                 </TooltipTrigger>
@@ -57,7 +75,12 @@ export default function UIPage() {
             <CardContent className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="name">Nombre</Label>
-                <Input id="name" placeholder="Tu nombre" value={name} onChange={(e) => setName(e.target.value)} />
+                <Input
+                  id="name"
+                  placeholder="Tu nombre"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="desc">Descripción</Label>
@@ -66,12 +89,16 @@ export default function UIPage() {
               <Separator />
               <Alert>
                 <AlertTitle>Nota</AlertTitle>
-                <AlertDescription>Usa este patrón para formularios rápidos.</AlertDescription>
+                <AlertDescription>
+                  Usa este patrón para formularios rápidos.
+                </AlertDescription>
               </Alert>
             </CardContent>
             <CardFooter className="gap-3">
               <Button disabled={!name}>Guardar</Button>
-              <Button variant="outline" onClick={() => setName("")}>Limpiar</Button>
+              <Button variant="outline" onClick={() => setName("")}>
+                Limpiar
+              </Button>
             </CardFooter>
           </Card>
         </section>

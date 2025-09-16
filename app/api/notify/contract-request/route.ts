@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { createServerClient } from "@/lib/supabase";
-import { getSupabaseServer } from "@/lib/_supabase-server";
 import { sendEmail } from "@/lib/email";
 import { sendSms } from "@/lib/sms";
 
@@ -26,11 +25,10 @@ export async function POST(req: Request) {
 
     const { request_id, professional_id, amount_mxn } = parsed.data;
     const admin = createServerClient();
-    const supa = getSupabaseServer();
 
     // Obtener datos de la solicitud y del cliente para armar el mensaje
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const reqRow: { data: any; error: any } = await (supa as any)
+    const reqRow: { data: any; error: any } = await (admin as any)
       .from("requests")
       .select("id, title, created_by, city, category")
       .eq("id", request_id)
@@ -41,7 +39,7 @@ export async function POST(req: Request) {
 
     // Insertar notificación en user_notifications para el profesional
     // Tabla puede no estar tipada, usar any
-    await (supa as any)
+    await (admin as any)
       .from("user_notifications")
       .insert({
         user_id: professional_id,
@@ -74,7 +72,7 @@ export async function POST(req: Request) {
 
     // SMS (Twilio) si está configurado y hay teléfono en pro_applications
     try {
-      const tel = await (supa as any)
+      const tel = await (admin as any)
         .from("pro_applications")
         .select("phone")
         .eq("user_id", professional_id)

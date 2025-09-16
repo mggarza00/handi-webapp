@@ -2,12 +2,8 @@
 /* eslint-disable @next/next/no-page-custom-font */
 import "./globals.css";
 import type { Metadata } from "next";
-import nextDynamic from "next/dynamic";
 import ClientToaster from "@/components/ClientToaster";
-const AssistantLauncher = nextDynamic(
-  () => import("@/components/assistant/AssistantLauncher"),
-  { ssr: false, loading: () => null },
-);
+import AssistantLauncher from "@/components/assistant/AssistantLauncher";
 import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";

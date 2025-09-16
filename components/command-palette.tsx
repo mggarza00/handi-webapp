@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
@@ -26,13 +26,13 @@ export default function CommandPalette({
 
   const items: Item[] = [
     { label: "Ir al Dashboard", href: "/dashboard" as Route },
-    { label: "Ver Solicitudes", href: "/requests" as Route },
+    { label: "Ver Solicitudes", href: "/requests?mine=1" as Route },
     { label: "Ver Profesionales", href: "/professionals" as Route },
     { label: "Nueva Solicitud", href: "/requests?new=1" as Route },
   ];
 
   const filtered = items.filter((i) =>
-    i.label.toLowerCase().includes(query.toLowerCase())
+    i.label.toLowerCase().includes(query.toLowerCase()),
   );
 
   if (!open) return null;
@@ -67,7 +67,9 @@ export default function CommandPalette({
             </li>
           ))}
           {filtered.length === 0 && (
-            <li className="px-4 py-3 text-sm text-neutral-500">Sin resultados</li>
+            <li className="px-4 py-3 text-sm text-neutral-500">
+              Sin resultados
+            </li>
           )}
         </ul>
       </div>

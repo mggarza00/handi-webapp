@@ -25,7 +25,7 @@ export async function GET(
   const { origin } = new URL(req.url);
   // Redirige al mismo origen del request para que la cookie sea del dominio correcto (preview, prod, etc.)
   const res = NextResponse.redirect(new URL("/", origin));
-  res.cookies.set("handee_role", role, {
+  res.cookies.set("handi_role", role, {
     httpOnly: true,
     sameSite: "lax",
     maxAge: 60 * 60,

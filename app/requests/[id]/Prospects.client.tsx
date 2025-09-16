@@ -145,6 +145,7 @@ export default function ProspectsClient({ requestId }: Props) {
                       ...(session?.access_token
                         ? { "x-access-token": session.access_token }
                         : {}),
+                      ...(me ? { "x-user-id": me } : {}),
                     },
                     credentials: "include",
                     body: JSON.stringify({ requestId, proId }),
@@ -161,8 +162,9 @@ export default function ProspectsClient({ requestId }: Props) {
                     setConversationId(id);
                     setChatOpen(true);
                   }
-                } catch {
-                  // ignore
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : "No se pudo iniciar el chat";
+                  toast.error(msg);
                 }
               }}
               disabled={me ? me === (p.professional_id as string) : false}
@@ -239,11 +241,12 @@ export default function ProspectsClient({ requestId }: Props) {
         </li>
       ))}
     </ul>
-  const supabase = createClientComponentClient();
     {chatOpen && conversationId ? (
       <ChatPanel
         conversationId={conversationId}
         userId={me}
+        requestId={requestId}
+        requestBudget={requestBudget}
         onClose={() => setChatOpen(false)}
       />
     ) : null}

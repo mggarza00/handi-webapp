@@ -6,8 +6,8 @@ export const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 export const MAX_BYTES = 5 * 1024 * 1024;
 
 // Límites por sección
-export const MAX_REQUEST_IMAGES = 5;       // solicitudes
-export const MAX_GALLERY_IMAGES = 10;      // galería profesional
+export const MAX_REQUEST_IMAGES = 5; // solicitudes
+export const MAX_GALLERY_IMAGES = 10; // galería profesional
 
 function assertValidImage(file: File) {
   if (!ALLOWED_MIME.has(file.type)) {
@@ -24,7 +24,7 @@ function assertValidImage(file: File) {
  */
 export async function uploadRequestPhotos(
   files: File[],
-  opts?: { requestId?: string }
+  opts?: { requestId?: string },
 ): Promise<string[]> {
   const toUpload = files.slice(0, MAX_REQUEST_IMAGES);
   const urls: string[] = [];
@@ -45,7 +45,7 @@ export async function uploadRequestPhotos(
  */
 export async function uploadProfileGallery(
   files: File[],
-  opts?: { userId?: string }
+  opts?: { userId?: string },
 ): Promise<string[]> {
   const toUpload = files.slice(0, MAX_GALLERY_IMAGES);
   const urls: string[] = [];

@@ -229,8 +229,8 @@ body {
     display: none;
   }
 
-  /* Animación sutil para la mascota de Handee */
-  @keyframes handee-bounce-subtle {
+  /* Animación sutil para la mascota de Handi */
+  @keyframes handi-bounce-subtle {
     0%,
     100% {
       transform: translateY(0);
@@ -241,7 +241,34 @@ body {
   }
 
   .animate-bounce-subtle {
-    animation: handee-bounce-subtle 2.8s ease-in-out infinite;
+    animation: handi-bounce-subtle 2.8s ease-in-out infinite;
+  }
+
+  /* Marquee horizontal (carrusel lento, constante) */
+  @keyframes marquee-left {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+  .marquee {
+    overflow: hidden;
+    position: relative;
+  }
+  /* stylelint-disable-next-line selector-class-pattern */
+  .marquee__inner {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: marquee-left var(--marquee-duration, 60s) linear infinite;
+  }
+  /* stylelint-disable-next-line selector-class-pattern */
+  .marquee__group {
+    display: inline-flex;
+    gap: 0.5rem; /* ~8px entre chips */
+    white-space: nowrap;
   }
 
   /* Utilidad para aplicar gutter horizontal responsivo */
@@ -263,5 +290,10 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-bounce-subtle {
     animation: none !important;
+  }
+  /* stylelint-disable-next-line selector-class-pattern */
+  .marquee__inner {
+    animation: none !important;
+    transform: none !important;
   }
 }

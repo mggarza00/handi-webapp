@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Allow remote images from Google profile photos
+  images: {
+    domains: ["lh3.googleusercontent.com"],
+  },
   // Keep ESLint active during production builds
   eslint: {
     ignoreDuringBuilds: false,

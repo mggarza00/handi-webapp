@@ -1,8 +1,8 @@
 // Conditionally enable Tailwind ESLint plugin: not compatible with Tailwind v4
 let enableTailwindPlugin = false;
 try {
-  const twPkg = require('tailwindcss/package.json');
-  const major = parseInt((twPkg.version || '0').split('.')[0], 10);
+  const twPkg = require("tailwindcss/package.json");
+  const major = parseInt((twPkg.version || "0").split(".")[0], 10);
   enableTailwindPlugin = major < 4;
 } catch (_) {
   enableTailwindPlugin = false;
@@ -15,13 +15,13 @@ module.exports = {
     "@typescript-eslint",
     "react",
     "import",
-    ...(enableTailwindPlugin ? ["tailwindcss"] : [])
+    ...(enableTailwindPlugin ? ["tailwindcss"] : []),
   ],
   extends: [
     "next/core-web-vitals",
     "eslint:recommended",
     "plugin:@typescript-eslint/recommended",
-    ...(enableTailwindPlugin ? ["plugin:tailwindcss/recommended"] : [])
+    ...(enableTailwindPlugin ? ["plugin:tailwindcss/recommended"] : []),
   ],
   ignorePatterns: [
     "node_modules/",
@@ -31,24 +31,27 @@ module.exports = {
     "artifacts/",
     "dist/",
     // Temporarily ignore due to TS parser issue on Windows newlines/BOM
-    "app/page.tsx"
+    "app/page.tsx",
   ],
   parserOptions: {
     project: ["./tsconfig.json"],
     tsconfigRootDir: __dirname,
-    sourceType: "module"
+    sourceType: "module",
   },
   settings: {
     "import/resolver": {
       typescript: { project: ["./tsconfig.json"], alwaysTryTypes: true },
-      node: { extensions: [".js", ".jsx", ".ts", ".tsx", ".d.ts"] }
+      node: { extensions: [".js", ".jsx", ".ts", ".tsx", ".d.ts"] },
     },
-    react: { version: "detect" }
+    react: { version: "detect" },
   },
   rules: {
     "import/order": ["error", { "newlines-between": "always" }],
     "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+    ],
     "no-empty": "error",
     // Estas reglas funcionan porque eslint-config-next carga el plugin react-hooks internamente
     "react-hooks/rules-of-hooks": "error",
@@ -67,8 +70,11 @@ module.exports = {
     {
       files: ["app/api/**/route.ts", "app/(api)/**/route.ts"],
       rules: {
-        "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }]
-      }
-    }
-  ]
+        "@typescript-eslint/no-unused-vars": [
+          "error",
+          { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+        ],
+      },
+    },
+  ],
 };

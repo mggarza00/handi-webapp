@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import { supabaseServer } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
 
-// Devuelve las postulaciones de un request con datos básicos del profesional.
-// Usa RPC con security definer que valida: dueño del request o profesional.
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = supabaseServer();
+  const supabase = createRouteHandlerClient<Database>({ cookies });
   const { id: requestId } = await params;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -17,7 +17,10 @@ export async function GET(
     .order("created_at", { ascending: false });
 
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 400 },
+    );
   }
   return NextResponse.json({ ok: true, data });
 }

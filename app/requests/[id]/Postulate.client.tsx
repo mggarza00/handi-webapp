@@ -19,7 +19,10 @@ export default function PostulateClient({ requestId }: Props) {
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ request_id: requestId, note: note.trim() || undefined }),
+        body: JSON.stringify({
+          request_id: requestId,
+          note: note.trim() || undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -54,4 +57,3 @@ export default function PostulateClient({ requestId }: Props) {
     </form>
   );
 }
-

@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { z } from "zod";
 import type { PostgrestError } from "@supabase/supabase-js";
 
 import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
-import { notifyApplicationCreated } from "@/lib/notifications";
+import {
+  notifyApplicationCreated,
+  notifyAdminApplicationCreated,
+} from "@/lib/notifications";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -15,7 +20,8 @@ const createSchema = z.object({
 
 export async function GET() {
   try {
-    const { supabase, user } = await getUserOrThrow();
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const { user } = await getUserOrThrow(supabase);
 
     const { data, error } = await supabase
       .from("applications")
@@ -25,7 +31,11 @@ export async function GET() {
 
     if (error) {
       return new NextResponse(
-        JSON.stringify({ ok: false, error: "LIST_FAILED", detail: error.message }),
+        JSON.stringify({
+          ok: false,
+          error: "LIST_FAILED",
+          detail: error.message,
+        }),
         { status: 500, headers: JSONH },
       );
     }
@@ -34,10 +44,13 @@ export async function GET() {
   } catch (e) {
     const err = e as ApiError;
     const status = err?.status ?? 401;
-    return new NextResponse(JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }), {
-      status,
-      headers: JSONH,
-    });
+    return new NextResponse(
+      JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }),
+      {
+        status,
+        headers: JSONH,
+      },
+    );
   }
 }
 
@@ -45,13 +58,17 @@ export async function POST(req: Request) {
   try {
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("application/json")) {
-      return new NextResponse(JSON.stringify({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }), {
-        status: 415,
-        headers: JSONH,
-      });
+      return new NextResponse(
+        JSON.stringify({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }),
+        {
+          status: 415,
+          headers: JSONH,
+        },
+      );
     }
 
-    const { supabase, user } = await getUserOrThrow();
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const { user } = await getUserOrThrow(supabase);
     const body = createSchema.parse(await req.json());
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,24 +85,44 @@ export async function POST(req: Request) {
     if (error) {
       const pgErr = error as PostgrestError;
       const code = pgErr.code === "23505" ? "ALREADY_APPLIED" : "CREATE_FAILED";
-      return new NextResponse(JSON.stringify({ ok: false, error: code, detail: pgErr.message }), {
-        status: 400,
-        headers: JSONH,
-      });
+      return new NextResponse(
+        JSON.stringify({ ok: false, error: code, detail: pgErr.message }),
+        {
+          status: 400,
+          headers: JSONH,
+        },
+      );
     }
 
     try {
-      await notifyApplicationCreated({ request_id: data.request_id, professional_id: user.id });
+      await notifyApplicationCreated({
+        request_id: data.request_id,
+        professional_id: user.id,
+      });
     } catch {
-      // no-op
+      /* no-op */
     }
-    return NextResponse.json({ ok: true, data }, { status: 201, headers: JSONH });
+    try {
+      await notifyAdminApplicationCreated({
+        request_id: data.request_id,
+        professional_id: user.id,
+      });
+    } catch {
+      /* no-op */
+    }
+    return NextResponse.json(
+      { ok: true, data },
+      { status: 201, headers: JSONH },
+    );
   } catch (e) {
     const err = e as ApiError;
     const status = err?.status ?? 401;
-    return new NextResponse(JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }), {
-      status,
-      headers: JSONH,
-    });
+    return new NextResponse(
+      JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }),
+      {
+        status,
+        headers: JSONH,
+      },
+    );
   }
 }

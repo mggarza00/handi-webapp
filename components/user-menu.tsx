@@ -23,7 +23,14 @@ export default function UserMenu({
     return () => window.removeEventListener("click", onClick);
   }, []);
 
-  const initials = (fullName?.trim()?.split(/\s+/)?.map((p) => p[0])?.slice(0, 2)?.join("") || "U").toUpperCase();
+  const initials = (
+    fullName
+      ?.trim()
+      ?.split(/\s+/)
+      ?.map((p) => p[0])
+      ?.slice(0, 2)
+      ?.join("") || "U"
+  ).toUpperCase();
 
   return (
     <div className="relative" ref={ref}>
@@ -34,7 +41,9 @@ export default function UserMenu({
         aria-expanded={open}
       >
         <Avatar className="h-8 w-8">
-          {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} /> : null}
+          {avatarUrl ? (
+            <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} />
+          ) : null}
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </button>
@@ -43,14 +52,26 @@ export default function UserMenu({
           role="menu"
           className="absolute right-0 mt-2 w-48 overflow-hidden rounded-md border bg-white shadow-lg"
         >
-          <Link href="/me" className="block px-3 py-2 text-sm hover:bg-gray-50" role="menuitem">
+          <Link
+            href="/me"
+            className="block px-3 py-2 text-sm hover:bg-gray-50"
+            role="menuitem"
+          >
             Mi perfil
           </Link>
-          <Link href="/settings" className="block px-3 py-2 text-sm hover:bg-gray-50" role="menuitem">
+          <Link
+            href="/settings"
+            className="block px-3 py-2 text-sm hover:bg-gray-50"
+            role="menuitem"
+          >
             Configuración
           </Link>
           <div className="my-1 h-px bg-gray-100" />
-          <Link href="/auth/sign-out" className="block px-3 py-2 text-sm text-red-600 hover:bg-gray-50" role="menuitem">
+          <Link
+            href="/auth/sign-out"
+            className="block px-3 py-2 text-sm text-red-600 hover:bg-gray-50"
+            role="menuitem"
+          >
             Salir
           </Link>
         </div>

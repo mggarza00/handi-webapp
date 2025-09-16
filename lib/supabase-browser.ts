@@ -1,14 +1,6 @@
 // lib/supabase-browser.ts
-import { createClient } from "@supabase/supabase-js";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import type { Database } from "@/types/supabase";
 
-if (!url) {
-  throw new Error("Falta la variable de entorno NEXT_PUBLIC_SUPABASE_URL");
-}
-if (!anonKey) {
-  throw new Error("Falta la variable de entorno NEXT_PUBLIC_SUPABASE_ANON_KEY");
-}
-
-export const supabaseBrowser = createClient(url, anonKey);
+export const supabaseBrowser = createClientComponentClient<Database>();

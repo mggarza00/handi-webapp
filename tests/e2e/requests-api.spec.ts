@@ -2,7 +2,10 @@ import { test, expect } from "@playwright/test";
 
 // Minimal API checks for /api/requests
 test.describe("/api/requests API", () => {
-  test("GET defaults to active and supports limit", async ({ request, baseURL }) => {
+  test("GET defaults to active and supports limit", async ({
+    request,
+    baseURL,
+  }) => {
     const url = `${baseURL || "http://localhost:3000"}/api/requests?limit=2`;
     const res = await request.get(url, {
       headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -10,7 +13,7 @@ test.describe("/api/requests API", () => {
     expect(res.ok()).toBeTruthy();
     const json = await res.json();
     expect(json).toHaveProperty("ok", true);
-    const data = (json?.data ?? []) as Array<{ status?: string }>
+    const data = (json?.data ?? []) as Array<{ status?: string }>;
     expect(Array.isArray(data)).toBeTruthy();
     expect(data.length).toBeLessThanOrEqual(2);
     for (const r of data) {
@@ -31,9 +34,12 @@ test.describe("/api/requests API", () => {
     // If no results, skip the rest
     if (!nextCursor) return;
 
-    const second = await request.get(`${root}/api/requests?limit=1&cursor=${encodeURIComponent(nextCursor)}`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
+    const second = await request.get(
+      `${root}/api/requests?limit=1&cursor=${encodeURIComponent(nextCursor)}`,
+      {
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      },
+    );
     expect(second.ok()).toBeTruthy();
     const j2 = await second.json();
     expect(j2).toHaveProperty("ok", true);

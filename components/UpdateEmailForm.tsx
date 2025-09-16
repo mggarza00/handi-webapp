@@ -4,9 +4,16 @@ import { useState } from "react";
 
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
-export default function UpdateEmailForm({ currentEmail }: { currentEmail: string | null }) {
+export default function UpdateEmailForm({
+  currentEmail,
+}: {
+  currentEmail: string | null;
+}) {
   const [email, setEmail] = useState<string>(currentEmail ?? "");
-  const [status, setStatus] = useState<null | { type: "ok" | "err"; msg: string }>(null);
+  const [status, setStatus] = useState<null | {
+    type: "ok" | "err";
+    msg: string;
+  }>(null);
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -19,11 +26,22 @@ export default function UpdateEmailForm({ currentEmail }: { currentEmail: string
     setLoading(true);
     try {
       const emailRedirectTo = `${window.location.origin}/auth/callback?next=/me`;
-      const { error } = await supabaseBrowser.auth.updateUser({ email }, { emailRedirectTo });
+      const { error } = await supabaseBrowser.auth.updateUser(
+        { email },
+        { emailRedirectTo },
+      );
       if (error) throw error;
-      setStatus({ type: "ok", msg: "Te enviamos un enlace de confirmación al nuevo correo." });
+      setStatus({
+        type: "ok",
+        msg: "Te enviamos un enlace de confirmación al nuevo correo.",
+      });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "Ocurrió un error";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Ocurrió un error";
       setStatus({ type: "err", msg });
     } finally {
       setLoading(false);
@@ -33,8 +51,13 @@ export default function UpdateEmailForm({ currentEmail }: { currentEmail: string
   return (
     <div className="rounded border border-slate-200 bg-white p-4">
       <h2 className="text-lg font-medium">Actualizar email</h2>
-      <p className="mt-1 text-sm text-slate-600">Confirma el cambio mediante un enlace que enviaremos.</p>
-      <form onSubmit={onSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row">
+      <p className="mt-1 text-sm text-slate-600">
+        Confirma el cambio mediante un enlace que enviaremos.
+      </p>
+      <form
+        onSubmit={onSubmit}
+        className="mt-3 flex flex-col gap-2 sm:flex-row"
+      >
         <input
           type="email"
           required
@@ -53,7 +76,11 @@ export default function UpdateEmailForm({ currentEmail }: { currentEmail: string
         </button>
       </form>
       {status ? (
-        <p className={`mt-2 text-sm ${status.type === "ok" ? "text-green-600" : "text-red-600"}`}>{status.msg}</p>
+        <p
+          className={`mt-2 text-sm ${status.type === "ok" ? "text-green-600" : "text-red-600"}`}
+        >
+          {status.msg}
+        </p>
       ) : null}
     </div>
   );

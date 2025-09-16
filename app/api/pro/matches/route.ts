@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import { supabaseServer, getUserOrThrow } from "@/lib/_supabase-server";
+import { getUserOrThrow } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
 
 type UUID = string;
 
 type MatchItem = {
   id: UUID;
-  created_at: string; // ISO
+  created_at: string;
   source: "application" | "agreement" | "recent_profile";
 };
 
@@ -16,14 +19,9 @@ function errorMessage(e: unknown): string {
 
 export async function GET() {
   try {
-    // Crea cliente server-side (por si lo necesitas para queries)
-    const _supabase = await supabaseServer();
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    await getUserOrThrow(supabase);
 
-    // ✅ getUserOrThrow NO recibe argumentos en esta base
-    const _user = await getUserOrThrow();
-
-    // TODO: Reemplaza por tu lógica real de matching.
-    // De momento respondemos una lista vacía válida para compilar.
     const list: MatchItem[] = [];
 
     return NextResponse.json(
@@ -31,12 +29,14 @@ export async function GET() {
       { headers: { "Content-Type": "application/json; charset=utf-8" } },
     );
   } catch (e: unknown) {
-    // Manejo seguro de errores con unknown
     const msg = errorMessage(e);
     const status = msg === "UNAUTHORIZED" ? 401 : 500;
     return NextResponse.json(
       { ok: false, error: msg },
-      { status, headers: { "Content-Type": "application/json; charset=utf-8" } },
+      {
+        status,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      },
     );
   }
 }

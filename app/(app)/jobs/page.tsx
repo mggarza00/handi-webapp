@@ -21,33 +21,35 @@ export default function Jobs() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  async function load() {
-    try {
-      setLoading(true);
-      setErr(null);
-      const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      if (city) params.set("city", city);
-      const res = await fetch(`/api/requests?${params}`, { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error");
-      setItems(json.data || []);
-    } catch (e: unknown) {
-      setErr(
-        e instanceof Error
-          ? e.message
-          : typeof e === "string"
-            ? e
-            : "Error desconocido",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    load();
+    let aborted = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+        const params = new URLSearchParams();
+        if (q) params.set("q", q);
+        if (city) params.set("city", city);
+        const res = await fetch(`/api/requests?${params}`, { cache: "no-store" });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Error");
+        if (!aborted) setItems(json.data || []);
+      } catch (e: unknown) {
+        if (!aborted)
+          setErr(
+            e instanceof Error
+              ? e.message
+              : typeof e === "string"
+                ? e
+                : "Error desconocido",
+          );
+      } finally {
+        if (!aborted) setLoading(false);
+      }
+    })();
+    return () => {
+      aborted = true;
+    };
   }, [q, city]);
 
   return (

@@ -30,13 +30,21 @@ export default function UserButton({
     );
   }
 
-  const initials =
-    (fullName?.trim()?.split(/\s+/)?.map(p => p[0])?.slice(0, 2)?.join("") || "U").toUpperCase();
+  const initials = (
+    fullName
+      ?.trim()
+      ?.split(/\s+/)
+      ?.map((p) => p[0])
+      ?.slice(0, 2)
+      ?.join("") || "U"
+  ).toUpperCase();
 
   return (
     <Link href="/me" className="inline-flex items-center gap-2">
       <Avatar className="h-8 w-8">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} /> : null}
+        {avatarUrl ? (
+          <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} />
+        ) : null}
         <AvatarFallback>{initials}</AvatarFallback>
       </Avatar>
       <span className="text-sm font-medium hidden sm:inline-block">

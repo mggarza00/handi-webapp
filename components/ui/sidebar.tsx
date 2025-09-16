@@ -20,7 +20,13 @@ function useSidebar() {
   return ctx ?? { open: fallbackOpen, setOpen: setFallbackOpen };
 }
 
-function SidebarProvider({ children, defaultOpen = false }: { children: React.ReactNode; defaultOpen?: boolean }) {
+function SidebarProvider({
+  children,
+  defaultOpen = false,
+}: {
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
   const [open, setOpen] = React.useState(defaultOpen);
 
   React.useEffect(() => {
@@ -39,10 +45,18 @@ function SidebarProvider({ children, defaultOpen = false }: { children: React.Re
     };
   }, [open]);
 
-  return <SidebarContext.Provider value={{ open, setOpen }}>{children}</SidebarContext.Provider>;
+  return (
+    <SidebarContext.Provider value={{ open, setOpen }}>
+      {children}
+    </SidebarContext.Provider>
+  );
 }
 
-function SidebarTrigger({ className, children, ...props }: React.ComponentProps<"button">) {
+function SidebarTrigger({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"button">) {
   const { setOpen } = useSidebar();
   return (
     <button
@@ -67,18 +81,28 @@ function SidebarBackdrop({ className, ...props }: React.ComponentProps<"div">) {
     <div
       aria-hidden
       onClick={() => setOpen(false)}
-      className={cn(
-        "fixed inset-0 z-[40] md:hidden bg-black/50",
-        className,
-      )}
+      className={cn("fixed inset-0 z-[40] md:hidden bg-black/50", className)}
       {...props}
     />
   );
 }
 
-function Sidebar({ className, children, side = "left", width = 320 }: { className?: string; children: React.ReactNode; side?: "left" | "right"; width?: number }) {
+function Sidebar({
+  className,
+  children,
+  side = "left",
+  width = 320,
+}: {
+  className?: string;
+  children: React.ReactNode;
+  side?: "left" | "right";
+  width?: number;
+}) {
   const { open, setOpen } = useSidebar();
-  const sideClass = side === "left" ? "left-0 -translate-x-full data-[state=open]:translate-x-0" : "right-0 translate-x-full data-[state=open]:translate-x-0";
+  const sideClass =
+    side === "left"
+      ? "left-0 -translate-x-full data-[state=open]:translate-x-0"
+      : "right-0 translate-x-full data-[state=open]:translate-x-0";
 
   const [mounted, setMounted] = React.useState(false);
   const portalRef = React.useRef<HTMLElement | null>(null);
@@ -121,7 +145,9 @@ function Sidebar({ className, children, side = "left", width = 320 }: { classNam
         >
           <XIcon className="size-4" />
         </button>
-        <div className="flex h-full flex-col overflow-y-auto p-4">{children}</div>
+        <div className="flex h-full flex-col overflow-y-auto p-4">
+          {children}
+        </div>
       </aside>
     </>,
     portalRef.current,
@@ -137,7 +163,12 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"nav">) {
 }
 
 function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("mt-auto flex flex-col gap-2 pt-2", className)} {...props} />;
+  return (
+    <div
+      className={cn("mt-auto flex flex-col gap-2 pt-2", className)}
+      {...props}
+    />
+  );
 }
 
 function SidebarMenuItem({ className, ...props }: React.ComponentProps<"div">) {
