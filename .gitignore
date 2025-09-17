@@ -20,3 +20,5 @@ supabase/
 package-lock.json
 .aider*
 !supabase/**
+.vscode/mcp.json.local
+.mcp-auth/

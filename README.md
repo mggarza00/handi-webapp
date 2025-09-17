@@ -47,6 +47,12 @@ npm install
 npm run check        # typecheck + lint (opcional pero recomendado)
 npm run dev          # http://localhost:3000
 
+## Supabase local
+- Instala Docker Desktop y asegúrate de que el daemon esté ejecutándose antes de usar los comandos de Supabase.
+- Ejecuta `npx supabase start` en la raíz del repo para levantar los contenedores locales.
+- Verifica el estado con `npx supabase status`; si ves *The system cannot find the file specified* o *Make sure you've run 'supabase start'!* significa que Docker Desktop no está activo.
+- Cuando termines, detén los servicios con `npx supabase stop`.
+
 ## Revisión automática de CSS/UI
 - Ejecuta typecheck + lint + capturas responsivas + Lighthouse:
   - `npm run review:ui` (sirve en dev si no hay `BASE_URL`)
@@ -127,3 +133,184 @@ Pruebas manuales:
 2. Cerrar/abrir panel, historial persiste vía `/api/chat/history`.
 3. Ir a `/messages` y abrir `/messages/[conversationId]`.
 4. Verificación RLS: usuarios no participantes reciben 403 en API.
+
+## MCP en VS Code (Stripe, PayPal, Playwright)
+
+**Requisitos**
+
+- VS Code ≥ 1.93 con Agent Mode habilitado (Copilot/Codex activo en la cuenta).
+- Node.js 18+ disponible para `npx`.
+- Acceso a Stripe (Restricted Key recomendada) y PayPal (token Bearer sandbox/producción).
+
+1. Abre la carpeta del proyecto en VS Code y entra a Agent Mode (`View → Appearance → Agent Mode` o `Ctrl/Cmd+Shift+I`).
+2. Cuando VS Code lo solicite, pega tu clave `STRIPE_SECRET_KEY` (idealmente una Restricted Key) en el prompt cifrado y opcionalmente tu `STRIPE_ACCOUNT` si trabajas con cuentas conectadas. Para PayPal, `npx mcp-remote` abrirá el login (sandbox por defecto) y pedirá un token **Bearer** para el prompt `PAYPAL_BEARER`.
+3. Verifica que aparezcan las herramientas en `Tools`:
+   - `stripe` (local vía `npx` con clave pedida en tiempo real).
+   - `stripe-remote` (opcional, remoto con OAuth si lo habilitas en el panel de Agent Mode).
+   - `paypal` (remoto con OAuth vía `mcp-remote`).
+   - `playwright` (local vía `npx`, utiliza la versión más reciente del servidor Playwright).
+4. Si prefieres ejecutar Stripe o PayPal totalmente vía variables de entorno, defínelas antes de abrir Agent Mode (ej. macOS/Linux):
+   ```bash
+   export STRIPE_SECRET_KEY=sk_test_xxx
+   export STRIPE_ACCOUNT=acct_xxx          # opcional para cuentas conectadas
+   export PAYPAL_ACCESS_TOKEN=access_token_from_paypal
+   export PAYPAL_ENVIRONMENT=SANDBOX       # o PRODUCTION
+   ```
+   En Windows PowerShell usa `setx` o perfiles (`$env:VAR="valor"`).
+
+Configuración en `.vscode/mcp.json` (Stripe/PayPal remotos y alternativa local):
+
+```json
+{
+  "$schema": "vscode://schemas/mcp",
+  "servers": {
+    "stripe": {
+      "command": "npx",
+      "args": ["-y", "@stripe/mcp", "--tools=all"],
+      "env": {
+        "STRIPE_SECRET_KEY": "${input:STRIPE_SECRET_KEY}",
+        "STRIPE_ACCOUNT": "${input:STRIPE_ACCOUNT}"
+      }
+    },
+    "stripe-remote": {
+      "type": "http",
+      "url": "https://mcp.stripe.com"
+    },
+    "paypal": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.sandbox.paypal.com/http",
+        "--header",
+        "Authorization:Bearer ${input:PAYPAL_BEARER}"
+      ]
+    },
+    "paypal-local": {
+      "command": "npx",
+      "args": ["--yes", "@paypal/mcp", "--tools=all"],
+      "env": {
+        "PAYPAL_ACCESS_TOKEN": "${env:PAYPAL_ACCESS_TOKEN}",
+        "PAYPAL_ENVIRONMENT": "${env:PAYPAL_ENVIRONMENT}"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}
+```
+
+Puedes habilitar o deshabilitar `stripe-remote` desde Agent Mode → Settings → MCP Servers. El prompt `STRIPE_SECRET_KEY` queda guardado como secreto en VS Code; elimina o reemplaza el valor desde `Settings → MCP Inputs` si necesitas regenerarlo.
+
+Para actualizar la configuración o los secretos:
+
+- Abre la paleta de comandos y ejecuta `MCP: Open Workspace Folder Configuration` para editar `.vscode/mcp.json` desde VS Code.
+- También puedes abrir `.vscode/mcp.json` directamente y guardar los cambios. Al reiniciar o recargar el servidor, VS Code volverá a solicitar los `inputs` (`STRIPE_SECRET_KEY`, `STRIPE_ACCOUNT`, `PAYPAL_BEARER`).
+
+### Gestión de servidores
+
+- `MCP: Show Installed Servers` → verifica qué servidores están activos y su estado.
+- `MCP: List Servers` → selecciona un servidor para reiniciarlo, detenerlo o abrir su salida (`Show Output`) y revisar logs en caso de errores.
+- Cuando un servicio no responda, usa `Show Output` para capturar logs y documentar problemas en este README.
+
+### Pruebas rápidas
+
+- En Agent Mode abre `Tools` y confirma que aparezcan `stripe`, `stripe-remote` (si está habilitado), `paypal` y `playwright`.
+- Ejecuta `stripe.create_customer` (usa el servidor remoto OAuth o el local con la key ingresada) para validar credenciales.
+- Ejecuta `paypal.list_invoices` con un `PAYPAL_BEARER` sandbox válido.
+- Ejecuta `playwright.browser_navigate` con `{"url":"http://localhost:3000"}` y luego `playwright.browser_snapshot` para confirmar navegación y capturas.
+
+### Seguridad
+
+- No hardcodees llaves en el repositorio; usa los prompts (`inputs`) o variables de entorno locales.
+- Los archivos sensibles `.vscode/mcp.json.local` y la carpeta `.mcp-auth/` (tokens OAuth) están ignorados en git.
+
+### Dev Container (opcional)
+
+Si trabajas con Dev Containers, asegúrate de montar la carpeta del proyecto (para que `.vscode/mcp.json` quede accesible) y agrega el siguiente bloque en tu `.devcontainer/devcontainer.json`:
+
+```jsonc
+{
+  "name": "handi-webapp",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.copilot",
+        "ms-playwright.playwright",
+        "anthropic.mcp"
+      ],
+      "mcp": {
+        "$schema": "vscode://schemas/mcp",
+        "servers": {
+          "stripe": {
+            "command": "npx",
+            "args": ["-y", "@stripe/mcp", "--tools=all"],
+            "env": {
+              "STRIPE_SECRET_KEY": "${input:STRIPE_SECRET_KEY}",
+              "STRIPE_ACCOUNT": "${input:STRIPE_ACCOUNT}"
+            }
+          },
+          "stripe-remote": {
+            "type": "http",
+            "url": "https://mcp.stripe.com"
+          },
+          "paypal": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "mcp-remote",
+              "https://mcp.sandbox.paypal.com/http",
+              "--header",
+              "Authorization:Bearer ${input:PAYPAL_BEARER}"
+            ]
+          },
+          "playwright": {
+            "command": "npx",
+            "args": ["-y", "@playwright/mcp@latest"]
+          }
+        },
+        "inputs": [
+          {
+            "id": "STRIPE_SECRET_KEY",
+            "type": "promptString",
+            "description": "Stripe Secret Key (usa una Restricted Key en lo posible)",
+            "password": true
+          },
+          {
+            "id": "STRIPE_ACCOUNT",
+            "type": "promptString",
+            "description": "Stripe connected account (acct_...) opcional para MCP local"
+          },
+          {
+            "id": "PAYPAL_BEARER",
+            "type": "promptString",
+            "description": "PayPal Bearer (client credentials o access token para MCP remoto sandbox/producción)",
+            "password": true
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+El bloque anterior replica la configuración local dentro del contenedor; ajusta la imagen base o extensiones según tus necesidades.
+
+### Validación en VS Code
+
+- Ejecuta `MCP: Show Installed Servers` y verifica que Stripe, PayPal y Playwright aparezcan en la lista.
+- Si alguno falla, abre `MCP: List Servers`, selecciona el servidor y usa `Show Output` para revisar los logs. Copia cualquier traza relevante en la sección de troubleshooting al documentar incidentes.
+
+### Ejemplos de prompts
+
+- Stripe: «Usa la herramienta `stripe.paymentLinks.create` para generar un enlace de pago de 1299 MXN para el plan Premium».
+- PayPal: «Consulta con `paypal.list_invoices` los últimos 5 invoices pendientes».
+- Playwright: «Con Playwright abre `https://handi-webapp-woad.vercel.app`, toma una captura y dime si el CTA principal es visible».
+
+> Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://handi.mx`) a los argumentos.
+
+Si alguna herramienta falta, abre la paleta (`Ctrl/Cmd+Shift+P`) y ejecuta `Agents: Reload MCP Servers`. Los prompts `STRIPE_SECRET_KEY` y `PAYPAL_BEARER` quedan guardados como entradas secretas, y `STRIPE_ACCOUNT` como entrada opcional; limpia o reemplaza sus valores desde `Settings → MCP Inputs` si necesitas regenerarlos.
+
