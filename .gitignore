@@ -26,3 +26,7 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 playwright-report/data/
+playwright-report/
+playwright-report/data/
+test-results/
+*.tsbuildinfo
