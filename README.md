@@ -48,10 +48,10 @@ npm run check        # typecheck + lint (opcional pero recomendado)
 npm run dev          # http://localhost:3000
 
 ## Supabase local
-- Instala Docker Desktop y asegúrate de que el daemon esté ejecutándose antes de usar los comandos de Supabase.
-- Ejecuta `npx supabase start` en la raíz del repo para levantar los contenedores locales.
-- Verifica el estado con `npx supabase status`; si ves *The system cannot find the file specified* o *Make sure you've run 'supabase start'!* significa que Docker Desktop no está activo.
-- Cuando termines, detén los servicios con `npx supabase stop`.
+- Instala Docker Desktop y asegurate de que el daemon este ejecutandose antes de usar los comandos de supabase.
+- Ejecuta `npx supabase start` en la raiz del repo para levantar los contenedores locales.
+- Verifica el estado con `npx supabase status`; si ves `The system cannot find the file specified` o `Make sure you've run 'supabase start'!` significa que Docker Desktop no esta activo.
+- Cuando termines, deten los servicios con `npx supabase stop`.
 
 ## Revisión automática de CSS/UI
 - Ejecuta typecheck + lint + capturas responsivas + Lighthouse:
@@ -303,6 +303,7 @@ El bloque anterior replica la configuración local dentro del contenedor; ajusta
 
 - Ejecuta `MCP: Show Installed Servers` y verifica que Stripe, PayPal y Playwright aparezcan en la lista.
 - Si alguno falla, abre `MCP: List Servers`, selecciona el servidor y usa `Show Output` para revisar los logs. Copia cualquier traza relevante en la sección de troubleshooting al documentar incidentes.
+- Ajusta credenciales desde `MCP: Open Workspace Folder Configuration` (edita `.vscode/mcp.json`) si alguna conexión falla y vuelve a cargar los servidores.
 
 ### Ejemplos de prompts
 
@@ -313,4 +314,5 @@ El bloque anterior replica la configuración local dentro del contenedor; ajusta
 > Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://handi.mx`) a los argumentos.
 
 Si alguna herramienta falta, abre la paleta (`Ctrl/Cmd+Shift+P`) y ejecuta `Agents: Reload MCP Servers`. Los prompts `STRIPE_SECRET_KEY` y `PAYPAL_BEARER` quedan guardados como entradas secretas, y `STRIPE_ACCOUNT` como entrada opcional; limpia o reemplaza sus valores desde `Settings → MCP Inputs` si necesitas regenerarlos.
+
 
