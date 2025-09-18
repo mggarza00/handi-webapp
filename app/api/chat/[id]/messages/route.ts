@@ -7,7 +7,7 @@ import { createServerClient as createServiceClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = { params: { id: string } };
 
 const QuerySchema = z.object({
   cursor: z.string().datetime().optional(),
@@ -16,7 +16,7 @@ const QuerySchema = z.object({
 
 export async function GET(req: Request, { params }: Ctx) {
   try {
-    const id = (await params).id;
+    const id = params.id;
     const { searchParams } = new URL(req.url);
     const parsed = QuerySchema.safeParse({
       cursor: searchParams.get("cursor") ?? undefined,
@@ -71,7 +71,7 @@ export async function POST(req: Request, { params }: Ctx) {
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("application/json"))
       return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
-    const id = (await params).id;
+    const id = params.id;
 
     let usedDev = false;
     let { user } = await getDevUserFromHeader(req) ?? { user: null as any };

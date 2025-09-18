@@ -28,10 +28,10 @@ const PatchSchema = z
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
   try {
-    const { id } = await params;
+    const { id } = params;
     const idParse = z.string().uuid().safeParse(id);
     if (!idParse.success) {
       return NextResponse.json(

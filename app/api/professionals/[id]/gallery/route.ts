@@ -8,11 +8,11 @@ import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type CtxP = { params: Promise<{ id: string }> };
+type CtxP = { params: { id: string } };
 const IdSchema = z.string().uuid();
 
 export async function GET(_req: Request, { params }: CtxP) {
-  const { id } = await params;
+  const { id } = params;
   const parsed = IdSchema.safeParse(id);
   if (!parsed.success)
     return NextResponse.json(
@@ -74,7 +74,7 @@ export async function GET(_req: Request, { params }: CtxP) {
 }
 
 export async function DELETE(req: Request, { params }: CtxP) {
-  const { id } = await params;
+  const { id } = params;
   const parsed = IdSchema.safeParse(id);
   if (!parsed.success)
     return NextResponse.json(

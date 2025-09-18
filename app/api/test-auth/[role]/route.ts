@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ role: string }> },
+  { params }: { params: { role: string } },
 ) {
   const allowed =
     process.env.NODE_ENV !== "production" || process.env.CI === "true";
@@ -13,7 +13,7 @@ export async function GET(
     );
   }
 
-  const { role: r } = await params;
+  const { role: r } = params;
   const role = String(r || "guest").toLowerCase();
   if (!["guest", "client", "professional", "admin"].includes(role)) {
     return NextResponse.json(
@@ -33,3 +33,6 @@ export async function GET(
   });
   return res;
 }
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";

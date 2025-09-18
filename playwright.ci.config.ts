@@ -3,8 +3,11 @@ import base from "./playwright.config";
 
 const baseURL =
   (base.use?.baseURL as string | undefined) ||
+  process.env.PLAYWRIGHT_BASE_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
-  "http://localhost:3000";
+  "http://localhost:3100";
+const parsed = new URL(baseURL);
+const port = parsed.port ? parseInt(parsed.port, 10) : parsed.protocol === "https:" ? 443 : 80;
 
 const reporters: ReporterDescription[] = [
   ["github"],
@@ -43,7 +46,7 @@ export default defineConfig({
     : base.webServer
     ? {
         ...base.webServer,
-        command: "npm run start",
+        command: `cross-env PORT=${port} NEXT_PUBLIC_APP_URL=${baseURL} next start -p ${port}`,
         url: baseURL,
         reuseExistingServer: false,
       }

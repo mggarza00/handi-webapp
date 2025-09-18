@@ -36,7 +36,8 @@
     "db:gen": "supabase gen types --lang=typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts",
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset --force",
-    "db:studio": "supabase studio"
+    "db:studio": "supabase studio",
+    "test:unit": "vitest --config vitest.config.ts run --reporter=verbose"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -98,7 +99,8 @@
     "supabase": "^2.39.2",
     "tailwindcss": "^4.1.11",
     "tw-animate-css": "^1.3.7",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   },
   "postcss": {
     "plugins": {

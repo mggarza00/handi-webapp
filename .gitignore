@@ -22,3 +22,7 @@ package-lock.json
 !supabase/**
 .vscode/mcp.json.local
 .mcp-auth/
+playwright-report/
+test-results/
+*.tsbuildinfo
+playwright-report/data/

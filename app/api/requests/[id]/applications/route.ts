@@ -6,10 +6,10 @@ import type { Database } from "@/types/supabase";
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
   const supabase = createRouteHandlerClient<Database>({ cookies });
-  const { id: requestId } = await params;
+  const { id: requestId } = params;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)

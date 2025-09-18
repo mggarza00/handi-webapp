@@ -7,11 +7,11 @@ import { createServerClient as createServiceClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type Ctx = { params: Promise<{ id: string }> };
+type Ctx = { params: { id: string } };
 
 export async function DELETE(req: Request, { params }: Ctx) {
   try {
-    const id = (await params).id;
+    const id = params.id;
     const IdSchema = z.string().uuid();
     if (!IdSchema.safeParse(id).success)
       return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 422, headers: JSONH });

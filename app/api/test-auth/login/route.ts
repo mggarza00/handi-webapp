@@ -36,8 +36,16 @@ export async function GET(req: Request) {
         { status: 400, headers: JSONH },
       );
     }
+    type LinkProps = { action_link?: string | null; hashed_token?: string | null };
+    const props = (data.properties ?? {}) as LinkProps;
     return NextResponse.json(
-      { ok: true, action_link: data.properties.action_link },
+      {
+        ok: true,
+        action_link: props.action_link!,
+        token_hash: props.hashed_token ?? null,
+        type: "magiclink",
+        redirect_to: redirectTo,
+      },
       { headers: JSONH },
     );
   } catch (e) {

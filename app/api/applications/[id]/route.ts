@@ -13,11 +13,11 @@ const patchSchema = z.object({
   status: z.enum(["accepted", "rejected", "completed"]),
 });
 
-type CtxP = { params: Promise<{ id: string }> };
+type CtxP = { params: { id: string } };
 
 export async function PATCH(req: Request, { params }: CtxP) {
   try {
-    const { id } = await params;
+    const { id } = params;
     const supabase = createRouteHandlerClient<Database>({ cookies });
     const { user } = await getUserOrThrow(supabase);
     const { status } = patchSchema.parse(await req.json());

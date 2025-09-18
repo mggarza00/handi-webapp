@@ -26,6 +26,42 @@ export interface Tables {
     Insert: Partial<Tables["profiles"]["Row"]> & { id: string };
     Update: Partial<Tables["profiles"]["Row"]>;
   };
+  ratings: {
+    Row: {
+      id: string;
+      request_id: string;
+      from_user_id: string;
+      to_user_id: string;
+      stars: number; // 1..5
+      comment: string | null;
+      created_at: string | null; // timestamptz ISO
+    };
+    Insert: {
+      request_id: string;
+      from_user_id: string;
+      to_user_id: string;
+      stars: number;
+      comment?: string | null;
+    };
+    Update: Partial<Tables["ratings"]["Row"]>;
+  };
+  service_photos: {
+    Row: {
+      id: string;
+      offer_id: string;
+      request_id: string;
+      professional_id: string;
+      image_url: string;
+      uploaded_at: string | null; // timestamptz ISO
+    };
+    Insert: {
+      offer_id: string;
+      request_id: string;
+      professional_id: string;
+      image_url: string;
+    };
+    Update: Partial<Tables["service_photos"]["Row"]>;
+  };
   professionals: {
     Row: {
       id: string;
@@ -85,6 +121,7 @@ export interface Tables {
       checkout_url: string | null;
       payment_intent_id: string | null;
       metadata: Json;
+      accepting_at: string | null;
       created_at: string;
       created_by: string;
       updated_at: string;
@@ -98,6 +135,24 @@ export interface Tables {
       created_by: string;
     };
     Update: Partial<Tables['offers']['Row']>;
+  };
+  request_photos: {
+    Row: {
+      id: string;
+      request_id: string;
+      path: string;
+      thumb_path: string | null;
+      size_bytes: number | null;
+      width: number | null;
+      height: number | null;
+      created_by: string;
+      created_at: string;
+    };
+    Insert: Partial<Omit<Tables['request_photos']['Row'], 'request_id' | 'path'>> & {
+      request_id: string;
+      path: string;
+    };
+    Update: Partial<Tables['request_photos']['Row']>;
   };
   applications: {
     Row: {

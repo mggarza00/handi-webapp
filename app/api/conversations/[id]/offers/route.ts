@@ -3,102 +3,114 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
+import { assertRateLimit } from "@/lib/rate/limit";
+import { validateOfferFields } from "@/lib/safety/offer-guard";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 const BodySchema = z.object({
+  professionalId: z.string().uuid().optional(),
   title: z.string().min(3).max(160),
   description: z.string().max(2000).optional(),
   amount: z.union([z.number(), z.string()]),
   currency: z.string().min(1).max(10).optional(),
   serviceDate: z.string().optional(),
-  professionalId: z.string().uuid().optional(),
 });
 
 type BodyInput = z.infer<typeof BodySchema>;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const ct = (req.headers.get("content-type") || "").toLowerCase();
-    if (!ct.includes("application/json"))
-      return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
-
     const supabase = createRouteHandlerClient<Database>({ cookies });
-    const { data: auth } = await supabase.auth.getUser();
-    if (!auth?.user?.id)
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user)
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+
+    const rate = await assertRateLimit("offer.create", 60, 5);
+    if (!rate.ok)
+      return NextResponse.json(
+        { error: "RATE_LIMIT", message: rate.message },
+        { status: rate.status, headers: JSONH },
+      );
 
     const conversationId = params.id;
     if (!conversationId)
-      return NextResponse.json({ ok: false, error: "MISSING_CONVERSATION" }, { status: 400, headers: JSONH });
+      return NextResponse.json({ error: "MISSING_CONVERSATION" }, { status: 400, headers: JSONH });
 
-    const payload = BodySchema.safeParse(await req.json());
-    if (!payload.success)
+    const parsed = BodySchema.safeParse(await req.json());
+    if (!parsed.success)
       return NextResponse.json(
-        { ok: false, error: "VALIDATION_ERROR", detail: payload.error.flatten() },
+        { error: "VALIDATION_ERROR", detail: parsed.error.flatten() },
         { status: 422, headers: JSONH },
       );
-    const body: BodyInput = payload.data;
+    const body: BodyInput = parsed.data;
 
-    const convo = await supabase
+    const { data: convo, error: convoErr } = await supabase
       .from("conversations")
-      .select("id, customer_id, pro_id")
+      .select("customer_id, pro_id")
       .eq("id", conversationId)
       .single();
 
-    if (convo.error || !convo.data)
-      return NextResponse.json({ ok: false, error: "CONVERSATION_NOT_FOUND" }, { status: 404, headers: JSONH });
+    if (convoErr || !convo)
+      return NextResponse.json({ error: "CONVERSATION_NOT_FOUND" }, { status: 404, headers: JSONH });
 
-    if (convo.data.customer_id !== auth.user.id)
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
+    if (convo.customer_id !== user.id)
+      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
-    if (body.professionalId && body.professionalId !== convo.data.pro_id)
-      return NextResponse.json({ ok: false, error: "PRO_MISMATCH" }, { status: 409, headers: JSONH });
+    const professionalId = body.professionalId ?? convo.pro_id;
+    if (!professionalId)
+      return NextResponse.json({ error: "PROFESSIONAL_NOT_FOUND" }, { status: 400, headers: JSONH });
+    if (body.professionalId && body.professionalId !== convo.pro_id)
+      return NextResponse.json({ error: "PRO_MISMATCH" }, { status: 409, headers: JSONH });
 
-    const amountNumber = (() => {
-      const raw = typeof body.amount === "string" ? body.amount.trim() : body.amount;
-      const parsed = typeof raw === "string" ? Number(raw) : raw;
-      if (!Number.isFinite(parsed)) return NaN;
-      return parsed;
-    })();
+    const amountNumber = typeof body.amount === "string" ? Number(body.amount) : body.amount;
     if (!Number.isFinite(amountNumber) || amountNumber <= 0)
-      return NextResponse.json({ ok: false, error: "INVALID_AMOUNT" }, { status: 400, headers: JSONH });
+      return NextResponse.json({ error: "INVALID_AMOUNT" }, { status: 400, headers: JSONH });
 
-    const amount = Math.round((amountNumber + Number.EPSILON) * 100) / 100;
-    const serviceDateIso = (() => {
-      if (!body.serviceDate) return null;
-      const date = new Date(body.serviceDate);
-      if (Number.isNaN(date.getTime())) return null;
-      return date.toISOString();
-    })();
+    const guard = validateOfferFields({
+      title: body.title.trim(),
+      description: body.description ? body.description.trim() : null,
+    });
+    if (!guard.ok)
+      return NextResponse.json(
+        { error: guard.error, message: guard.message, findings: guard.findings },
+        { status: 422, headers: JSONH },
+      );
+
+    let serviceDateIso: string | null = null;
+    if (body.serviceDate) {
+      const parsedDate = new Date(body.serviceDate);
+      if (Number.isNaN(parsedDate.getTime()))
+        return NextResponse.json({ error: "INVALID_SERVICE_DATE" }, { status: 400, headers: JSONH });
+      serviceDateIso = parsedDate.toISOString();
+    }
 
     const { data: offer, error } = await supabase
       .from("offers")
       .insert({
         conversation_id: conversationId,
-        client_id: auth.user.id,
-        professional_id: convo.data.pro_id,
-        title: body.title.trim(),
-        description: body.description?.trim() || null,
+        client_id: user.id,
+        professional_id: professionalId,
+        title: guard.payload.title,
+        description: guard.payload.description ?? null,
         currency: (body.currency || "MXN").toUpperCase(),
-        amount,
+        amount: Math.round((amountNumber + Number.EPSILON) * 100) / 100,
         service_date: serviceDateIso,
-        created_by: auth.user.id,
+        created_by: user.id,
       })
       .select("*")
       .single();
 
     if (error || !offer)
-      return NextResponse.json(
-        { ok: false, error: error?.message || "OFFER_CREATE_FAILED" },
-        { status: 400, headers: JSONH },
-      );
+      return NextResponse.json({ error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
 
     return NextResponse.json({ ok: true, offer }, { status: 201, headers: JSONH });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "UNKNOWN";
-    return NextResponse.json({ ok: false, error: message }, { status: 500, headers: JSONH });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "UNKNOWN";
+    return NextResponse.json({ error: message }, { status: 500, headers: JSONH });
   }
 }
 

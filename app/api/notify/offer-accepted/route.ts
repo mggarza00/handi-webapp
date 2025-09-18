@@ -83,9 +83,9 @@ export async function POST(req: Request) {
     const formattedAmount = new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(Number(offer.amount || 0));
 
     if (email) {
-      const dateLine = serviceDate ? `<p><strong>Día del servicio:</strong> ${serviceDate}</p>` : "";
+      const dateLine = serviceDate ? `<p><strong>Dia del servicio:</strong> ${serviceDate}</p>` : "";
       const html = `
-        <p>Tu profesional aceptó la oferta <strong>${offer.title}</strong> por ${formattedAmount}.</p>
+        <p>Tu profesional acepto la oferta <strong>${offer.title}</strong> por ${formattedAmount}.</p>
         ${dateLine}
         <p>Completa el pago para continuar:</p>
         <p><a href="${checkoutUrl}">Ir al pago</a></p>
@@ -95,8 +95,8 @@ export async function POST(req: Request) {
 
     if (phone) {
       const smsBody = serviceDate
-        ? `Handi: Tu profesional aceptó la oferta por ${formattedAmount} (día ${serviceDate}). Paga aquí: ${checkoutUrl}`
-        : `Handi: Tu profesional aceptó la oferta por ${formattedAmount}. Paga aquí: ${checkoutUrl}`;
+        ? `Handi: Tu profesional acepto la oferta por ${formattedAmount} (dia ${serviceDate}). Paga aqui: ${checkoutUrl}`
+        : `Handi: Tu profesional acepto la oferta por ${formattedAmount}. Paga aqui: ${checkoutUrl}`;
       await sendSms({ to: phone, body: smsBody }).catch(() => null);
     }
 

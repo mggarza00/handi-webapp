@@ -385,7 +385,11 @@ export default async function SiteHeader() {
                     .filter(Boolean)
                     .join(" ")}
                 >
-                  <Link href={l.href} className={`inline-flex items-center gap-2 whitespace-nowrap`}>
+                  <Link
+                    href={l.href}
+                    data-testid={l.testId}
+                    className={`inline-flex items-center gap-2 whitespace-nowrap`}
+                  >
                     {l.href === "/requests/explore" ? (
                       <Image
                         src="/images/icono-trabajos-disponibles.gif"

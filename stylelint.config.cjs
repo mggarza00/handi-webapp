@@ -4,7 +4,15 @@
  */
 module.exports = {
   extends: ["stylelint-config-standard", "stylelint-config-tailwindcss"],
-  ignoreFiles: ["**/node_modules/**", ".next/**", "out/**", "public/**"],
+  ignoreFiles: [
+    "**/node_modules/**",
+    ".next/**",
+    "out/**",
+    "public/**",
+    "artifacts/**",
+    "playwright-report/**",
+    "test-results/**",
+  ],
   reportNeedlessDisables: true,
   rules: {
     // Tailwind & PostCSS features

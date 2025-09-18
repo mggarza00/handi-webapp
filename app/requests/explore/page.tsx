@@ -14,6 +14,8 @@ type RequestRow = {
   attachments?: unknown;
 };
 
+const DEFAULT_REQUEST_IMAGE = "/images/default-requests-image.png";
+
 export const dynamic = "force-dynamic";
 
 export default async function ExploreRequestsPage() {
@@ -175,9 +177,12 @@ export default async function ExploreRequestsPage() {
               const first = atts.find(
                 (a) => a && typeof a === "object" && (a as Record<string, unknown>).url,
               );
-              if (first) thumb = String((first as Record<string, unknown>).url || "");
+              if (first) {
+                const rawUrl = (first as Record<string, unknown>).url;
+                thumb = typeof rawUrl === "string" ? rawUrl.trim() : String(rawUrl ?? "");
+              }
             }
-            const thumbSrc = thumb || "/images/Favicon-v1-jpeg.jpg";
+            const thumbSrc = thumb && thumb.length > 0 ? thumb : DEFAULT_REQUEST_IMAGE;
             return (
               <li key={it.id}>
                 <a href={`/requests/explore/${it.id}`} className="block">

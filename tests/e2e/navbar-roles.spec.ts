@@ -3,8 +3,22 @@ import { test, expect } from "@playwright/test";
 const roles = ["guest", "client", "professional", "admin"] as const;
 
 for (const role of roles) {
-  test(`navbar para rol: ${role}`, async ({ page }) => {
-    await page.goto(`/api/test-auth/${role}`);
+  test(`navbar para rol: ${role}`, async ({ page, context, baseURL }) => {
+    // Simula rol via cookie HttpOnly equivalente al endpoint /api/test-auth/[role]
+    await context.clearCookies();
+    if (role !== "guest") {
+      const origin = new URL(baseURL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3100");
+      await context.addCookies([
+        {
+          name: "handi_role",
+          value: role,
+          domain: origin.hostname,
+          path: "/",
+          httpOnly: true,
+          sameSite: "Lax",
+        },
+      ]);
+    }
     await page.goto(`/`, { waitUntil: "domcontentloaded" });
 
     const header = page.locator("header");

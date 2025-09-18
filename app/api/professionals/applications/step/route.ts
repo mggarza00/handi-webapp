@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { z } from "zod";
 
-import { getUserOrThrow } from "@/lib/_supabase-server";
+import { getUserOrThrow, supabaseServer } from "@/lib/_supabase-server";
 import { getErrorMessage } from "@/lib/errors";
 import type { Database } from "@/types/supabase";
 
@@ -15,6 +15,7 @@ const BodySchema = z.object({
 export async function POST(req: Request) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });
+    await supabaseServer();
     await getUserOrThrow(supabase);
     const json = await req.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(json);

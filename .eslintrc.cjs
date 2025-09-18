@@ -76,5 +76,11 @@ module.exports = {
         ],
       },
     },
+    {
+      files: ["app/(app)/debug/**"],
+      rules: {
+        "import/order": "off",
+      },
+    },
   ],
 };

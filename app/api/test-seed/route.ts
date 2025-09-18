@@ -64,6 +64,40 @@ async function ensureUser(
   throw new Error("SEED_USER_NOT_FOUND");
 }
 
+async function ensureUserWithPassword(
+  supa: ReturnType<typeof admin>,
+  email: string,
+  password?: string,
+): Promise<AuthUserLite> {
+  // Try to find existing user first
+  const existing = await findUserByEmail(supa, email);
+  if (existing) {
+    if (password) {
+      try {
+        await supa.auth.admin.updateUserById(existing.id, { password });
+      } catch {
+        // ignore password update errors in best-effort seeding
+      }
+    }
+    return existing;
+  }
+  // Create new user with optional password
+  try {
+    const r = await supa.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      ...(password ? { password } : {}),
+    });
+    const u = (r as { data?: { user: { id: string; email?: string | null } | null } }).data?.user || null;
+    if (u?.id) return { id: u.id, email: u.email ?? null };
+  } catch {
+    // ignore createUser conflict; fall through to lookup
+  }
+  const after = await findUserByEmail(supa, email);
+  if (after) return after;
+  throw new Error("SEED_USER_NOT_FOUND");
+}
+
 export async function GET(req: Request) {
   try {
     assertDev();
@@ -162,6 +196,19 @@ export async function GET(req: Request) {
         },
       ]);
       if (upReq.error) return err("seed.upsert_request", upReq.error);
+
+      // ensure optional E2E login user with password (for auth.smoke)
+      const testEmail = process.env.TEST_EMAIL;
+      const testPassword = process.env.TEST_PASSWORD;
+      if (testEmail && testPassword) {
+        try {
+          await ensureUserWithPassword(supa, testEmail, testPassword);
+        } catch (e) {
+          // best-effort: don't fail seed if this user cannot be created
+          // but return a warning payload to aid debugging
+          return NextResponse.json({ ok: true, action, request_id: REQ_ID, warn: "ensure_test_login_failed", detail: String((e as Error).message || e) });
+        }
+      }
 
       return NextResponse.json({ ok: true, action, request_id: REQ_ID });
     }

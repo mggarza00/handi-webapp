@@ -1,7 +1,17 @@
 begin;
 
-create type if not exists public.offer_status as enum ('sent','accepted','rejected','expired','canceled','paid');
-
+do $$
+begin
+  if not exists (
+    select 1 from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where t.typname = 'offer_status'
+      and n.nspname = 'public'
+  ) then
+    create type public.offer_status as enum ('sent','accepted','rejected','expired','canceled','paid');
+  end if;
+end
+$$;
 create table if not exists public.offers (
   id uuid primary key default gen_random_uuid(),
   conversation_id uuid not null references public.conversations(id) on delete cascade,

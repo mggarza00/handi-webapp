@@ -97,50 +97,69 @@ export default function MessageList({
     for (const message of items) {
       const payload = message.payload;
       if (!payload || typeof payload !== "object") continue;
-      const offerIdRaw = (payload as Record<string, unknown>).offer_id;
-      if (typeof offerIdRaw !== "string" || !offerIdRaw) continue;
+
+      const payloadRecord = payload as Record<string, unknown>;
+      const offerIdRaw = payloadRecord["offer_id"];
+      if (typeof offerIdRaw !== "string" || offerIdRaw.trim().length === 0) continue;
+
       const offerId = offerIdRaw;
-      const state = map.get(offerId) ?? {
-        offerId,
-        title: null,
-        description: null,
-        amount: null,
-        currency: "MXN",
-        serviceDate: null,
-        status: "sent",
-        checkoutUrl: null,
-        reason: null,
-        messageId: message.id,
-        lastUpdate: message.createdAt,
-      };
+      const state =
+        map.get(offerId) ?? {
+          offerId,
+          title: null,
+          description: null,
+          amount: null,
+          currency: "MXN",
+          serviceDate: null,
+          status: "sent",
+          checkoutUrl: null,
+          reason: null,
+          messageId: message.id,
+          lastUpdate: message.createdAt,
+        };
+
       if (message.messageType === "offer") {
-        const title = (payload as Record<string, unknown>).title;
-        const description = (payload as Record<string, unknown>).description;
-        const amountRaw = (payload as Record<string, unknown>).amount;
-        const currencyRaw = (payload as Record<string, unknown>).currency;
-        const serviceDateRaw = (payload as Record<string, unknown>).service_date;
-        const statusRaw = (payload as Record<string, unknown>).status;
-        const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
-        state.title = typeof title === "string" ? title : state.title;
-        state.description = typeof description === "string" ? description : state.description;
+        const rawTitle = payloadRecord["title"];
+        if (typeof rawTitle === "string" && rawTitle.trim().length) state.title = rawTitle;
+
+        const rawDescription = payloadRecord["description"];
+        if (typeof rawDescription === "string" && rawDescription.length) state.description = rawDescription;
+
+        const amountRaw = payloadRecord["amount"];
         const amount = typeof amountRaw === "number" ? amountRaw : Number(amountRaw ?? NaN);
         state.amount = Number.isFinite(amount) ? amount : state.amount;
-        state.currency = typeof currencyRaw === "string" && currencyRaw.trim().length ? currencyRaw.toUpperCase() : state.currency;
-        state.serviceDate = typeof serviceDateRaw === "string" ? serviceDateRaw : state.serviceDate;
-        state.status = normalizeStatus(typeof statusRaw === "string" ? statusRaw : state.status);
-        state.checkoutUrl = typeof checkoutUrlRaw === "string" ? checkoutUrlRaw : state.checkoutUrl;
-        state.reason = typeof (payload as Record<string, unknown>).reason === "string" ? (payload as Record<string, unknown>).reason : state.reason;
-        state.messageId = message.id;
-        state.lastUpdate = message.createdAt;
+
+        const currencyRaw = payloadRecord["currency"];
+        if (typeof currencyRaw === "string" && currencyRaw.trim().length) {
+          state.currency = currencyRaw.toUpperCase();
+        }
+
+        const serviceDateRaw = payloadRecord["service_date"];
+        if (typeof serviceDateRaw === "string" && serviceDateRaw.trim().length) {
+          state.serviceDate = serviceDateRaw;
+        }
+
+        const statusRaw = payloadRecord["status"];
+        if (typeof statusRaw === "string") state.status = statusRaw;
+
+        const checkoutUrlRaw = payloadRecord["checkout_url"];
+        if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) state.checkoutUrl = checkoutUrlRaw;
+
+        const reasonRaw = payloadRecord["reason"];
+        if (typeof reasonRaw === "string" && reasonRaw.length) state.reason = reasonRaw;
       } else if (message.messageType === "system") {
-        const statusRaw = (payload as Record<string, unknown>).status;
-        const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
-        const reasonRaw = (payload as Record<string, unknown>).reason;
-        if (typeof statusRaw === "string") state.status = normalizeStatus(statusRaw);
-        if (typeof checkoutUrlRaw === "string") state.checkoutUrl = checkoutUrlRaw;
-        if (typeof reasonRaw === "string") state.reason = reasonRaw;
-        state.lastUpdate = message.createdAt;
+        const statusRaw = payloadRecord["status"];
+        if (typeof statusRaw === "string") state.status = statusRaw;
+
+        const checkoutUrlRaw = payloadRecord["checkout_url"];
+        if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) state.checkoutUrl = checkoutUrlRaw;
+
+        const reasonRaw = payloadRecord["reason"];
+        if (typeof reasonRaw === "string" && reasonRaw.length) state.reason = reasonRaw;
       }
+
+      state.lastUpdate = message.createdAt;
+      state.messageId = message.id;
       map.set(offerId, state);
     }
     return map;
@@ -149,7 +168,7 @@ export default function MessageList({
   if (!items.length)
     return (
       <div ref={ref} className="flex-1 overflow-y-auto p-3 bg-white">
-        <div className="text-sm text-slate-500">Aún no hay mensajes.</div>
+        <div className="text-sm text-slate-500">Aun no hay mensajes.</div>
       </div>
     );
 
@@ -203,12 +222,12 @@ export default function MessageList({
     return (
       <div className="space-y-2">
         <div>
-          <div className="text-[13px] font-medium">Oferta de contratación</div>
+          <div className="text-[13px] font-medium">Oferta de contratacion</div>
           {state.title ? <div className="text-sm font-semibold text-slate-800">{state.title}</div> : null}
         </div>
         <div className="text-sm text-slate-700">
           {formattedAmount ? <div>Monto: {formattedAmount}</div> : null}
-          {formattedDate ? <div>Día: {formattedDate}</div> : null}
+          {formattedDate ? <div>Dia: {formattedDate}</div> : null}
           {state.description ? <div className="whitespace-pre-wrap text-slate-600">{state.description}</div> : null}
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -243,12 +262,15 @@ export default function MessageList({
       return renderOffer(message);
     }
     if (message.messageType === "system" && message.payload && typeof message.payload === "object") {
-      const status = normalizeStatus((message.payload as Record<string, unknown>).status as string | undefined);
-      if ((message.payload as Record<string, unknown>).reason && status === "rejected") {
+      const payloadRecord = message.payload as Record<string, unknown>;
+      const statusValue = typeof payloadRecord.status === "string" ? payloadRecord.status : undefined;
+      const status = normalizeStatus(statusValue);
+      const reasonValue = typeof payloadRecord.reason === "string" ? payloadRecord.reason : null;
+      if (reasonValue && status === "rejected") {
         return (
           <div>
             <div className="font-medium text-sm">Oferta rechazada</div>
-            <div className="text-xs text-slate-600">Motivo: {(message.payload as Record<string, unknown>).reason as string}</div>
+            <div className="text-xs text-slate-600">Motivo: {reasonValue}</div>
           </div>
         );
       }
@@ -281,7 +303,7 @@ export default function MessageList({
                 {renderBody(m)}
                 {isMe ? (
                   <div className="mt-1 text-[11px] text-slate-400 text-right">
-                    {isRead ? "Leído" : "Enviado"}
+                    {isRead ? "Leido" : "Enviado"}
                   </div>
                 ) : null}
               </div>

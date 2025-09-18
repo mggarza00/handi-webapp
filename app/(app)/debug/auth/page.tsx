@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
 
-import { getServerSupabase } from "@/lib/supabaseServer";
+import { getAuthContext } from "@/lib/_supabase-server";
 import { env } from "@/lib/env";
 import ClientSessionProbe from "./probe.client";
 
@@ -15,11 +15,14 @@ export default async function DebugAuthPage() {
 
   const cookieNames = cookieStore.getAll().map((c) => c.name);
 
-  const supabase = getServerSupabase();
-  const {
-    data: { user: serverUser },
-    error: serverError,
-  } = await supabase.auth.getUser();
+  let serverUser: { id: string; email?: string | null } | null = null;
+  let serverError: { message: string } | null = null;
+  try {
+    const { user } = await getAuthContext();
+    serverUser = user ? { id: user.id, email: user.email } : null;
+  } catch (e) {
+    serverError = { message: e instanceof Error ? e.message : String(e) };
+  }
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">

@@ -40,12 +40,17 @@ Copia `.env.example` a `.env.local` y rellena:
 - `PRIVATE_KEY` (usar `\n` en una sola línea si el código hace `replace(/\\n/g, '\n')`)
 - `SHEET_ID`
 
-## Desarrollo local
+## Handee Webapp · Arranque y Debug
 
-````bash
-npm install
-npm run check        # typecheck + lint (opcional pero recomendado)
-npm run dev          # http://localhost:3000
+### Next.js (recomendado)
+- Desarrollo: `npm run dev` (VS Code: F5 → "Debug Next.js (npm run dev)")
+- Build: `npm run build`
+- Start: `npm run start`
+
+### Deno (opcional)
+- Script demo: `scripts/deno/hello.ts`
+- Debug: F5 → "Debug Deno (scripts/deno/hello.ts)"
+- Nota: En Deno 2 ya no existe `--unstable` global. Usa flags `--unstable-*` solo si ocupas APIs específicas.
 
 ## Supabase local
 - Instala Docker Desktop y asegurate de que el daemon este ejecutandose antes de usar los comandos de supabase.
@@ -314,5 +319,3 @@ El bloque anterior replica la configuración local dentro del contenedor; ajusta
 > Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://handi.mx`) a los argumentos.
 
 Si alguna herramienta falta, abre la paleta (`Ctrl/Cmd+Shift+P`) y ejecuta `Agents: Reload MCP Servers`. Los prompts `STRIPE_SECRET_KEY` y `PAYPAL_BEARER` quedan guardados como entradas secretas, y `STRIPE_ACCOUNT` como entrada opcional; limpia o reemplaza sus valores desde `Settings → MCP Inputs` si necesitas regenerarlos.
-
-

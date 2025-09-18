@@ -8,7 +8,7 @@ import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type CtxP = { params: Promise<{ id: string }> };
+type CtxP = { params: { id: string } };
 
 const IdParam = z.string().uuid();
 
@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: CtxP) {
   const supabase = createRouteHandlerClient<Database>({ cookies });
   await getUserOrThrow(supabase);
 
-  const { id: reqId } = await params;
+  const { id: reqId } = params;
   const id = IdParam.safeParse(reqId);
   if (!id.success) {
     return NextResponse.json(

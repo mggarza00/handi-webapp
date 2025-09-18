@@ -13,8 +13,20 @@ test.describe("Requests + Applications (seed dev/CI)", () => {
     expect(r2.ok()).toBeTruthy();
   });
 
-  test("Listado muestra la solicitud seed activa", async ({ page }) => {
-    await page.goto("/requests");
+  test("Listado muestra la solicitud seed activa", async ({ page, request }) => {
+    // Inicia sesión como cliente seed para ver sus propias solicitudes
+    const r = await request.get(`/api/test-auth/login?email=${encodeURIComponent("client+seed@handi.dev")}&next=/`);
+    if (r.ok()) {
+      const payload = await r.json();
+      if (payload?.token_hash) {
+        const type = payload?.type || "magiclink";
+        await page.goto(`/auth/callback?token_hash=${encodeURIComponent(payload.token_hash)}&type=${encodeURIComponent(type)}&next=/`, { waitUntil: "networkidle" });
+      } else if (payload?.action_link) {
+        await page.goto(payload.action_link, { waitUntil: "networkidle" });
+      }
+    }
+
+    await page.goto("/requests?mine=1");
     // busca por el título del seed
     await expect(page.getByText(/Instalación eléctrica \(seed\)/i)).toBeVisible(
       { timeout: 10000 },
@@ -37,10 +49,21 @@ test.describe("Requests + Applications (seed dev/CI)", () => {
   });
 
   test("Vista de detalle responde con navegación PRO al simular rol 'professional'", async ({
-    page,
+    page, context, baseURL,
   }) => {
-    // set rol de prueba (solo dev/CI)
-    await page.goto("/api/test-auth/professional");
+    // Simula rol de prueba mediante cookie (equivalente al endpoint /api/test-auth/professional)
+    await context.clearCookies();
+    const origin = new URL(baseURL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3100");
+    await context.addCookies([
+      {
+        name: "handi_role",
+        value: "professional",
+        domain: origin.hostname,
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
     await page.goto("/requests/33333333-3333-4333-8333-333333333333", {
       waitUntil: "domcontentloaded",
     });

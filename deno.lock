@@ -76,6 +76,7 @@
         "npm:tailwindcss@^4.1.11",
         "npm:tw-animate-css@^1.3.7",
         "npm:typescript@^5.9.2",
+        "npm:vitest@^3.2.4",
         "npm:zod@^3.25.76"
       ]
     }

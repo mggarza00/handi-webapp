@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
+import type { Database } from "@/types/supabase";
+
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function POST() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createRouteHandlerClient<Database>({ cookies });
     const {
-      data: { session, user },
+      data: { session },
       error,
     } = await supabase.auth.getSession();
 
@@ -19,10 +21,12 @@ export async function POST() {
       );
     }
 
+    const user = session?.user ?? null;
+
     return NextResponse.json(
       {
-        ok: !!user,
-        user: user ?? null,
+        ok: Boolean(user),
+        user,
         session: session ? { expires_at: session.expires_at } : null,
       },
       { headers: JSONH },

@@ -8,6 +8,7 @@ import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import { concertOne, nunito, varelaRound } from "@/lib/fonts";
+import { ThemeProvider } from "./(app)/_components/ThemeProvider";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,9 +66,26 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      suppressHydrationWarning
       className={`${nunito.variable} ${varelaRound.variable} ${concertOne.variable}`}
     >
       <head>
+        {/* Evita FOUC: aplica dark/light antes de hidratar */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function(){
+                try {
+                  var s = localStorage.getItem('theme') || 'system';
+                  var m = window.matchMedia('(prefers-color-scheme: dark)');
+                  var dark = s === 'dark' || (s === 'system' && m.matches);
+                  if (dark) document.documentElement.classList.add('dark');
+                  else document.documentElement.classList.remove('dark');
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -79,14 +97,16 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-screen bg-gray-50 font-sans">
-        <SiteHeader />
-        <main className="pt-16 pb-16 md:pb-0">{children}</main>
-        <ClientToaster />
-        {disableAssistant ? null : <AssistantLauncher />}
-        <SiteFooter />
-        {/* Mobile-only bottom tab bar for clients */}
-        <MobileClientTabBar />
+      <body className="min-h-screen bg-background text-foreground antialiased font-sans">
+        <ThemeProvider>
+          <SiteHeader />
+          <main className="pt-16 pb-16 md:pb-0">{children}</main>
+          <ClientToaster />
+          {disableAssistant ? null : <AssistantLauncher />}
+          <SiteFooter />
+          {/* Mobile-only bottom tab bar for clients */}
+          <MobileClientTabBar />
+        </ThemeProvider>
       </body>
     </html>
   );

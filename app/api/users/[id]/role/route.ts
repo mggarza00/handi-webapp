@@ -12,7 +12,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });
@@ -25,7 +25,7 @@ export async function PATCH(
       );
     }
 
-    const { id: rid } = await params;
+    const { id: rid } = params;
     const id = IdParam.safeParse(rid);
     if (!id.success) {
       return NextResponse.json(

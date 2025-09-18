@@ -36,9 +36,9 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function GET(
   _: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
-  const { id: rid } = await params;
+  const { id: rid } = params;
   const id = IdParam.safeParse(rid);
   if (!id.success) {
     return NextResponse.json(
@@ -83,7 +83,7 @@ export async function GET(
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });
@@ -96,7 +96,7 @@ export async function PATCH(
       );
     }
 
-    const { id: rid } = await params;
+    const { id: rid } = params;
     const id = IdParam.safeParse(rid);
     if (!id.success) {
       return NextResponse.json(
@@ -169,7 +169,7 @@ export async function PATCH(
 
 export async function DELETE(
   _: Request,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: { id: string } },
 ) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });
@@ -182,7 +182,7 @@ export async function DELETE(
       );
     }
 
-    const { id: rid } = await params;
+    const { id: rid } = params;
     const id = IdParam.safeParse(rid);
     if (!id.success) {
       return NextResponse.json(

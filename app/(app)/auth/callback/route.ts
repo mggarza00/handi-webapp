@@ -16,16 +16,13 @@ export async function GET(req: Request) {
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
   const next = url.searchParams.get("next") || "/";
 
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createRouteHandlerClient<Database, "public">({ cookies });
 
   try {
     if (code) {
       await supabase.auth.exchangeCodeForSession(code);
     } else if (tokenHash) {
-      const emailType:
-        | "magiclink"
-        | "recovery"
-        | "invite" =
+      const emailType: "magiclink" | "recovery" | "invite" =
         typeParam === "recovery"
           ? "recovery"
           : typeParam === "invite"
@@ -48,21 +45,31 @@ export async function GET(req: Request) {
   return NextResponse.redirect(new URL(next, env.appUrl), { status: 302 });
 }
 
-async function ensureProfile(supabase: SupabaseClient<Database>) {
-  const { data: auth } = await supabase.auth.getUser();
-  const user = auth.user;
+async function ensureProfile(supabase: SupabaseClient<Database, "public">) {
+  const { data } = await supabase.auth.getUser();
+  const user = data.user ?? null;
   if (!user) return;
 
   type ProfileTable = Database["public"]["Tables"]["profiles"];
-  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const fullName = (metadata.full_name as string | undefined) ?? null;
-  const avatarUrl = (metadata.avatar_url as string | undefined) ?? null;
+  type ProfileInsert = ProfileTable["Insert"];
+  type ProfileUpdate = ProfileTable["Update"];
 
-  const { data: existing, error } = await supabase
-    .from("profiles")
+  const profilesTable = supabase.from("profiles");
+  type LooseProfilesTable = {
+    select: typeof profilesTable.select;
+    insert: (values: ProfileInsert) => ReturnType<typeof profilesTable.insert>;
+    update: (values: ProfileUpdate) => ReturnType<typeof profilesTable.update>;
+  };
+  const typedProfilesTable = profilesTable as unknown as LooseProfilesTable;
+
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name : null;
+  const avatarUrl = typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
+
+  const { data: existing, error } = await typedProfilesTable
     .select("id, role")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<ProfileTable["Row"]>();
 
   if (error) {
     console.error("[auth/callback] profile lookup failed", error.message);
@@ -70,28 +77,27 @@ async function ensureProfile(supabase: SupabaseClient<Database>) {
   }
 
   if (!existing) {
-    await supabase
-      .from("profiles")
-      .insert({
-        id: user.id,
-        full_name: fullName,
-        avatar_url: avatarUrl,
-        role: "client",
-      } satisfies ProfileTable["Insert"])
-      .select("id")
-      .maybeSingle();
+    const payload: ProfileInsert = {
+      id: user.id,
+      full_name: fullName,
+      avatar_url: avatarUrl,
+      role: "client",
+    };
+    await typedProfilesTable.insert(payload);
     return;
   }
 
-  const setClientRole = existing.role == null;
-  await supabase
-    .from("profiles")
-    .update({
-      full_name: fullName,
-      avatar_url: avatarUrl,
-      ...(setClientRole ? { role: "client" as const } : {}),
-    } satisfies ProfileTable["Update"])
-    .eq("id", user.id)
-    .select("id")
-    .maybeSingle();
+  const updatePayload: ProfileUpdate = {
+    full_name: fullName,
+    avatar_url: avatarUrl,
+  };
+
+  if (existing.role == null) {
+    updatePayload.role = "client";
+  }
+
+  await typedProfilesTable
+    .update(updatePayload)
+    .eq("id", user.id);
 }
+

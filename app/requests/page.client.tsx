@@ -37,6 +37,8 @@ type RequestItem = {
   photos?: Array<{ url: string }> | null;
 };
 
+const DEFAULT_REQUEST_IMAGE = "/images/default-requests-image.png";
+
 const STATUS_OPTIONS = [
   { value: "all", label: "Todas" },
   { value: "active", label: "Activas" },
@@ -65,14 +67,20 @@ function formatDate(value?: string | null) {
 }
 
 function extractImage(item: RequestItem): string | null {
+  const consume = (value?: string | null) => {
+    const url = typeof value === "string" ? value.trim() : "";
+    return url.length > 0 ? url : null;
+  };
+
   if (Array.isArray(item.attachments)) {
     for (const att of item.attachments) {
-      if (att?.url) return att.url;
+      const next = consume(att?.url ?? null);
+      if (next) return next;
     }
   }
   if (Array.isArray(item.photos) && item.photos.length) {
-    const first = item.photos[0]?.url;
-    if (first) return first;
+    const next = consume(item.photos[0]?.url);
+    if (next) return next;
   }
   return null;
 }
@@ -198,9 +206,6 @@ export default function RequestsClientPage() {
             Administra tus solicitudes activas, filtra por estatus y consulta los detalles.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/requests/new">Nueva solicitud</Link>
-        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-[180px_auto] md:items-end">
@@ -222,37 +227,39 @@ export default function RequestsClientPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:justify-end md:gap-3">
-          <div className="flex-1 md:max-w-xs">
-            <Label className="sr-only">Buscar</Label>
-            <Input
-              placeholder="Buscar por titulo, ciudad o estatus"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="rounded-lg"
-            />
+        {!isMy ? (
+          <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:justify-end md:gap-3">
+            <div className="flex-1 md:max-w-xs">
+              <Label className="sr-only">Buscar</Label>
+              <Input
+                placeholder="Buscar por titulo, ciudad o estatus"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="rounded-lg"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="mine"
+                type="checkbox"
+                className="size-4"
+                checked={isMy}
+                onChange={(event) =>
+                  updateSearch({ mine: event.target.checked ? "1" : undefined })
+                }
+              />
+              <Label htmlFor="mine" className="text-sm">
+                Mis solicitudes
+              </Label>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => updateSearch({ status: undefined, city: undefined, mine: undefined })}
+            >
+              Limpiar filtros
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="mine"
-              type="checkbox"
-              className="size-4"
-              checked={isMy}
-              onChange={(event) =>
-                updateSearch({ mine: event.target.checked ? "1" : undefined })
-              }
-            />
-            <Label htmlFor="mine" className="text-sm">
-              Mis solicitudes
-            </Label>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => updateSearch({ status: undefined, city: undefined, mine: undefined })}
-          >
-            Limpiar filtros
-          </Button>
-        </div>
+        ) : null}
       </div>
 
       {loading ? <p className="text-sm text-slate-500">Cargando...</p> : null}
@@ -262,7 +269,7 @@ export default function RequestsClientPage() {
         <div className="space-y-3">
           {visibleItems.length ? (
             visibleItems.map((item) => {
-              const preview = extractImage(item);
+              const preview = extractImage(item) ?? DEFAULT_REQUEST_IMAGE;
               const isExpanded = expandedId === item.id;
               const detail = details[item.id];
               return (
@@ -283,20 +290,14 @@ export default function RequestsClientPage() {
                     }}
                   >
                     <div className="flex h-14 w-14 flex-none items-center justify-center overflow-hidden rounded-2xl bg-orange-100">
-                      {preview ? (
-                        <Image
-                          src={preview}
-                          alt={item.title ?? "Solicitud"}
-                          width={56}
-                          height={56}
-                          className="h-full w-full object-cover"
-                          unoptimized
-                        />
-                      ) : (
-                        <span className="text-2xl" role="img" aria-hidden>
-                          {"\u2692"}
-                        </span>
-                      )}
+                      <Image
+                        src={preview}
+                        alt={item.title ?? "Solicitud"}
+                        width={56}
+                        height={56}
+                        className="h-full w-full object-cover"
+                        unoptimized
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h2 className="truncate text-base font-semibold text-slate-900">

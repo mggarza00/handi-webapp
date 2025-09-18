@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" });
+  const stripe = new Stripe(STRIPE_SECRET_KEY);
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
               .update({
                 status: "paid",
                 payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : null,
+                accepting_at: null,
               })
               .eq("id", offerId)
               .in("status", ["accepted", "sent"]);

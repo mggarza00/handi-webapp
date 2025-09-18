@@ -25,8 +25,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { request_id, path, thumb_path, size_bytes, width, height } =
-      body.data;
+    const { request_id, path, thumb_path, size_bytes, width, height } = body.data;
 
     const supabase = createRouteHandlerClient<Database>({ cookies });
 
@@ -34,17 +33,18 @@ export async function POST(req: NextRequest) {
     if (!auth?.user)
       return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 
+    const insertPayload: Database["public"]["Tables"]["request_photos"]["Insert"] = {
+      request_id,
+      path,
+      thumb_path: thumb_path ?? null,
+      size_bytes: size_bytes ?? null,
+      width: width ?? null,
+      height: height ?? null,
+    };
+
     const { data: row, error } = await supabase
       .from("request_photos")
-      // @ts-expect-error - payload not typed in our generated types
-      .insert({
-        request_id,
-        path,
-        thumb_path: thumb_path ?? null,
-        size_bytes: size_bytes ?? null,
-        width: width ?? null,
-        height: height ?? null,
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
 
@@ -59,10 +59,10 @@ export async function POST(req: NextRequest) {
     if (!signErr) signed.url = mainSigned.signedUrl;
 
     if (thumb_path) {
-      const { data: thumbSigned } = await supabase.storage
+      const { data: thumbSigned, error: thumbErr } = await supabase.storage
         .from("requests-photos")
         .createSignedUrl(thumb_path, expiresIn);
-      signed.thumbUrl = thumbSigned?.signedUrl;
+      if (!thumbErr) signed.thumbUrl = thumbSigned?.signedUrl;
     }
 
     return NextResponse.json({ ok: true, data: { row, ...signed, expiresIn } });

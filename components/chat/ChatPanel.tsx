@@ -344,6 +344,19 @@ export default function ChatPanel({
     };
   }, [requestId, getAuthHeaders]);
   React.useEffect(() => {
+    if (!offerDialogOpen) return;
+    if (typeof budget === "number" && Number.isFinite(budget)) {
+      setOfferAmount((current) => (current ? current : String(budget)));
+    }
+    if (requiredAt) {
+      const parsed = new Date(requiredAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        setOfferServiceDate((current) => (current ? current : parsed.toISOString().slice(0, 10)));
+      }
+    }
+  }, [offerDialogOpen, budget, requiredAt]);
+
+  React.useEffect(() => {
     if (!conversationId) return;
     const channel = supabaseBrowser
       .channel(`messages:${conversationId}`)
@@ -422,36 +435,63 @@ export default function ChatPanel({
     return "guest" as const;
   }, [participants, meId]);
   const offerSummaries = React.useMemo(() => {
-    const map = new Map<string, { offerId: string; status: string; checkoutUrl: string | null; title?: string | null; amount?: number | null; currency?: string | null }>();
+    type OfferSummary = {
+      offerId: string;
+      status: string;
+      checkoutUrl: string | null;
+      title: string | null;
+      amount: number | null;
+      currency: string;
+    };
+    const map = new Map<string, OfferSummary>();
     for (const msg of messagesState) {
       const payload = msg.payload;
       if (!payload || typeof payload !== "object") continue;
-      const rawId = (payload as Record<string, unknown>).offer_id;
-      if (typeof rawId !== "string" || !rawId) continue;
-      const summary = map.get(rawId) ?? {
-        offerId: rawId,
-        status: "sent",
-        checkoutUrl: null,
-        title: null,
-        amount: null,
-        currency: "MXN",
-      };
+
+      const payloadRecord = payload as Record<string, unknown>;
+      const rawId = payloadRecord["offer_id"];
+      if (typeof rawId !== "string" || rawId.trim().length === 0) continue;
+
+      const summary =
+        map.get(rawId) ?? {
+          offerId: rawId,
+          status: "sent",
+          checkoutUrl: null,
+          title: null,
+          amount: null,
+          currency: "MXN",
+        };
+
       if (msg.messageType === "offer") {
-        const amountRaw = (payload as Record<string, unknown>).amount;
-        const currencyRaw = (payload as Record<string, unknown>).currency;
-        summary.title = typeof (payload as Record<string, unknown>).title === "string" ? (payload as Record<string, unknown>).title : summary.title;
+        const rawTitle = payloadRecord["title"];
+        if (typeof rawTitle === "string" && rawTitle.trim().length) summary.title = rawTitle;
+
+        const amountRaw = payloadRecord["amount"];
         const amount = typeof amountRaw === "number" ? amountRaw : Number(amountRaw ?? NaN);
         summary.amount = Number.isFinite(amount) ? amount : summary.amount;
-        summary.currency = typeof currencyRaw === "string" && currencyRaw.trim().length ? currencyRaw.toUpperCase() : summary.currency;
-        summary.status = normalizeStatus((payload as Record<string, unknown>).status as string | undefined);
-        const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
-        summary.checkoutUrl = typeof checkoutUrlRaw === "string" ? checkoutUrlRaw : summary.checkoutUrl;
-      } else if (msg.messageType === "system") {
-        const statusRaw = (payload as Record<string, unknown>).status;
+
+        const currencyRaw = payloadRecord["currency"];
+        if (typeof currencyRaw === "string" && currencyRaw.trim().length) {
+          summary.currency = currencyRaw.toUpperCase();
+        }
+
+        const statusRaw = payloadRecord["status"];
         if (typeof statusRaw === "string") summary.status = normalizeStatus(statusRaw);
-        const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
-        if (typeof checkoutUrlRaw === "string") summary.checkoutUrl = checkoutUrlRaw;
+
+        const checkoutUrlRaw = payloadRecord["checkout_url"];
+        if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) {
+          summary.checkoutUrl = checkoutUrlRaw;
+        }
+      } else if (msg.messageType === "system") {
+        const statusRaw = payloadRecord["status"];
+        if (typeof statusRaw === "string") summary.status = normalizeStatus(statusRaw);
+
+        const checkoutUrlRaw = payloadRecord["checkout_url"];
+        if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) {
+          summary.checkoutUrl = checkoutUrlRaw;
+        }
       }
+
       map.set(rawId, summary);
     }
     return map;
@@ -506,35 +546,6 @@ export default function ChatPanel({
       return { ok: false as const, error: message };
     }
   }
-  async function sendApiMessage(text: string) {
-    const optimistic: Msg = {
-      id: `tmp_${Date.now()}`,
-      senderId: "me",
-      body: text,
-      createdAt: new Date().toISOString(),
-      messageType: "text",
-      payload: null,
-    };
-    mergeMessages(optimistic);
-    const result = await postMessage(text);
-    if (!result.ok) {
-      removeMessageById(optimistic.id);
-      toast.error(result.error);
-      return false;
-    }
-    if (result.id) {
-      const serverMsg: Msg = {
-        id: result.id,
-        senderId: meId ?? "me",
-        body: text,
-        createdAt: result.createdAt,
-        messageType: "text",
-        payload: null,
-      };
-      mergeMessages(serverMsg, { fromServer: true });
-    }
-    return true;
-  }
   async function submitOffer() {
     if (viewerRole !== "customer") {
       toast.error("Solo el cliente puede crear ofertas");
@@ -573,8 +584,9 @@ export default function ChatPanel({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const json = await parseJsonSafe<{ error?: string }>(res);
-        throw new Error(json?.error || "No se pudo crear la oferta");
+        const json = await parseJsonSafe<{ error?: string; message?: string }>(res);
+        const errorMessage = json?.message || json?.error || "No se pudo crear la oferta";
+        throw new Error(errorMessage);
       }
       toast.success("Oferta enviada");
       setOfferDialogOpen(false);
@@ -608,9 +620,10 @@ export default function ChatPanel({
         headers,
         credentials: "include",
       });
-      const json = await parseJsonSafe<{ ok?: boolean; error?: string; checkoutUrl?: string }>(res);
+      const json = await parseJsonSafe<{ ok?: boolean; error?: string; message?: string; checkoutUrl?: string }>(res);
       if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "No se pudo aceptar la oferta");
+        const errorMessage = json?.message || json?.error || "No se pudo aceptar la oferta";
+        throw new Error(errorMessage);
       }
       toast.success("Oferta aceptada");
       await load(false);
@@ -651,9 +664,10 @@ export default function ChatPanel({
         credentials: "include",
         body: JSON.stringify({ reason: reasonPayload }),
       });
-      const json = await parseJsonSafe<{ ok?: boolean; error?: string }>(res);
+      const json = await parseJsonSafe<{ ok?: boolean; error?: string; message?: string }>(res);
       if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "No se pudo rechazar la oferta");
+        const errorMessage = json?.message || json?.error || "No se pudo rechazar la oferta";
+        throw new Error(errorMessage);
       }
       toast.success("Oferta rechazada");
       setRejectOpen(false);
@@ -707,7 +721,7 @@ export default function ChatPanel({
           id: result.id,
           senderId: meId ?? "me",
           body: trimmed,
-          createdAt: result.createdAt,
+          createdAt: result.createdAt ?? new Date().toISOString(),
           messageType: "text",
           payload: null,
         },
@@ -720,15 +734,12 @@ export default function ChatPanel({
       Cargando...
     </div>
   ) : null;
-  const actionButtons = (
-    <>
-      {participants && meId === participants.customer_id ? (
-        <div className="p-3 flex items-center justify-end">
-          <Button onClick={onOffer}>Contratar</Button>
-        </div>
-      ) : null}
-    </>
-  );
+  const actionButtons =
+    viewerRole === "customer" ? (
+      <div className="p-3 flex items-center justify-end">
+        <Button onClick={() => setOfferDialogOpen(true)}>Contratar</Button>
+      </div>
+    ) : null;
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
   const messageList = (
     <MessageList
@@ -741,6 +752,89 @@ export default function ChatPanel({
       actionOfferId={acceptingOfferId ?? rejectingOfferId}
     />
   );
+  const offerDialog = (
+    <Dialog
+      open={offerDialogOpen}
+      onOpenChange={(value) => {
+        setOfferDialogOpen(value);
+        if (!value) {
+          setOfferTitle("");
+          setOfferDescription("");
+          setOfferAmount("");
+          setOfferCurrency("MXN");
+          setOfferServiceDate("");
+        }
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Crear oferta</DialogTitle>
+          <DialogDescription>Define el monto y los detalles antes de enviar la oferta.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Titulo</label>
+            <input
+              className="w-full border rounded px-3 py-2 text-sm"
+              value={offerTitle}
+              onChange={(event) => setOfferTitle(event.target.value)}
+              placeholder="Instalacion de lamparas"
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Monto</label>
+              <input
+                type="number"
+                className="w-full border rounded px-3 py-2 text-sm"
+                value={offerAmount}
+                onChange={(event) => setOfferAmount(event.target.value)}
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Moneda</label>
+              <input
+                className="w-full border rounded px-3 py-2 text-sm"
+                value={offerCurrency}
+                onChange={(event) => setOfferCurrency(event.target.value.toUpperCase())}
+                maxLength={6}
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Fecha objetivo</label>
+            <input
+              type="date"
+              className="w-full border rounded px-3 py-2 text-sm"
+              value={offerServiceDate}
+              onChange={(event) => setOfferServiceDate(event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Descripcion</label>
+            <textarea
+              className="w-full border rounded px-3 py-2 text-sm"
+              rows={3}
+              value={offerDescription}
+              onChange={(event) => setOfferDescription(event.target.value)}
+              placeholder="Incluye detalles relevantes para la oferta"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOfferDialogOpen(false)} disabled={offerSubmitting}>
+            Cancelar
+          </Button>
+          <Button onClick={submitOffer} disabled={offerSubmitting}>
+            {offerSubmitting ? "Enviando..." : "Enviar oferta"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   const dialog = (
     <Dialog
       open={rejectOpen}
@@ -788,8 +882,8 @@ export default function ChatPanel({
           <Button variant="ghost" onClick={() => setRejectOpen(false)}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={onRejectOffer}>
-            Rechazar
+          <Button variant="destructive" onClick={() => void submitRejectOffer()} disabled={rejectingOfferId !== null}>
+            {rejectingOfferId ? "Procesando..." : "Rechazar"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -815,6 +909,7 @@ export default function ChatPanel({
         {typingIndicator}
         {actionButtons}
         <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} />
+        {offerDialog}
         {dialog}
       </div>
     );
