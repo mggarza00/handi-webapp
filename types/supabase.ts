@@ -206,6 +206,9 @@ export interface Tables {
         | "cancelled"
         | "disputed"
         | null;
+      completed_by_pro: boolean | null;
+      completed_by_client: boolean | null;
+      completed_at: string | null;
       created_at: string | null;
       updated_at: string | null;
     };

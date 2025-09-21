@@ -1,16 +1,6 @@
 {
   "redirects": [
     {
-      "source": "http://www.handi.mx/:path*",
-      "destination": "https://handi.mx/:path*",
-      "permanent": true
-    },
-    {
-      "source": "http://handi.mx/:path*",
-      "destination": "https://handi.mx/:path*",
-      "permanent": true
-    },
-    {
       "source": "/(.*)",
       "has": [{ "type": "host", "value": "www.handi.mx" }],
       "destination": "https://handi.mx/$1",

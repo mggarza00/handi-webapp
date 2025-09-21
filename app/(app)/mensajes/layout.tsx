@@ -26,19 +26,36 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
       .or(`customer_id.eq.${user.id},pro_id.eq.${user.id}`)
       .order("last_message_at", { ascending: false });
 
-    const proIds = Array.from(
-      new Set(((convs || []).map((c) => c.pro_id)).filter(Boolean)),
-    ) as string[];
-    const proNames = new Map<string, string | null>();
-    const proAvatars = new Map<string, string | null>();
-    if (proIds.length) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, full_name, avatar_url")
-        .in("id", proIds);
+    // Determinar el otro participante por conversacin
+    const otherIds = Array.from(
+      new Set(
+        ((convs || [])
+          .map((c) => {
+            const proId = (c as any).pro_id as string | null;
+            const custId = (c as any).customer_id as string | null;
+            if (user.id && proId === user.id) return custId;
+            if (user.id && custId === user.id) return proId;
+            return null;
+          })
+          .filter(Boolean)) as string[],
+      ),
+    );
+    const otherNames = new Map<string, string | null>();
+    const otherAvatars = new Map<string, string | null>();
+    if (otherIds.length) {
+      // Carga perfiles genéricos
+      const [{ data: profs }, { data: pros }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, avatar_url").in("id", otherIds),
+        supabase.from("professionals").select("id, full_name, avatar_url").in("id", otherIds),
+      ]);
       for (const p of profs || []) {
-        proNames.set(p.id!, (p.full_name as string) || null);
-        proAvatars.set(p.id!, (p.avatar_url as string) || null);
+        otherNames.set(p.id!, (p.full_name as string) || null);
+        otherAvatars.set(p.id!, (p.avatar_url as string) || null);
+      }
+      // Si existe un registro en professionals, preferir sus valores (suelen estar más completos)
+      for (const p of pros || []) {
+        otherNames.set(p.id!, (p.full_name as string) || otherNames.get(p.id!) || null);
+        otherAvatars.set(p.id!, (p.avatar_url as string) || otherAvatars.get(p.id!) || null);
       }
     }
 
@@ -86,17 +103,18 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
 
     const items: ChatSummary[] = (convs || []).map((c) => {
       const proId = (c.pro_id as string | null) ?? null;
+      const custId = (c.customer_id as string | null) ?? null;
+      const otherId = user.id === proId ? custId : user.id === custId ? proId : null;
       const pv = previews.get(c.id!);
       const lastBody = pv?.body ?? null;
       const lastAt =
         (pv?.created_at as string) || ((c.last_message_at as string) || null);
       const unread = pv ? pv.sender_id !== user.id && !pv.read_by.includes(user.id) : false;
-      const rawTitle = proId ? proNames.get(proId) : null;
-      const fallbackTitle =
-        proId ? `${proId.slice(0, 8)}...` : "El nombre del profesional";
+      const rawTitle = otherId ? otherNames.get(otherId) : null;
+      const fallbackTitle = otherId ? `${otherId.slice(0, 8)}...` : "Contacto";
       const title =
         rawTitle && rawTitle.trim().length > 0 ? rawTitle : fallbackTitle;
-      const avatarUrl = proId ? proAvatars.get(proId) || null : null;
+      const avatarUrl = otherId ? otherAvatars.get(otherId) || null : null;
       const requestId = (c as any).request_id as string | null;
       const rawRequestTitle =
         requestId && requestTitles.has(requestId)
@@ -107,7 +125,8 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
       return {
         id: c.id!,
         title,
-        preview: lastBody,
+        // Mostrar el nombre de la solicitud como preview en el listado de chats
+        preview: requestTitle ?? lastBody,
         lastMessageAt: lastAt,
         unread,
         avatarUrl,

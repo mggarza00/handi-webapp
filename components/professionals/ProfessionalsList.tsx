@@ -152,12 +152,16 @@ export default function ProfessionalsList({
         <Card
           key={p.id}
           className="p-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/60"
-          onClick={() => router.push(`/profiles/${p.id}`)}
+          onClick={(event) => {
+            if (event.defaultPrevented) return;
+            router.push(`/profiles/${p.id}`);
+          }}
           role="button"
           tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
+          onKeyDown={(event) => {
+            if (event.defaultPrevented) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
               router.push(`/profiles/${p.id}`);
             }
           }}
@@ -188,7 +192,9 @@ export default function ProfessionalsList({
             <div className="mt-2" onClick={(e) => e.stopPropagation()}>
               <Button
                 size="sm"
-                onClick={async () => {
+                onClick={async (event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
                   try {
                     setStartingFor(p.id);
                     const { data: { session } } = await supabase.auth.getSession();

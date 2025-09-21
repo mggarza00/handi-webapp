@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { toast } from "sonner";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function UserTypeInfo({
   currentRole,
@@ -13,6 +14,10 @@ export default function UserTypeInfo({
     null,
   );
   const [submitting, setSubmitting] = React.useState(false);
+  const [activeRole, setActiveRole] = React.useState(currentRole);
+
+  const router = useRouter();
+  const pathname = usePathname();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -37,27 +42,71 @@ export default function UserTypeInfo({
     };
   }, []);
 
+  React.useEffect(() => {
+    setActiveRole(currentRole);
+  }, [currentRole]);
+
   const currentLabel =
-    currentRole === "pro"
+    activeRole === "pro"
       ? "profesional"
-      : currentRole === "client"
+      : activeRole === "client"
       ? "cliente"
-      : currentRole === "admin"
+      : activeRole === "admin"
       ? "admin"
       : "—";
 
   async function onSwitch() {
+    if (!other) {
+      toast.error("No hay un tipo alternativo disponible");
+      return;
+    }
+    const switchedTo = other;
     try {
       setSubmitting(true);
       const res = await fetch("/api/profile/switch-active-user-type", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ to: other }),
+        body: JSON.stringify({ to: switchedTo }),
       });
       const j = await res.json().catch(() => null);
       if (!res.ok) throw new Error(j?.detail || j?.error || "switch_failed");
-      toast.success(`Tipo activo cambiado a ${other}`);
-      window.location.reload();
+      const nextRole = (
+        switchedTo === "profesional"
+          ? "pro"
+          : switchedTo === "cliente"
+          ? "client"
+          : ((j?.data?.role ?? null) as "client" | "pro" | "admin" | null)
+      );
+      if (nextRole) {
+        setActiveRole(nextRole);
+        setOther(
+          nextRole === "pro"
+            ? "cliente"
+            : nextRole === "client"
+            ? "profesional"
+            : null,
+        );
+      }
+      toast.success(
+        switchedTo
+          ? `Tipo activo cambiado a ${switchedTo}`
+          : "Tipo activo actualizado",
+      );
+      // Asegura que la página de destino reciba el rol actualizado desde el servidor.
+      // Si ya estamos en "/", solo refrescamos. Si no, navegamos primero y luego refrescamos.
+      if (pathname === "/") {
+        router.refresh();
+      } else {
+        const url = `/?r=${Date.now()}`; // rompe posibles cachés del router
+        router.push(url);
+        setTimeout(() => {
+          try {
+            router.refresh();
+          } catch {
+            void 0; // ignore
+          }
+        }, 120);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo cambiar el tipo";
       toast.error(msg);

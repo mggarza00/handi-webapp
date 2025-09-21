@@ -1,14 +1,57 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import ProApplyForm from "./pro-apply-form.client";
 
 import type { Database } from "@/types/supabase";
-import PageContainer from "@/components/page-container";
-import Breadcrumbs from "@/components/breadcrumbs";
+
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const dynamic = "force-dynamic";
+
+async function getLatestApplicationStatus(
+  userId: string,
+  supabase: SupabaseClient<Database>,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("pro_applications")
+    .select("status")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ status: string | null }>();
+
+  if (error) {
+    console.error("Error fetching pro application status:", error);
+    return null;
+  }
+
+  return data?.status ?? null;
+}
+
+async function getProfileDefaults(
+  userId: string,
+  supabase: SupabaseClient<Database>,
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("full_name, role")
+    .eq("id", userId)
+    .maybeSingle<{ full_name: string | null; role: ProfileRow["role"] | null }>();
+
+  if (error) {
+    console.error("Error fetching profile defaults:", error);
+    return { fullName: "", role: null };
+  }
+
+  return {
+    fullName: data?.full_name ?? "",
+    role: data?.role ?? null,
+  };
+}
 
 export default async function ProApplyPage() {
   const supabase = createServerComponentClient<Database>({ cookies });
@@ -16,115 +59,52 @@ export default async function ProApplyPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let role: "client" | "pro" | "admin" | null = null;
-  let defaultFullName: string | null = null;
-  let proStatus: "aceptado" | "en_proceso" | "rechazado" | null = null;
-  if (user) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("role, full_name")
-      .eq("id", user.id)
-      .maybeSingle();
-    role = (data?.role as typeof role) ?? null;
-    defaultFullName = (data?.full_name as string | null) ?? null;
-    try {
-      // Attempt to read pro_status if column exists
-      const ps = await supabase
-        .from("profiles")
-        .select("pro_status")
-        .eq("id", user.id)
-        .maybeSingle();
-      const raw =
-        (ps.data as null | { pro_status?: string | null })?.pro_status ?? null;
-      if (raw === "aceptado" || raw === "en_proceso" || raw === "rechazado")
-        proStatus = raw;
-    } catch {
-      proStatus = null;
-    }
+  if (!user) {
+    redirect("/auth/sign-in?next=/pro-apply");
   }
 
-  // Flag para header: en esta vista tratamos al usuario como "pro (no admitido)"
-  // para ocultar enlaces de cliente como "Mis solicitudes".
-  try {
-    if (user && role !== "pro") {
-      // Cookie limitada a esta ruta
-      cookies().set("handi_pro_apply", "1", { path: "/pro-apply" });
-    }
-  } catch {
-    // ignore
+  const [{ fullName, role }, latestStatus] = await Promise.all([
+    getProfileDefaults(user.id, supabase),
+    getLatestApplicationStatus(user.id, supabase),
+  ]);
+
+  const approvedStatuses = new Set(["accepted", "approved"]);
+  const isApproved =
+    role === "pro" || (latestStatus && approvedStatuses.has(latestStatus));
+  const isPending = !isApproved && latestStatus === "pending";
+
+  if (isApproved) {
+    return (
+      <section className="mx-auto max-w-xl p-6 text-center">
+        <h1 className="mb-3 text-2xl font-semibold">
+          Tu postulaci&oacute;n ya ha sido aprobada
+        </h1>
+        <p className="mb-2">
+          Si quieres solicitar cambios en tu postulaci&oacute;n ve a{" "}
+          <Link href="/profile/setup" className="underline hover:opacity-80">
+            /profile/setup
+          </Link>
+          .
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Si quieres ingresar una nueva solicitud desde otra cuenta sal de la cuenta actual.
+        </p>
+      </section>
+    );
   }
 
   return (
-    <PageContainer
-      className="flex justify-center"
-      contentClassName="w-full max-w-2xl"
-    >
-      <div className="space-y-6">
-        <Breadcrumbs
-          items={[
-            { label: "Inicio", href: "/" },
-            { label: "Profesionales" },
-            { label: "Postular" },
-          ]}
-        />
-        <header className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold">Postula como profesional</h1>
-          <p className="text-sm text-slate-600">
-            Completa tu solicitud para validar tu perfil profesional. Revisamos
-            identidad, referencias y experiencia.
-          </p>
-        </header>
-
-        {!user && (
-          <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-700">
-              Necesitas iniciar sesión para continuar.
-            </p>
-            <div className="mt-3">
-              <Link
-                href={{
-                  pathname: "/auth/sign-in",
-                  query: { next: "/pro-apply" },
-                }}
-                className="inline-flex items-center rounded-lg border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-              >
-                Iniciar sesión
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {user && role === "pro" && (
-          <div className="space-y-3">
-            {proStatus === "aceptado" && (
-              <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
-                Tu perfil de profesional ha sido aceptado. Puedes gestionar
-                trabajos disponibles.
-              </div>
-            )}
-            {proStatus === "en_proceso" && (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                Tu postulación está en proceso. Te notificaremos al ser
-                aceptado.
-              </div>
-            )}
-            {proStatus === "rechazado" && (
-              <div className="rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-900">
-                Tu postulación fue rechazada. Si crees que es un error,
-                contáctanos o vuelve a postularte con nueva evidencia.
-              </div>
-            )}
-          </div>
-        )}
-
-        {user && (
-          <ProApplyForm
-            userId={user.id}
-            userEmail={user.email ?? ""}
-            defaultFullName={defaultFullName ?? ""}
-          />
-        )}
-      </div>
-    </PageContainer>
+    <section className="mx-auto max-w-5xl px-4 py-8">
+      {isPending ? (
+        <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Estamos revisando tu postulación. Te avisaremos apenas la aprobemos.
+        </div>
+      ) : null}
+      <ProApplyForm
+        userId={user.id}
+        userEmail={user.email ?? ""}
+        defaultFullName={fullName}
+      />
+    </section>
   );
 }

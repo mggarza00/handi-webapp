@@ -69,6 +69,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "dotenv": "^16.4.5",
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.55.0",
     "@prisma/client": "^6.14.0",

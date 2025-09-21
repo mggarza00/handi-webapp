@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 
 type Item = {
   id: string;
-  title: string;
-  preview?: string | null;
+  title: string; // nombre del profesional
+  preview?: string | null; // título de la solicitud
   lastMessageAt?: string | null;
   unread?: boolean;
   avatarUrl?: string | null;
@@ -52,16 +52,20 @@ export default function ConversationList({ items }: { items: Item[] }) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={normalizeAvatarUrl(c.avatarUrl) || "/avatar.png"}
-                alt={c.title}
+                alt={(c.title || "").trim() || "El nombre del profesional"}
                 className="size-9 rounded-full object-cover border shrink-0"
               />
-              <div className="font-medium text-sm truncate flex items-center gap-2">
-                {c.unread ? <span className="inline-block size-2 rounded-full bg-blue-500" aria-label="No leído"></span> : null}
-                <span className="truncate">{c.title}</span>
+              <div className="min-w-0">
+                <div className="font-medium text-sm truncate flex items-center gap-2">
+                  {c.unread ? (
+                    <span className="inline-block size-2 rounded-full bg-blue-500" aria-label="No leído"></span>
+                  ) : null}
+                  <span className="truncate">{(c.title || "").trim() || "El nombre del profesional"}</span>
+                </div>
+                {c.preview ? (
+                  <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.preview}</div>
+                ) : null}
               </div>
-              {c.preview ? (
-                <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{c.preview}</div>
-              ) : null}
             </div>
             <div className="text-[11px] text-muted-foreground shrink-0">
               {formatRel(c.lastMessageAt)}

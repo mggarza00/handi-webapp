@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient, type PostgrestError } from "@supabase/supabase-js";
 
+import type { Database, Json } from "@/types/supabase";
+
 function assertDev() {
   const allowed =
     process.env.NODE_ENV !== "production" || process.env.CI === "true";
@@ -196,6 +198,49 @@ export async function GET(req: Request) {
         },
       ]);
       if (upReq.error) return err("seed.upsert_request", upReq.error);
+
+      // upsert professional profile for seed pro (para listas de profesionales)
+      const seedCities = ["Monterrey"] as Json;
+      const seedCategories = ["Electricidad"] as Json;
+      const seedSubcategories = ["Instalaciones"] as Json;
+
+      const upProfessionals = await supa
+        .from("professionals")
+        .upsert([
+          {
+            id: proLite.id,
+            full_name: "Pro Seed",
+            headline: "Electricista verificado",
+            city: "Monterrey",
+            cities: seedCities,
+            categories: seedCategories,
+            subcategories: seedSubcategories,
+            rating: 4.7,
+            is_featured: true,
+            active: true,
+          },
+        ] as Database["public"]["Tables"]["professionals"]["Insert"][],
+        { onConflict: "id" },
+      );
+      if (upProfessionals.error && upProfessionals.error.code !== "42P01")
+        return err("seed.upsert_professionals", upProfessionals.error);
+
+      // garantiza una postulación del profesional seed para la solicitud seed
+      const insertApplications = await supa
+        .from("applications")
+        .insert([
+          {
+            request_id: REQ_ID,
+            professional_id: proLite.id,
+            status: "applied",
+          },
+        ] as Database["public"]["Tables"]["applications"]["Insert"][])
+        .select("id")
+        .single();
+      const appError = insertApplications.error;
+      if (appError && appError.code !== "23505" && appError.code !== "42P01") {
+        return err("seed.insert_applications", appError);
+      }
 
       // ensure optional E2E login user with password (for auth.smoke)
       const testEmail = process.env.TEST_EMAIL;
