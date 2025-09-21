@@ -1,10 +1,11 @@
+/* eslint-disable import/order */
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import AdminActionsClient from "./AdminActionsClient";
 
-import { getAdminSupabase } from "@/lib/supabase/admin";
+import { getAdminSupabase } from "../../../lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
 type Search = {

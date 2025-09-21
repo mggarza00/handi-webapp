@@ -1,13 +1,11 @@
-/* eslint-disable import/order */
-/* eslint-disable import/order */
- import Link from "next/link";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
-import AdminActions from "./AdminActions.client";
+import AdminActionsClient from "./AdminActionsClient";
 
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
-import { getAdminSupabase } from "../../../lib/supabase/admin";
 
 type Search = {
   searchParams: {
@@ -21,12 +19,11 @@ type Search = {
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminProApplicationsPage({
-  searchParams,
-}: Search) {
+export default async function AdminApplicationsPage({ searchParams }: Search) {
   const supa = createServerComponentClient<Database>({ cookies });
   const { data: auth } = await supa.auth.getUser();
   if (!auth?.user) return unauth();
+
   const { data: prof } = await supa
     .from("profiles")
     .select("role, is_admin")
@@ -50,14 +47,14 @@ export default async function AdminProApplicationsPage({
 
   const admin = getAdminSupabase();
   let builder = admin
-    .from("pro_applications")
-    .select("id, user_id, full_name, email, phone, empresa, status, created_at", {
+    .from("applications")
+    .select("id, request_id, professional_id, status, created_at", {
       count: "exact",
     })
     .order("created_at", { ascending: false })
     .range(from, to);
-  if (status && ["pending", "accepted", "rejected"].includes(status)) {
-    builder = builder.eq("status", status as "pending");
+  if (status && ["applied", "accepted", "rejected"].includes(status)) {
+    builder = builder.eq("status", status as "applied");
   }
   if (fromDate)
     builder = builder.gte("created_at", new Date(fromDate).toISOString());
@@ -70,8 +67,9 @@ export default async function AdminProApplicationsPage({
     );
   if (q) {
     const term = `%${q.replace(/%/g, "").replace(/\s+/g, "%")}%`;
+    // or() usa sintaxis de Postgrest filter
     builder = builder.or(
-      `full_name.ilike.${term},email.ilike.${term},phone.ilike.${term},user_id.ilike.${term}`,
+      `request_id.ilike.${term},professional_id.ilike.${term}`,
     );
   }
   const { data: rows, count, error } = await builder;
@@ -83,7 +81,7 @@ export default async function AdminProApplicationsPage({
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Postulaciones de Profesionales</h1>
+        <h1 className="text-xl font-semibold">Postulaciones</h1>
         <Link href="/" className="text-sm text-slate-600 hover:text-slate-900">
           Volver al inicio
         </Link>
@@ -94,7 +92,7 @@ export default async function AdminProApplicationsPage({
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="Buscar por nombre, correo, telÃ©fono o user id"
+          placeholder="Buscar por ID solicitud o profesional"
           className="w-64 rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <select
@@ -103,8 +101,8 @@ export default async function AdminProApplicationsPage({
           className="rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Todas</option>
-          <option value="pending">En revisiÃ³n</option>
-          <option value="accepted">Aceptadas</option>
+          <option value="applied">Nuevas/En revisión</option>
+          <option value="accepted">Activas</option>
           <option value="rejected">Rechazadas</option>
         </select>
         <input
@@ -129,41 +127,55 @@ export default async function AdminProApplicationsPage({
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="px-3 py-2">ID</th>
-              <th className="px-3 py-2">Nombre</th>
-              <th className="px-3 py-2">Correo</th>
-              <th className="px-3 py-2">TelÃ©fono</th>
-              <th className="px-3 py-2">Empresa</th>
+              <th className="px-3 py-2">Solicitud</th>
+              <th className="px-3 py-2">Profesional</th>
               <th className="px-3 py-2">Estado</th>
               <th className="px-3 py-2">Creada</th>
               <th className="px-3 py-2 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {(rows || []).map((r) => (
-              <tr key={r.id} className="border-t border-slate-200">
-                <td className="px-3 py-2 font-mono text-xs">
-                  {r.id.slice(0, 8)}
-                </td>
-                <td className="px-3 py-2">{r.full_name}</td>
-                <td className="px-3 py-2">{r.email}</td>
-                <td className="px-3 py-2">{r.phone}</td>
-                <td className="px-3 py-2">{(("empresa" in (r as unknown as Record<string, unknown>) && (r as unknown as { empresa?: boolean | null }).empresa) ? "Sí" : "No")}</td>
-                <td className="px-3 py-2">{labelStatus(r.status)}</td>
-                <td className="px-3 py-2">
-                  {new Date(r.created_at || "").toLocaleString()}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <AdminActions id={r.id} status={r.status} />
-                </td>
-              </tr>
-            ))}
+            {(rows || [])
+              .filter((r) => {
+                if (!q) return true;
+                const s = q.toLowerCase();
+                return (
+                  r.request_id.toLowerCase().includes(s) ||
+                  r.professional_id.toLowerCase().includes(s)
+                );
+              })
+              .map((r) => (
+                <tr key={r.id} className="border-t border-slate-200">
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {r.id.slice(0, 8)}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    <Link
+                      href={`/requests/${r.request_id}`}
+                      className="text-slate-900 underline"
+                    >
+                      {r.request_id.slice(0, 8)}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs">
+                    {r.professional_id.slice(0, 8)}
+                  </td>
+                  <td className="px-3 py-2">{labelStatus(r.status)}</td>
+                  <td className="px-3 py-2">
+                    {new Date(r.created_at || "").toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <AdminActionsClient id={r.id} status={r.status} />
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </div>
 
       <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
         <div>
-          PÃ¡gina {page} de {pages} Â· {total} resultados
+          Página {page} de {pages} · {total} resultados
         </div>
         <div className="flex items-center gap-2">
           {page > 1 ? (
@@ -192,28 +204,9 @@ export default async function AdminProApplicationsPage({
   );
 }
 
-function labelStatus(s: string | null) {
-  switch (s) {
-    case "accepted":
-  return "Aceptada";
-    case "rejected":
-      return "Rechazada";
-    default:
-      return "En revisiÃ³n";
-  }
-}
-
-function qs(obj: Record<string, string>) {
-  const u = new URLSearchParams();
-  Object.entries(obj).forEach(([k, v]) => {
-    if (v) u.set(k, v);
-  });
-  return u.toString();
-}
-
 function unauth() {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12">Debes iniciar sesiÃ³n.</main>
+    <main className="mx-auto max-w-3xl px-4 py-12">Debes iniciar sesión.</main>
   );
 }
 function forbidden() {
@@ -225,4 +218,23 @@ function problem(msg: string) {
   return <main className="mx-auto max-w-3xl px-4 py-12">Error: {msg}</main>;
 }
 
+function labelStatus(s: string | null) {
+  switch (s) {
+    case "accepted":
+      return "Activa";
+    case "rejected":
+      return "Rechazada";
+    default:
+      return "Nueva/En revisión";
+  }
+}
 
+function qs(obj: Record<string, string>) {
+  const u = new URLSearchParams();
+  Object.entries(obj).forEach(([k, v]) => {
+    if (v) u.set(k, v);
+  });
+  return u.toString();
+}
+
+// client actions moved to ./AdminActionsClient

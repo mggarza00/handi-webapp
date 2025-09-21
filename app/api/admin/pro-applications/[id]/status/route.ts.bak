@@ -1,8 +1,7 @@
-/* eslint-disable import/order */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getAdminSupabase } from "../../../../../../lib/supabase/admin";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import { notifyProApplicationDecision } from "@/lib/notifications";
 import { assertAdminOrJson } from "@/lib/auth-admin";
 

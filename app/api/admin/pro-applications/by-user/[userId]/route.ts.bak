@@ -1,7 +1,6 @@
-/* eslint-disable import/order */
 import { NextResponse } from "next/server";
 
-import { getAdminSupabase } from "../../../../../../lib/supabase/admin";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
 
 // JSONH imported from helper
