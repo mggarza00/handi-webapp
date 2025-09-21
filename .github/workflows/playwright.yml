@@ -49,3 +49,6 @@ jobs:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           CI: "true"
           PLAYWRIGHT_SKIP_WEBSERVER: "1"
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
