@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Instala pnpm
+      # pnpm
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -23,9 +23,14 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+
+      # Si tus checks usan Playwright, deja esto. Si no, puedes quitarlo.
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps || true
 
       - name: Lint
         run: pnpm lint
