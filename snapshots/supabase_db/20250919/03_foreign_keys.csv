@@ -1,0 +1,40 @@
+table_schema,table_name,constraint_name,column_list,referenced_schema,referenced_table,referenced_column_list,on_update,on_delete,match_type,is_deferrable,initially_deferred
+auth,identities,identities_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,mfa_amr_claims,mfa_amr_claims_session_id_fkey,session_id,auth,sessions,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,mfa_challenges,mfa_challenges_auth_factor_id_fkey,factor_id,auth,mfa_factors,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,mfa_factors,mfa_factors_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,one_time_tokens,one_time_tokens_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,refresh_tokens,refresh_tokens_session_id_fkey,session_id,auth,sessions,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,saml_providers,saml_providers_sso_provider_id_fkey,sso_provider_id,auth,sso_providers,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,saml_relay_states,saml_relay_states_flow_state_id_fkey,flow_state_id,auth,flow_state,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,saml_relay_states,saml_relay_states_sso_provider_id_fkey,sso_provider_id,auth,sso_providers,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,sessions,sessions_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+auth,sso_domains,sso_domains_sso_provider_id_fkey,sso_provider_id,auth,sso_providers,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,agreements,agreements_professional_id_fkey,professional_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,agreements,agreements_request_id_fkey,request_id,public,requests,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,applications,applications_professional_id_fkey,professional_id,public,professionals,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,applications,applications_request_id_fkey,request_id,public,requests,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,conversations,conversations_customer_id_fkey,customer_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,conversations,conversations_pro_id_fkey,pro_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,conversations,conversations_request_id_fkey,request_id,public,requests,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,messages,messages_conversation_id_fkey,conversation_id,public,conversations,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,messages,messages_sender_id_fkey,sender_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,offers,offers_client_id_fkey,client_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,offers,offers_conversation_id_fkey,conversation_id,public,conversations,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,offers,offers_created_by_fkey,created_by,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,offers,offers_professional_id_fkey,professional_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,pro_applications,pro_applications_user_id_fkey,user_id,auth,users,id,NO ACTION,SET NULL,SIMPLE,f,f
+public,professionals,professionals_profile_id_fkey,profile_id,public,profiles,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,ratings,ratings_from_user_id_fkey,from_user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,ratings,ratings_request_id_fkey,request_id,public,requests,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,ratings,ratings_to_user_id_fkey,to_user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,requests,requests_created_by_fkey,created_by,public,profiles,id,NO ACTION,NO ACTION,SIMPLE,f,f
+public,service_photos,service_photos_offer_id_fkey,offer_id,public,agreements,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,service_photos,service_photos_professional_id_fkey,professional_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,service_photos,service_photos_request_id_fkey,request_id,public,requests,id,NO ACTION,CASCADE,SIMPLE,f,f
+public,user_notifications,user_notifications_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE,SIMPLE,f,f
+storage,objects,objects_bucketId_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION,SIMPLE,f,f
+storage,prefixes,prefixes_bucketId_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION,SIMPLE,f,f
+storage,s3_multipart_uploads,s3_multipart_uploads_bucket_id_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION,SIMPLE,f,f
+storage,s3_multipart_uploads_parts,s3_multipart_uploads_parts_bucket_id_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION,SIMPLE,f,f
+storage,s3_multipart_uploads_parts,s3_multipart_uploads_parts_upload_id_fkey,upload_id,storage,s3_multipart_uploads,id,NO ACTION,CASCADE,SIMPLE,f,f

@@ -1,0 +1,8 @@
+table_schema,table_name,approx_row_count
+auth,audit_log_entries,1517
+auth,instances,0
+auth,oauth_clients,0
+auth,schema_migrations,63
+public,categories_subcategories,38
+storage,buckets_analytics,0
+storage,migrations,39

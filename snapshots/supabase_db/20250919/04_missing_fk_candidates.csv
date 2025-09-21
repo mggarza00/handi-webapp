@@ -1,0 +1,19 @@
+table_schema,table_name,column_name,data_type,udt_name,is_nullable,column_default,base_name,matching_tables
+auth,audit_log_entries,instance_id,uuid,uuid,YES,,instance,auth.instances
+auth,flow_state,user_id,uuid,uuid,YES,,user,auth.users
+auth,identities,provider_id,text,text,NO,,provider,
+auth,oauth_clients,client_id,text,text,NO,,client,
+auth,refresh_tokens,instance_id,uuid,uuid,YES,,instance,auth.instances
+auth,refresh_tokens,user_id,character varying,varchar,YES,,user,auth.users
+auth,saml_providers,entity_id,text,text,NO,,entity,
+auth,saml_relay_states,request_id,text,text,NO,,request,public.requests
+auth,sessions,factor_id,uuid,uuid,YES,,factor,
+auth,sso_providers,resource_id,text,text,YES,,resource,
+auth,users,instance_id,uuid,uuid,YES,,instance,auth.instances
+public,messages,recipient_id,uuid,uuid,YES,,recipient,
+public,messages,request_id,uuid,uuid,YES,,request,public.requests
+public,offers,payment_intent_id,text,text,YES,,payment_intent,
+storage,buckets,owner_id,text,text,YES,,owner,
+storage,objects,owner_id,text,text,YES,,owner,
+storage,s3_multipart_uploads,owner_id,text,text,YES,,owner,
+storage,s3_multipart_uploads_parts,owner_id,text,text,YES,,owner,
