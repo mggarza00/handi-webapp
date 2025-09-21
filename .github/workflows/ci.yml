@@ -11,24 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # pnpm
+      # pnpm + instalación (usa --frozen-lockfile)
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9
+          run_install: true
+          install_command: |
+            pnpm install --frozen-lockfile
 
-      # Node + cache de pnpm (requiere pnpm-lock.yaml)
+      # Node (sin cache para evitar el error del lockfile)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: 'pnpm-lock.yaml'
 
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
-
-      # Si tus checks usan Playwright, deja esto. Si no, puedes quitarlo.
+      # Si usas Playwright en CI:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps || true
 
