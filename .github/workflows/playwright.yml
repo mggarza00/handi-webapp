@@ -13,24 +13,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       - name: Install deps
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
       - name: Build Next.js
-        run: npm run build
+        run: pnpm build
         env:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
       - name: Start server
         run: |
-          (npm run start &)
+          (pnpm start &)
           npx wait-on http://localhost:3000
         env:
           NODE_ENV: test
@@ -38,7 +44,7 @@ jobs:
           CI: "true"
 
       - name: Run E2E
-        run: npm run test:e2e:ci
+        run: pnpm test:e2e:ci
         env:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           CI: "true"
