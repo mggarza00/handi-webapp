@@ -8,8 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       # pnpm + instalación (usa --frozen-lockfile)
       - name: Setup pnpm
@@ -20,13 +22,13 @@ jobs:
           install_command: |
             pnpm install --frozen-lockfile
 
-      # Node (sin cache para evitar el error del lockfile)
+      # Node (sin cache para evitar que pida package-lock/yarn.lock)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Si usas Playwright en CI:
+      # Si tus checks usan Playwright en Actions, instala browsers (no falla si no hay Playwright)
       - name: Install Playwright browsers
         run: npx playwright install --with-deps || true
 
