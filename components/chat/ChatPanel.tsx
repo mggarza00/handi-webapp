@@ -91,6 +91,7 @@ export default function ChatPanel({
   userId,
   requestId: requestIdProp,
   requestBudget: requestBudgetProp,
+  openOfferSignal,
 }: {
   conversationId: string;
   onClose: () => void;
@@ -98,6 +99,7 @@ export default function ChatPanel({
   userId?: string | null;
   requestId?: string | null;
   requestBudget?: number | null;
+  openOfferSignal?: number;
 }) {
   const supabaseAuth = createClientComponentClient();
   const [open, setOpen] = React.useState(true);
@@ -142,6 +144,20 @@ export default function ChatPanel({
   const typingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedTokenRef = React.useRef<string | null>(null);
   const syncInFlightRef = React.useRef(false);
+
+  // Abrir diálogo de oferta cuando la señal externa cambie
+  const lastOfferSignalRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (typeof openOfferSignal !== "number") return;
+    if (lastOfferSignalRef.current === null) {
+      lastOfferSignalRef.current = openOfferSignal;
+      return;
+    }
+    if (openOfferSignal !== lastOfferSignalRef.current) {
+      lastOfferSignalRef.current = openOfferSignal;
+      setOfferDialogOpen(true);
+    }
+  }, [openOfferSignal]);
   const mergeMessages = React.useCallback(
     (incoming: Msg | Msg[], options: { replace?: boolean; fromServer?: boolean } = {}) => {
       const arr = Array.isArray(incoming) ? incoming : [incoming];
@@ -954,4 +970,3 @@ export default function ChatPanel({
     </Sheet>
   );
 }
-
