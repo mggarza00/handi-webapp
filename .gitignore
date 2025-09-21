@@ -31,3 +31,4 @@ playwright-report/data/
 test-results/
 *.tsbuildinfo
 *.bak
+!lib/supabase/**
