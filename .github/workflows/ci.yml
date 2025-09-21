@@ -8,18 +8,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
+      # Instala pnpm
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      # Node + cache de pnpm (requiere pnpm-lock.yaml)
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
-
-      - name: Enable corepack
-        run: corepack enable
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
