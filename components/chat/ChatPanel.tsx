@@ -325,7 +325,6 @@ export default function ChatPanel({
     if (requestIdProp && requestIdProp !== requestId) setRequestId(requestIdProp);
   }, [requestIdProp, requestId]);
   React.useEffect(() => {
-    if (!requestId) return;
     let cancelled = false;
   React.useEffect(() => {
     if (!offerDialogOpen) return;
