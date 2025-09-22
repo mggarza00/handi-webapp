@@ -25,7 +25,7 @@
     "check": "npm run typecheck && npm run lint",
     "smoke": "node scripts/smoke.mjs",
     "prepare": "husky install",
-    "test:e2e": "playwright test --reporter=dot",
+    "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:ui": "playwright test --ui",
     "snap": "node scripts/snapshots.js",
