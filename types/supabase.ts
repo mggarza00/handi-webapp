@@ -62,6 +62,20 @@ export interface Tables {
     };
     Update: Partial<Tables["service_photos"]["Row"]>;
   };
+  reviews: {
+    Row: {
+      id: string;
+      request_id: string;
+      professional_id: string;
+      client_id: string;
+      reviewer_role: "client" | "pro";
+      rating: number; // 1..5
+      comment: string | null;
+      created_at: string | null; // timestamptz ISO
+    };
+    Insert: never;
+    Update: never;
+  };
   professionals: {
     Row: {
       id: string;

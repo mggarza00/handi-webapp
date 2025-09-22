@@ -10,6 +10,7 @@ import RatingStars from "@/components/ui/RatingStars";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { ChatPanelProps } from "@/components/chat/ChatPanel";
 
 type Professional = {
   id: string;
@@ -49,10 +50,13 @@ export default function ProfessionalsList({
   // Lazy-load ChatPanel only when needed to avoid pulling its chunk during initial hydration
   const ChatPanel = React.useMemo(
     () =>
-      dynamic(() => import("@/components/chat/ChatPanel"), {
-        ssr: false,
-        loading: () => null,
-      }),
+      dynamic<ChatPanelProps>(
+        () => import("@/components/chat/ChatPanel").then((module) => module.default),
+        {
+          ssr: false,
+          loading: () => null,
+        },
+      ),
     [],
   );
 

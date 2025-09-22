@@ -38,6 +38,14 @@ type HistoryResponse = {
   participants?: Participants | null;
   request_id?: string | null;
 };
+export type ChatPanelProps = {
+  conversationId: string;
+  onClose: () => void;
+  mode?: "panel" | "page";
+  userId?: string | null;
+  requestId?: string | null;
+  requestBudget?: number | null;
+};
 const JSON_HEADER = { "Content-Type": "application/json; charset=utf-8" } as const;
 const AUTH_REQUIRED_MESSAGE = "Tu sesion expiro. Vuelve a iniciar sesion.";
 function normalizeStatus(value?: string | null): string {
@@ -93,14 +101,7 @@ export default function ChatPanel({
   userId,
   requestId: requestIdProp,
   requestBudget: requestBudgetProp,
-}: {
-  conversationId: string;
-  onClose: () => void;
-  mode?: "panel" | "page";
-  userId?: string | null;
-  requestId?: string | null;
-  requestBudget?: number | null;
-}) {
+}: ChatPanelProps): JSX.Element {
   const supabaseAuth = createClientComponentClient();
   const [open, setOpen] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
@@ -248,21 +249,16 @@ export default function ChatPanel({
   );
   React.useEffect(() => {
     if (meId) return;
-    let cancelled = false;
     (async () => {
       try {
         const { data } = await supabaseAuth.auth.getUser();
-        if (!cancelled && data?.user?.id) setMeId(data.user.id);
+        if (data?.user?.id) setMeId(data.user.id);
       } catch {
         /* ignore */
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [supabaseAuth, meId]);
   React.useEffect(() => {
-    let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/me", {
@@ -270,14 +266,11 @@ export default function ChatPanel({
           credentials: "include",
         });
         const data = await parseJsonSafe<{ user?: { id?: string } }>(res);
-        if (!cancelled && res.ok && data?.user?.id) setMeId(data.user.id);
+        if (res.ok && data?.user?.id) setMeId(data.user.id);
       } catch {
         /* ignore */
       }
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [userId]);
   const load = React.useCallback(
     async (withSpinner = true) => {
@@ -325,8 +318,6 @@ export default function ChatPanel({
     if (requestIdProp && requestIdProp !== requestId) setRequestId(requestIdProp);
   }, [requestIdProp, requestId]);
   React.useEffect(() => {
-    let cancelled = false;
-  React.useEffect(() => {
     if (!offerDialogOpen) return;
     if (!offerAmount && typeof budget === "number" && Number.isFinite(budget)) {
       setOfferAmount(String(budget));
@@ -338,7 +329,9 @@ export default function ChatPanel({
       }
     }
   }, [offerDialogOpen, budget, requiredAt, offerAmount, offerServiceDate]);
-
+  React.useEffect(() => {
+    if (!requestId) return;
+    let cancelled = false;
     (async () => {
       try {
         const headers = await getAuthHeaders();
@@ -350,11 +343,10 @@ export default function ChatPanel({
         if (!res.ok) return;
         const json = await parseJsonSafe<{ data?: Record<string, unknown> }>(res);
         const data = json?.data ?? {};
-        if (cancelled) return;
         const budgetValue = Number((data?.budget as unknown) ?? NaN);
-        if (Number.isFinite(budgetValue)) setBudget(budgetValue);
+        if (!cancelled && Number.isFinite(budgetValue)) setBudget(budgetValue);
         const reqAt = typeof data?.required_at === "string" ? (data.required_at as string) : null;
-        setRequiredAt(reqAt);
+        if (!cancelled) setRequiredAt(reqAt);
       } catch {
         /* ignore */
       }
@@ -437,7 +429,7 @@ export default function ChatPanel({
   }, [conversationId, mergeMessages, meId]);
   const viewerRole = React.useMemo(() => {
     if (!participants || !meId) return "guest" as const;
-    if (participants.customer_id === meId) return "customer" as const;
+    if (participants?.customer_id === meId) return "customer" as const;
     if (participants.pro_id === meId) return "professional" as const;
     return "guest" as const;
   }, [participants, meId]);
@@ -481,7 +473,7 @@ export default function ChatPanel({
   }, [messagesState]);
   const otherUserId = React.useMemo(() => {
     if (!participants || !meId) return undefined;
-    return participants.customer_id === meId ? participants.pro_id : participants.customer_id;
+    return participants?.customer_id === meId ? participants.pro_id : participants?.customer_id;
   }, [participants, meId]);
   void otherUserId;
   async function postMessage(body: string, attempt = 0): Promise<{ ok: true; id: string | null; createdAt: string; body: string; payload: Record<string, unknown> | null } | { ok: false; error: string }> {
@@ -646,7 +638,7 @@ export default function ChatPanel({
       setOfferSubmitting(false);
     }
   }
-  async function handleAcceptOffer(offerId: string) {
+  async function handleAcceptOffer(offerId: string): Promise<void> {
     if (viewerRole !== "professional") {
       toast.error("Solo el profesional puede aceptar la oferta");
       return;
@@ -677,8 +669,7 @@ export default function ChatPanel({
       setAcceptingOfferId(null);
     }
   }
-  async function _submitRejectOffer() {
-
+  async function _submitRejectOffer(): Promise<void> {
     if (!rejectTarget) {
       setRejectOpen(false);
       return;
@@ -780,7 +771,7 @@ export default function ChatPanel({
   ) : null;
   const actionButtons = (
     <>
-      {participants && meId === participants.customer_id ? (
+      {participants && meId === participants?.customer_id ? (
         <div className="p-3 flex items-center justify-end">
           <Button onClick={() => setOfferDialogOpen(true)}>Contratar</Button>
         </div>
@@ -1001,5 +992,3 @@ export default function ChatPanel({
     </Sheet>
   );
 }
-
-

@@ -1,9 +1,6 @@
 import * as React from "react";
 import { headers } from "next/headers";
 
-import ReviewsCarousel from "./_components/ReviewsCarousel";
-import JobHistoryGrid from "./_components/JobHistoryGrid";
-
 import AdminProDecision from "@/components/admin/AdminProDecision.client";
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
@@ -143,7 +140,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
     `${base}/api/reviews?professional_id=${encodeURIComponent(params.id)}&limit=5`,
     {
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      next: { tags: [`profile:${params.id}`] },
+      cache: "no-store",
     },
   );
   const rJson = await rRes.json().catch(() => null);
@@ -154,14 +151,6 @@ export default async function PublicProfilePage({ params }: Ctx) {
     created_at: string | null;
     client_id?: string | null;
   }> = rRes.ok && rJson?.data ? rJson.data : [];
-
-  // Summary de reseñas (promedio y conteo)
-  const sRes = await fetch(
-    `${base}/api/reviews?professional_id=${encodeURIComponent(params.id)}&aggregate=1`,
-    { headers: { "Content-Type": "application/json; charset=utf-8" }, next: { tags: [`profile:${params.id}`] } },
-  );
-  const sJson = await sRes.json().catch(() => null);
-  const sum: { count: number; average: number | null } | null = sRes.ok && sJson?.summary ? sJson.summary : null;
 
   // Nota: Enriquecimiento de reseñas (nombres/avatares, galería de trabajos) se puede agregar más adelante.
 
@@ -186,15 +175,10 @@ export default async function PublicProfilePage({ params }: Ctx) {
             {p.full_name ?? "Profesional"}
           </h1>
           <p className="text-sm text-slate-600">{p.headline ?? ""}</p>
-          <div className="flex flex-wrap items-center gap-2 mt-1 text-sm">
+          <div className="flex items-center gap-2 mt-1 text-sm">
             {typeof p.rating === "number" && <Stars value={p.rating} />}
             {p.city && <span className="text-slate-600">{p.city}</span>}
             {p.is_featured ? <Badge>Destacado</Badge> : null}
-            <span className="text-slate-700">
-              {sum && sum.count > 0
-                ? `${(sum.average ?? 0).toFixed(1)} (${sum.count})`
-                : "Sin reseñas aún"}
-            </span>
           </div>
         </div>
       </header>
@@ -238,20 +222,22 @@ export default async function PublicProfilePage({ params }: Ctx) {
         </Card>
       )}
 
-      {/* Sección de experiencia extendida (reseñas/trabajos) se integrará más adelante si aplica */}
-
-      <Card className="p-4 space-y-4">
-        <h2 className="font-medium">Experiencia</h2>
-        {p.years_experience != null ? (
-          <p className="text-sm text-slate-700">{p.years_experience} años de experiencia</p>
-        ) : null}
-        <section aria-label="Reseñas de clientes" className="space-y-3">
-          <ReviewsCarousel professionalId={params.id} />
-        </section>
-        <section aria-label="Trabajos realizados" className="space-y-3">
-          <JobHistoryGrid professionalId={params.id} />
-        </section>
-      </Card>
+      {(p.years_experience != null || enrichedReviews.length > 0 || completedWorks.length > 0) && (
+        <Card className="p-4 space-y-4">
+          <h2 className="font-medium">Experiencia</h2>
+          {p.years_experience != null ? (
+            <p className="text-sm text-slate-700">{p.years_experience} años de experiencia</p>
+          ) : null}
+          <section aria-label="Reseñas de clientes" className="space-y-3">
+            <h3 className="text-sm font-medium">Reseñas de clientes</h3>
+            <ReviewsCarousel reviews={enrichedReviews} />
+          </section>
+          <section aria-label="Trabajos realizados" className="space-y-3">
+            <h3 className="text-sm font-medium">Trabajos realizados</h3>
+            <CompletedWorks items={completedWorks} />
+          </section>
+        </Card>
+      )}
 
       {gallery.length > 0 && (
         <Card className="p-4">
@@ -262,7 +248,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
                 key={g.path}
                 href={g.url}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noreferrer"
                 className="block"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -277,7 +263,28 @@ export default async function PublicProfilePage({ params }: Ctx) {
         </Card>
       )}
 
-        {/* Rese�as legacy eliminadas; usar la secci�n Experiencia */}
+      <Card className="p-4">
+        <h2 className="font-medium mb-2">Reseñas</h2>
+        {reviews.length === 0 ? (
+          <p className="text-sm text-slate-600">Aún no hay reseñas.</p>
+        ) : (
+          <ul className="space-y-3">
+            {reviews.map((r) => (
+              <li key={r.id} className="border-b pb-3 last:border-b-0">
+                <div className="flex items-center gap-2 text-sm">
+                  <Stars value={r.rating} />
+                  {r.created_at ? (
+                    <span className="text-slate-500">
+                      {new Date(r.created_at).toLocaleDateString("es-AR", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </span>
+                  ) : null}
+                </div>
+                {r.comment ? (
+                  <p className="mt-1 text-sm text-slate-700 whitespace-pre-line">
                     {r.comment}
                   </p>
                 ) : null}
@@ -289,5 +296,4 @@ export default async function PublicProfilePage({ params }: Ctx) {
     </main>
   );
 }
-
 

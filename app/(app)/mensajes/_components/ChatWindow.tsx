@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import ChatPanel from "@/components/chat/ChatPanel";
+import useCompletionReview from "../../_components/_hooks/useCompletionReview";
 
 type Profile = {
   id: string;
@@ -75,6 +76,47 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     };
   }, [conversationId]);
 
+  // Infer viewer role from participants (best-effort). Replace requestId with the real one when available.
+  const [customerId, setCustomerId] = React.useState<string | null>(null);
+  const [proId, setProId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const rh = await fetch(
+          `/api/chat/history?conversationId=${encodeURIComponent(conversationId)}&limit=1`,
+          { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store", credentials: "include" },
+        );
+        const jh = await rh.json().catch(() => ({}));
+        const parts = jh?.participants as { customer_id?: string; pro_id?: string } | undefined;
+        const cid = (parts?.customer_id as string | undefined) ?? null;
+        const pid = (parts?.pro_id as string | undefined) ?? null;
+        if (!cancelled) {
+          setCustomerId(cid);
+          setProId(pid);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
+  const viewerRole: "client" | "pro" =
+    meId && proId && meId === proId ? "pro" : "client";
+
+  // TODO: sustituir conversationId por el requestId real cuando esté disponible en el contexto de la conversación.
+  const { modal: reviewModal, handleCompletionResponse: _handleCompletionResponse } = useCompletionReview({
+    requestId: conversationId,
+    reviewerRole: viewerRole,
+    professionalId: proId,
+    clientId: customerId,
+    status: null, // pásalo a "completed" para autoabrir
+    viewerId: meId,
+  });
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -106,8 +148,18 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
 
       {/* Body */}
       <div className="flex-1 min-h-0">
-        <ChatPanel conversationId={conversationId} onClose={() => {}} mode="page" userId={meId} />
+        <ChatPanel
+          conversationId={conversationId}
+          onClose={() => {}}
+          mode="page"
+          userId={meId}
+        />
       </div>
+      {/* Para disparar manualmente tras llamar a /api/services/[id]/complete o confirm */}
+      {/* Ejemplo: _handleCompletionResponse(jsonDelEndpoint); */}
+      {/* TODO: invoca handleCompletionResponse con la respuesta real al completar el servicio. */}
+      {/* Modal de reseña (inyectado). Reemplaza requestId y status con valores reales del servicio. */}
+      {reviewModal}
     </div>
   );
 }

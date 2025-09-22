@@ -11,6 +11,7 @@ import ChatStartPro from "./chat-start-pro.client";
 import { Card } from "@/components/ui/card";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import type { Database } from "@/types/supabase";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type Params = { params: { id: string } };
 
@@ -131,6 +132,14 @@ export default async function ProRequestDetailPage({ params }: Params) {
       avatar_url: string | null;
     }>();
 
+  const initials = (name?: string | null) =>
+    (name ?? "Cliente")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((s) => (s?.[0] ? s[0].toUpperCase() : ""))
+      .join("") || "CL";
+
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <nav className="text-sm text-slate-600">
@@ -180,19 +189,19 @@ export default async function ProRequestDetailPage({ params }: Params) {
 
         <aside className="space-y-4">
           <Card className="p-4 space-y-3">
-            <h2 className="font-medium">Cliente</h2>
+            <h2 className="font-medium">{clientProfile?.full_name ?? "Cliente"}</h2>
             <div className="flex items-center gap-3">
-              <Image
-                src={clientProfile?.avatar_url || "/images/Favicon-v1-jpeg.jpg"}
-                alt={clientProfile?.full_name || "Cliente"}
-                width={48}
-                height={48}
-                className="rounded-full border"
-              />
+              <Avatar className="h-12 w-12">
+                {clientProfile?.avatar_url ? (
+                  <AvatarImage
+                    src={clientProfile.avatar_url}
+                    alt={clientProfile.full_name ?? "Cliente"}
+                  />
+                ) : (
+                  <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
+                )}
+              </Avatar>
               <div className="min-w-0">
-                <p className="font-medium truncate">
-                  {clientProfile?.full_name ?? "Cliente"}
-                </p>
                 <p className="text-xs text-slate-600">
                   Calificación: — {" "}
                   {createdBy ? (
