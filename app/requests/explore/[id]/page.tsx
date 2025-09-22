@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 import * as React from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -5,11 +6,11 @@ import Link from "next/link";
 // import Image from "next/image"; // replaced by Avatar
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
-
+// Internal SSR helpers and client components
 import { getRequestWithClient } from "../_lib/getRequestWithClient";
-
 import ChatStartPro from "./chat-start-pro.client";
-
+// Cross-app SSR helper
+import { getConversationIdForRequest } from "@/app/(app)/mensajes/_lib/getConversationForRequest";
 import { Card } from "@/components/ui/card";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import type { Database } from "@/types/supabase";
@@ -152,6 +153,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
       .join("") || "CL";
 
   const nombre = clientProfile?.full_name ?? "Cliente";
+  const initialConversationId = await getConversationIdForRequest(params.id);
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
@@ -236,7 +238,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
               </div>
             </div>
             <div className="pt-2">
-              <ChatStartPro requestId={String(d.id ?? params.id)} />
+              <ChatStartPro requestId={String(d.id ?? params.id)} initialConversationId={initialConversationId} />
             </div>
           </Card>
           {/* Se eliminó Postularme; acciones se integran en el chat */}
