@@ -3,10 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/supabase";
 
-export type ClientLite = Pick<
-  Database["public"]["Tables"]["profiles"]["Row"],
-  "id" | "full_name" | "avatar_url" | "rating"
->;
+export type ClientLite = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  rating: number | null;
+};
 
 export type RequestLite = Pick<
   Database["public"]["Tables"]["requests"]["Row"],
@@ -43,7 +45,7 @@ export async function getRequestWithClient(id: string): Promise<{
       .from("profiles")
       .select("id, full_name, avatar_url, rating")
       .eq("id", cid)
-      .maybeSingle<ClientLite>();
+      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null; rating: number | null }>();
     client = prof ?? null;
   }
 
