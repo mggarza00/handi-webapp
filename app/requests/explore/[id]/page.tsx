@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import type { Database } from "@/types/supabase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import RatingStars from "@/components/ui/RatingStars";
 
 type Params = { params: { id: string } };
 
@@ -123,19 +124,19 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const createdAt = (d.created_at as string | null) ?? null;
   // Usa helper con service role para obtener client_id y perfil (bypass RLS en server)
   const { client: clientFromAdmin } = await getRequestWithClient(params.id);
-  const clientId = clientFromAdmin?.id ?? ((d as { client_id?: string }).client_id ?? (d as { created_by?: string }).created_by ?? null);
+  const clientId = clientFromAdmin?.id ?? ((d as { created_by?: string }).created_by ?? null);
 
   // Cargar perfil básico del cliente
   const supabaseS = createServerComponentClient<Database>({ cookies });
-  let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null } | null = clientFromAdmin
-    ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url }
+  let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null; rating: number | null } | null = clientFromAdmin
+    ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url, rating: (clientFromAdmin as { rating?: number | null }).rating ?? null }
     : null;
   if (!clientProfile && clientId) {
     const { data: cp } = await supabaseS
       .from("profiles")
-      .select("id, full_name, avatar_url")
+      .select("id, full_name, avatar_url, rating")
       .eq("id", clientId)
-      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null }>();
+      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null; rating: number | null }>();
     clientProfile = cp ?? null;
   }
   // Log temporal para QA
@@ -149,6 +150,8 @@ export default async function ProRequestDetailPage({ params }: Params) {
       .slice(0, 2)
       .map((s) => (s?.[0] ? s[0].toUpperCase() : ""))
       .join("") || "CL";
+
+  const nombre = clientProfile?.full_name ?? "Cliente";
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
@@ -199,27 +202,37 @@ export default async function ProRequestDetailPage({ params }: Params) {
 
         <aside className="space-y-4">
           <Card className="p-4 space-y-3">
-            <h2 className="font-medium">{clientProfile?.full_name ?? "Cliente"}</h2>
+            <h2 className="font-medium">Cliente</h2>
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12">
                 {clientProfile?.avatar_url ? (
                   <AvatarImage
                     src={clientProfile.avatar_url}
-                    alt={clientProfile.full_name ?? "Cliente"}
+                    alt={nombre}
                   />
                 ) : (
                   <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
                 )}
               </Avatar>
               <div className="min-w-0">
-                <p className="text-xs text-slate-600">
-                  Calificación: — {" "}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-medium leading-none truncate">{nombre}</div>
                   {(clientProfile?.id ?? clientId) ? (
-                    <Link href={`/clients/${clientProfile?.id ?? clientId}`} className="underline hover:no-underline">
+                    <Link
+                      href={`/clients/${clientProfile?.id ?? clientId}`}
+                      className="text-xs underline hover:no-underline text-slate-600"
+                    >
                       ver perfil y reseñas
                     </Link>
                   ) : null}
-                </p>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {typeof clientProfile?.rating === "number" ? (
+                    <RatingStars value={clientProfile.rating} className="text-[12px]" />
+                  ) : (
+                    <span>Calificación: —</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="pt-2">
