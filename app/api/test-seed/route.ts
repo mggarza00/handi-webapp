@@ -215,7 +215,6 @@ export async function GET(req: Request) {
             cities: seedCities,
             categories: seedCategories,
             subcategories: seedSubcategories,
-            rating: 4.7,
             is_featured: true,
             active: true,
           },

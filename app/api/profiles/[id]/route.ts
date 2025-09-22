@@ -33,7 +33,7 @@ export async function GET(_req: Request, { params }: CtxP) {
 
   const admin = createClient<Database>(url, serviceRole);
   const { data, error } = await admin
-    .from("professionals")
+    .from("professionals_with_profile")
     .select(
       "id, full_name, avatar_url, headline, bio, rating, years_experience, city, categories, subcategories, last_active_at, is_featured, empresa",
     )

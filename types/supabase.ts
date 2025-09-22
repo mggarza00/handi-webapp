@@ -84,7 +84,6 @@ export interface Tables {
       headline: string | null;
       bio: string | null;
       years_experience: number | null;
-      rating: number | null;
       is_featured: boolean | null;
       active: boolean | null;
       empresa?: boolean | null;
@@ -238,7 +237,30 @@ export interface Tables {
 export type Database = {
   public: {
     Tables: Tables;
-    Views: { [_: string]: never };
+    Views: {
+      professionals_with_profile: {
+        Row: {
+          id: string;
+          full_name: string | null;
+          avatar_url: string | null;
+          headline: string | null;
+          bio: string | null;
+          years_experience: number | null;
+          rating: number | null;
+          is_featured: boolean | null;
+          active: boolean | null;
+          empresa?: boolean | null;
+          city: string | null;
+          cities: Json | null;
+          categories: Json | null;
+          subcategories: Json | null;
+          last_active_at: string | null;
+          created_at: string | null;
+        };
+        Insert: never;
+        Update: never;
+      };
+    };
     Functions: { [_: string]: never };
     Enums: { [_: string]: never };
     CompositeTypes: { [_: string]: never };
