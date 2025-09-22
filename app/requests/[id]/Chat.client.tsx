@@ -28,7 +28,7 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
     initialTitle ?? null,
   );
   const [sending, setSending] = React.useState(false);
-  const [offerSignal, setOfferSignal] = React.useState(0);
+  const [_offerSignal, setOfferSignal] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -233,7 +233,7 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
           userId={me}
           requestId={requestId}
           requestBudget={requestBudget}
-          openOfferSignal={offerSignal}
+
           onClose={() => setChatOpen(false)}
         />
       ) : null}

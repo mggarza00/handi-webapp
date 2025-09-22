@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import { assertRateLimit } from "@/lib/rate/limit";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -18,10 +17,6 @@ export async function POST(req: Request, { params }: { params: { offerId: string
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user?.id)
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
-
-    const rate = await assertRateLimit("offer.reject", 30, 5);
-    if (!rate.ok)
-      return NextResponse.json({ ok: false, error: "RATE_LIMIT", message: rate.message }, { status: rate.status, headers: JSONH });
 
     const offerId = params.offerId;
     if (!offerId)

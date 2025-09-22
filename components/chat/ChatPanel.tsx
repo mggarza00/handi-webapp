@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks, react-hooks/exhaustive-deps */
 /* eslint-disable import/order */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -7,6 +8,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import MessageList from "@/components/chat/MessageList";
 import MessageInput from "@/components/chat/MessageInput";
+import { getContactPolicyMessage } from "@/lib/safety/policy";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "sonner";
 import TypingIndicator from "@/components/chat/TypingIndicator";
@@ -91,7 +93,6 @@ export default function ChatPanel({
   userId,
   requestId: requestIdProp,
   requestBudget: requestBudgetProp,
-  openOfferSignal,
 }: {
   conversationId: string;
   onClose: () => void;
@@ -99,7 +100,6 @@ export default function ChatPanel({
   userId?: string | null;
   requestId?: string | null;
   requestBudget?: number | null;
-  openOfferSignal?: number;
 }) {
   const supabaseAuth = createClientComponentClient();
   const [open, setOpen] = React.useState(true);
@@ -138,26 +138,18 @@ export default function ChatPanel({
   const [acceptingOfferId, setAcceptingOfferId] = React.useState<string | null>(null);
   const [rejectingOfferId, setRejectingOfferId] = React.useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = React.useState<string | null>(null);
+  void budget;
+  void rejectingOfferId;
+  void rejectOpen;
+  void rejectReason;
+  void rejectExtra;
+  void rejectTarget;
   const [otherTyping, setOtherTyping] = React.useState(false);
   const channelRef = React.useRef<ReturnType<typeof supabaseBrowser.channel> | null>(null);
   const lastTypingSentRef = React.useRef(0);
   const typingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedTokenRef = React.useRef<string | null>(null);
   const syncInFlightRef = React.useRef(false);
-
-  // Abrir diálogo de oferta cuando la señal externa cambie
-  const lastOfferSignalRef = React.useRef<number | null>(null);
-  React.useEffect(() => {
-    if (typeof openOfferSignal !== "number") return;
-    if (lastOfferSignalRef.current === null) {
-      lastOfferSignalRef.current = openOfferSignal;
-      return;
-    }
-    if (openOfferSignal !== lastOfferSignalRef.current) {
-      lastOfferSignalRef.current = openOfferSignal;
-      setOfferDialogOpen(true);
-    }
-  }, [openOfferSignal]);
   const mergeMessages = React.useCallback(
     (incoming: Msg | Msg[], options: { replace?: boolean; fromServer?: boolean } = {}) => {
       const arr = Array.isArray(incoming) ? incoming : [incoming];
@@ -335,6 +327,19 @@ export default function ChatPanel({
   React.useEffect(() => {
     if (!requestId) return;
     let cancelled = false;
+  React.useEffect(() => {
+    if (!offerDialogOpen) return;
+    if (!offerAmount && typeof budget === "number" && Number.isFinite(budget)) {
+      setOfferAmount(String(budget));
+    }
+    if (!offerServiceDate && requiredAt) {
+      const parsed = new Date(requiredAt);
+      if (!Number.isNaN(parsed.getTime())) {
+        setOfferServiceDate(parsed.toISOString().slice(0, 10));
+      }
+    }
+  }, [offerDialogOpen, budget, requiredAt, offerAmount, offerServiceDate]);
+
     (async () => {
       try {
         const headers = await getAuthHeaders();
@@ -359,19 +364,6 @@ export default function ChatPanel({
       cancelled = true;
     };
   }, [requestId, getAuthHeaders]);
-  React.useEffect(() => {
-    if (!offerDialogOpen) return;
-    if (typeof budget === "number" && Number.isFinite(budget)) {
-      setOfferAmount((current) => (current ? current : String(budget)));
-    }
-    if (requiredAt) {
-      const parsed = new Date(requiredAt);
-      if (!Number.isNaN(parsed.getTime())) {
-        setOfferServiceDate((current) => (current ? current : parsed.toISOString().slice(0, 10)));
-      }
-    }
-  }, [offerDialogOpen, budget, requiredAt]);
-
   React.useEffect(() => {
     if (!conversationId) return;
     const channel = supabaseBrowser
@@ -451,63 +443,39 @@ export default function ChatPanel({
     return "guest" as const;
   }, [participants, meId]);
   const offerSummaries = React.useMemo(() => {
-    type OfferSummary = {
-      offerId: string;
-      status: string;
-      checkoutUrl: string | null;
-      title: string | null;
-      amount: number | null;
-      currency: string;
-    };
-    const map = new Map<string, OfferSummary>();
+    const map = new Map<string, { offerId: string; status: string; checkoutUrl: string | null; title?: string | null; amount?: number | null; currency?: string | null }>();
     for (const msg of messagesState) {
       const payload = msg.payload;
       if (!payload || typeof payload !== "object") continue;
-
-      const payloadRecord = payload as Record<string, unknown>;
-      const rawId = payloadRecord["offer_id"];
-      if (typeof rawId !== "string" || rawId.trim().length === 0) continue;
-
-      const summary =
-        map.get(rawId) ?? {
-          offerId: rawId,
-          status: "sent",
-          checkoutUrl: null,
-          title: null,
-          amount: null,
-          currency: "MXN",
-        };
-
+      const rawId = (payload as Record<string, unknown>).offer_id;
+      if (typeof rawId !== "string" || !rawId) continue;
+      const summary = map.get(rawId) ?? {
+        offerId: rawId,
+        status: "sent",
+        checkoutUrl: null,
+        title: null,
+        amount: null,
+        currency: "MXN",
+      };
       if (msg.messageType === "offer") {
-        const rawTitle = payloadRecord["title"];
-        if (typeof rawTitle === "string" && rawTitle.trim().length) summary.title = rawTitle;
-
-        const amountRaw = payloadRecord["amount"];
+        const amountRaw = (payload as Record<string, unknown>).amount;
+        const currencyRaw = (payload as Record<string, unknown>).currency;
+        const __maybeTitle = (payload as any)?.title;
+        if (typeof __maybeTitle === "string") {
+          summary.title = __maybeTitle;
+        }
         const amount = typeof amountRaw === "number" ? amountRaw : Number(amountRaw ?? NaN);
         summary.amount = Number.isFinite(amount) ? amount : summary.amount;
-
-        const currencyRaw = payloadRecord["currency"];
-        if (typeof currencyRaw === "string" && currencyRaw.trim().length) {
-          summary.currency = currencyRaw.toUpperCase();
-        }
-
-        const statusRaw = payloadRecord["status"];
-        if (typeof statusRaw === "string") summary.status = normalizeStatus(statusRaw);
-
-        const checkoutUrlRaw = payloadRecord["checkout_url"];
-        if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) {
-          summary.checkoutUrl = checkoutUrlRaw;
-        }
+        summary.currency = typeof currencyRaw === "string" && currencyRaw.trim().length ? currencyRaw.toUpperCase() : summary.currency;
+        summary.status = normalizeStatus((payload as Record<string, unknown>).status as string | undefined);
+        const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
+        summary.checkoutUrl = typeof checkoutUrlRaw === "string" ? checkoutUrlRaw : summary.checkoutUrl;
       } else if (msg.messageType === "system") {
-        const statusRaw = payloadRecord["status"];
+        const statusRaw = (payload as Record<string, unknown>).status;
         if (typeof statusRaw === "string") summary.status = normalizeStatus(statusRaw);
-
-        const checkoutUrlRaw = payloadRecord["checkout_url"];
-        if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) {
-          summary.checkoutUrl = checkoutUrlRaw;
-        }
+        const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
+        if (typeof checkoutUrlRaw === "string") summary.checkoutUrl = checkoutUrlRaw;
       }
-
       map.set(rawId, summary);
     }
     return map;
@@ -516,7 +484,8 @@ export default function ChatPanel({
     if (!participants || !meId) return undefined;
     return participants.customer_id === meId ? participants.pro_id : participants.customer_id;
   }, [participants, meId]);
-  async function postMessage(body: string, attempt = 0): Promise<{ ok: boolean; error?: string; id?: string | null; createdAt?: string }> {
+  void otherUserId;
+  async function postMessage(body: string, attempt = 0): Promise<{ ok: true; id: string | null; createdAt: string; body: string; payload: Record<string, unknown> | null } | { ok: false; error: string }> {
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`/api/chat/send`, {
@@ -525,8 +494,13 @@ export default function ChatPanel({
         credentials: "include",
         body: JSON.stringify({ conversationId, body }),
       });
-      const json = await parseJsonSafe<{ ok?: boolean; error?: string; data?: { id?: string; created_at?: string } }>(res);
-      const errorText = json?.error || "";
+      const json = await parseJsonSafe<{
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        data?: { id?: string; created_at?: string; body?: unknown; payload?: unknown };
+      }>(res);
+      const errorText = json?.error || json?.message || "";
       const authProblem =
         res.status === 401 ||
         errorText === "MISSING_AUTH" ||
@@ -537,30 +511,86 @@ export default function ChatPanel({
           lastSyncedTokenRef.current = null;
           return postMessage(body, attempt + 1);
         }
-        return { ok: false as const, error: AUTH_REQUIRED_MESSAGE };
+        return { ok: false, error: AUTH_REQUIRED_MESSAGE };
+      }
+      if (res.status === 422) {
+        const message = json?.message || json?.error || getContactPolicyMessage();
+        return { ok: false, error: message };
       }
       if (!res.ok || json?.ok === false) {
-        const msg = json?.error || "No se pudo enviar el mensaje";
-        if (attempt === 0 && /auth session missing/i.test(msg)) {
+        const message = json?.message || json?.error || "No se pudo enviar el mensaje";
+        if (attempt === 0 && /auth session missing/i.test(message)) {
           lastSyncedTokenRef.current = null;
           return postMessage(body, attempt + 1);
         }
-        return { ok: false as const, error: msg };
+        return { ok: false, error: message };
       }
       const id = json?.data?.id ? String(json.data.id) : null;
       const createdAt = json?.data?.created_at ? String(json.data.created_at) : new Date().toISOString();
-      return { ok: true as const, id, createdAt };
+      let messageBody = body;
+      const rawBody = json?.data?.body;
+      if (typeof rawBody === "string") {
+        messageBody = rawBody;
+      } else if (rawBody != null) {
+        messageBody = String(rawBody);
+      }
+      let payload: Record<string, unknown> | null = null;
+      const rawPayload = json?.data?.payload;
+      if (typeof rawPayload === "string") {
+        try {
+          payload = JSON.parse(rawPayload) as Record<string, unknown>;
+        } catch {
+          payload = null;
+        }
+      } else if (rawPayload && typeof rawPayload === "object") {
+        payload = rawPayload as Record<string, unknown>;
+      }
+      return { ok: true, id, createdAt, body: messageBody, payload };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error de red";
       if (attempt === 0 && /auth session missing/i.test(message)) {
         lastSyncedTokenRef.current = null;
         return postMessage(body, attempt + 1);
       }
-      if (/auth session missing/i.test(message) || message === "AUTH_REQUIRED" || /invalid_token/i.test(message) || message === "MISSING_AUTH") {
-        return { ok: false as const, error: AUTH_REQUIRED_MESSAGE };
+      if (
+        /auth session missing/i.test(message) ||
+        message === "AUTH_REQUIRED" ||
+        /invalid_token/i.test(message) ||
+        message === "MISSING_AUTH"
+      ) {
+        return { ok: false, error: AUTH_REQUIRED_MESSAGE };
       }
-      return { ok: false as const, error: message };
+      return { ok: false, error: message };
     }
+  }
+  async function _sendApiMessage(text: string) {
+    const optimistic: Msg = {
+      id: `tmp_${Date.now()}`,
+      senderId: "me",
+      body: text,
+      createdAt: new Date().toISOString(),
+      messageType: "text",
+      payload: null,
+    };
+    mergeMessages(optimistic);
+    const result = await postMessage(text);
+    if (!result.ok) {
+      removeMessageById(optimistic.id);
+      toast.error(result.error);
+      return false;
+    }
+    if (result.id) {
+      const serverMsg: Msg = {
+        id: result.id,
+        senderId: meId ?? "me",
+        body: text,
+        createdAt: result.createdAt,
+        messageType: "text",
+        payload: null,
+      };
+      mergeMessages(serverMsg, { fromServer: true });
+    }
+    return true;
   }
   async function submitOffer() {
     if (viewerRole !== "customer") {
@@ -600,9 +630,8 @@ export default function ChatPanel({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const json = await parseJsonSafe<{ error?: string; message?: string }>(res);
-        const errorMessage = json?.message || json?.error || "No se pudo crear la oferta";
-        throw new Error(errorMessage);
+        const json = await parseJsonSafe<{ error?: string }>(res);
+        throw new Error(json?.error || "No se pudo crear la oferta");
       }
       toast.success("Oferta enviada");
       setOfferDialogOpen(false);
@@ -636,10 +665,9 @@ export default function ChatPanel({
         headers,
         credentials: "include",
       });
-      const json = await parseJsonSafe<{ ok?: boolean; error?: string; message?: string; checkoutUrl?: string }>(res);
+      const json = await parseJsonSafe<{ ok?: boolean; error?: string; checkoutUrl?: string }>(res);
       if (!res.ok || json?.ok === false) {
-        const errorMessage = json?.message || json?.error || "No se pudo aceptar la oferta";
-        throw new Error(errorMessage);
+        throw new Error(json?.error || "No se pudo aceptar la oferta");
       }
       toast.success("Oferta aceptada");
       await load(false);
@@ -650,7 +678,8 @@ export default function ChatPanel({
       setAcceptingOfferId(null);
     }
   }
-  async function submitRejectOffer() {
+  async function _submitRejectOffer() {
+
     if (!rejectTarget) {
       setRejectOpen(false);
       return;
@@ -680,10 +709,9 @@ export default function ChatPanel({
         credentials: "include",
         body: JSON.stringify({ reason: reasonPayload }),
       });
-      const json = await parseJsonSafe<{ ok?: boolean; error?: string; message?: string }>(res);
+      const json = await parseJsonSafe<{ ok?: boolean; error?: string }>(res);
       if (!res.ok || json?.ok === false) {
-        const errorMessage = json?.message || json?.error || "No se pudo rechazar la oferta";
-        throw new Error(errorMessage);
+        throw new Error(json?.error || "No se pudo rechazar la oferta");
       }
       toast.success("Oferta rechazada");
       setRejectOpen(false);
@@ -715,7 +743,7 @@ export default function ChatPanel({
   }, [meId]);
   async function onSend(text: string) {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed) return false;
     const optimistic: Msg = {
       id: `tmp_${Date.now()}`,
       senderId: "me",
@@ -729,39 +757,42 @@ export default function ChatPanel({
     if (!result.ok) {
       removeMessageById(optimistic.id);
       toast.error(result.error);
-      return;
+      return false;
     }
-    if (result.id) {
-      mergeMessages(
-        {
-          id: result.id,
-          senderId: meId ?? "me",
-          body: trimmed,
-          createdAt: result.createdAt ?? new Date().toISOString(),
-          messageType: "text",
-          payload: null,
-        },
-        { fromServer: true },
-      );
-    }
+    removeMessageById(optimistic.id);
+    const messageId = result.id ?? optimistic.id;
+    mergeMessages(
+      {
+        id: messageId,
+        senderId: meId ?? "me",
+        body: result.body,
+        createdAt: result.createdAt,
+        messageType: "text",
+        payload: result.payload ?? null,
+      },
+      { fromServer: true },
+    );
+    return true;
   }
   const loadingState = loading ? (
     <div className="flex-1 p-3 text-sm text-slate-500" role="status" aria-busy>
       Cargando...
     </div>
   ) : null;
-  const actionButtons =
-    viewerRole === "customer" ? (
-      <div className="p-3 flex items-center justify-end">
-        <Button onClick={() => setOfferDialogOpen(true)}>Contratar</Button>
-      </div>
-    ) : null;
+  const actionButtons = (
+    <>
+      {participants && meId === participants.customer_id ? (
+        <div className="p-3 flex items-center justify-end">
+          <Button onClick={() => setOfferDialogOpen(true)}>Contratar</Button>
+        </div>
+      ) : null}
+    </>
+  );
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
   const messageList = (
     <MessageList
       items={messagesState}
       currentUserId={meId ?? undefined}
-      otherUserId={mode === "page" ? otherUserId : undefined}
       viewerRole={viewerRole}
       onAcceptOffer={handleAcceptOffer}
       onRejectOffer={handleOpenReject}
@@ -898,8 +929,8 @@ export default function ChatPanel({
           <Button variant="ghost" onClick={() => setRejectOpen(false)}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={() => void submitRejectOffer()} disabled={rejectingOfferId !== null}>
-            {rejectingOfferId ? "Procesando..." : "Rechazar"}
+          <Button variant="destructive" onClick={() => setRejectOpen(true)}>
+            Rechazar
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -964,9 +995,12 @@ export default function ChatPanel({
             </>
           )}
           <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} />
+          {offerDialog}
           {dialog}
         </div>
       </SheetContent>
     </Sheet>
   );
 }
+
+

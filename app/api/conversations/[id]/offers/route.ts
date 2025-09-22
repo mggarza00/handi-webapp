@@ -31,10 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const rate = await assertRateLimit("offer.create", 60, 5);
     if (!rate.ok)
-      return NextResponse.json(
-        { error: "RATE_LIMIT", message: rate.message },
-        { status: rate.status, headers: JSONH },
-      );
+      return NextResponse.json({ error: "RATE_LIMIT", message: rate.message }, { status: rate.status, headers: JSONH });
 
     const conversationId = params.id;
     if (!conversationId)

@@ -10,7 +10,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export async function POST(req: Request, { params }: { params: { offerId: string } }) {
-  let session: Stripe.Checkout.Session | null = null;
+  let stripeSession: Stripe.Checkout.Session | null = null;
   try {
     const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
     if (!STRIPE_SECRET_KEY)
@@ -27,10 +27,7 @@ export async function POST(req: Request, { params }: { params: { offerId: string
 
     const rate = await assertRateLimit("offer.accept", 30, 3);
     if (!rate.ok)
-      return NextResponse.json(
-        { error: "RATE_LIMIT", message: rate.message },
-        { status: rate.status, headers: JSONH },
-      );
+      return NextResponse.json({ error: "RATE_LIMIT", message: rate.message }, { status: rate.status, headers: JSONH });
 
     const offerId = params.offerId;
     if (!offerId)
@@ -49,9 +46,10 @@ export async function POST(req: Request, { params }: { params: { offerId: string
     if (offer.status !== "sent")
       return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
 
+    const lockTime = new Date().toISOString();
     const { data: locked, error: lockErr } = await supabase
       .from("offers")
-      .update({ accepting_at: new Date().toISOString() })
+      .update({ accepting_at: lockTime })
       .eq("id", offer.id)
       .eq("professional_id", user.id)
       .is("accepting_at", null)
@@ -66,7 +64,7 @@ export async function POST(req: Request, { params }: { params: { offerId: string
       );
 
     try {
-      session = await stripe.checkout.sessions.create({
+      stripeSession = await stripe.checkout.sessions.create({
         mode: "payment",
         success_url: `${APP_URL}/offers/${offer.id}?status=success`,
         cancel_url: `${APP_URL}/offers/${offer.id}?status=cancel`,
@@ -88,14 +86,14 @@ export async function POST(req: Request, { params }: { params: { offerId: string
           conversation_id: locked.conversation_id,
         },
       });
-    } catch (error) {
+    } catch (stripeError) {
       await supabase.from("offers").update({ accepting_at: null }).eq("id", offer.id);
-      throw error;
+      throw stripeError;
     }
 
     const { data: updated, error: updateErr } = await supabase
       .from("offers")
-      .update({ status: "accepted", checkout_url: session.url ?? null, accepting_at: null })
+      .update({ status: "accepted", checkout_url: stripeSession.url ?? null, accepting_at: null })
       .eq("id", offer.id)
       .eq("status", "sent")
       .select("*")
@@ -104,12 +102,12 @@ export async function POST(req: Request, { params }: { params: { offerId: string
     if (updateErr || !updated) {
       await supabase.from("offers").update({ accepting_at: null }).eq("id", offer.id);
       return NextResponse.json(
-        { error: "INVALID_STATUS", checkoutUrl: session.url ?? null },
+        { error: "INVALID_STATUS", checkoutUrl: stripeSession.url ?? null },
         { status: 409, headers: JSONH },
       );
     }
 
-    if (session.url) {
+    if (stripeSession.url) {
       await fetch(`${APP_URL}/api/notify/offer-accepted`, {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -117,7 +115,7 @@ export async function POST(req: Request, { params }: { params: { offerId: string
       }).catch(() => undefined);
     }
 
-    return NextResponse.json({ ok: true, offer: updated, checkoutUrl: session.url }, { status: 200, headers: JSONH });
+    return NextResponse.json({ ok: true, offer: updated, checkoutUrl: stripeSession.url }, { status: 200, headers: JSONH });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
     return NextResponse.json({ error: message }, { status: 500, headers: JSONH });
