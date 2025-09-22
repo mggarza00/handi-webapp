@@ -32,6 +32,8 @@
     "format": "prettier --write .",
     "test:e2e:headed": "playwright test --headed",
     "seed:reviews-jobs": "curl -s -X POST http://localhost:3000/api/dev/seed-reviews-jobs || true",
+    "dev:seed:reviews": "cross-env ENABLE_DEV_SEED=1 tsx ./scripts/call-seed-reviews-jobs.ts",
+    "verify:reviews-jobs": "node scripts/verify-reviews-jobs.mjs",
     "test:e2e:ci": "playwright test --reporter=line",
     "db:link": "supabase link",
     "db:gen": "supabase gen types --lang=typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts",
@@ -102,7 +104,8 @@
     "tailwindcss": "^4.1.11",
     "tw-animate-css": "^1.3.7",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "tsx": "^4.19.0"
   },
   "postcss": {
     "plugins": {

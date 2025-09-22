@@ -43,7 +43,9 @@ export async function GET(req: Request, { params }: Ctx) {
       .limit(limit);
     if (cursor && cursor.includes("|")) {
       const [cAt, cId] = cursor.split("|");
-      if (cAt && cId) {
+      const isUuid = /^[0-9a-fA-F-]{36}$/.test(cId || "");
+      const isDate = !Number.isNaN(Date.parse(cAt || ""));
+      if (isUuid && isDate) {
         q = q.or(`and(created_at.lt.${cAt}),and(created_at.eq.${cAt},id.lt.${cId})`);
       }
     }

@@ -2,9 +2,11 @@ import * as React from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+// import Image from "next/image"; // replaced by Avatar
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
+
+import { getRequestWithClient } from "../_lib/getRequestWithClient";
 
 import ChatStartPro from "./chat-start-pro.client";
 
@@ -119,18 +121,26 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const requiredAt = (d.required_at as string | null) ?? null;
   const status = (d.status as string | null) ?? null;
   const createdAt = (d.created_at as string | null) ?? null;
-  const createdBy = (d.created_by as string | undefined) ?? null;
+  // Usa helper con service role para obtener client_id y perfil (bypass RLS en server)
+  const { client: clientFromAdmin } = await getRequestWithClient(params.id);
+  const clientId = clientFromAdmin?.id ?? ((d as { client_id?: string }).client_id ?? (d as { created_by?: string }).created_by ?? null);
 
   // Cargar perfil básico del cliente
   const supabaseS = createServerComponentClient<Database>({ cookies });
-  const { data: clientProfile } = await supabaseS
-    .from("profiles")
-    .select("full_name, avatar_url")
-    .eq("id", createdBy ?? "")
-    .maybeSingle<{
-      full_name: string | null;
-      avatar_url: string | null;
-    }>();
+  let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null } | null = clientFromAdmin
+    ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url }
+    : null;
+  if (!clientProfile && clientId) {
+    const { data: cp } = await supabaseS
+      .from("profiles")
+      .select("id, full_name, avatar_url")
+      .eq("id", clientId)
+      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null }>();
+    clientProfile = cp ?? null;
+  }
+  // Log temporal para QA
+  // eslint-disable-next-line no-console
+  console.log("[explore:client]", { clientId, hasProfile: !!clientProfile });
 
   const initials = (name?: string | null) =>
     (name ?? "Cliente")
@@ -204,8 +214,8 @@ export default async function ProRequestDetailPage({ params }: Params) {
               <div className="min-w-0">
                 <p className="text-xs text-slate-600">
                   Calificación: — {" "}
-                  {createdBy ? (
-                    <Link href={`/clients/${createdBy}`} className="underline hover:no-underline">
+                  {(clientProfile?.id ?? clientId) ? (
+                    <Link href={`/clients/${clientProfile?.id ?? clientId}`} className="underline hover:no-underline">
                       ver perfil y reseñas
                     </Link>
                   ) : null}

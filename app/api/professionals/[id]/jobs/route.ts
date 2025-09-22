@@ -39,7 +39,9 @@ export async function GET(req: Request, { params }: Ctx) {
       .eq("professional_id", professionalId)
       .order("request_id", { ascending: false })
       .limit(limit);
-    if (cursor) q = q.lt("request_id", cursor);
+    if (cursor && /^[0-9a-fA-F-]{36}$/.test(cursor)) {
+      q = q.lt("request_id", cursor);
+    }
 
     const { data, error } = await q;
     if (error)
