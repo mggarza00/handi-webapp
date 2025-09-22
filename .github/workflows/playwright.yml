@@ -2,44 +2,58 @@ name: e2e
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
 
 jobs:
   tests:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     timeout-minutes: 20
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Install deps
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
       - name: Build Next.js
-        run: npm run build
+        run: pnpm build
         env:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
       - name: Start server
         run: |
-          (npm run start &)
+          (pnpm start &)
           npx wait-on http://localhost:3000
         env:
           NODE_ENV: test
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
-          CI: 'true'
+          CI: "true"
 
       - name: Run E2E
-        run: npm run test:e2e:ci
+        run: pnpm test:e2e:ci
         env:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
-          CI: 'true'
-          PLAYWRIGHT_SKIP_WEBSERVER: '1'
+          CI: "true"
+          PLAYWRIGHT_SKIP_WEBSERVER: "1"
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps

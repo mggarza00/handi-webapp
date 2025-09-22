@@ -1,41 +1,65 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import Stripe from "stripe";
 import { z } from "zod";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 const BodySchema = z.object({
-  request_id: z.string().uuid(),         // ID de la solicitud de servicio
-  amount_mxn: z.number().int().positive().optional(), // opcional; por defecto usa NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN
-  agreement_id: z.string().uuid().optional(), // opcional; si existe, se marca como paid en webhook
+  request_id: z.string().uuid(),
+  amount_mxn: z.number().int().positive().optional(),
+  agreement_id: z.string().uuid().optional(),
 });
 
 export async function POST(req: Request) {
   try {
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("application/json")) {
-      return new NextResponse(JSON.stringify({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }), { status: 415, headers: JSONH });
+      return new NextResponse(
+        JSON.stringify({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }),
+        { status: 415, headers: JSONH },
+      );
     }
 
-    const { user } = await getUserOrThrow();
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const { user } = await getUserOrThrow(supabase);
 
     const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    const DEFAULT_FEE = Number(process.env.NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN ?? "0");
+    const DEFAULT_FEE = Number(
+      process.env.NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN ?? "0",
+    );
     if (!STRIPE_SECRET_KEY) {
-      return new NextResponse(JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY" }), { status: 500, headers: JSONH });
+      return new NextResponse(
+        JSON.stringify({
+          ok: false,
+          error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY",
+        }),
+        { status: 500, headers: JSONH },
+      );
     }
     if (!DEFAULT_FEE) {
-      return new NextResponse(JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:DEFAULT_FEE" }), { status: 500, headers: JSONH });
+      return new NextResponse(
+        JSON.stringify({
+          ok: false,
+          error: "SERVER_MISCONFIGURED:DEFAULT_FEE",
+        }),
+        { status: 500, headers: JSONH },
+      );
     }
 
     const body = BodySchema.parse(await req.json());
-    const amount = (body.amount_mxn ?? DEFAULT_FEE) * 100; // a centavos
+    const amount = (body.amount_mxn ?? DEFAULT_FEE) * 100;
 
-    // Ajuste de versión API según typings instalados
-    const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2025-07-30.basil" });
-    const origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const stripe = new Stripe(STRIPE_SECRET_KEY);
+    const origin =
+      req.headers.get("origin") ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "http://localhost:3000";
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -46,7 +70,7 @@ export async function POST(req: Request) {
         {
           price_data: {
             currency: "mxn",
-            product_data: { name: "Handee Service Fee" },
+            product_data: { name: "Handi Service Fee" },
             unit_amount: amount,
           },
           quantity: 1,
@@ -59,13 +83,22 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true, id: session.id, url: session.url }, { status: 201, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, id: session.id, url: session.url },
+      { status: 201, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
-    return new NextResponse(JSON.stringify({ ok: false, error: "CHECKOUT_FAILED", detail: msg }), { status: 400, headers: JSONH });
+    return new NextResponse(
+      JSON.stringify({ ok: false, error: "CHECKOUT_FAILED", detail: msg }),
+      { status: 400, headers: JSONH },
+    );
   }
 }
 
 export function GET() {
-  return new NextResponse(JSON.stringify({ ok: false, error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: JSONH });
+  return new NextResponse(
+    JSON.stringify({ ok: false, error: "METHOD_NOT_ALLOWED" }),
+    { status: 405, headers: JSONH },
+  );
 }

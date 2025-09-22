@@ -1,4 +1,4 @@
-# Handee — Aplicar migraciones a Supabase (PowerShell)
+# Handi — Aplicar migraciones a Supabase (PowerShell)
 # Requisitos:
 # - Tener instalado el CLI de Supabase: https://supabase.com/docs/guides/cli
 # - Definir variable de entorno con el connection string de Postgres (ROLE: service or migration user):

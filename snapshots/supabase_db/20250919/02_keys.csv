@@ -1,0 +1,65 @@
+table_schema,table_name,constraint_name,key_type,column_list,definition,index_name,is_deferrable,initially_deferred
+auth,audit_log_entries,audit_log_entries_pkey,PRIMARY KEY,id,PRIMARY KEY (id),audit_log_entries_pkey,f,f
+auth,flow_state,flow_state_pkey,PRIMARY KEY,id,PRIMARY KEY (id),flow_state_pkey,f,f
+auth,identities,identities_pkey,PRIMARY KEY,id,PRIMARY KEY (id),identities_pkey,f,f
+auth,identities,identities_provider_id_provider_unique,UNIQUE,"provider_id, provider","UNIQUE (provider_id, provider)",identities_provider_id_provider_unique,f,f
+auth,instances,instances_pkey,PRIMARY KEY,id,PRIMARY KEY (id),instances_pkey,f,f
+auth,mfa_amr_claims,amr_id_pk,PRIMARY KEY,id,PRIMARY KEY (id),amr_id_pk,f,f
+auth,mfa_amr_claims,mfa_amr_claims_session_id_authentication_method_pkey,UNIQUE,"session_id, authentication_method","UNIQUE (session_id, authentication_method)",mfa_amr_claims_session_id_authentication_method_pkey,f,f
+auth,mfa_challenges,mfa_challenges_pkey,PRIMARY KEY,id,PRIMARY KEY (id),mfa_challenges_pkey,f,f
+auth,mfa_factors,mfa_factors_pkey,PRIMARY KEY,id,PRIMARY KEY (id),mfa_factors_pkey,f,f
+auth,mfa_factors,mfa_factors_last_challenged_at_key,UNIQUE,last_challenged_at,UNIQUE (last_challenged_at),mfa_factors_last_challenged_at_key,f,f
+auth,mfa_factors,,UNIQUE INDEX,"user_id, phone","CREATE UNIQUE INDEX unique_phone_factor_per_user ON auth.mfa_factors USING btree (user_id, phone)",unique_phone_factor_per_user,,
+auth,mfa_factors,,UNIQUE INDEX,"friendly_name, user_id","CREATE UNIQUE INDEX mfa_factors_user_friendly_name_unique ON auth.mfa_factors USING btree (friendly_name, user_id) WHERE (TRIM(BOTH FROM friendly_name) <> ''::text)",mfa_factors_user_friendly_name_unique,,
+auth,oauth_clients,oauth_clients_pkey,PRIMARY KEY,id,PRIMARY KEY (id),oauth_clients_pkey,f,f
+auth,oauth_clients,oauth_clients_client_id_key,UNIQUE,client_id,UNIQUE (client_id),oauth_clients_client_id_key,f,f
+auth,one_time_tokens,one_time_tokens_pkey,PRIMARY KEY,id,PRIMARY KEY (id),one_time_tokens_pkey,f,f
+auth,one_time_tokens,,UNIQUE INDEX,"user_id, token_type","CREATE UNIQUE INDEX one_time_tokens_user_id_token_type_key ON auth.one_time_tokens USING btree (user_id, token_type)",one_time_tokens_user_id_token_type_key,,
+auth,refresh_tokens,refresh_tokens_pkey,PRIMARY KEY,id,PRIMARY KEY (id),refresh_tokens_pkey,f,f
+auth,refresh_tokens,refresh_tokens_token_unique,UNIQUE,token,UNIQUE (token),refresh_tokens_token_unique,f,f
+auth,saml_providers,saml_providers_pkey,PRIMARY KEY,id,PRIMARY KEY (id),saml_providers_pkey,f,f
+auth,saml_providers,saml_providers_entity_id_key,UNIQUE,entity_id,UNIQUE (entity_id),saml_providers_entity_id_key,f,f
+auth,saml_relay_states,saml_relay_states_pkey,PRIMARY KEY,id,PRIMARY KEY (id),saml_relay_states_pkey,f,f
+auth,schema_migrations,schema_migrations_pkey,PRIMARY KEY,version,PRIMARY KEY (version),schema_migrations_pkey,f,f
+auth,sessions,sessions_pkey,PRIMARY KEY,id,PRIMARY KEY (id),sessions_pkey,f,f
+auth,sso_domains,sso_domains_pkey,PRIMARY KEY,id,PRIMARY KEY (id),sso_domains_pkey,f,f
+auth,sso_domains,,UNIQUE INDEX,,CREATE UNIQUE INDEX sso_domains_domain_idx ON auth.sso_domains USING btree (lower(domain)),sso_domains_domain_idx,,
+auth,sso_providers,sso_providers_pkey,PRIMARY KEY,id,PRIMARY KEY (id),sso_providers_pkey,f,f
+auth,sso_providers,,UNIQUE INDEX,,CREATE UNIQUE INDEX sso_providers_resource_id_idx ON auth.sso_providers USING btree (lower(resource_id)),sso_providers_resource_id_idx,,
+auth,users,users_pkey,PRIMARY KEY,id,PRIMARY KEY (id),users_pkey,f,f
+auth,users,users_phone_key,UNIQUE,phone,UNIQUE (phone),users_phone_key,f,f
+auth,users,,UNIQUE INDEX,reauthentication_token,CREATE UNIQUE INDEX reauthentication_token_idx ON auth.users USING btree (reauthentication_token) WHERE ((reauthentication_token)::text !~ '^[0-9 ]*$'::text),reauthentication_token_idx,,
+auth,users,,UNIQUE INDEX,confirmation_token,CREATE UNIQUE INDEX confirmation_token_idx ON auth.users USING btree (confirmation_token) WHERE ((confirmation_token)::text !~ '^[0-9 ]*$'::text),confirmation_token_idx,,
+auth,users,,UNIQUE INDEX,recovery_token,CREATE UNIQUE INDEX recovery_token_idx ON auth.users USING btree (recovery_token) WHERE ((recovery_token)::text !~ '^[0-9 ]*$'::text),recovery_token_idx,,
+auth,users,,UNIQUE INDEX,email_change_token_current,CREATE UNIQUE INDEX email_change_token_current_idx ON auth.users USING btree (email_change_token_current) WHERE ((email_change_token_current)::text !~ '^[0-9 ]*$'::text),email_change_token_current_idx,,
+auth,users,,UNIQUE INDEX,email_change_token_new,CREATE UNIQUE INDEX email_change_token_new_idx ON auth.users USING btree (email_change_token_new) WHERE ((email_change_token_new)::text !~ '^[0-9 ]*$'::text),email_change_token_new_idx,,
+auth,users,,UNIQUE INDEX,email,CREATE UNIQUE INDEX users_email_partial_key ON auth.users USING btree (email) WHERE (is_sso_user = false),users_email_partial_key,,
+public,agreements,agreements_pkey,PRIMARY KEY,id,PRIMARY KEY (id),agreements_pkey,f,f
+public,applications,applications_pkey,PRIMARY KEY,id,PRIMARY KEY (id),applications_pkey,f,f
+public,applications,applications_request_id_professional_id_key,UNIQUE,"request_id, professional_id","UNIQUE (request_id, professional_id)",applications_request_id_professional_id_key,f,f
+public,applications,,UNIQUE INDEX,"request_id, professional_id","CREATE UNIQUE INDEX ux_applications_unique_per_pair ON public.applications USING btree (request_id, professional_id)",ux_applications_unique_per_pair,,
+public,categories_subcategories,categories_subcategories_pkey,PRIMARY KEY,Subcategoría,"PRIMARY KEY (""Subcategoría"")",categories_subcategories_pkey,f,f
+public,conversations,conversations_pkey,PRIMARY KEY,id,PRIMARY KEY (id),conversations_pkey,f,f
+public,conversations,conversations_request_id_customer_id_pro_id_key,UNIQUE,"request_id, customer_id, pro_id","UNIQUE (request_id, customer_id, pro_id)",conversations_request_id_customer_id_pro_id_key,f,f
+public,messages,messages_pkey,PRIMARY KEY,id,PRIMARY KEY (id),messages_pkey,f,f
+public,offers,offers_pkey,PRIMARY KEY,id,PRIMARY KEY (id),offers_pkey,f,f
+public,pro_applications,pro_applications_pkey,PRIMARY KEY,id,PRIMARY KEY (id),pro_applications_pkey,f,f
+public,professionals,professionals_pkey,PRIMARY KEY,id,PRIMARY KEY (id),professionals_pkey,f,f
+public,profiles,profiles_pkey,PRIMARY KEY,id,PRIMARY KEY (id),profiles_pkey,f,f
+public,profiles,profiles_email_key,UNIQUE,email,UNIQUE (email),profiles_email_key,f,f
+public,ratings,ratings_pkey,PRIMARY KEY,id,PRIMARY KEY (id),ratings_pkey,f,f
+public,requests,requests_pkey,PRIMARY KEY,id,PRIMARY KEY (id),requests_pkey,f,f
+public,service_photos,service_photos_pkey,PRIMARY KEY,id,PRIMARY KEY (id),service_photos_pkey,f,f
+public,user_notifications,user_notifications_pkey,PRIMARY KEY,id,PRIMARY KEY (id),user_notifications_pkey,f,f
+storage,buckets,buckets_pkey,PRIMARY KEY,id,PRIMARY KEY (id),buckets_pkey,f,f
+storage,buckets,,UNIQUE INDEX,name,CREATE UNIQUE INDEX bname ON storage.buckets USING btree (name),bname,,
+storage,buckets_analytics,buckets_analytics_pkey,PRIMARY KEY,id,PRIMARY KEY (id),buckets_analytics_pkey,f,f
+storage,migrations,migrations_pkey,PRIMARY KEY,id,PRIMARY KEY (id),migrations_pkey,f,f
+storage,migrations,migrations_name_key,UNIQUE,name,UNIQUE (name),migrations_name_key,f,f
+storage,objects,objects_pkey,PRIMARY KEY,id,PRIMARY KEY (id),objects_pkey,f,f
+storage,objects,,UNIQUE INDEX,"bucket_id, level, name","CREATE UNIQUE INDEX objects_bucket_id_level_idx ON storage.objects USING btree (bucket_id, level, name COLLATE ""C"")",objects_bucket_id_level_idx,,
+storage,objects,,UNIQUE INDEX,"bucket_id, name","CREATE UNIQUE INDEX bucketid_objname ON storage.objects USING btree (bucket_id, name)",bucketid_objname,,
+storage,objects,,UNIQUE INDEX,"name, bucket_id, level","CREATE UNIQUE INDEX idx_name_bucket_level_unique ON storage.objects USING btree (name COLLATE ""C"", bucket_id, level)",idx_name_bucket_level_unique,,
+storage,prefixes,prefixes_pkey,PRIMARY KEY,"bucket_id, level, name","PRIMARY KEY (bucket_id, level, name)",prefixes_pkey,f,f
+storage,s3_multipart_uploads,s3_multipart_uploads_pkey,PRIMARY KEY,id,PRIMARY KEY (id),s3_multipart_uploads_pkey,f,f
+storage,s3_multipart_uploads_parts,s3_multipart_uploads_parts_pkey,PRIMARY KEY,id,PRIMARY KEY (id),s3_multipart_uploads_parts_pkey,f,f

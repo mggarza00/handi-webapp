@@ -1,0 +1,66 @@
+{
+  "$schema": "vscode://schemas/mcp",
+  "servers": {
+    "stripe": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@stripe/mcp",
+        "--tools=all"
+      ],
+      "env": {
+        "STRIPE_SECRET_KEY": "${input:STRIPE_SECRET_KEY}",
+        "STRIPE_ACCOUNT": "${input:STRIPE_ACCOUNT}"
+      }
+    },
+    "stripe-remote": {
+      "type": "http",
+      "url": "https://mcp.stripe.com"
+    },
+    "paypal": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.sandbox.paypal.com/http",
+        "--header",
+        "Authorization:Bearer ${input:PAYPAL_BEARER}"
+      ]
+    },
+    "paypal-local": {
+      "command": "npx",
+      "args": ["--yes", "@paypal/mcp", "--tools=all"],
+      "env": {
+        "PAYPAL_ACCESS_TOKEN": "${env:PAYPAL_ACCESS_TOKEN}",
+        "PAYPAL_ENVIRONMENT": "${env:PAYPAL_ENVIRONMENT}"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@latest"
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "id": "STRIPE_SECRET_KEY",
+      "type": "promptString",
+      "description": "Stripe Secret Key (usa una Restricted Key en lo posible)",
+      "password": true
+    },
+    {
+      "id": "STRIPE_ACCOUNT",
+      "type": "promptString",
+      "description": "Stripe connected account (acct_...) opcional para MCP local",
+      "password": false
+    },
+    {
+      "id": "PAYPAL_BEARER",
+      "type": "promptString",
+      "description": "PayPal Bearer (client credentials o access token para MCP remoto sandbox/producción)",
+      "password": true
+    }
+  ]
+}

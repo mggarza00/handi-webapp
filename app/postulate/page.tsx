@@ -37,7 +37,7 @@ export default function PostulatePage() {
 
   // 1) Cargar userId desde localStorage (temporal)
   function reloadUserId() {
-    const id = window.localStorage.getItem("handee_user_id");
+    const id = window.localStorage.getItem("handi_user_id") ?? window.localStorage.getItem("handee_user_id");
     setUserId(id);
   }
   useEffect(() => {
@@ -54,11 +54,15 @@ export default function PostulatePage() {
 
     // Guard clause: si no hay userId, no hace nada
     if (!userId) {
-      setErrorMsg("Necesitas iniciar sesión. (Temporal: define handee_user_id en localStorage)");
+      setErrorMsg(
+        "Necesitas iniciar sesión. (Temporal: define handi_user_id en localStorage)",
+      );
       return;
     }
     if (!title || !category || !subcategory) {
-      setErrorMsg("Faltan campos obligatorios (título, categoría y subcategoría).");
+      setErrorMsg(
+        "Faltan campos obligatorios (título, categoría y subcategoría).",
+      );
       return;
     }
 
@@ -98,7 +102,8 @@ export default function PostulatePage() {
       } else {
         let msg = "Ocurrió un error al enviar tu solicitud.";
         if (json.error === "USER_NOT_FOUND") {
-          msg = "No encontramos tu usuario en la hoja de 'Usuarios'. Verifica tu ID.";
+          msg =
+            "No encontramos tu usuario en la hoja de 'Usuarios'. Verifica tu ID.";
         } else if (json.error === "MISSING_FIELDS") {
           msg = "Faltan campos obligatorios.";
         } else if (json.error === "MISSING_USER_ID") {
@@ -132,16 +137,25 @@ export default function PostulatePage() {
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-semibold mb-2">Postúlate / Publica tu solicitud</h1>
+      <h1 className="text-2xl font-semibold mb-2">
+        Postúlate / Publica tu solicitud
+      </h1>
       <p className="text-sm text-gray-500 mb-6">
-        Llena los campos y envía. (Temporal) Para pruebas, define tu <code>handee_user_id</code> en <b>localStorage</b>.
+        Llena los campos y envía. (Temporal) Para pruebas, define tu{" "}
+        <code>handi_user_id</code> en <b>localStorage</b>.
       </p>
 
       {!userId && (
         <div className="p-3 rounded border text-sm mb-4 bg-yellow-50 border-yellow-300">
-          <b>Sin sesión:</b> No se detectó <code>handee_user_id</code> en localStorage.<br />
-          <span className="block my-2 text-xs text-gray-600">Abre la consola y ejecuta:<br />
-            <code>localStorage.setItem('handee_user_id','user-123')</code> y recarga.</span>
+          <b>Sin sesión:</b> No se detectó <code>handee_user_id</code> en
+          localStorage.
+          <br />
+          <span className="block my-2 text-xs text-gray-600">
+            Abre la consola y ejecuta:
+            <br />
+            <code>localStorage.setItem('handi_user_id','user-123')</code> y
+            recarga.
+          </span>
           <button
             className="mt-2 px-3 py-1 rounded bg-yellow-400 text-black text-xs"
             onClick={reloadUserId}
@@ -219,7 +233,9 @@ export default function PostulatePage() {
         </div>
 
         <div>
-          <label className="block text-sm mb-1">Fecha requerida (texto o ISO)</label>
+          <label className="block text-sm mb-1">
+            Fecha requerida (texto o ISO)
+          </label>
           <input
             className="w-full border rounded px-3 py-2"
             value={requiredAt}

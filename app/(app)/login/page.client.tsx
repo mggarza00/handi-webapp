@@ -12,7 +12,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const e = (search ?? new URLSearchParams()).get("e");
-if (e) setMsg(decodeURIComponent(e));
+    if (e) setMsg(decodeURIComponent(e));
   }, [search]);
 
   function loginGoogle() {
@@ -22,27 +22,27 @@ if (e) setMsg(decodeURIComponent(e));
 
   async function sendOtp(e: React.FormEvent) {
     e.preventDefault();
+    const site =
+      (process.env.NEXT_PUBLIC_APP_URL as string) ||
+      (process.env.NEXT_PUBLIC_SITE_URL as string) ||
+      window.location.origin;
+    const base = site.replace(/\/$/, "");
     const { error } = await supabaseBrowser.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${base}/auth/callback` },
     });
-    setMsg(error ? error.message : "Te enviamos un enlace de acceso a tu correo.");
+    setMsg(
+      error ? error.message : "Te enviamos un enlace de acceso a tu correo.",
+    );
   }
 
   return (
     <div className="max-w-sm mx-auto p-6 space-y-4">
       <h1 className="text-xl font-semibold">Iniciar sesión</h1>
 
-      {msg && (
-        <p className="text-sm p-2 rounded border bg-gray-50">
-          {msg}
-        </p>
-      )}
+      {msg && <p className="text-sm p-2 rounded border bg-gray-50">{msg}</p>}
 
-      <button
-        onClick={loginGoogle}
-        className="w-full border rounded px-3 py-2"
-      >
+      <button onClick={loginGoogle} className="w-full border rounded px-3 py-2">
         Continuar con Google
       </button>
 

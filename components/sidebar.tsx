@@ -12,11 +12,16 @@ export default function Sidebar() {
   ];
   return (
     <aside className="hidden md:block w-60 border-r border-neutral-200 dark:border-neutral-800 p-4">
-      <div className="text-xs uppercase tracking-widest text-neutral-500 mb-2">Navegación</div>
+      <div className="text-xs uppercase tracking-widest text-neutral-500 mb-2">
+        Navegación
+      </div>
       <ul className="space-y-1">
         {links.map((l) => (
           <li key={l.href}>
-            <Link className="block rounded-xl px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-900" href={l.href}>
+            <Link
+              className="block rounded-xl px-3 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+              href={l.href}
+            >
               {l.label}
             </Link>
           </li>

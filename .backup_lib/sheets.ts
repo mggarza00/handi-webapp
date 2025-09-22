@@ -9,26 +9,22 @@ export type RequestRow = {
   category: string;
   subcategory: string;
   budget: number;
-  required_at: string;           // ISO o texto
+  required_at: string; // ISO o texto
   status: "active" | "closed";
-  created_by: string;            // userId
-  created_at: string;            // ISO
+  created_by: string; // userId
+  created_at: string; // ISO
 };
 
-const SHEET_ID =
-  process.env.GOOGLE_SHEETS_ID ||
-  process.env.SHEET_ID || "";
+const SHEET_ID = process.env.GOOGLE_SHEETS_ID || process.env.SHEET_ID || "";
 
 const REQUESTS_SHEET =
   process.env.GOOGLE_SHEETS_REQUESTS_SHEET || "Solicitudes";
 
 function getAuth() {
   const clientEmail =
-    process.env.GOOGLE_CLIENT_EMAIL ||
-    process.env.CLIENT_EMAIL;
+    process.env.GOOGLE_CLIENT_EMAIL || process.env.CLIENT_EMAIL;
   let privateKey =
-    process.env.GOOGLE_PRIVATE_KEY ||
-    process.env.PRIVATE_KEY || "";
+    process.env.GOOGLE_PRIVATE_KEY || process.env.PRIVATE_KEY || "";
 
   if (!SHEET_ID) throw new Error("GOOGLE_SHEETS_ID is required");
   if (!clientEmail) throw new Error("GOOGLE_CLIENT_EMAIL is required");
@@ -119,7 +115,10 @@ export async function getRequest(id: string): Promise<RequestRow | null> {
   return null;
 }
 
-export async function createRequest(input: Omit<RequestRow, "id" | "created_at" | "status"> & Partial<Pick<RequestRow, "status">>): Promise<RequestRow> {
+export async function createRequest(
+  input: Omit<RequestRow, "id" | "created_at" | "status"> &
+    Partial<Pick<RequestRow, "status">>,
+): Promise<RequestRow> {
   const sheets = sheetsClient();
   const { headers } = await getHeaderIndex();
   const id = (crypto as any).randomUUID?.() ?? `req_${Date.now()}`;

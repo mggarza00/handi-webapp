@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { z } from "zod";
 
-import { supabaseServer, getUserOrThrow } from "@/lib/_supabase-server";
+import { getUserOrThrow, supabaseServer } from "@/lib/_supabase-server";
 import { getErrorMessage } from "@/lib/errors";
+import type { Database } from "@/types/supabase";
 
 const BodySchema = z.object({
   application_id: z.string().uuid(),
@@ -11,25 +14,39 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const _supabase = await supabaseServer();
-    await getUserOrThrow(); // valida sesión; RLS protege
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    await supabaseServer();
+    await getUserOrThrow(supabase);
     const json = await req.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: "Validation error", issues: parsed.error.issues.map(i => ({ path: i.path, message: i.message })) },
+        {
+          ok: false,
+          error: "Validation error",
+          issues: parsed.error.issues.map((i) => ({
+            path: i.path,
+            message: i.message,
+          })),
+        },
         { status: 400 },
       );
     }
 
-    // Nota: sólo dejamos stub para compilar; implementaremos la transición real después.
     return NextResponse.json(
-      { ok: false, error: "Not implemented", detail: "Transiciones de estado pendientes (accept/reject/complete)" },
+      {
+        ok: false,
+        error: "Not implemented",
+        detail: "Transiciones de estado pendientes (accept/reject/complete)",
+      },
       { status: 501 },
     );
   } catch (e: unknown) {
     const message = getErrorMessage(e);
     const isAuth = /auth|session|jwt/i.test(message);
-    return NextResponse.json({ ok: false, error: message }, { status: isAuth ? 401 : 500 });
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status: isAuth ? 401 : 500 },
+    );
   }
 }

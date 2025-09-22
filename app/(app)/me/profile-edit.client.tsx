@@ -16,7 +16,10 @@ const FormSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ? Number(v) : undefined))
-    .refine((v) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= 80), "Años inválidos"),
+    .refine(
+      (v) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= 80),
+      "Años inválidos",
+    ),
 });
 
 export default function ProfileEdit() {
@@ -35,11 +38,17 @@ export default function ProfileEdit() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch("/api/me", { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store" });
+        const r = await fetch("/api/me", {
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          cache: "no-store",
+        });
         const j = await r.json();
         const meId: string | undefined = j?.user?.id;
         if (!meId) return;
-        const rp = await fetch(`/api/users/${meId}`, { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store" });
+        const rp = await fetch(`/api/users/${meId}`, {
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          cache: "no-store",
+        });
         const pj = await rp.json();
         if (!cancelled && rp.ok) {
           const p = pj?.data ?? {};
@@ -47,14 +56,18 @@ export default function ProfileEdit() {
           setHeadline(p?.headline ?? "");
           setBio(p?.bio ?? "");
           setCity(p?.city ?? "");
-          setYears(p?.years_experience != null ? String(p.years_experience) : "");
+          setYears(
+            p?.years_experience != null ? String(p.years_experience) : "",
+          );
           setAvatarUrl(p?.avatar_url ?? "");
         }
       } catch {
         /* ignore */
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function onSubmit(e: React.FormEvent) {
@@ -91,7 +104,8 @@ export default function ProfileEdit() {
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error || "No se pudo guardar");
       setOk("Perfil actualizado correctamente.");
-      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("profile:updated"));
+      if (typeof window !== "undefined")
+        window.dispatchEvent(new CustomEvent("profile:updated"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
@@ -102,39 +116,68 @@ export default function ProfileEdit() {
   return (
     <div className="rounded border border-slate-200 bg-white p-4">
       <h2 className="text-lg font-medium">Perfil</h2>
-      <p className="text-xs text-slate-600">Edita tu información visible para clientes.</p>
+      <p className="text-xs text-slate-600">
+        Edita tu información visible para clientes.
+      </p>
       {ok && <p className="mt-2 text-sm text-emerald-700">{ok}</p>}
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       <form onSubmit={onSubmit} className="mt-3 grid grid-cols-1 gap-3">
         <div>
           <label className="block text-sm mb-1">Nombre completo</label>
-          <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Tu nombre" />
+          <Input
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Tu nombre"
+          />
         </div>
         <div>
           <label className="block text-sm mb-1">Titular (headline)</label>
-          <Input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Ej. Electricista residencial certificado" />
+          <Input
+            value={headline}
+            onChange={(e) => setHeadline(e.target.value)}
+            placeholder="Ej. Electricista residencial certificado"
+          />
         </div>
         <div>
           <label className="block text-sm mb-1">Ciudad</label>
-          <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Monterrey, N.L." />
+          <Input
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="Monterrey, N.L."
+          />
         </div>
         <div>
           <label className="block text-sm mb-1">Años de experiencia</label>
-          <Input value={years} onChange={(e) => setYears(e.target.value)} inputMode="numeric" placeholder="5" />
+          <Input
+            value={years}
+            onChange={(e) => setYears(e.target.value)}
+            inputMode="numeric"
+            placeholder="5"
+          />
         </div>
         <div>
           <label className="block text-sm mb-1">Bio</label>
-          <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} placeholder="Cuéntanos sobre tu experiencia y servicios." />
+          <Textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            rows={4}
+            placeholder="Cuéntanos sobre tu experiencia y servicios."
+          />
         </div>
         <div>
           <label className="block text-sm mb-1">Avatar URL</label>
-          <Input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
+          <Input
+            value={avatarUrl}
+            onChange={(e) => setAvatarUrl(e.target.value)}
+            placeholder="https://..."
+          />
         </div>
         <div className="pt-1">
-          <Button type="submit" disabled={loading}>{loading ? "Guardando…" : "Guardar cambios"}</Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? "Guardando…" : "Guardar cambios"}
+          </Button>
         </div>
       </form>
     </div>
   );
 }
-

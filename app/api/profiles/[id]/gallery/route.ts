@@ -8,22 +8,41 @@ import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type CtxP = { params: Promise<{ id: string }> };
+type CtxP = { params: { id: string } };
 const IdSchema = z.string().uuid();
 
 export async function GET(_req: Request, { params }: CtxP) {
-  const { id } = await params;
+  const { id } = params;
   const parsed = IdSchema.safeParse(id);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 400, headers: JSONH });
+  if (!parsed.success)
+    return NextResponse.json(
+      { ok: false, error: "INVALID_ID" },
+      { status: 400, headers: JSONH },
+    );
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
-  if (!url || !serviceRole) return NextResponse.json({ ok: false, error: "SERVER_MISCONFIGURED" }, { status: 500, headers: JSONH });
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as
+    | string
+    | undefined;
+  if (!url || !serviceRole)
+    return NextResponse.json(
+      { ok: false, error: "SERVER_MISCONFIGURED" },
+      { status: 500, headers: JSONH },
+    );
 
   const admin = createClient<Database>(url, serviceRole);
   const prefix = `${parsed.data}/`;
-  const { data, error } = await admin.storage.from("profiles-gallery").list(prefix, { limit: 100, sortBy: { column: "updated_at", order: "desc" } });
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: JSONH });
+  const { data, error } = await admin.storage
+    .from("profiles-gallery")
+    .list(prefix, {
+      limit: 100,
+      sortBy: { column: "updated_at", order: "desc" },
+    });
+  if (error)
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 400, headers: JSONH },
+    );
 
   const items = await Promise.all(
     (data ?? [])
@@ -46,32 +65,58 @@ export async function GET(_req: Request, { params }: CtxP) {
           updated_at: obj.updated_at ?? null,
           url,
         } as const;
-      })
+      }),
   );
 
   return NextResponse.json({ ok: true, data: items }, { headers: JSONH });
 }
 
 export async function DELETE(req: Request, { params }: CtxP) {
-  const { id } = await params;
+  const { id } = params;
   const parsed = IdSchema.safeParse(id);
-  if (!parsed.success) return NextResponse.json({ ok: false, error: "INVALID_ID" }, { status: 400, headers: JSONH });
+  if (!parsed.success)
+    return NextResponse.json(
+      { ok: false, error: "INVALID_ID" },
+      { status: 400, headers: JSONH },
+    );
 
   const { searchParams } = new URL(req.url);
   const path = searchParams.get("path");
-  if (!path) return NextResponse.json({ ok: false, error: "MISSING_PATH" }, { status: 400, headers: JSONH });
-  if (!path.startsWith(`${parsed.data}/`)) return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
+  if (!path)
+    return NextResponse.json(
+      { ok: false, error: "MISSING_PATH" },
+      { status: 400, headers: JSONH },
+    );
+  if (!path.startsWith(`${parsed.data}/`))
+    return NextResponse.json(
+      { ok: false, error: "FORBIDDEN" },
+      { status: 403, headers: JSONH },
+    );
 
   const supabase = createRouteHandlerClient<Database>({ cookies });
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id ?? null;
-  if (!uid || uid !== parsed.data) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+  if (!uid || uid !== parsed.data)
+    return NextResponse.json(
+      { ok: false, error: "UNAUTHORIZED" },
+      { status: 401, headers: JSONH },
+    );
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
-  if (!url || !serviceRole) return NextResponse.json({ ok: false, error: "SERVER_MISCONFIGURED" }, { status: 500, headers: JSONH });
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as
+    | string
+    | undefined;
+  if (!url || !serviceRole)
+    return NextResponse.json(
+      { ok: false, error: "SERVER_MISCONFIGURED" },
+      { status: 500, headers: JSONH },
+    );
   const admin = createClient<Database>(url, serviceRole);
   const { error } = await admin.storage.from("profiles-gallery").remove([path]);
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: JSONH });
+  if (error)
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 400, headers: JSONH },
+    );
   return NextResponse.json({ ok: true }, { headers: JSONH });
 }

@@ -1,8 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-
-import type { Application } from "@/types/handee";
+import type { Application } from "@/types/handi";
 import { jsonOk, jsonFail } from "@/lib/errors";
 
 /**
@@ -25,7 +24,7 @@ export async function GET() {
           set() {},
           remove() {},
         },
-      }
+      },
     );
 
     const { data: auth, error: authError } = await supabase.auth.getUser();
@@ -41,7 +40,9 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      return jsonFail("Failed to fetch applications", 500, { dbError: error.message });
+      return jsonFail("Failed to fetch applications", 500, {
+        dbError: error.message,
+      });
     }
 
     // Tipar explícitamente el arreglo

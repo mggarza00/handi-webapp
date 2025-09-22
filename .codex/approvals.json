@@ -102,8 +102,7 @@
     {
       "action": "network.request",
       "deny": ["http(s)?://metadata.google.internal/.*"]
-    }
-    ,
+    },
     {
       "action": "config.write",
       "allow": [

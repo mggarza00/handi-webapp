@@ -1,4 +1,4 @@
-﻿node_modules
+node_modules
 .next
 .out
 .vercel
@@ -18,3 +18,17 @@ node_modules/
 *.tar.gz
 supabase/
 package-lock.json
+.aider*
+!supabase/**
+.vscode/mcp.json.local
+.mcp-auth/
+playwright-report/
+test-results/
+*.tsbuildinfo
+playwright-report/data/
+playwright-report/
+playwright-report/data/
+test-results/
+*.tsbuildinfo
+*.bak
+!lib/supabase/**

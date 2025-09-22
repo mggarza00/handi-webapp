@@ -11,7 +11,10 @@ export default function Breadcrumbs({ items }: { items: Crumb[] }) {
         {items.map((it, idx) => {
           const isLast = idx === lastIdx;
           return (
-            <li key={`${it.label}-${idx}`} className="inline-flex items-center gap-1">
+            <li
+              key={`${it.label}-${idx}`}
+              className="inline-flex items-center gap-1"
+            >
               {it.href && !isLast ? (
                 <Link href={it.href} className="hover:underline">
                   {it.label}
@@ -27,4 +30,3 @@ export default function Breadcrumbs({ items }: { items: Crumb[] }) {
     </nav>
   );
 }
-

@@ -18,7 +18,7 @@ export default function DevCreateRequest() {
           category: "Construcción y Remodelación",
           subcategory: "Plomería",
           budget: 1200,
-          required_at: "2025-08-20"
+          required_at: "2025-08-20",
         }),
       });
       const json = await res.json();
@@ -31,7 +31,11 @@ export default function DevCreateRequest() {
   return (
     <div className="max-w-lg mx-auto p-6 space-y-3">
       <h1 className="text-xl font-semibold">Crear solicitud de prueba</h1>
-      <button disabled={loading} onClick={create} className="border rounded px-4 py-2">
+      <button
+        disabled={loading}
+        onClick={create}
+        className="border rounded px-4 py-2"
+      >
         {loading ? "Enviando..." : "Crear"}
       </button>
       <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto">

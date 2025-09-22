@@ -1,0 +1,3 @@
+// Disabled: Using next.config.js as the single source of truth.
+// Keeping this file around (renamed to .disabled) to avoid dual-config
+// ambiguity that can confuse HMR and dev overlay in Next.js.

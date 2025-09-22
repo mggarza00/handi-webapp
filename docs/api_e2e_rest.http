@@ -1,40 +1,40 @@
-@base = http://localhost:3000
+﻿@base = http://localhost:3000
 @cookie = sb-access-token=REEMPLAZA_AQUI; sb-refresh-token=REEMPLAZA_AQUI
 
-### Salud (público)
+### Salud (pÃºblico)
 GET {{base}}/api/health
 Content-Type: application/json; charset=utf-8
 
-### Ping + verificación DB (público)
+### Ping + verificaciÃ³n DB (pÃºblico)
 GET {{base}}/api/ping
 Content-Type: application/json; charset=utf-8
 
-### Yo (requiere sesión) — usa Cookie con tokens de Supabase
+### Yo (requiere sesiÃ³n) â€” usa Cookie con tokens de Supabase
 GET {{base}}/api/me
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
 
-### Crear Request (requiere sesión)
+### Crear Request (requiere sesiÃ³n)
 POST {{base}}/api/requests
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
 
 {
-  "title": "Instalación eléctrica",
+  "title": "InstalaciÃ³n elÃ©ctrica",
   "city": "Monterrey",
-  "description": "Cableado básico 110v en cocina",
+  "description": "Cableado bÃ¡sico 110v en cocina",
   "category": "Electricidad",
-  "subcategories": ["Instalación", "Mantenimiento"],
+  "subcategories": ["InstalaciÃ³n", "Mantenimiento"],
   "budget": 1200
 }
 
 > {% client.global.set("REQUEST_ID", response.body.data.id); %}
 
-### Detalle del Request (público: activas + propias por RLS)
+### Detalle del Request (pÃºblico: activas + propias por RLS)
 GET {{base}}/api/requests/{{REQUEST_ID}}
 Content-Type: application/json; charset=utf-8
 
-### Prospects para Request (dueño del request)
+### Prospects para Request (dueÃ±o del request)
 GET {{base}}/api/requests/{{REQUEST_ID}}/prospects
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
@@ -51,7 +51,7 @@ Cookie: {{cookie}}
 
 > {% client.global.set("APPLICATION_ID", response.body.data.id); client.global.set("PRO_USER_ID", response.body.data.professional_id); %}
 
-### Crear Acuerdo (cliente o pro, según RLS)
+### Crear Acuerdo (cliente o pro, segÃºn RLS)
 POST {{base}}/api/agreements
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
@@ -95,38 +95,49 @@ Cookie: {{cookie}}
   "status": "completed"
 }
 
-### Enviar Mensaje (chat con candado)
-POST {{base}}/api/messages
+### Iniciar Conversación (chat)
+POST {{base}}/api/chat/start
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
 
 {
-  "request_id": "{{REQUEST_ID}}",
-  "to_user_id": "{{PRO_USER_ID}}",
-  "text": "Hola, puedo mañana a las 10"
+  "requestId": "{{REQUEST_ID}}",
+  "proId": "{{PRO_USER_ID}}"
 }
 
-### Listar Mensajes (paginación sencilla)
-GET {{base}}/api/messages?request_id={{REQUEST_ID}}&limit=50
+> {% client.global.set("CONVERSATION_ID", response.body.data.id || response.body.conversation.id); %}
+
+### Enviar Mensaje a Conversación
+POST {{base}}/api/chat/send
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
 
-### Explorar Profesionales (público)
+{
+  "conversationId": "{{CONVERSATION_ID}}",
+  "body": "Hola, puedo mañana a las 10"
+}
+
+### Historial de Conversación
+GET {{base}}/api/chat/history?conversationId={{CONVERSATION_ID}}&limit=50
+Content-Type: application/json; charset=utf-8
+Cookie: {{cookie}}
+
+### Explorar Profesionales (público) (pÃºblico)
 GET {{base}}/api/professionals?city=Monterrey&category=Electricidad&page=1
 Content-Type: application/json; charset=utf-8
 
-### Upsert Perfil Profesional (requiere sesión)
+### Upsert Perfil Profesional (requiere sesiÃ³n)
 POST {{base}}/api/professionals
 Content-Type: application/json; charset=utf-8
 Cookie: {{cookie}}
 
 {
-  "full_name": "Juan Pérez",
-  "headline": "Técnico Electricista",
+  "full_name": "Juan PÃ©rez",
+  "headline": "TÃ©cnico Electricista",
   "city": "Monterrey",
-  "cities": ["Monterrey", "San Nicolás"],
+  "cities": ["Monterrey", "San NicolÃ¡s"],
   "categories": ["Electricidad"],
-  "subcategories": ["Instalación", {"name":"Cableado"}]
+  "subcategories": ["InstalaciÃ³n", {"name":"Cableado"}]
 }
 
 ### Stripe Checkout (opcional: requiere STRIPE_SECRET_KEY configurado en server)
@@ -138,4 +149,5 @@ Cookie: {{cookie}}
   "request_id": "{{REQUEST_ID}}",
   "agreement_id": "{{AGREEMENT_ID}}"
 }
+
 

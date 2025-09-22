@@ -1,0 +1,22 @@
+/* eslint-disable import/order */
+import * as React from "react";
+import ChatListItem from "./ChatListItem";
+import type { ChatSummary } from "./types";
+
+export default function ChatList({ chats }: { chats: ChatSummary[] }) {
+  const items = Array.isArray(chats) ? chats : [];
+  if (!items.length) {
+    return (
+      <div className="p-4 text-sm text-muted-foreground">Sin mensajes todavía.</div>
+    );
+  }
+  return (
+    <ul className="divide-y">
+      {items.map((c) => (
+        <ChatListItem key={c.id} chat={c} />
+      ))}
+    </ul>
+  );
+}
+
+

@@ -14,7 +14,11 @@ export const supabaseClient = () => createClient(url, anon);
  * @param file Archivo File o Blob
  * @param path Ruta opcional (default: timestamp + nombre original)
  */
-export async function uploadToBucket(bucketName: "requests" | "profiles-gallery", file: File | Blob, path?: string) {
+export async function uploadToBucket(
+  bucketName: "requests" | "profiles-gallery",
+  file: File | Blob,
+  path?: string,
+) {
   const supabase = supabaseClient();
 
   const filePath = path || `${Date.now()}-${(file as File).name || "upload"}`;

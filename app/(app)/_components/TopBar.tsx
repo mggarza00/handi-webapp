@@ -5,12 +5,16 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default async function TopBar() {
   const supabase = createServerComponentClient({ cookies });
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <header className="w-full sticky top-0 z-40 border-b bg-white/80 dark:bg-neutral-900/80 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
-        <Link href="/" className="font-semibold">Handee</Link>
+        <Link href="/" className="font-semibold">
+          Handi
+        </Link>
 
         {!user ? (
           <Link
@@ -21,7 +25,9 @@ export default async function TopBar() {
           </Link>
         ) : (
           <div className="flex items-center gap-3">
-            <Link href="/dashboard/pro" className="text-sm hover:underline">Dashboard</Link>
+            <Link href="/dashboard/pro" className="text-sm hover:underline">
+              Dashboard
+            </Link>
             <form action="/auth/sign-out" method="post">
               <button className="text-sm underline">Salir</button>
             </form>
@@ -33,7 +39,9 @@ export default async function TopBar() {
                 height={28}
                 className="rounded-full border"
               />
-              <span className="text-sm">{user.user_metadata?.full_name ?? "Perfil"}</span>
+              <span className="text-sm">
+                {user.user_metadata?.full_name ?? "Perfil"}
+              </span>
             </Link>
           </div>
         )}

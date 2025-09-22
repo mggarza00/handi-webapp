@@ -14,8 +14,12 @@ async function tryBase(base) {
     try {
       const res = await fetch(url, { method: "GET" });
       const ct = res.headers.get("content-type") || "";
-      const body = ct.includes("application/json") ? await res.json() : await res.text();
-      const ok = res.ok && (!expectOk || (body && (body.ok === true || body.ok === "true")));
+      const body = ct.includes("application/json")
+        ? await res.json()
+        : await res.text();
+      const ok =
+        res.ok &&
+        (!expectOk || (body && (body.ok === true || body.ok === "true")));
       log(`GET ${path} → ${res.status} ${ok ? "OK" : "WARN"}`);
       if (!ok) log("Body:", body);
       return ok;

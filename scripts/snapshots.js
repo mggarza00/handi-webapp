@@ -6,24 +6,25 @@
   - Viewports: 390, 768, 1280 widths
   Outputs: artifacts/screenshots/{route}__{width}.png
 */
-const { chromium } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
+const { chromium } = require("@playwright/test");
+const fs = require("fs");
+const path = require("path");
 
-const BASE_URL = process.env.PREVIEW_URL || process.env.BASE_URL || 'http://localhost:3000';
-const ROUTES = (process.env.ROUTES && process.env.ROUTES.split(',').map(s => s.trim()).filter(Boolean)) || [
-  '/',
-  '/design-check'
-];
+const BASE_URL =
+  process.env.PREVIEW_URL || process.env.BASE_URL || "http://localhost:3000";
+const ROUTES = (process.env.ROUTES &&
+  process.env.ROUTES.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)) || ["/", "/design-check"];
 const VIEWPORTS = [390, 768, 1280];
-const OUT_DIR = path.join(process.cwd(), 'snapshots');
+const OUT_DIR = path.join(process.cwd(), "snapshots");
 
 async function ensureDir(p) {
   await fs.promises.mkdir(p, { recursive: true });
 }
 
 function safeName(route) {
-  return route.replace(/\//g, '_').replace(/^_/, '') || 'home';
+  return route.replace(/\//g, "_").replace(/^_/, "") || "home";
 }
 
 async function run() {
@@ -38,7 +39,7 @@ async function run() {
       for (const width of VIEWPORTS) {
         await page.setViewportSize({ width, height: 900 });
         try {
-          await page.goto(url, { waitUntil: 'networkidle' });
+          await page.goto(url, { waitUntil: "networkidle" });
           // small settle time for client hydration/animations
           await page.waitForTimeout(300);
           const file = path.join(OUT_DIR, `${name}__${width}.png`);

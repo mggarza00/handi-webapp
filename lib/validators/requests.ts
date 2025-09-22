@@ -1,11 +1,22 @@
 import { z } from "zod";
 
 // Subcategorías: aceptar strings o objetos {id?, name}
-const SubcatObject = z.object({ id: z.string().optional(), name: z.string().min(1).max(80) });
+const SubcatObject = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1).max(80),
+});
 const SubcatInput = z.union([z.string().min(1).max(80), SubcatObject]);
 
-const AttachmentUrl = z.object({ url: z.string().url(), mime: z.string(), size: z.number().max(5_000_000) });
-const AttachmentPath = z.object({ path: z.string().min(3), mime: z.string(), size: z.number().max(5_000_000) });
+const AttachmentUrl = z.object({
+  url: z.string().url(),
+  mime: z.string(),
+  size: z.number().max(5_000_000),
+});
+const AttachmentPath = z.object({
+  path: z.string().min(3),
+  mime: z.string(),
+  size: z.number().max(5_000_000),
+});
 
 export const RequestCreateSchema = z.object({
   title: z.string().min(3).max(120),
@@ -17,7 +28,7 @@ export const RequestCreateSchema = z.object({
     .max(6)
     .default([])
     .transform((arr) =>
-      arr.map((s) => (typeof s === "string" ? { name: s } : s))
+      arr.map((s) => (typeof s === "string" ? { name: s } : s)),
     ),
   budget: z.number().positive().max(1_000_000).optional(),
   // Aceptar 'YYYY-MM-DD'; si viene ISO con tiempo, recortar antes de insertar
@@ -43,15 +54,24 @@ export const RequestListQuerySchema = z.object({
   category: z.string().min(2).max(80).optional(),
   // Paginación simple: limit/offset
   limit: z
-    .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().int().min(1).max(100))
+    .preprocess(
+      (v) => (typeof v === "string" ? Number(v) : v),
+      z.number().int().min(1).max(100),
+    )
     .optional()
     .default(20),
   offset: z
-    .preprocess((v) => (typeof v === "string" ? Number(v) : v), z.number().int().min(0).max(10_000))
+    .preprocess(
+      (v) => (typeof v === "string" ? Number(v) : v),
+      z.number().int().min(0).max(10_000),
+    )
     .optional()
     .default(0),
   // Paginación con cursor (prioritario sobre offset si se envía)
-  cursor: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).optional(),
+  cursor: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    .optional(),
   dir: z.enum(["next", "prev"]).optional().default("next"),
 });
 

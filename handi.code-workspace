@@ -1,0 +1,10 @@
+{
+  // Workspace para abrir siempre C:\\dev\\handi-webapp
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    // La terminal integrada abrirá en la raíz del proyecto
+    "terminal.integrated.cwd": "${workspaceFolder}"
+  }
+}

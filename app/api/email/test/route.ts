@@ -15,7 +15,10 @@ export async function POST(req: Request) {
     if (!parsed.success) {
       return NextResponse.json(
         { ok: false, error: "INVALID_BODY", issues: parsed.error.flatten() },
-        { status: 400, headers: { "Content-Type": "application/json; charset=utf-8" } },
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+        },
       );
     }
 
@@ -25,7 +28,10 @@ export async function POST(req: Request) {
     if (!apiKey) {
       return NextResponse.json(
         { ok: false, error: "MISSING_MAIL_PROVIDER_KEY" },
-        { status: 500, headers: { "Content-Type": "application/json; charset=utf-8" } },
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+        },
       );
     }
 
@@ -40,7 +46,10 @@ export async function POST(req: Request) {
     const status = err?.name === "ZodError" ? 400 : 500;
     return NextResponse.json(
       { ok: false, error: err?.message ?? "INTERNAL_ERROR" },
-      { status, headers: { "Content-Type": "application/json; charset=utf-8" } },
+      {
+        status,
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      },
     );
   }
 }
