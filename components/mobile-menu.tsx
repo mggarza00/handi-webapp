@@ -24,13 +24,10 @@ export interface NavLink {
   size?: "sm" | "lg" | "default";
 }
 
-const DEFAULT_LINKS: NavLink[] = [
-  { href: "/requests?mine=1", label: "Solicitudes" },
-  { href: "/requests/new", label: "Publicar solicitud" },
-  { href: "/dashboard/pro", label: "Panel Pro" },
-  { href: "/dashboard/client", label: "Panel Cliente" },
-  { href: "/profile", label: "Perfil" },
-];
+// Por solicitud, se elimina el set de enlaces por defecto
+// para no mostrar en el menú móvil: "Solicitudes", "Publicar solicitud",
+// "Panel Pro", "Panel Cliente" y "Perfil".
+const DEFAULT_LINKS: NavLink[] = [];
 
 type Role = "client" | "pro" | "admin" | null;
 
