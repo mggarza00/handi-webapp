@@ -13,6 +13,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "sonner";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ export type ChatPanelProps = {
   userId?: string | null;
   requestId?: string | null;
   requestBudget?: number | null;
+  dataPrefix?: string; // e2e: chat | request-chat
 };
 const JSON_HEADER = { "Content-Type": "application/json; charset=utf-8" } as const;
 const AUTH_REQUIRED_MESSAGE = "Tu sesion expiro. Vuelve a iniciar sesion.";
@@ -101,6 +103,7 @@ export default function ChatPanel({
   userId,
   requestId: requestIdProp,
   requestBudget: requestBudgetProp,
+  dataPrefix = "chat",
 }: ChatPanelProps): JSX.Element {
   const supabaseAuth = createClientComponentClient();
   const [open, setOpen] = React.useState(true);
@@ -135,6 +138,8 @@ export default function ChatPanel({
   const [offerAmount, setOfferAmount] = React.useState("");
   const [offerCurrency, setOfferCurrency] = React.useState("MXN");
   const [offerServiceDate, setOfferServiceDate] = React.useState("");
+  const [offerScheduleRange, setOfferScheduleRange] = React.useState<[number, number]>([9, 17]);
+  const [offerFlexibleSchedule, setOfferFlexibleSchedule] = React.useState(true);
   const [offerSubmitting, setOfferSubmitting] = React.useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = React.useState<string | null>(null);
   const [rejectingOfferId, setRejectingOfferId] = React.useState<string | null>(null);
@@ -151,6 +156,31 @@ export default function ChatPanel({
   const typingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedTokenRef = React.useRef<string | null>(null);
   const syncInFlightRef = React.useRef(false);
+  // Date helpers (avoid TZ off-by-one issues)
+  const toYMD = React.useCallback((d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+  const fromYMD = React.useCallback((s: string): Date | null => {
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    return new Date(y, mo - 1, d);
+  }, []);
+
+  function formatHour(h: number): string {
+    const hr = Math.max(0, Math.min(24, Math.floor(h)));
+    const base = hr % 24;
+    const am = base < 12;
+    let display = base % 12;
+    if (display === 0) display = 12;
+    return `${display}:00 ${am ? "a.m." : "p.m."}`;
+  }
+
   const mergeMessages = React.useCallback(
     (incoming: Msg | Msg[], options: { replace?: boolean; fromServer?: boolean } = {}) => {
       const arr = Array.isArray(incoming) ? incoming : [incoming];
@@ -177,6 +207,24 @@ export default function ChatPanel({
     },
     [meId, setMessages],
   );
+
+  function getOfferStatusFromMessages(offerId: string): string | null {
+    const arr = messagesRef.current || [];
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const m = arr[i];
+      const p = m?.payload as Record<string, unknown> | null;
+      if (!p || typeof p !== "object") continue;
+      const oid = (p as Record<string, unknown>)["offer_id"];
+      if (typeof oid !== "string" || oid !== offerId) continue;
+      const stRaw = (p as Record<string, unknown>)["status"];
+      const st = typeof stRaw === "string" ? stRaw : null;
+      if (st) return st;
+    }
+    return null;
+  }
+  // Display formatting not needed when using native date input
+
+  // Custom input not needed with Popover calendar
   const removeMessageById = React.useCallback(
     (id: string) => {
       setMessages((prev) => prev.filter((m) => m.id !== id));
@@ -272,6 +320,8 @@ export default function ChatPanel({
       }
     })();
   }, [userId]);
+  // Request meta
+  const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
   const load = React.useCallback(
     async (withSpinner = true) => {
       if (!conversationId) return;
@@ -319,16 +369,22 @@ export default function ChatPanel({
   }, [requestIdProp, requestId]);
   React.useEffect(() => {
     if (!offerDialogOpen) return;
+    // Prefill title from request when opening the dialog
+    if (requestTitle && requestTitle.trim().length) {
+      setOfferTitle(requestTitle);
+    }
     if (!offerAmount && typeof budget === "number" && Number.isFinite(budget)) {
       setOfferAmount(String(budget));
     }
     if (!offerServiceDate && requiredAt) {
-      const parsed = new Date(requiredAt);
-      if (!Number.isNaN(parsed.getTime())) {
-        setOfferServiceDate(parsed.toISOString().slice(0, 10));
+      // requiredAt already comes as YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(requiredAt)) setOfferServiceDate(requiredAt);
+      else {
+        const parsed = new Date(requiredAt);
+        if (!Number.isNaN(parsed.getTime())) setOfferServiceDate(toYMD(parsed));
       }
     }
-  }, [offerDialogOpen, budget, requiredAt, offerAmount, offerServiceDate]);
+  }, [offerDialogOpen, budget, requiredAt, offerAmount, offerServiceDate, requestTitle, toYMD]);
   React.useEffect(() => {
     if (!requestId) return;
     let cancelled = false;
@@ -347,6 +403,8 @@ export default function ChatPanel({
         if (!cancelled && Number.isFinite(budgetValue)) setBudget(budgetValue);
         const reqAt = typeof data?.required_at === "string" ? (data.required_at as string) : null;
         if (!cancelled) setRequiredAt(reqAt);
+        const reqTitle = typeof data?.title === "string" ? (data.title as string) : null;
+        if (!cancelled) setRequestTitle(reqTitle);
       } catch {
         /* ignore */
       }
@@ -401,6 +459,17 @@ export default function ChatPanel({
             messageType: row.message_type ? String(row.message_type) : "text",
             payload: parsedPayload,
           };
+          // Si llega el system message de aceptacion desde el servidor, elimina el tmp de broadcast
+          try {
+            if (msg.messageType === "system" && msg.payload && typeof msg.payload === "object") {
+              const p = msg.payload as Record<string, unknown>;
+              const st = typeof p.status === "string" ? p.status : null;
+              const oid = typeof p.offer_id === "string" ? p.offer_id : null;
+              if (st === "accepted" && oid) {
+                removeMessageById(`tmp_b_${oid}`);
+              }
+            }
+          } catch { /* ignore */ }
           mergeMessages(msg, { fromServer: true });
         },
       )
@@ -412,6 +481,29 @@ export default function ChatPanel({
             if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
             typingTimeoutRef.current = setTimeout(() => setOtherTyping(false), 3000);
           }
+        } catch {
+          /* ignore */
+        }
+      })
+      .on("broadcast", { event: "offer-accepted" }, async (eventPayload) => {
+        try {
+          const p = (eventPayload as any)?.payload as { from?: string; offer_id?: string; checkout_url?: string | null } | undefined;
+          const from = p?.from || null;
+          const oid = (p?.offer_id || "").toString();
+          const checkoutUrl = typeof p?.checkout_url === "string" ? p?.checkout_url : null;
+          if (!oid) return;
+          // Ignora eventos que emitimos nosotros mismos
+          if (from && meId && from === meId) return;
+          const createdAtIso = new Date().toISOString();
+          const optimistic: Msg = {
+            id: `tmp_b_${oid}`,
+            senderId: from || "system",
+            body: "Oferta aceptada",
+            createdAt: createdAtIso,
+            messageType: "system",
+            payload: checkoutUrl ? { offer_id: oid, status: "accepted", checkout_url: checkoutUrl } : { offer_id: oid, status: "accepted" },
+          };
+          mergeMessages(optimistic, { fromServer: true });
         } catch {
           /* ignore */
         }
@@ -606,13 +698,36 @@ export default function ChatPanel({
         amount: Math.round((amountValue + Number.EPSILON) * 100) / 100,
         currency: offerCurrency.trim().toUpperCase() || "MXN",
       };
-      const trimmedDescription = offerDescription.trim();
-      if (trimmedDescription) payload.description = trimmedDescription;
+      const userDesc = offerDescription.trim();
+      let scheduleNote = "";
+      let flexibleNote = "";
+      if (!offerFlexibleSchedule && Array.isArray(offerScheduleRange) && offerScheduleRange.length >= 2) {
+        const a = Math.max(0, Math.min(24, Math.floor(offerScheduleRange[0] ?? 0)));
+        const b = Math.max(0, Math.min(24, Math.floor(offerScheduleRange[1] ?? 0)));
+        const sh = Math.min(a, b);
+        const eh = Math.max(a, b);
+        scheduleNote = sh === eh ? `Horario: ${formatHour(sh)}` : `Horario: ${formatHour(sh)} — ${formatHour(eh)}`;
+      }
+      else if (offerFlexibleSchedule) {
+        flexibleNote = "Horario flexible";
+      }
+      const finalDescription = [userDesc, flexibleNote, scheduleNote].filter(Boolean).join("\n");
+      if (finalDescription) payload.description = finalDescription;
       if (offerServiceDate) {
-        const parsed = new Date(offerServiceDate);
-        if (!Number.isNaN(parsed.getTime())) {
-          payload.serviceDate = parsed.toISOString();
+        const d = fromYMD(offerServiceDate) ?? new Date(offerServiceDate);
+        if (!Number.isNaN(d.getTime())) {
+          // Normalize to start-of-day local, then to ISO
+          const localStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          payload.serviceDate = localStart.toISOString();
         }
+      }
+      // horario
+      payload.flexibleSchedule = offerFlexibleSchedule;
+      if (!offerFlexibleSchedule && Array.isArray(offerScheduleRange) && offerScheduleRange.length >= 2) {
+        const a = Math.max(0, Math.min(24, Math.floor(offerScheduleRange[0] ?? 0)));
+        const b = Math.max(0, Math.min(24, Math.floor(offerScheduleRange[1] ?? 0)));
+        payload.scheduleStartHour = Math.min(a, b);
+        payload.scheduleEndHour = Math.max(a, b);
       }
       const res = await fetch(`/api/conversations/${conversationId}/offers`, {
         method: "POST",
@@ -620,9 +735,37 @@ export default function ChatPanel({
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const json = await parseJsonSafe<{ error?: string }>(res);
+      const json = await parseJsonSafe<{ ok?: boolean; error?: string; offer?: Record<string, unknown> }>(res);
+      if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "No se pudo crear la oferta");
+      }
+
+      // Optimistic offer message so it appears immediately
+      try {
+        const createdAtIso = new Date().toISOString();
+        const offerId = String((json?.offer as Record<string, unknown> | undefined)?.id || `tmp_offer_${Date.now()}`);
+        const payloadMsg: Record<string, unknown> = {
+          offer_id: offerId,
+          title,
+          amount: Number(amountValue.toFixed(2)),
+          currency: (offerCurrency || "MXN").toUpperCase(),
+          status: "sent",
+        };
+        if (finalDescription) payloadMsg.description = finalDescription;
+        if (typeof (payload as Record<string, unknown>).serviceDate === "string") {
+          payloadMsg.service_date = (payload as Record<string, string>).serviceDate;
+        }
+        const optimisticOffer: Msg = {
+          id: `tmp_${Date.now()}`,
+          senderId: meId ?? "me",
+          body: title,
+          createdAt: createdAtIso,
+          messageType: "offer",
+          payload: payloadMsg,
+        };
+        mergeMessages(optimisticOffer);
+      } catch {
+        /* no-op optimistic */
       }
       toast.success("Oferta enviada");
       setOfferDialogOpen(false);
@@ -638,7 +781,7 @@ export default function ChatPanel({
       setOfferSubmitting(false);
     }
   }
-  async function handleAcceptOffer(offerId: string): Promise<void> {
+  async function handleAcceptOffer(offerId: string, attempt = 0): Promise<void> {
     if (viewerRole !== "professional") {
       toast.error("Solo el profesional puede aceptar la oferta");
       return;
@@ -650,24 +793,195 @@ export default function ChatPanel({
     }
     setAcceptingOfferId(offerId);
     try {
+      // Intento 1: PostgREST directo (rapido, condicionado a sent) usando token del usuario
+      try {
+        const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+        const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+        const headers = await getAuthHeaders();
+        const hasBearer = typeof (headers as any).Authorization === "string" && (headers as any).Authorization.startsWith("Bearer ");
+        if (supaUrl && anonKey && hasBearer) {
+          const restUrl = `${supaUrl.replace(/\/$/, "")}/rest/v1/offers?id=eq.${encodeURIComponent(offerId)}&status=eq.sent&select=id,status,checkout_url`;
+          const res = await fetch(restUrl, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json; charset=utf-8",
+              Prefer: "return=representation",
+              apikey: anonKey,
+              Authorization: (headers as any).Authorization as string,
+            },
+            body: JSON.stringify({ status: "accepted" }),
+          });
+          if (res.ok) {
+            let rows: unknown = null;
+            try { rows = await res.json(); } catch { rows = []; }
+            const arr = Array.isArray(rows) ? (rows as Array<{ id?: string; status?: string; checkout_url?: string | null }>) : [];
+            if (arr.length > 0 && String(arr[0]?.status || "").toLowerCase() === "accepted") {
+              // Optimistic system message so client sees Pay now immediately
+              try {
+                const createdAtIso = new Date().toISOString();
+                const payload: Record<string, unknown> = { offer_id: offerId, status: "accepted" };
+                if (typeof arr[0]?.checkout_url === "string") payload.checkout_url = arr[0]!.checkout_url;
+                mergeMessages(
+                  { id: `tmp_${Date.now()}`, senderId: meId ?? "me", body: "Oferta aceptada", createdAt: createdAtIso, messageType: "system", payload },
+                  { fromServer: true },
+                );
+                // Broadcast para el otro participante (mostrar Pay ahora al instante)
+                try {
+                  if (channelRef.current) {
+                    void channelRef.current.send({
+                      type: "broadcast",
+                      event: "offer-accepted",
+                      payload: { from: meId || "me", offer_id: offerId, checkout_url: (arr[0]?.checkout_url as string | null) ?? null },
+                    });
+                  }
+                } catch {
+                  /* ignore */
+                }
+              } catch { /* ignore optimistic */ }
+              toast.success("Oferta aceptada");
+              await load(false);
+              return;
+            }
+          }
+        }
+      } catch { /* fallback to server routes */ }
+
       const headers = await getAuthHeaders();
-      const res = await fetch(`/api/offers/${offerId}/accept`, {
+      // Aceptación por conversación (servidor)
+      const res = await fetch(`/api/conversations/${conversationId}/offers/accept`, {
         method: "POST",
         headers,
         credentials: "include",
+        body: JSON.stringify({ conversationId }),
       });
       const json = await parseJsonSafe<{ ok?: boolean; error?: string; checkoutUrl?: string }>(res);
-      if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "No se pudo aceptar la oferta");
+      if (res.ok && json?.ok !== false) {
+        toast.success("Oferta aceptada");
+        // Optimistic system message to immediately show accepted state (and Pay now for client)
+        try {
+          const createdAtIso = new Date().toISOString();
+          const payload: Record<string, unknown> = { offer_id: offerId, status: "accepted" };
+          if (json?.checkoutUrl) payload.checkout_url = json.checkoutUrl;
+          mergeMessages(
+            {
+              id: `tmp_${Date.now()}`,
+              senderId: meId ?? "me",
+              body: "Oferta aceptada",
+              createdAt: createdAtIso,
+              messageType: "system",
+              payload,
+            },
+            { fromServer: true },
+          );
+          // Broadcast para el otro participante
+          try {
+            if (channelRef.current) {
+              void channelRef.current.send({
+                type: "broadcast",
+                event: "offer-accepted",
+                payload: { from: meId || "me", offer_id: offerId, checkout_url: json?.checkoutUrl ?? null },
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        } catch { /* no-op optimistic */ }
+        await load(false);
+        return;
       }
-      toast.success("Oferta aceptada");
-      await load(false);
+      // Fallback por id
+      const res2 = await fetch(`/api/offers/${offerId}/accept`, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ conversationId }),
+      });
+      const json2 = await parseJsonSafe<{ ok?: boolean; error?: string; checkoutUrl?: string }>(res2);
+      if (res2.ok && json2?.ok !== false) {
+        toast.success("Oferta aceptada");
+        // Optimistic system message to immediately show accepted state (and Pay now for client)
+        try {
+          const createdAtIso = new Date().toISOString();
+          const payload: Record<string, unknown> = { offer_id: offerId, status: "accepted" };
+          if (json2?.checkoutUrl) payload.checkout_url = json2.checkoutUrl;
+          mergeMessages(
+            {
+              id: `tmp_${Date.now()}`,
+              senderId: meId ?? "me",
+              body: "Oferta aceptada",
+              createdAt: createdAtIso,
+              messageType: "system",
+              payload,
+            },
+            { fromServer: true },
+          );
+          // Broadcast para el otro participante
+          try {
+            if (channelRef.current) {
+              void channelRef.current.send({
+                type: "broadcast",
+                event: "offer-accepted",
+                payload: { from: meId || "me", offer_id: offerId, checkout_url: json2?.checkoutUrl ?? null },
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        } catch { /* no-op optimistic */ }
+        await load(false);
+        return;
+      }
+      if ((res.status === 404 || res2.status === 404) && attempt === 0) {
+        await load(false);
+        const nextId = findLatestSentOfferId();
+        if (nextId && nextId !== offerId) {
+          await handleAcceptOffer(nextId, attempt + 1);
+          return;
+        }
+      }
+      const errText = ((json?.error || json2?.error || "").toString() || "").toUpperCase();
+      if ((res.status === 409 || res2.status === 409) || errText.includes("LOCKED") || errText.includes("INVALID_STATUS")) {
+        toast.message?.("Procesando oferta…", { description: "Sincronizando estado" });
+        for (let i = 0; i < 8; i++) {
+          await new Promise((r) => setTimeout(r, 600));
+          await load(false);
+          const st = normalizeStatus(getOfferStatusFromMessages(offerId));
+          if (st === "accepted") {
+            toast.success("Oferta aceptada");
+            return;
+          }
+          if (st !== "sent") {
+            toast.error("La oferta ya no está disponible");
+            return;
+          }
+        }
+        throw new Error("No se pudo aceptar la oferta. Intenta de nuevo.");
+      }
+      throw new Error(json?.error || json2?.error || "No se pudo aceptar la oferta");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error";
-      toast.error(message);
+      const message = (error instanceof Error ? error.message : "Error").toString();
+      if (/LOCKED/i.test(message) || /INVALID_STATUS/i.test(message)) {
+        toast.error("No se pudo aceptar la oferta. Intenta de nuevo.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setAcceptingOfferId(null);
     }
+  }
+  function findLatestSentOfferId(): string | null {
+    const arr = messagesRef.current || [];
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const m = arr[i];
+      const p = m?.payload as Record<string, unknown> | null;
+      if (!p || typeof p !== "object") continue;
+      const oid = (p as Record<string, unknown>)["offer_id"];
+      const status = (p as Record<string, unknown>)["status"];
+      if (typeof oid === "string" && typeof status === "string" && normalizeStatus(status) === "sent") {
+        return oid;
+      }
+    }
+    return null;
   }
   async function _submitRejectOffer(): Promise<void> {
     if (!rejectTarget) {
@@ -773,7 +1087,15 @@ export default function ChatPanel({
     <>
       {participants && meId === participants?.customer_id ? (
         <div className="p-3 flex items-center justify-end">
-          <Button onClick={() => setOfferDialogOpen(true)}>Contratar</Button>
+          <Button
+            onClick={() => {
+              // Ensure title is prefilled on click
+              if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
+              setOfferDialogOpen(true);
+            }}
+          >
+            Contratar
+          </Button>
         </div>
       ) : null}
     </>
@@ -787,6 +1109,7 @@ export default function ChatPanel({
       onAcceptOffer={handleAcceptOffer}
       onRejectOffer={handleOpenReject}
       actionOfferId={acceptingOfferId ?? rejectingOfferId}
+      dataPrefix={dataPrefix}
     />
   );
   const offerDialog = (
@@ -800,6 +1123,8 @@ export default function ChatPanel({
           setOfferAmount("");
           setOfferCurrency("MXN");
           setOfferServiceDate("");
+          setOfferScheduleRange([9, 17]);
+          setOfferFlexibleSchedule(true);
         }
       }}
     >
@@ -812,9 +1137,11 @@ export default function ChatPanel({
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Titulo</label>
             <input
-              className="w-full border rounded px-3 py-2 text-sm"
+              className="w-full border rounded px-3 py-2 text-sm bg-neutral-100 text-neutral-700 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-300"
               value={offerTitle}
               onChange={(event) => setOfferTitle(event.target.value)}
+              readOnly
+              disabled
               placeholder="Instalacion de lamparas"
             />
           </div>
@@ -833,9 +1160,11 @@ export default function ChatPanel({
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-700">Moneda</label>
               <input
-                className="w-full border rounded px-3 py-2 text-sm"
+                className="w-full border rounded px-3 py-2 text-sm bg-neutral-100 text-neutral-700 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-300"
                 value={offerCurrency}
                 onChange={(event) => setOfferCurrency(event.target.value.toUpperCase())}
+                readOnly
+                disabled
                 maxLength={6}
               />
             </div>
@@ -847,7 +1176,47 @@ export default function ChatPanel({
               className="w-full border rounded px-3 py-2 text-sm"
               value={offerServiceDate}
               onChange={(event) => setOfferServiceDate(event.target.value)}
+              min={toYMD(new Date())}
             />
+          </div>
+          <div className="space-y-2">
+            <label
+              className={`inline-flex items-center gap-2 text-sm font-medium text-slate-700 ${
+                offerFlexibleSchedule ? "opacity-100" : "opacity-60"
+              }`}
+            >
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={offerFlexibleSchedule}
+                onChange={(e) => setOfferFlexibleSchedule(e.target.checked)}
+              />
+              Horario flexible
+            </label>
+            {!offerFlexibleSchedule ? (
+              <div className="px-1">
+                <div className="text-xs text-muted-foreground mb-2">Seleccionar horario.</div>
+                <Slider
+                  min={0}
+                  max={24}
+                  step={1}
+                  minStepsBetweenThumbs={0}
+                  value={offerScheduleRange}
+                  onValueChange={(vals) => {
+                    if (Array.isArray(vals) && vals.length >= 2) {
+                      const a = Math.max(0, Math.min(24, Math.floor(vals[0] ?? 0)));
+                      const b = Math.max(0, Math.min(24, Math.floor(vals[1] ?? 0)));
+                      setOfferScheduleRange(a <= b ? [a, b] : [b, a]);
+                    }
+                  }}
+                />
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {offerScheduleRange[0] === offerScheduleRange[1]
+                    ? formatHour(offerScheduleRange[0])
+                    : `${formatHour(offerScheduleRange[0])} — ${formatHour(offerScheduleRange[1])}`}
+                </div>
+              </div>
+            ) : null}
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Descripcion</label>
@@ -919,7 +1288,11 @@ export default function ChatPanel({
           <Button variant="ghost" onClick={() => setRejectOpen(false)}>
             Cancelar
           </Button>
-          <Button variant="destructive" onClick={() => setRejectOpen(true)}>
+          <Button
+            variant="destructive"
+            onClick={() => void _submitRejectOffer()}
+            disabled={!rejectReason}
+          >
             Rechazar
           </Button>
         </DialogFooter>
@@ -929,23 +1302,13 @@ export default function ChatPanel({
   if (mode === "page") {
     return (
       <div className="flex h-full flex-col">
-        <div className="border-b p-3 flex items-center justify-between">
-          <div>
-            <div className="font-semibold text-sm">Conversacion</div>
-            <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded border px-2 py-1 text-xs hover:bg-neutral-50"
-            aria-label="Cerrar"
-          >
-            Cerrar
-          </button>
+        <div className="border-b p-3">
+          <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
         </div>
         {loadingState || messageList}
         {typingIndicator}
         {actionButtons}
-        <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} />
+        <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} />
         {offerDialog}
         {dialog}
       </div>
@@ -959,23 +1322,13 @@ export default function ChatPanel({
         if (!value) onClose();
       }}
     >
-      <SheetContent side="right" className="sm:max-w-md p-0">
+      <SheetContent side="right" className="sm:max-w-md p-0" data-testid={`${dataPrefix}-box`}>
         <SheetHeader className="sr-only">
           <SheetTitle>Chat</SheetTitle>
         </SheetHeader>
         <div className="flex h-full flex-col">
-          <div className="border-b p-3 flex items-center justify-between">
-            <div>
-              <div className="font-semibold text-sm">Conversacion</div>
-              <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
-            </div>
-            <button
-              onClick={onClose}
-              className="rounded border px-2 py-1 text-xs hover:bg-neutral-50"
-              aria-label="Cerrar"
-            >
-              Cerrar
-            </button>
+          <div className="border-b p-3">
+            <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
           </div>
           {loadingState || (
             <>
@@ -984,7 +1337,7 @@ export default function ChatPanel({
               {actionButtons}
             </>
           )}
-          <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} />
+          <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} />
           {offerDialog}
           {dialog}
         </div>

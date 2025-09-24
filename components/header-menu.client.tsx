@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Menu } from "lucide-react";
+import { Menu, Settings as SettingsIcon } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import { buttonVariants } from "@/components/ui/button";
@@ -66,25 +66,6 @@ function MessageIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-function GearIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06A2 2 0 1 1 7.04 2.3l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V1a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06A2 2 0 1 1 21.7 7.04l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.32.14.66.22 1 .22a2 2 0 1 1 0 4h-.09c-.66 0-1.26.39-1.51 1z" />
-    </svg>
-  );
-}
 
 function ShareIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
@@ -399,6 +380,7 @@ export default function HeaderMenu() {
         <Link
           href="/messages"
           className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 relative"
+          data-testid="open-messages-link"
         >
           <MessageIcon />
           <span>Mensajes</span>
@@ -411,7 +393,7 @@ export default function HeaderMenu() {
           href="/settings"
           className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
         >
-          <GearIcon />
+          <SettingsIcon className="h-4 w-4" />
           <span>Configuración</span>
         </Link>
         <div className="my-1 h-px bg-neutral-200" />

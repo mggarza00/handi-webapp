@@ -17,6 +17,18 @@ export interface Tables {
       full_name: string | null;
       role: "client" | "pro" | "admin" | null;
       avatar_url: string | null;
+      // Extended profile fields used across the app
+      headline?: string | null;
+      bio?: string | null;
+      years_experience?: number | null;
+      rating: number | null; // 0..5 (source of truth)
+      is_featured?: boolean | null;
+      active?: boolean | null;
+      city?: string | null;
+      cities?: Json | null;
+      categories?: Json | null;
+      subcategories?: Json | null;
+      last_active_at?: string | null; // timestamptz ISO
       /** banderas auxiliares que existen en algunas migraciones */
       is_client_pro?: boolean | null;
       is_admin?: boolean | null;
@@ -173,7 +185,8 @@ export interface Tables {
       request_id: string;
       professional_id: string;
       note: string | null;
-      status: "applied" | "accepted" | "rejected" | "completed" | null;
+      // allow both 'pending' and legacy 'applied' to support different snapshots
+      status: "pending" | "applied" | "accepted" | "rejected" | "completed" | null;
       created_at: string | null;
       updated_at: string | null;
     };
@@ -182,6 +195,32 @@ export interface Tables {
       professional_id: string;
     };
     Update: Partial<Tables["applications"]["Row"]>;
+  };
+  conversations: {
+    Row: {
+      id: string;
+      request_id: string;
+      customer_id: string;
+      pro_id: string;
+      last_message_at: string | null;
+      created_at: string | null;
+    };
+    Insert: {
+      id?: string;
+      request_id: string;
+      customer_id: string;
+      pro_id: string;
+      last_message_at?: string | null;
+      created_at?: string | null;
+    };
+    Update: Partial<{
+      id: string;
+      request_id: string;
+      customer_id: string;
+      pro_id: string;
+      last_message_at: string | null;
+      created_at: string | null;
+    }>;
   };
   pro_applications: {
     Row: {

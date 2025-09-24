@@ -22,6 +22,7 @@ type MessageListProps = {
   onAcceptOffer?: (offerId: string) => void;
   onRejectOffer?: (offerId: string) => void;
   actionOfferId?: string | null;
+  dataPrefix?: string; // e2e: chat | request-chat
 };
 
 type OfferState = {
@@ -85,7 +86,33 @@ export default function MessageList({
   onAcceptOffer,
   onRejectOffer,
   actionOfferId,
+  dataPrefix = "chat",
 }: MessageListProps) {
+  const [payingOfferId, setPayingOfferId] = React.useState<string | null>(null);
+  const handlePay = React.useCallback(async (offerId: string, existingUrl?: string | null) => {
+    let url = typeof existingUrl === "string" && existingUrl.trim().length ? existingUrl : null;
+    try {
+      setPayingOfferId(offerId);
+      if (!url) {
+        const res = await fetch(`/api/offers/${encodeURIComponent(offerId)}/checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          credentials: "include",
+        });
+        const j = await res.json().catch(() => ({} as any));
+        if (res.ok) {
+          url = (typeof j?.checkoutUrl === "string" && j.checkoutUrl)
+            || (typeof j?.offer?.checkout_url === "string" && j.offer.checkout_url)
+            || null;
+        }
+      }
+      if (url) {
+        window.location.assign(url);
+      }
+    } finally {
+      setPayingOfferId(null);
+    }
+  }, []);
   const ref = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
     const el = ref.current;
@@ -275,7 +302,29 @@ export default function MessageList({
         );
       }
       if (status === "accepted") {
-        return <div className="text-sm font-medium text-emerald-700">Oferta aceptada</div>;
+        const coUrlRaw = (payloadRecord["checkout_url"] ?? payloadRecord["checkoutUrl"]) as unknown;
+        const checkoutUrl = typeof coUrlRaw === "string" && coUrlRaw.trim().length ? (coUrlRaw as string) : null;
+        const offerIdRaw = payloadRecord["offer_id"] as unknown;
+        const offerId = typeof offerIdRaw === "string" && offerIdRaw ? offerIdRaw : null;
+        const isCustomer = viewerRole === "customer";
+        return (
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-medium text-emerald-700">Oferta aceptada</div>
+            {isCustomer && offerId ? (
+              checkoutUrl ? (
+                <Button size="sm" asChild>
+                  <a href={checkoutUrl} target="_blank" rel="noreferrer">
+                    Pagar ahora
+                  </a>
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => void handlePay(offerId, null)} disabled={payingOfferId === offerId}>
+                  {payingOfferId === offerId ? "Abriendo..." : "Pagar ahora"}
+                </Button>
+              )
+            ) : null}
+          </div>
+        );
       }
       if (status === "paid") {
         return <div className="text-sm font-medium text-blue-700">Pago recibido</div>;
@@ -290,8 +339,15 @@ export default function MessageList({
         {items.map((m) => {
           const isMe = currentUserId && (m.senderId === currentUserId || m.senderId === "me");
           const isRead = isMe && otherUserId ? (m.readBy ?? []).includes(otherUserId) : false;
+          const author = viewerRole === "customer" ? (isMe ? "client" : "pro") : viewerRole === "professional" ? (isMe ? "pro" : "client") : "unknown";
           return (
-            <li key={m.id} className={`text-sm flex ${isMe ? "justify-end" : "justify-start"}`}>
+            <li
+              key={m.id}
+              className={`text-sm flex ${isMe ? "justify-end" : "justify-start"}`}
+              data-testid={`${dataPrefix}-message`}
+              data-author={author}
+              data-message-id={m.id}
+            >
               <div
                 className={`max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 shadow-sm ${
                   isMe ? "bg-blue-50" : "bg-slate-100"

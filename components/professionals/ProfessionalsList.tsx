@@ -183,6 +183,7 @@ export default function ProfessionalsList({
             <div className="mt-2" onClick={(e) => e.stopPropagation()}>
               <Button
                 size="sm"
+                data-testid="open-request-chat"
                 onClick={async (event) => {
                   event.preventDefault();
                   event.stopPropagation();

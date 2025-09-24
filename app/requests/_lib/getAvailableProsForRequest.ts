@@ -71,8 +71,10 @@ export async function getAvailableProsForRequest(
 
   // Traer profesionales activos
   let q = admin
-    .from("professionals")
-    .select("id, full_name, avatar_url, headline, rating, active, city, categories, subcategories")
+    .from("professionals_with_profile")
+    .select(
+      "id, full_name, avatar_url, headline, rating, active, city, categories, subcategories",
+    )
     .or("active.is.true,active.is.null")
     .order("is_featured", { ascending: false })
     .order("rating", { ascending: false, nullsFirst: false })
@@ -101,4 +103,3 @@ export async function getAvailableProsForRequest(
 
   return mapped;
 }
-

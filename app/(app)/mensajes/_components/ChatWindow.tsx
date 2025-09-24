@@ -31,6 +31,7 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
   const [meId, setMeId] = React.useState<string | null>(null);
   const [other, setOther] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -59,6 +60,17 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
         const pid = parts?.pro_id as string | undefined;
         const otherId = my && cid && pid ? (my === cid ? pid : cid) : (cid || pid || null);
         if (!otherId) return;
+        const reqId = (jh?.request_id as string | undefined) ?? null;
+        if (reqId) {
+          try {
+            const rr = await fetch(`/api/requests/${reqId}`, { cache: "no-store", credentials: "include" });
+            const rj = await rr.json().catch(() => ({}));
+            const title = typeof rj?.data?.title === "string" ? (rj.data.title as string) : null;
+            if (!cancelled) setRequestTitle(title);
+          } catch {
+            /* ignore */
+          }
+        }
 
         // 3) Load profile of other participant
         const rp = await fetch(`/api/profiles/${otherId}`, { cache: "no-store", credentials: "include" });
@@ -121,17 +133,6 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
-        {/* Back button on mobile */}
-        <button
-          onClick={() => {
-            if (window.history.length > 1) router.back();
-            else router.push("/mensajes");
-          }}
-          className="md:hidden inline-flex items-center gap-1 rounded border px-2 py-1 text-xs"
-          aria-label="Volver a Mensajes"
-        >
-          ← Mensajes
-        </button>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={other?.avatar_url || "/avatar.png"}
@@ -139,9 +140,9 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
           className="size-10 rounded-full object-cover border"
         />
         <div className="min-w-0">
-          <div className="font-semibold text-sm truncate">{other?.full_name || "Conversación"}</div>
+          <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
           <div className="text-xs text-muted-foreground">
-            {loading ? "Cargando…" : formatPresence(other?.last_active_at ?? null)}
+            {requestTitle || (loading ? "Cargando…" : formatPresence(other?.last_active_at ?? null))}
           </div>
         </div>
       </div>
@@ -153,6 +154,7 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
           onClose={() => {}}
           mode="page"
           userId={meId}
+          dataPrefix="chat"
         />
       </div>
       {/* Para disparar manualmente tras llamar a /api/services/[id]/complete o confirm */}

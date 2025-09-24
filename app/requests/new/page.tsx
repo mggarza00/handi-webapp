@@ -548,6 +548,7 @@ export default function NewRequestPage() {
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input
+              data-testid="request-title"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -564,6 +565,7 @@ export default function NewRequestPage() {
           <div className="space-y-1.5">
             <Label>Descripción</Label>
             <Textarea
+              data-testid="request-desc"
               rows={4}
               value={description}
               onChange={(e) => {
@@ -644,7 +646,7 @@ export default function NewRequestPage() {
                   setIsDirty(true);
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger data-testid="request-category">
                   <SelectValue
                     placeholder={loadingCats ? "Cargando…" : "Selecciona…"}
                   />
@@ -809,7 +811,7 @@ export default function NewRequestPage() {
             </div>
           </div>
 
-          <Button type="submit" disabled={submitting || uploading}>
+          <Button type="submit" disabled={submitting || uploading} data-testid="post-request">
             {submitting || uploading ? "Publicando…" : "Publicar solicitud"}
           </Button>
         </form>

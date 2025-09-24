@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Menu } from "lucide-react";
+import { Menu, Bell, MessageSquare, Heart, Settings, HelpCircle, FileText, Share2 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { toast } from "sonner";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
@@ -43,6 +44,13 @@ type Notif = {
 function MenuLinks({ items, className }: { items: NavLink[]; className?: string }) {
   const { setOpen } = useSidebar();
   const containerClass = ["flex flex-col gap-2", className].filter(Boolean).join(" ");
+  const getIcon = (l: NavLink): string | null => {
+    if (l.label === "Mis solicitudes" || l.href === "/requests?mine=1") return "/images/icono-mis-solicitudes.gif";
+    if (l.label === "Nueva solicitud" || l.href === "/requests/new") return "/images/icono-nueva-solicitud.gif";
+    if (l.label === "Trabajos disponibles" || l.href === "/requests/explore") return "/images/icono-trabajos-disponibles.gif";
+    if (l.label === "Trabajos realizados" || l.href === "/applied") return "/images/icono-trabajos-realizados.gif";
+    return null;
+  };
   return (
     <nav className={containerClass}>
       {items.map((l) => (
@@ -54,7 +62,12 @@ function MenuLinks({ items, className }: { items: NavLink[]; className?: string 
           className="w-full justify-start text-base"
           onClick={() => setOpen(false)}
         >
-          <Link href={l.href}>{l.label}</Link>
+          <Link href={l.href} className="inline-flex items-center gap-2">
+            {getIcon(l) ? (
+              <Image src={getIcon(l)!} alt="" width={32} height={32} className="h-8 w-8" />
+            ) : null}
+            <span>{l.label}</span>
+          </Link>
         </Button>
       ))}
     </nav>
@@ -267,6 +280,13 @@ function MobileMenuDrawer({
   const requestsLink = items.find((l) => l.href.startsWith("/requests"));
   const otherLinks = items.filter((l) => !l.href.startsWith("/requests"));
   const navLinks = role === "client" && requestsLink ? otherLinks : items;
+  const getIcon = (l: NavLink): string | null => {
+    if (l.label === "Mis solicitudes" || l.href === "/requests?mine=1") return "/images/icono-mis-solicitudes.gif";
+    if (l.label === "Nueva solicitud" || l.href === "/requests/new") return "/images/icono-nueva-solicitud.gif";
+    if (l.label === "Trabajos disponibles" || l.href === "/requests/explore") return "/images/icono-trabajos-disponibles.gif";
+    if (l.label === "Trabajos realizados" || l.href === "/applied") return "/images/icono-trabajos-realizados.gif";
+    return null;
+  };
 
   return (
     <>
@@ -278,11 +298,14 @@ function MobileMenuDrawer({
             <Button
               type="button"
               variant="ghost"
-              className="w-full justify-between text-base"
+              className="w-full justify-start text-base"
               onClick={() => setNotifOpen((v) => !v)}
             >
-              <span>Notificaciones</span>
-              {hasNotifs ? <span className="ml-2 h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
+              <span className="inline-flex items-center gap-2">
+                <Bell className="h-8 w-8" />
+                <span>Notificaciones</span>
+                {hasNotifs ? <span className="ml-2 h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
+              </span>
             </Button>
             {notifOpen ? (
               <div className="rounded-md border bg-white p-2 text-sm shadow-sm">
@@ -328,14 +351,16 @@ function MobileMenuDrawer({
               </div>
             ) : null}
             <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => setOpen(false)}>
-              <Link href="/favorites">Favoritos</Link>
+              <Link href="/favorites" className="inline-flex items-center gap-2">
+                <Heart className="h-8 w-8" />
+                <span>Favoritos</span>
+              </Link>
             </Button>
-            <Button asChild variant="ghost" className="w-full justify-between text-base" onClick={() => setOpen(false)}>
-              <Link href="/messages">
+            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => setOpen(false)}>
+              <Link href="/messages" className="inline-flex items-center gap-2">
+                <MessageSquare className="h-8 w-8" />
                 <span>Mensajes</span>
-                {hasNewMsgs ? (
-                  <span className="ml-2 block h-2.5 w-2.5 rounded-full bg-red-500" />
-                ) : null}
+                {hasNewMsgs ? <span className="ml-2 block h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
               </Link>
             </Button>
           </div>
@@ -348,7 +373,12 @@ function MobileMenuDrawer({
               className="w-full justify-start text-base"
               onClick={() => setOpen(false)}
             >
-              <Link href={requestsLink.href}>{requestsLink.label}</Link>
+              <Link href={requestsLink.href} className="inline-flex items-center gap-2">
+                {getIcon(requestsLink) ? (
+                  <Image src={getIcon(requestsLink)!} alt="" width={32} height={32} className="h-8 w-8" />
+                ) : null}
+                <span>{requestsLink.label}</span>
+              </Link>
             </Button>
           ) : null}
 
@@ -364,7 +394,10 @@ function MobileMenuDrawer({
               className="w-full justify-start text-base"
               onClick={() => setOpen(false)}
             >
-              <Link href="/settings">Configuración</Link>
+              <Link href="/settings" className="inline-flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                <span>Configuración</span>
+              </Link>
             </Button>
           ) : null}
           <Button
@@ -373,7 +406,10 @@ function MobileMenuDrawer({
             className="w-full justify-start text-base"
             onClick={() => setOpen(false)}
           >
-            <Link href="/help">Centro de ayuda</Link>
+            <Link href="/help" className="inline-flex items-center gap-2">
+              <HelpCircle className="h-5 w-5" />
+              <span>Centro de ayuda</span>
+            </Link>
           </Button>
           <Button
             asChild
@@ -381,7 +417,10 @@ function MobileMenuDrawer({
             className="w-full justify-start text-base"
             onClick={() => setOpen(false)}
           >
-            <Link href="/privacy">Aviso de privacidad</Link>
+            <Link href="/privacy" className="inline-flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              <span>Aviso de privacidad</span>
+            </Link>
           </Button>
           <Button
             type="button"
@@ -391,7 +430,10 @@ function MobileMenuDrawer({
               void onShare();
             }}
           >
-            Invita a un amigo
+            <span className="inline-flex items-center gap-2">
+              <Share2 className="h-5 w-5" />
+              <span>Invita a un amigo</span>
+            </span>
           </Button>
           {isAuth ? (
             <details className="mt-1">

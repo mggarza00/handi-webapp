@@ -38,7 +38,7 @@ export default function ChatListItem({
 }) {
   const rawTitle = typeof chat.title === "string" ? chat.title : "";
   const trimmedTitle = rawTitle.trim();
-  const displayTitle = trimmedTitle.length > 0 ? rawTitle : "El nombre del profesional";
+  const displayTitle = trimmedTitle.length > 0 ? rawTitle : "Contacto";
   const rawRequestTitle = typeof chat.requestTitle === "string" ? chat.requestTitle : "";
   const trimmedRequest = rawRequestTitle.trim();
   const subtitle =
@@ -56,6 +56,7 @@ export default function ChatListItem({
             : ""
       }`}
       aria-busy={deleting ? true : undefined}
+      data-testid="chat-thread-item"
     >
       <div className="flex items-center justify-between gap-2">
         <Link
@@ -74,9 +75,9 @@ export default function ChatListItem({
             <div className="min-w-0">
               <div className="font-medium text-sm truncate flex items-center gap-2">
                 {chat.unread ? (
-                  <span className="inline-block size-2 rounded-full bg-blue-500" aria-label="No leído"></span>
+                  <span className="inline-block size-2 rounded-full bg-blue-500" aria-label="No leído" data-testid="chat-unread-badge"></span>
                 ) : null}
-                <span className="truncate">{displayTitle}</span>
+                <span className="truncate" data-testid="chat-thread-title">{displayTitle}</span>
               </div>
               <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{subtitle}</div>
             </div>

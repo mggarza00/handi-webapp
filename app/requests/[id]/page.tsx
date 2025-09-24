@@ -8,6 +8,9 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import RequestDetailClient from "./RequestDetailClient";
 import RequestHeaderActions from "./RequestHeaderActions.client";
+import AgreementsClient from "./Agreements.client";
+// Optionally render applications/offers flow if present in snapshot
+// import ApplicationsClient from "./Applications.client";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Card } from "@/components/ui/card";
@@ -171,6 +174,11 @@ export default async function RequestDetailPage({ params }: Params) {
               Detalle desactivado por NEXT_PUBLIC_DISABLE_DETAIL=1
             </div>
           )}
+
+          {/* Agreements flow (offers, status updates, payment actions) */}
+          <div className="mt-6">
+            <AgreementsClient requestId={initial.id} createdBy={(d.created_by as string | undefined) ?? null} />
+          </div>
         </section>
 
         <aside className="order-last md:order-none md:sticky md:top-4 space-y-4">
@@ -184,8 +192,7 @@ export default async function RequestDetailPage({ params }: Params) {
                 city={city}
               />
             </Card>
-          ) : null}
-        </aside>
+          ) : null}</aside>
       </div>
 
       {/* Trust badges removed per request */}
@@ -195,7 +202,6 @@ export default async function RequestDetailPage({ params }: Params) {
 }
 
 export const metadata: Metadata = { title: "Solicitud | Handi" };
-
 
 
 

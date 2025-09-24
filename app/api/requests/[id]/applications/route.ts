@@ -1,26 +1,93 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { z } from "zod";
 
 import type { Database } from "@/types/supabase";
+import { createServerClient } from "@/lib/supabase";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } },
-) {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
-  const { id: requestId } = params;
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
-    .rpc("get_applications_with_profile_basic", { p_request_id: requestId })
-    .order("created_at", { ascending: false });
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    const Id = z.string().uuid();
+    const parsed = Id.safeParse(params?.id);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "INVALID_ID" },
+        { status: 400, headers: JSONH },
+      );
+    }
+    const requestId = parsed.data;
 
-  if (error) {
+    const supa = createServerClient();
+    // Load applications for this request
+    const { data: apps, error } = await supa
+      .from("applications")
+      .select("id, status, created_at, professional_id")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400, headers: JSONH },
+      );
+    }
+
+    const list = (apps ?? []) as Array<{
+      id: string;
+      status: string | null;
+      created_at: string | null;
+      professional_id: string;
+    }>;
+
+    // Enrich with professional name/headline/rating (best-effort)
+    const profIds = Array.from(new Set(list.map((a) => a.professional_id)));
+    const proNames = new Map<string, string | null>();
+    const proRatings = new Map<string, number | null>();
+    const proHeadlines = new Map<string, string | null>();
+    if (profIds.length) {
+      const [{ data: pros }, { data: profs }] = await Promise.all([
+        supa.from("professionals").select("id, full_name, headline, rating").in("id", profIds),
+        supa.from("profiles").select("id, full_name").in("id", profIds),
+      ]);
+      for (const p of pros ?? []) {
+        const id = (p as unknown as { id: string }).id;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        proNames.set(id, ((p as any).full_name as string) || null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        proRatings.set(id, (p as any).rating as number | null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        proHeadlines.set(id, ((p as any).headline as string) || null);
+      }
+      for (const p of profs ?? []) {
+        const id = (p as unknown as { id: string }).id;
+        if (!proNames.has(id)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          proNames.set(id, ((p as any).full_name as string) || null);
+        }
+      }
+    }
+
+    const data = list.map((a) => ({
+      id: a.id,
+      note: null as string | null, // column may not exist in all snapshots
+      status: a.status,
+      created_at: a.created_at,
+      professional_id: a.professional_id,
+      pro_full_name: proNames.get(a.professional_id) ?? null,
+      pro_rating: proRatings.get(a.professional_id) ?? null,
+      pro_headline: proHeadlines.get(a.professional_id) ?? null,
+    }));
+
+    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 400 },
+      { error: msg },
+      { status: 500, headers: JSONH },
     );
   }
-  return NextResponse.json({ ok: true, data });
 }
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+

@@ -16,6 +16,9 @@ const BodySchema = z.object({
   amount: z.union([z.number(), z.string()]),
   currency: z.string().min(1).max(10).optional(),
   serviceDate: z.string().optional(),
+  flexibleSchedule: z.boolean().optional(),
+  scheduleStartHour: z.number().int().min(0).max(24).optional(),
+  scheduleEndHour: z.number().int().min(0).max(24).optional(),
 });
 
 type BodyInput = z.infer<typeof BodySchema>;
@@ -85,6 +88,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       serviceDateIso = parsedDate.toISOString();
     }
 
+    const metadata: Record<string, unknown> = {};
+    if (typeof body.flexibleSchedule === "boolean") {
+      metadata.flexible_schedule = body.flexibleSchedule;
+    }
+    const sh = typeof body.scheduleStartHour === "number" ? body.scheduleStartHour : null;
+    const eh = typeof body.scheduleEndHour === "number" ? body.scheduleEndHour : null;
+    if (sh != null && eh != null && sh >= 0 && sh <= 24 && eh >= 0 && eh <= 24) {
+      metadata.schedule = { start_hour: sh, end_hour: eh };
+    }
+
     const { data: offer, error } = await supabase
       .from("offers")
       .insert({
@@ -97,6 +110,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         amount: Math.round((amountNumber + Number.EPSILON) * 100) / 100,
         service_date: serviceDateIso,
         created_by: user.id,
+        metadata,
       })
       .select("*")
       .single();
@@ -108,6 +122,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
     return NextResponse.json({ error: message }, { status: 500, headers: JSONH });
+  }
+}
+
+// GET /api/conversations/:id/offers?status=sent
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const conversationId = params.id;
+    if (!conversationId)
+      return NextResponse.json({ ok: false, error: "MISSING_CONVERSATION" }, { status: 400, headers: JSONH });
+    // Ensure user is participant via conversations RLS.
+    const { data, error } = await supabase
+      .from("offers")
+      .select("id, status, title, amount, currency, created_at")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false });
+    if (error)
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "UNKNOWN";
+    return NextResponse.json({ ok: false, error: message }, { status: 500, headers: JSONH });
   }
 }
 

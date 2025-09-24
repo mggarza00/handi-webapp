@@ -1,52 +1,56 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
-
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-type CtxP = { params: { id: string } };
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  try {
+    const targetId = (params?.id || "").trim();
+    if (!targetId)
+      return NextResponse.json({ ok: false, error: "MISSING_ID" }, { status: 400, headers: JSONH });
 
-const IdSchema = z.string().uuid();
+    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const { data: auth } = await supabase.auth.getUser();
+    const me = auth?.user?.id || null;
+    if (!me)
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
-export async function GET(_req: Request, { params }: CtxP) {
-  const { id } = params;
-  const parsed = IdSchema.safeParse(id);
-  if (!parsed.success) {
+    // Verify there's at least one conversation between requester and target
+    const { data: conv } = await supabase
+      .from("conversations")
+      .select("id")
+      .or(`and(customer_id.eq.${me},pro_id.eq.${targetId}),and(customer_id.eq.${targetId},pro_id.eq.${me})`)
+      .limit(1)
+      .maybeSingle();
+    if (!conv)
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
+
+    // Use admin client to bypass potential RLS on profiles/professionals
+    const admin = getAdminSupabase();
+    // Prefer professionals.full_name/avatar if present; otherwise profiles
+    const [{ data: prof }, { data: pro }] = await Promise.all([
+      admin.from("profiles").select("id, full_name, avatar_url").eq("id", targetId).maybeSingle(),
+      admin.from("professionals").select("id, full_name, avatar_url").eq("id", targetId).maybeSingle(),
+    ]);
+    const full_name = (pro?.full_name as string) || (prof?.full_name as string) || null;
+    const avatar_url = (pro?.avatar_url as string) || (prof?.avatar_url as string) || null;
+
+    if (!full_name && !avatar_url)
+      return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404, headers: JSONH });
+
     return NextResponse.json(
-      { ok: false, error: "INVALID_ID" },
-      { status: 400, headers: JSONH },
+      { ok: true, data: { id: targetId, full_name, avatar_url } },
+      { status: 200, headers: JSONH },
     );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "UNKNOWN";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
   }
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
-  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as
-    | string
-    | undefined;
-  if (!url || !serviceRole) {
-    return NextResponse.json(
-      { ok: false, error: "SERVER_MISCONFIGURED" },
-      { status: 500, headers: JSONH },
-    );
-  }
-
-  const admin = createClient<Database>(url, serviceRole);
-  const { data, error } = await admin
-    .from("professionals_with_profile")
-    .select(
-      "id, full_name, avatar_url, headline, bio, rating, years_experience, city, categories, subcategories, last_active_at, is_featured, empresa",
-    )
-    .eq("id", parsed.data)
-    .maybeSingle();
-
-  if (error || !data) {
-    return NextResponse.json(
-      { ok: false, error: "NOT_FOUND", detail: error?.message },
-      { status: 404, headers: JSONH },
-    );
-  }
-
-  // Nunca exponer datos sensibles (sólo campos públicos definidos arriba)
-  return NextResponse.json({ ok: true, data }, { headers: JSONH });
 }
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+

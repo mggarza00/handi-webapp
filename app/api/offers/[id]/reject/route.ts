@@ -11,14 +11,14 @@ const BodySchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-export async function POST(req: Request, { params }: { params: { offerId: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user?.id)
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
-    const offerId = params.offerId;
+    const offerId = params.id;
     if (!offerId)
       return NextResponse.json({ ok: false, error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
 
@@ -75,3 +75,4 @@ export async function POST(req: Request, { params }: { params: { offerId: string
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+

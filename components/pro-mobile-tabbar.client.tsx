@@ -13,7 +13,7 @@ export default function ProMobileTabbar() {
   const active = "bg-neutral-200 dark:bg-neutral-800";
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 block md:hidden border-t border-border bg-neutral-50/95 dark:bg-neutral-900/60 backdrop-blur-md">
+    <nav id="pro-mobile-tabbar" className="fixed bottom-0 left-0 right-0 z-40 block md:hidden border-t border-border bg-neutral-50/95 dark:bg-neutral-900/60 backdrop-blur-md">
       <div className="mx-auto flex max-w-5xl items-center justify-around px-4 py-2">
         <Link href="/requests/explore" className={`${base} ${isExplore ? active : ""}`.trim()}>
           <Image src="/images/icono-trabajos-disponibles.gif" alt="" width={28} height={28} className="h-6 w-6" />

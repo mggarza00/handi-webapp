@@ -11,9 +11,10 @@ type MessageInputProps = {
   disabled?: boolean;
   autoFocus?: boolean;
   onTyping?: () => void;
+  dataPrefix?: string; // e2e: chat | request-chat
 };
 
-export default function MessageInput({ onSend, disabled, autoFocus, onTyping }: MessageInputProps) {
+export default function MessageInput({ onSend, disabled, autoFocus, onTyping, dataPrefix = "chat" }: MessageInputProps) {
   const [text, setText] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -49,6 +50,7 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping }: 
         ref={textareaRef}
         id="chat-message"
         name="chat-message"
+        data-testid={`${dataPrefix}-input`}
         aria-label="Escribe un mensaje"
         placeholder="Escribe un mensaje..."
         value={text}
@@ -74,6 +76,7 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping }: 
           onClick={() => void handleSend()}
           disabled={sending || disabled || !text.trim()}
           aria-busy={sending}
+          data-testid={`${dataPrefix}-send`}
         >
           {sending ? "Enviando..." : "Enviar"}
         </Button>

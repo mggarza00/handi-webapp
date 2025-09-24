@@ -150,11 +150,11 @@ export default function ConfirmServiceButton({
       disabled={pending || confirmed}
       aria-busy={pending}
       onClick={handleClick}
+      data-testid="mark-complete"
     >
       {label}
     </Button>
   );
 }
-
 
 

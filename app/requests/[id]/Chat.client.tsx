@@ -207,7 +207,7 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
             ))}
             {createdBy ? <option value={createdBy}>Cliente (dueno)</option> : null}
           </select>
-          <Button size="sm" onClick={openChat} disabled={!peerId || sending}>
+          <Button size="sm" onClick={openChat} disabled={!peerId || sending} data-testid="open-request-chat">
             Abrir chat
           </Button>
           <Button
@@ -233,6 +233,7 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
           userId={me}
           requestId={requestId}
           requestBudget={requestBudget}
+          dataPrefix="request-chat"
 
           onClose={() => setChatOpen(false)}
         />
@@ -240,4 +241,3 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
     </>
   );
 }
-

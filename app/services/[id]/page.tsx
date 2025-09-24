@@ -6,6 +6,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { getUserOrThrow } from "@/lib/_supabase-server";
 // ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
 import ConfirmAndReview from "@/components/services/ConfirmAndReview.client";
+import JobPhotosUploader from "@/components/services/JobPhotosUploader.client";
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -170,7 +171,7 @@ export default async function ServiceDetailPage({ params }: Params) {
             Cierra el servicio, registra la calificacion y adjunta evidencias.
           </p>
         </div>
-        <Badge variant={status.variant}>{status.label}</Badge>
+        <Badge variant={status.variant} data-testid="status-chip">{status.label}</Badge>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -255,7 +256,10 @@ export default async function ServiceDetailPage({ params }: Params) {
                 </div>
               )}
               <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                {/* Componente de subida de fotos (solo despues de cerrar) */}
+                <JobPhotosUploader
+                  requestId={context.service.request_id ?? params.id}
+                  professionalId={context.service.professional_id}
+                />
               </div>
             </CardContent>
           </Card>
@@ -315,6 +319,4 @@ export default async function ServiceDetailPage({ params }: Params) {
     </main>
 );
 }
-
-
 

@@ -99,7 +99,7 @@ export default function ReviewModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-2" data-testid="review-rating">
             <Label>Calificación</Label>
             <div className="select-none text-2xl leading-none">
               {Array.from({ length: 5 }, (_, i) => i + 1).map((n) => (
@@ -128,6 +128,7 @@ export default function ReviewModal({
           <div className="space-y-2">
             <Label htmlFor="review-comment">Comentario (opcional)</Label>
             <Textarea
+              data-testid="review-comment"
               id="review-comment"
               value={comment}
               onChange={(e) => {
@@ -145,7 +146,7 @@ export default function ReviewModal({
         </div>
 
         <DialogFooter className="mt-2 grid grid-cols-1 gap-2">
-          <Button onClick={handleSubmit} disabled={loading} className="w-full">
+          <Button onClick={handleSubmit} disabled={loading} className="w-full" data-testid="submit-review">
             {loading ? "Enviando…" : "Enviar reseña"}
           </Button>
           <Button
@@ -161,4 +162,3 @@ export default function ReviewModal({
     </Dialog>
   );
 }
-
