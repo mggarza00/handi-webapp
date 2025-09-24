@@ -1,9 +1,10 @@
-/* eslint-disable import/order */
 "use client";
+
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import ChatPanel from "@/components/chat/ChatPanel";
+
 import useCompletionReview from "../../_components/_hooks/useCompletionReview";
+
+import ChatPanel from "@/components/chat/ChatPanel";
 
 type Profile = {
   id: string;
@@ -27,7 +28,6 @@ function formatPresence(lastActiveAt: string | null): string {
 }
 
 export default function ChatWindow({ conversationId }: { conversationId: string }) {
-  const router = useRouter();
   const [meId, setMeId] = React.useState<string | null>(null);
   const [other, setOther] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);

@@ -4,7 +4,15 @@ import Stripe from "stripe";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 import type { Database } from "@/types/supabase";
-// Refactor: use cookie+RLS only
+
+type OfferRow = Database["public"]["Tables"]["offers"]["Row"];
+type OfferSummary = Pick<OfferRow, "id" | "status" | "professional_id">;
+type OfferLockFields = Pick<OfferRow, "id" | "status" | "accepting_at" | "currency" | "amount" | "title" | "description" | "conversation_id" | "professional_id">;
+type MessageRow = {
+  payload: unknown;
+  message_type: string | null;
+  created_at: string | null;
+};
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -37,10 +45,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
       .limit(10);
-    let target: any | null = null;
-    if (Array.isArray(recentRows)) {
-      target = recentRows.find((r: any) => String(r.status).trim().toLowerCase() === "sent")
-        || (recentRows.length ? (recentRows[0] as any) : null);
+    const offerRows = (recentRows ?? []) as OfferRow[];
+    let target: OfferRow | null = null;
+    if (offerRows.length) {
+      target =
+        offerRows.find((r) => String(r.status).trim().toLowerCase() === "sent") ??
+        offerRows[0] ??
+        null;
     }
     if (debug) {
       return NextResponse.json(
@@ -48,7 +59,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           ok: true,
           actingUserId,
           conversationId,
-          recent: (recentRows || []).map((r: any) => ({ id: r.id, status: r.status, professional_id: r.professional_id })),
+          recent: offerRows.map<OfferSummary>((r) => ({ id: r.id, status: r.status, professional_id: r.professional_id })),
           chosen: target ? { id: target.id, status: target.status, professional_id: target.professional_id } : null,
         },
         { status: 200, headers: JSONH },
@@ -63,24 +74,33 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .order("created_at", { ascending: false })
         .limit(100);
       const seen = new Set<string>();
-      if (msgs && msgs.length) {
-        for (const m of msgs) {
-          const type = (m as any).message_type as string | null;
-          const rawPayload = (m as any).payload as unknown;
-          let p: any = rawPayload;
+      const messages = (msgs ?? []) as MessageRow[];
+      if (messages.length) {
+        for (const message of messages) {
+          const type = message.message_type ?? null;
+          const rawPayload = message.payload;
+          let parsedPayload: unknown = rawPayload;
           if (typeof rawPayload === "string") {
-            try { p = JSON.parse(rawPayload); } catch { p = null; }
+            try {
+              parsedPayload = JSON.parse(rawPayload);
+            } catch {
+              parsedPayload = null;
+            }
           }
           let oid: string | null = null;
-          if (p && typeof p === "object" && type && (type === "offer" || type === "system")) {
-            const offerIdRaw = (p as any)["offer_id"];
+          const payloadObject =
+            parsedPayload && typeof parsedPayload === "object"
+              ? (parsedPayload as Record<string, unknown>)
+              : null;
+          if (payloadObject && type && (type === "offer" || type === "system")) {
+            const offerIdRaw = (payloadObject as { offer_id?: unknown }).offer_id;
             if (typeof offerIdRaw === "string" && offerIdRaw) oid = offerIdRaw;
           }
           if (oid && !seen.has(oid)) {
             seen.add(oid);
             const { data: row } = await supabase.from("offers").select("*").eq("id", oid).maybeSingle();
             if (row && row.status === "sent") {
-              target = row as any;
+              target = row as OfferRow;
               break;
             }
           }
@@ -114,12 +134,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
       if (current.status !== "sent")
         return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
-      const accAt = (current as { accepting_at?: string | null }).accepting_at || null;
+      const lockInfo = current as OfferLockFields;
+      const accAt = lockInfo.accepting_at || null;
       const staleMs = process.env.NODE_ENV === "production" ? 2 * 60 * 1000 : 15 * 1000; // shorter in dev
       const isStale = accAt ? Date.now() - new Date(accAt).getTime() > staleMs : false;
       // If the lock belongs to the same professional, allow takeover immediately
-      if ((current as any).professional_id === actingUserId && !isStale) {
-      const { data: relockSame } = await supabase
+      if (lockInfo.professional_id === actingUserId && !isStale) {
+        const { data: relockSame } = await supabase
           .from("offers")
           .update({ accepting_at: lockTime })
           .eq("id", target.id)

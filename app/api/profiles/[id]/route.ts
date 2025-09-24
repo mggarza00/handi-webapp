@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
@@ -53,4 +54,3 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

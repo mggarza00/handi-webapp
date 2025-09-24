@@ -99,11 +99,12 @@ export default function MessageList({
           headers: { "Content-Type": "application/json; charset=utf-8" },
           credentials: "include",
         });
-        const j = await res.json().catch(() => ({} as any));
+        const parsed = (await res.json().catch(() => ({}))) as Record<string, unknown>;
         if (res.ok) {
-          url = (typeof j?.checkoutUrl === "string" && j.checkoutUrl)
-            || (typeof j?.offer?.checkout_url === "string" && j.offer.checkout_url)
-            || null;
+          const checkoutUrl = parsed.checkoutUrl;
+          const offerRecord = (parsed.offer ?? null) as Record<string, unknown> | null;
+          const nestedUrl = offerRecord && typeof offerRecord["checkout_url"] === "string" ? offerRecord["checkout_url"] : null;
+          url = (typeof checkoutUrl === "string" && checkoutUrl) || nestedUrl || null;
         }
       }
       if (url) {

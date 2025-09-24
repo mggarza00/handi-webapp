@@ -7,7 +7,7 @@ type Props = {
   professionalId: string;
 };
 
-export default function JobPhotosUploader({ requestId, professionalId }: Props) {
+export default function JobPhotosUploader({ requestId, professionalId: _professionalId }: Props) {
   const [busy, setBusy] = React.useState(false);
 
   async function handleFiles(files: File[]) {
@@ -52,4 +52,3 @@ export default function JobPhotosUploader({ requestId, professionalId }: Props) 
     </div>
   );
 }
-

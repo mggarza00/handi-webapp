@@ -3,6 +3,13 @@ import * as React from "react";
 
 type Props = { requestId: string };
 
+function logDebugError(scope: string, error: unknown) {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.warn(`[OpenChatButton] ${scope}`, error);
+  }
+}
+
 export default function OpenChatButton({ requestId }: Props) {
   const [pending, setPending] = React.useState(false);
 
@@ -20,8 +27,13 @@ export default function OpenChatButton({ requestId }: Props) {
         });
         const j = await r.json().catch(() => ({}));
         const apps = Array.isArray(j?.data) ? (j.data as Array<{ professional_id?: string }>) : [];
-        if (apps.length && typeof apps[0]?.professional_id === "string") proId = apps[0].professional_id as string;
-      } catch {}
+        if (apps.length) {
+          const candidate = apps[0]?.professional_id;
+          if (typeof candidate === "string") proId = candidate;
+        }
+      } catch (error) {
+        logDebugError("load applications", error);
+      }
 
       // If still null, try from agreements
       if (!proId) {
@@ -33,8 +45,13 @@ export default function OpenChatButton({ requestId }: Props) {
           });
           const j = await r.json().catch(() => ({}));
           const rows = Array.isArray(j?.data) ? (j.data as Array<{ professional_id?: string }>) : [];
-          if (rows.length && typeof rows[0]?.professional_id === "string") proId = rows[0].professional_id as string;
-        } catch {}
+          if (rows.length) {
+            const candidate = rows[0]?.professional_id;
+            if (typeof candidate === "string") proId = candidate;
+          }
+        } catch (error) {
+          logDebugError("load agreements", error);
+        }
       }
 
       // If we have a pro, try to ensure conversation and go to thread view
@@ -47,12 +64,15 @@ export default function OpenChatButton({ requestId }: Props) {
             body: JSON.stringify({ requestId, proId }),
           });
           const sj = await s.json().catch(() => ({}));
-          const convId = (sj?.data?.id as string | undefined) || null;
+          const convIdRaw = sj?.data?.id;
+          const convId = typeof convIdRaw === "string" && convIdRaw.length ? convIdRaw : null;
           if (s.ok && convId) {
             window.location.assign(`/mensajes/${convId}`);
             return;
           }
-        } catch {}
+        } catch (error) {
+          logDebugError("start conversation", error);
+        }
       }
 
       // Fallback: go to inbox
@@ -74,4 +94,3 @@ export default function OpenChatButton({ requestId }: Props) {
     </button>
   );
 }
-

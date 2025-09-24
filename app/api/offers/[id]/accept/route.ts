@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import Stripe from "stripe";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { getAdminSupabase } from "@/lib/supabase/admin";
-import { createBearerClient } from "@/lib/supabase";
 
+import { createBearerClient } from "@/lib/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
 import type { Database } from "@/types/supabase";
+
+type OfferRow = Database["public"]["Tables"]["offers"]["Row"];
+type OfferLockFields = Pick<OfferRow, "id" | "status" | "accepting_at" | "currency" | "amount" | "title" | "description" | "conversation_id" | "professional_id">;
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -51,7 +53,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const rate = await assertRateLimit("offer.accept", 30, 3);
       if (!rate.ok)
         return NextResponse.json({ error: "RATE_LIMIT", message: rate.message }, { status: rate.status, headers: JSONH });
-    } catch (e) {
+    } catch {
       // ignore UNAUTHENTICATED from assertRateLimit when using x-user-id/bearer in dev
     }
 
@@ -78,10 +80,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (!offerId)
       return NextResponse.json({ error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
 
-    let offer: any = null;
+    let offer: OfferRow | null = null;
     {
       const { data, error } = await supabase.from("offers").select("*").eq("id", offerId).maybeSingle();
-      offer = !error ? data || null : null;
+      offer = !error ? (data as OfferRow | null) : null;
     }
     if (!offer && conversationIdBody) {
       // Fallback: resolve latest 'sent' offer by conversation id
@@ -93,31 +95,36 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      offer = convOffer || null;
+      offer = (convOffer as OfferRow | null) ?? null;
     }
     if (!offer && conversationIdBody && (probeTitle || probeAmount || probeCurrency)) {
       // Fallback: try matching by fields
-      let q = supabase
+      const query = supabase
         .from("offers")
         .select("*")
         .eq("conversation_id", conversationIdBody)
         .order("created_at", { ascending: false })
         .limit(5);
-      const { data: rows } = await q;
-      if (rows && rows.length) {
+      const { data: rows } = await query;
+      const offers = (rows ?? []) as OfferRow[];
+      if (offers.length) {
         const norm = (s: string | null) => (s || "").trim().toUpperCase();
         const targetTitle = norm(probeTitle);
         const targetCurr = norm(probeCurrency);
-        offer = rows.find((r: any) => {
-          const t = norm(r.title as string | null);
-          const c = norm((r.currency as string | null) || "MXN");
-          const a = Number(r.amount);
-          const sent = String(r.status) === "sent";
-          const titleOk = targetTitle ? t === targetTitle : true;
-          const currOk = targetCurr ? c === targetCurr : true;
-          const amtOk = typeof probeAmount === "number" && Number.isFinite(probeAmount) ? Math.abs(a - probeAmount) < 0.005 : true;
-          return sent && titleOk && currOk && amtOk;
-        }) || null;
+        offer =
+          offers.find((candidate) => {
+            const normalizedTitle = norm(candidate.title ?? null);
+            const normalizedCurrency = norm(candidate.currency ?? "MXN");
+            const amount = Number(candidate.amount);
+            const isSent = String(candidate.status) === "sent";
+            const titleMatches = targetTitle ? normalizedTitle === targetTitle : true;
+            const currencyMatches = targetCurr ? normalizedCurrency === targetCurr : true;
+            const amountMatches =
+              typeof probeAmount === "number" && Number.isFinite(probeAmount)
+                ? Math.abs(amount - probeAmount) < 0.005
+                : true;
+            return isSent && titleMatches && currencyMatches && amountMatches;
+          }) ?? null;
       }
     }
     if (!offer && conversationIdBody) {
@@ -129,7 +136,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      offer = anyOffer || null;
+      offer = (anyOffer as OfferRow | null) ?? null;
     }
     if (!offer)
       return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
@@ -168,7 +175,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           { status: 409, headers: JSONH },
         );
       }
-      const accAt = (row as { accepting_at?: string | null }).accepting_at || null;
+      const lockInfo = row as OfferLockFields;
+      const accAt = lockInfo.accepting_at || null;
       const stuck = accAt ? Date.now() - new Date(accAt).getTime() > 2 * 60 * 1000 : false;
       if (stuck) {
         const { data: relocked } = await supabase
@@ -255,4 +263,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import type { Database } from "@/types/supabase";
 import { createServerClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -50,20 +49,18 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         supa.from("profiles").select("id, full_name").in("id", profIds),
       ]);
       for (const p of pros ?? []) {
-        const id = (p as unknown as { id: string }).id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        proNames.set(id, ((p as any).full_name as string) || null);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        proRatings.set(id, (p as any).rating as number | null);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        proHeadlines.set(id, ((p as any).headline as string) || null);
+        const record = p as Record<string, unknown>;
+        const id = typeof record.id === "string" ? record.id : null;
+        if (!id) continue;
+        proNames.set(id, typeof record.full_name === "string" ? record.full_name : null);
+        proRatings.set(id, typeof record.rating === "number" ? record.rating : null);
+        proHeadlines.set(id, typeof record.headline === "string" ? record.headline : null);
       }
       for (const p of profs ?? []) {
-        const id = (p as unknown as { id: string }).id;
-        if (!proNames.has(id)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          proNames.set(id, ((p as any).full_name as string) || null);
-        }
+        const profile = p as Record<string, unknown>;
+        const id = typeof profile.id === "string" ? profile.id : null;
+        if (!id || proNames.has(id)) continue;
+        proNames.set(id, typeof profile.full_name === "string" ? profile.full_name : null);
       }
     }
 
@@ -90,4 +87,3 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
