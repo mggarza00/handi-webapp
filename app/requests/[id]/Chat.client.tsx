@@ -28,7 +28,7 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
     initialTitle ?? null,
   );
   const [sending, setSending] = React.useState(false);
-  const [offerSignal, setOfferSignal] = React.useState(0);
+  const [_offerSignal, setOfferSignal] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -207,7 +207,7 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
             ))}
             {createdBy ? <option value={createdBy}>Cliente (dueno)</option> : null}
           </select>
-          <Button size="sm" onClick={openChat} disabled={!peerId || sending}>
+          <Button size="sm" onClick={openChat} disabled={!peerId || sending} data-testid="open-request-chat">
             Abrir chat
           </Button>
           <Button
@@ -233,11 +233,11 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
           userId={me}
           requestId={requestId}
           requestBudget={requestBudget}
-          openOfferSignal={offerSignal}
+          dataPrefix="request-chat"
+
           onClose={() => setChatOpen(false)}
         />
       ) : null}
     </>
   );
 }
-

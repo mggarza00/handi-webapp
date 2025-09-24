@@ -1,16 +1,21 @@
+/* eslint-disable import/order */
 import * as React from "react";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+// import Image from "next/image"; // replaced by Avatar
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
-
+// Internal SSR helpers and client components
+import { getRequestWithClient } from "../_lib/getRequestWithClient";
 import ChatStartPro from "./chat-start-pro.client";
-
+// Cross-app SSR helper
+import { getConversationIdForRequest } from "@/app/(app)/mensajes/_lib/getConversationForRequest";
 import { Card } from "@/components/ui/card";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import type { Database } from "@/types/supabase";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import RatingStars from "@/components/ui/RatingStars";
 
 type Params = { params: { id: string } };
 
@@ -118,18 +123,37 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const requiredAt = (d.required_at as string | null) ?? null;
   const status = (d.status as string | null) ?? null;
   const createdAt = (d.created_at as string | null) ?? null;
-  const createdBy = (d.created_by as string | undefined) ?? null;
+  // Usa helper con service role para obtener client_id y perfil (bypass RLS en server)
+  const { client: clientFromAdmin } = await getRequestWithClient(params.id);
+  const clientId = clientFromAdmin?.id ?? ((d as { created_by?: string }).created_by ?? null);
 
   // Cargar perfil básico del cliente
   const supabaseS = createServerComponentClient<Database>({ cookies });
-  const { data: clientProfile } = await supabaseS
-    .from("profiles")
-    .select("full_name, avatar_url")
-    .eq("id", createdBy ?? "")
-    .maybeSingle<{
-      full_name: string | null;
-      avatar_url: string | null;
-    }>();
+  let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null; rating: number | null } | null = clientFromAdmin
+    ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url, rating: (clientFromAdmin as { rating?: number | null }).rating ?? null }
+    : null;
+  if (!clientProfile && clientId) {
+    const { data: cp } = await supabaseS
+      .from("profiles")
+      .select("id, full_name, avatar_url, rating")
+      .eq("id", clientId)
+      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null; rating: number | null }>();
+    clientProfile = cp ?? null;
+  }
+  // Log temporal para QA
+  // eslint-disable-next-line no-console
+  console.log("[explore:client]", { clientId, hasProfile: !!clientProfile });
+
+  const initials = (name?: string | null) =>
+    (name ?? "Cliente")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((s) => (s?.[0] ? s[0].toUpperCase() : ""))
+      .join("") || "CL";
+
+  const nombre = clientProfile?.full_name ?? "Cliente";
+  const initialConversationId = await getConversationIdForRequest(params.id);
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
@@ -182,29 +206,39 @@ export default async function ProRequestDetailPage({ params }: Params) {
           <Card className="p-4 space-y-3">
             <h2 className="font-medium">Cliente</h2>
             <div className="flex items-center gap-3">
-              <Image
-                src={clientProfile?.avatar_url || "/images/Favicon-v1-jpeg.jpg"}
-                alt={clientProfile?.full_name || "Cliente"}
-                width={48}
-                height={48}
-                className="rounded-full border"
-              />
+              <Avatar className="h-12 w-12">
+                {clientProfile?.avatar_url ? (
+                  <AvatarImage
+                    src={clientProfile.avatar_url}
+                    alt={nombre}
+                  />
+                ) : (
+                  <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
+                )}
+              </Avatar>
               <div className="min-w-0">
-                <p className="font-medium truncate">
-                  {clientProfile?.full_name ?? "Cliente"}
-                </p>
-                <p className="text-xs text-slate-600">
-                  Calificación: — {" "}
-                  {createdBy ? (
-                    <Link href={`/clients/${createdBy}`} className="underline hover:no-underline">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-medium leading-none truncate">{nombre}</div>
+                  {(clientProfile?.id ?? clientId) ? (
+                    <Link
+                      href={`/clients/${clientProfile?.id ?? clientId}`}
+                      className="text-xs underline hover:no-underline text-slate-600"
+                    >
                       ver perfil y reseñas
                     </Link>
                   ) : null}
-                </p>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {typeof clientProfile?.rating === "number" ? (
+                    <RatingStars value={clientProfile.rating} className="text-[12px]" />
+                  ) : (
+                    <span>Calificación: —</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="pt-2">
-              <ChatStartPro requestId={String(d.id ?? params.id)} />
+              <ChatStartPro requestId={String(d.id ?? params.id)} initialConversationId={initialConversationId} />
             </div>
           </Card>
           {/* Se eliminó Postularme; acciones se integran en el chat */}

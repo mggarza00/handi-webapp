@@ -47,26 +47,27 @@ export default function RatingModal({
 
     setLoading(true);
     try {
-      const res = await fetch("/api/ratings", {
+      const res = await fetch("/api/reviews", {
         method: "POST",
         headers: {
           "Content-Type": "application/json; charset=utf-8",
         },
         body: JSON.stringify({
           request_id: requestId,
-          to_user_id: toUserId,
-          stars,
+          reviewer_role: viewerRole,
+          rating: stars,
           comment: comment.trim() || undefined,
-          actor: viewerRole,
+          // If reviewer is client, we must specify the pro being reviewed
+          professional_id: viewerRole === "client" ? toUserId : undefined,
         }),
       });
 
       if (!res.ok) {
-        toast.error("No se pudo guardar la calificaci�n");
+        toast.error("No se pudo guardar la calificación");
         return;
       }
 
-      toast.success("Calificaci�n enviada");
+      toast.success("Calificación enviada");
       onSubmit?.();
       setStars(5);
       setComment("");
@@ -96,7 +97,7 @@ export default function RatingModal({
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="rating-select">Calificaci�n (1 a 5 estrellas)</Label>
+            <Label htmlFor="rating-select">Calificación (1 a 5 estrellas)</Label>
             <select
               id="rating-select"
               className="w-full rounded border px-2 py-2 text-sm"
@@ -122,7 +123,7 @@ export default function RatingModal({
                   setComment(value);
                 }
               }}
-              placeholder="�C�mo fue tu experiencia?"
+              placeholder="¿Cómo fue tu experiencia?"
               rows={4}
               disabled={loading}
             />
@@ -137,7 +138,7 @@ export default function RatingModal({
             disabled={loading}
             className="w-full"
           >
-            {loading ? "Enviando" : "Enviar calificaci�n"}
+            {loading ? "Enviando" : "Enviar calificación"}
           </Button>
           <Button
             variant="outline"

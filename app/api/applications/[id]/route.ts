@@ -1,63 +1,56 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { z } from "zod";
 
-import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
-import { notifyApplicationUpdated } from "@/lib/notifications";
-import type { Database } from "@/types/supabase";
+import { createServerClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-const patchSchema = z.object({
+const PatchSchema = z.object({
   status: z.enum(["accepted", "rejected", "completed"]),
 });
 
-type CtxP = { params: { id: string } };
-
-export async function PATCH(req: Request, { params }: CtxP) {
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const { id } = params;
-    const supabase = createRouteHandlerClient<Database>({ cookies });
-    const { user } = await getUserOrThrow(supabase);
-    const { status } = patchSchema.parse(await req.json());
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from("applications")
-      .update({
-        status,
-      } as Database["public"]["Tables"]["applications"]["Update"])
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) {
-      return new NextResponse(
-        JSON.stringify({
-          ok: false,
-          error: "UPDATE_FAILED",
-          detail: error.message,
-          user_id: user.id,
-        }),
+    const Id = z.string().uuid();
+    const parsedId = Id.safeParse(params?.id);
+    if (!parsedId.success) {
+      return NextResponse.json(
+        { ok: false, error: "INVALID_ID" },
         { status: 400, headers: JSONH },
       );
     }
-    try {
-      await notifyApplicationUpdated({ application_id: data.id, status });
-    } catch {
-      // no-op
+    const body = await req.json().catch(() => ({}));
+    const parsed = PatchSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() },
+        { status: 422, headers: JSONH },
+      );
     }
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    const { status } = parsed.data;
+    const supa = createServerClient();
+    const up = await supa
+      .from("applications")
+      .update({ status })
+      .eq("id", parsedId.data)
+      .select("id, status")
+      .single();
+    if (up.error) {
+      return NextResponse.json(
+        { ok: false, error: up.error.message },
+        { status: 400, headers: JSONH },
+      );
+    }
+    return NextResponse.json({ ok: true, data: up.data }, { headers: JSONH });
   } catch (e) {
-    const err = e as ApiError;
-    const status = err?.status ?? 401;
-    return new NextResponse(
-      JSON.stringify({ ok: false, error: err?.code ?? "UNAUTHORIZED" }),
-      {
-        status,
-        headers: JSONH,
-      },
+    const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status: 500, headers: JSONH },
     );
   }
 }
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+

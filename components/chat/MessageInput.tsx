@@ -3,74 +3,82 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { scanMessage } from "@/lib/safety/contact-guard";
+import { getContactPolicyMessage } from "@/lib/safety/policy";
 
-export default function MessageInput({
-  onSend,
-  disabled,
-  autoFocus,
-  onTyping,
-}: {
-  onSend: (text: string) => Promise<void> | void;
+type MessageInputProps = {
+  onSend: (text: string) => Promise<boolean | void> | boolean | void;
   disabled?: boolean;
   autoFocus?: boolean;
   onTyping?: () => void;
-}) {
+  dataPrefix?: string; // e2e: chat | request-chat
+};
+
+export default function MessageInput({ onSend, disabled, autoFocus, onTyping, dataPrefix = "chat" }: MessageInputProps) {
   const [text, setText] = React.useState("");
   const [sending, setSending] = React.useState(false);
-  const taRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const scan = React.useMemo(() => scanMessage(text), [text]);
+  const hasContact = scan.hasContact;
 
   React.useEffect(() => {
-    if (autoFocus && taRef.current) {
-      try {
-        taRef.current.focus();
-      } catch {
-        /* ignore */
-      }
+    if (!autoFocus || !textareaRef.current) return;
+    try {
+      textareaRef.current.focus();
+    } catch {
+      // ignore
     }
   }, [autoFocus]);
 
-  async function handleSend() {
-    const t = text.trim();
-    if (!t || sending || disabled) return;
+  const handleSend = React.useCallback(async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending || disabled) return;
     setSending(true);
     try {
-      await onSend(t);
-      setText("");
+      const result = await onSend(trimmed);
+      if (result !== false) {
+        setText("");
+      }
     } finally {
       setSending(false);
     }
-  }
+  }, [text, sending, disabled, onSend]);
 
   return (
-    <div className="border-t p-2">
+    <div className="border-t p-2 space-y-2">
       <Textarea
-        ref={taRef}
+        ref={textareaRef}
         id="chat-message"
         name="chat-message"
+        data-testid={`${dataPrefix}-input`}
         aria-label="Escribe un mensaje"
-        placeholder="Escribe un mensaje…"
+        placeholder="Escribe un mensaje..."
         value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          if (onTyping) onTyping();
+        onChange={(event) => {
+          setText(event.target.value);
+          onTyping?.();
         }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
             void handleSend();
           }
-          if (onTyping) onTyping();
+          onTyping?.();
         }}
         rows={3}
+        className={`whitespace-pre-wrap ${hasContact ? "border border-destructive focus-visible:ring-destructive" : ""}`}
+        aria-invalid={hasContact}
       />
-      <div className="mt-2 flex justify-end">
+      {hasContact ? <div className="text-xs text-destructive">{getContactPolicyMessage()}</div> : null}
+      <div className="flex justify-end">
         <Button
           size="sm"
           onClick={() => void handleSend()}
           disabled={sending || disabled || !text.trim()}
           aria-busy={sending}
+          data-testid={`${dataPrefix}-send`}
         >
-          {sending ? "Enviando…" : "Enviar"}
+          {sending ? "Enviando..." : "Enviar"}
         </Button>
       </div>
     </div>

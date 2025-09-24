@@ -8,7 +8,9 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import RequestDetailClient from "./RequestDetailClient";
 import RequestHeaderActions from "./RequestHeaderActions.client";
-import ChatClient from "./Chat.client";
+import AgreementsClient from "./Agreements.client";
+// Optionally render applications/offers flow if present in snapshot
+// import ApplicationsClient from "./Applications.client";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Card } from "@/components/ui/card";
@@ -34,13 +36,10 @@ function getBaseUrl() {
 
 export const dynamic = "force-dynamic";
 
-export default async function RequestDetailPage({ params, searchParams }: Params) {
+export default async function RequestDetailPage({ params }: Params) {
   const base = getBaseUrl();
   const disablePros = (process.env.NEXT_PUBLIC_DISABLE_PROS || "").trim() === "1";
   const disableDetail = (process.env.NEXT_PUBLIC_DISABLE_DETAIL || "").trim() === "1";
-  const showTestChat =
-    process.env.NODE_ENV !== "production" &&
-    (searchParams?.testChat === "1" || searchParams?.testChat === "true");
 
   // Forward cookies for SSR fetch
   // Forward raw cookie values to internal API (do NOT URL-encode).
@@ -69,7 +68,6 @@ export default async function RequestDetailPage({ params, searchParams }: Params
   }
 
   const d = j.data as Record<string, unknown>;
-  const createdBy = (d.created_by as string | undefined) ?? null;
 
   // Owner-only guard: only the creator can view this client detail page
   try {
@@ -77,7 +75,7 @@ export default async function RequestDetailPage({ params, searchParams }: Params
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const ownerId = createdBy;
+    const ownerId = (d.created_by as string | undefined) ?? null;
     if (!user || !ownerId || user.id !== ownerId) {
       redirect(`/requests/explore/${params.id}`);
     }
@@ -176,6 +174,11 @@ export default async function RequestDetailPage({ params, searchParams }: Params
               Detalle desactivado por NEXT_PUBLIC_DISABLE_DETAIL=1
             </div>
           )}
+
+          {/* Agreements flow (offers, status updates, payment actions) */}
+          <div className="mt-6">
+            <AgreementsClient requestId={initial.id} createdBy={(d.created_by as string | undefined) ?? null} />
+          </div>
         </section>
 
         <aside className="order-last md:order-none md:sticky md:top-4 space-y-4">
@@ -189,18 +192,7 @@ export default async function RequestDetailPage({ params, searchParams }: Params
                 city={city}
               />
             </Card>
-          ) : null}
-          {showTestChat ? (
-            <Card className="p-4" data-testid="chat-test-card">
-              <h2 className="font-medium mb-2">Chat (prueba E2E)</h2>
-              <ChatClient
-                requestId={initial.id}
-                createdBy={createdBy}
-                initialTitle={initial.title ?? null}
-              />
-            </Card>
-          ) : null}
-        </aside>
+          ) : null}</aside>
       </div>
 
       {/* Trust badges removed per request */}
@@ -210,7 +202,6 @@ export default async function RequestDetailPage({ params, searchParams }: Params
 }
 
 export const metadata: Metadata = { title: "Solicitud | Handi" };
-
 
 
 

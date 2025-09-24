@@ -133,9 +133,10 @@ export default function ApplicationsClient({ requestId, createdBy }: Props) {
               {createdBy &&
                 me &&
                 createdBy === me &&
-                (a.status === null || a.status === "applied") && (
+                (a.status === null || a.status === "applied" || a.status === "pending") && (
                   <div className="flex items-center gap-2">
                     <button
+                      data-testid="accept-offer"
                       className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
                       onClick={() => {
                         setConfirmTarget({ id: a.id, next: "accepted" });
@@ -175,8 +176,10 @@ export default function ApplicationsClient({ requestId, createdBy }: Props) {
                           [a.id]: e.target.value,
                         }))
                       }
+                      data-testid="offer-amount"
                     />
                     <button
+                      data-testid="send-offer"
                       className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
                       onClick={async () => {
                         const raw =
@@ -218,7 +221,7 @@ export default function ApplicationsClient({ requestId, createdBy }: Props) {
                           return toast.error(
                             j2?.error || "No se pudo aceptar el acuerdo",
                           );
-                        toast.success("Acuerdo creado y aceptado");
+                        toast.success("Oferta enviada");
                       }}
                     >
                       Crear acuerdo (aceptado)
@@ -315,12 +318,12 @@ export default function ApplicationsClient({ requestId, createdBy }: Props) {
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {confirmTarget?.next === "accepted"
-                ? "Aceptar postulación"
-                : "Rechazar postulación"}
-            </DialogTitle>
-            <DialogDescription>
+                <DialogTitle>
+                  {confirmTarget?.next === "accepted"
+                    ? "Aceptar postulación"
+                    : "Rechazar postulación"}
+                </DialogTitle>
+                <DialogDescription>
               {confirmTarget?.next === "accepted"
                 ? "Confirmas aceptar esta postulación?"
                 : "Confirmas rechazar esta postulación?"}
@@ -360,7 +363,7 @@ export default function ApplicationsClient({ requestId, createdBy }: Props) {
                 );
                 toast.success(
                   confirmTarget.next === "accepted"
-                    ? "Postulación aceptada"
+                    ? "Oferta aceptada"
                     : "Postulación rechazada",
                 );
                 setConfirmOpen(false);

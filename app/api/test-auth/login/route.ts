@@ -16,8 +16,9 @@ export async function GET(req: Request) {
     }
 
     const { searchParams, origin } = new URL(req.url);
-    const email = searchParams.get("email") || "client+seed@handi.dev";
+    const email = searchParams.get("email") || "cliente.e2e@handi.mx";
     const next = searchParams.get("next") || "/";
+    const role = (searchParams.get("role") || "client").toLowerCase();
 
     const admin = getAdminSupabase();
     const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
@@ -26,28 +27,32 @@ export async function GET(req: Request) {
       email,
       options: { redirectTo },
     });
-    if (error || !data?.properties?.action_link) {
+    if (!error && data?.properties?.action_link) {
+      type LinkProps = { action_link?: string | null; hashed_token?: string | null };
+      const props = (data.properties ?? {}) as LinkProps;
       return NextResponse.json(
         {
-          ok: false,
-          error: "GENERATE_LINK_FAILED",
-          detail: error?.message || "no_action_link",
+          ok: true,
+          action_link: props.action_link!,
+          token_hash: props.hashed_token ?? null,
+          type: "magiclink",
+          redirect_to: redirectTo,
         },
-        { status: 400, headers: JSONH },
+        { headers: JSONH },
       );
     }
-    type LinkProps = { action_link?: string | null; hashed_token?: string | null };
-    const props = (data.properties ?? {}) as LinkProps;
-    return NextResponse.json(
-      {
-        ok: true,
-        action_link: props.action_link!,
-        token_hash: props.hashed_token ?? null,
-        type: "magiclink",
-        redirect_to: redirectTo,
-      },
+
+    // Dev fallback: set cookie directly so browser sessions can be established via GET
+    const res = NextResponse.json(
+      { ok: true, email, role, fallback: "cookie" },
       { headers: JSONH },
     );
+    res.cookies.set(
+      "e2e_session",
+      `${encodeURIComponent(email)}:${encodeURIComponent(role)}`,
+      { httpOnly: true, path: "/", sameSite: "lax" },
+    );
+    return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

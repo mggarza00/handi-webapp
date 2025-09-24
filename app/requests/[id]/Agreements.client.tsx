@@ -54,32 +54,32 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
     const s = status ?? "negotiating";
     switch (s) {
       case "accepted":
-        return <Badge variant="default">Aceptado</Badge>;
+        return <Badge variant="default" data-testid="status-chip">Aceptado</Badge>;
       case "paid":
         return (
-          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600" data-testid="status-chip">
             Pagado
           </Badge>
         );
       case "in_progress":
         return (
-          <Badge className="bg-blue-600 text-white hover:bg-blue-600">
+          <Badge className="bg-blue-600 text-white hover:bg-blue-600" data-testid="status-chip">
             En progreso
           </Badge>
         );
       case "completed":
         return (
-          <Badge className="bg-gray-800 text-white hover:bg-gray-800">
+          <Badge className="bg-gray-800 text-white hover:bg-gray-800" data-testid="status-chip">
             Completado
           </Badge>
         );
       case "cancelled":
-        return <Badge variant="destructive">Cancelado</Badge>;
+        return <Badge variant="destructive" data-testid="status-chip">Cancelado</Badge>;
       case "disputed":
-        return <Badge variant="destructive">En disputa</Badge>;
+        return <Badge variant="destructive" data-testid="status-chip">En disputa</Badge>;
       case "negotiating":
       default:
-        return <Badge variant="outline">En negociación</Badge>;
+        return <Badge variant="outline" data-testid="status-chip">En negociación</Badge>;
     }
   }
 
@@ -258,6 +258,7 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
                             [a.id]: e.target.value,
                           }))
                         }
+                        data-testid="offer-amount"
                       />
                       <button
                         className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
@@ -301,6 +302,7 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
                       me === createdBy &&
                       a.status === "accepted" && (
                         <button
+                          data-testid="pay-now"
                           className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
                           onClick={async () => {
                             const r = await fetch(`/api/stripe/checkout`, {
@@ -328,6 +330,7 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
                     {a.status === "paid" && (
                       <button
                         className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
+                        data-testid="mark-in-progress"
                         onClick={() => {
                           setConfirmTarget({ id: a.id, next: "in_progress" });
                           setConfirmOpen(true);
@@ -339,6 +342,7 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
                     {a.status === "in_progress" && (
                       <button
                         className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
+                        data-testid="mark-complete"
                         onClick={() => {
                           setConfirmTarget({ id: a.id, next: "completed" });
                           setConfirmOpen(true);

@@ -215,7 +215,6 @@ export async function GET(req: Request) {
             cities: seedCities,
             categories: seedCategories,
             subcategories: seedSubcategories,
-            rating: 4.7,
             is_featured: true,
             active: true,
           },
@@ -226,18 +225,34 @@ export async function GET(req: Request) {
         return err("seed.upsert_professionals", upProfessionals.error);
 
       // garantiza una postulación del profesional seed para la solicitud seed
-      const insertApplications = await supa
+      let insertApplications = await supa
         .from("applications")
         .insert([
           {
             request_id: REQ_ID,
             professional_id: proLite.id,
-            status: "applied",
+            // Prefer 'pending' (new schema); fallback to 'applied' if CHECK fails
+            status: "pending",
           },
         ] as Database["public"]["Tables"]["applications"]["Insert"][])
         .select("id")
         .single();
-      const appError = insertApplications.error;
+      let appError = insertApplications.error as PostgrestError | null;
+      if (appError && appError.code === "23514") {
+        // Retry with legacy status value
+        insertApplications = await supa
+          .from("applications")
+          .insert([
+            {
+              request_id: REQ_ID,
+              professional_id: proLite.id,
+              status: "applied",
+            },
+          ] as Database["public"]["Tables"]["applications"]["Insert"][])
+          .select("id")
+          .single();
+        appError = insertApplications.error as PostgrestError | null;
+      }
       if (appError && appError.code !== "23505" && appError.code !== "42P01") {
         return err("seed.insert_applications", appError);
       }
@@ -262,6 +277,38 @@ export async function GET(req: Request) {
       // Para garantizar estabilidad del test en entornos donde aún no se aplicó el índice único,
       // devolvemos explícitamente el código de duplicado simulado.
       return NextResponse.json({ ok: true, dupCode: "23505" });
+    }
+
+    if (action === "seed-e2e-users") {
+      try {
+        const client = await ensureUserWithPassword(supa, "cliente.e2e@handi.mx", "E2e!Pass123");
+        const pro = await ensureUserWithPassword(supa, "pro.e2e@handi.mx", "E2e!Pass123");
+        // Upsert profiles basic
+        await supa.from("profiles").upsert([
+          { id: client.id, full_name: "Cliente E2E", role: "client", active: true },
+          { id: pro.id, full_name: "Pro E2E", role: "pro", active: true },
+        ]);
+        // Ensure professionals row exists for pro (if table present)
+        try {
+          await supa
+            .from("professionals")
+            .upsert([
+              {
+                id: pro.id,
+                full_name: "Pro E2E",
+                headline: "Profesional de prueba",
+                city: "Monterrey",
+                active: true,
+              },
+            ] as Database["public"]["Tables"]["professionals"]["Insert"][], { onConflict: "id" });
+        } catch {
+          // ignore if table doesn't exist in this snapshot
+        }
+        return NextResponse.json({ ok: true, client_id: client.id, pro_id: pro.id });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+      }
     }
 
     return NextResponse.json(

@@ -4,8 +4,9 @@ import { notFound, redirect } from "next/navigation";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
-import ConfirmServiceButton from "@/components/services/ConfirmServiceButton";
-import RatingModalTrigger from "@/components/services/RatingModalTrigger";
+// ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
+import ConfirmAndReview from "@/components/services/ConfirmAndReview.client";
+import JobPhotosUploader from "@/components/services/JobPhotosUploader.client";
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -148,14 +149,8 @@ export default async function ServiceDetailPage({ params }: Params) {
 
   const status = normalizeStatus(context.service.status);
   const hasConfirmed = Boolean(context.service.completed_by_pro);
-  const requestStatus = context.service.status ?? null;
   const buttonWaitingFor = context.service.completed_by_client ? null : "cliente";
-  const modalShouldOpen = requestStatus === "completed";
-  const ratingTargetId =
-    user?.id === context.service.professional_id
-      ? context.request?.created_by ?? null
-      : context.service.professional_id ?? null;
-  const viewerId = user?.id ?? null;
+  // El modal de reseñas se gestiona en el cliente (ConfirmAndReview)
   const requestTitle = context.request?.title ?? `Servicio ${context.service.id}`;
   const breadcrumbs = [
     { label: "Inicio", href: "/" },
@@ -176,7 +171,7 @@ export default async function ServiceDetailPage({ params }: Params) {
             Cierra el servicio, registra la calificacion y adjunta evidencias.
           </p>
         </div>
-        <Badge variant={status.variant}>{status.label}</Badge>
+        <Badge variant={status.variant} data-testid="status-chip">{status.label}</Badge>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -202,12 +197,15 @@ export default async function ServiceDetailPage({ params }: Params) {
                   </p>
                 </div>
                 <div className="mt-4">
-                  <ConfirmServiceButton
+                  <ConfirmAndReview
                     agreementId={context.service.id}
-                    actor="pro"
+                    requestId={context.service.request_id ?? params.id}
+                    professionalId={context.service.professional_id}
+                    clientId={context.request?.created_by ?? ""}
+                    viewerId={user.id}
+                    initialStatus={context.service.status ?? null}
                     hasConfirmed={context.service.completed_by_pro ?? false}
                     waitingFor={buttonWaitingFor}
-                    initialStatus={context.service.status}
                     className="w-full"
                   />
                 </div>
@@ -258,7 +256,10 @@ export default async function ServiceDetailPage({ params }: Params) {
                 </div>
               )}
               <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-                {/* Componente de subida de fotos (solo despues de cerrar) */}
+                <JobPhotosUploader
+                  requestId={context.service.request_id ?? params.id}
+                  professionalId={context.service.professional_id}
+                />
               </div>
             </CardContent>
           </Card>
@@ -314,21 +315,8 @@ export default async function ServiceDetailPage({ params }: Params) {
           </Card>
         </aside>
       </div>
-      <RatingModalTrigger
-        requestId={context.service.request_id ?? context.request?.id ?? params.id}
-        toUserId={ratingTargetId}
-        viewerRole="pro"
-        requestStatus={requestStatus}
-        openOnMount={modalShouldOpen}
-        viewerId={viewerId}
-      />
+      {/* Modal de reseña se renderiza dentro de ConfirmAndReview */}
     </main>
 );
 }
-
-
-
-
-
-
 

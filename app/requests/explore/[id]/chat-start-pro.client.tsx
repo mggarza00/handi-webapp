@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { Button } from "@/components/ui/button";
 
-export default function ChatStartPro({ requestId }: { requestId: string }) {
+export default function ChatStartPro({ requestId, initialConversationId }: { requestId: string; initialConversationId?: string | null }) {
   const router = useRouter();
   const [me, setMe] = React.useState<string | null>(null);
-  const [conversationId, setConversationId] = React.useState<string | null>(null);
+  const [conversationId, setConversationId] = React.useState<string | null>(initialConversationId ?? null);
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
 
@@ -32,6 +32,11 @@ export default function ChatStartPro({ requestId }: { requestId: string }) {
     if (!me) {
       const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
       router.push(`/auth/sign-in?next=${encodeURIComponent(here)}`);
+      return;
+    }
+    // Si ya existe conversación, solo abrir
+    if (conversationId) {
+      setOpen(true);
       return;
     }
     setLoading(true);

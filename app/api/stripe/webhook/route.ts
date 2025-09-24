@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const stripe = new Stripe(STRIPE_SECRET_KEY);
+  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {
@@ -48,6 +48,13 @@ export async function POST(req: Request) {
           const admin = createClient(url, serviceRole);
           const offerId = (session.metadata?.offer_id || "").trim();
           if (offerId) {
+            console.log(
+              JSON.stringify({
+                type: "stripe.checkout.session.completed",
+                offerId,
+                sessionId: session.id,
+              }),
+            );
             await admin
               .from("offers")
               .update({

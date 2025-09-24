@@ -27,7 +27,7 @@ export async function GET(req: Request) {
     const supabase = createRouteHandlerClient<Database>({ cookies });
     // Trae profesionales activos con campos necesarios; city se filtra en BD por ciudad exacta
     const query = supabase
-      .from("professionals")
+      .from("professionals_with_profile")
       .select(
         "id, full_name, avatar_url, headline, bio, rating, is_featured, last_active_at, city, cities, categories, subcategories, active, empresa",
       )
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
       try {
         const admin = createServiceClient();
         const r = await admin
-          .from("professionals")
+          .from("professionals_with_profile")
           .select(
             "id, full_name, avatar_url, headline, bio, rating, is_featured, last_active_at, city, cities, categories, subcategories, active, empresa",
           )

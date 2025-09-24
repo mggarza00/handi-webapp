@@ -49,7 +49,7 @@ export async function GET(req: Request) {
 
     let q = (supabase as any)
       .from("messages")
-      .select("id, conversation_id, sender_id, body, text, created_at, read_by")
+      .select("id, conversation_id, sender_id, body, text, created_at, read_by, message_type, payload")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -71,6 +71,8 @@ export async function GET(req: Request) {
       body: (m.body ?? m.text ?? "").toString(),
       created_at: m.created_at,
       read_by: Array.isArray(m.read_by) ? m.read_by.map((x: unknown) => String(x)) : [],
+      message_type: (m as any).message_type ?? null,
+      payload: (m as any).payload ?? null,
     }));
 
     // Marcar como leídos los mensajes del otro participante (agregar nuestro user.id a read_by)

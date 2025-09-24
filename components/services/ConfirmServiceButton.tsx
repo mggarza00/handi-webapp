@@ -16,6 +16,18 @@ type Props = {
   waitingFor?: "cliente" | "profesional" | null;
   initialStatus?: ServiceStatus | null;
   className?: string;
+  onCompleted?: (json: {
+    ok?: boolean;
+    agreement?: Database["public"]["Tables"]["agreements"]["Row"] | null;
+    waitingFor?: "cliente" | "profesional" | null;
+    message?: string;
+    actor?: "pro" | "client";
+    alreadyConfirmed?: boolean;
+    operation?: "complete" | "confirm";
+    method?: "POST" | "PUT";
+    error?: string;
+    detail?: string;
+  }) => void;
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -33,6 +45,7 @@ export default function ConfirmServiceButton({
   waitingFor = null,
   initialStatus = null,
   className,
+  onCompleted,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -107,6 +120,22 @@ export default function ConfirmServiceButton({
                 : "Servicio finalizado por ambas partes.";
 
           toast.success(responseMessage);
+          try {
+            onCompleted?.(json as unknown as {
+              ok?: boolean;
+              agreement?: Database["public"]["Tables"]["agreements"]["Row"] | null;
+              waitingFor?: "cliente" | "profesional" | null;
+              message?: string;
+              actor?: "pro" | "client";
+              alreadyConfirmed?: boolean;
+              operation?: "complete" | "confirm";
+              method?: "POST" | "PUT";
+              error?: string;
+              detail?: string;
+            });
+          } catch {
+            // ignore callback errors to not block UX
+          }
           router.refresh();
         } catch {
           toast.error("Ocurrio un error al confirmar el servicio.");
@@ -121,12 +150,11 @@ export default function ConfirmServiceButton({
       disabled={pending || confirmed}
       aria-busy={pending}
       onClick={handleClick}
+      data-testid="mark-complete"
     >
       {label}
     </Button>
   );
 }
-
-
 
 

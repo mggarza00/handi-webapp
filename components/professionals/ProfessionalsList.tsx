@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import RatingStars from "@/components/ui/RatingStars";
 import { toast } from "sonner";
-import dynamic from "next/dynamic";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 type Professional = {
@@ -38,8 +37,7 @@ export default function ProfessionalsList({
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
   const [items, setItems] = React.useState<Professional[]>([]);
-  const [openConvId, setOpenConvId] = React.useState<string | null>(null);
-  const [chatOpen, setChatOpen] = React.useState(false);
+  // redirección a /mensajes/{id} reemplaza el panel embebido
   const [startingFor, setStartingFor] = React.useState<string | null>(null);
   const router = useRouter();
   const supabase = createClientComponentClient();
@@ -47,14 +45,7 @@ export default function ProfessionalsList({
   const [mounted, setMounted] = React.useState(false);
 
   // Lazy-load ChatPanel only when needed to avoid pulling its chunk during initial hydration
-  const ChatPanel = React.useMemo(
-    () =>
-      dynamic(() => import("@/components/chat/ChatPanel"), {
-        ssr: false,
-        loading: () => null,
-      }),
-    [],
-  );
+  // const ChatPanel = React.useMemo(() => dynamic<ChatPanelProps>(() => import("@/components/chat/ChatPanel").then((m) => m.default), { ssr: false, loading: () => null }), []);
 
   // NOTE: Evitar doble resolución del user id desde el cliente para no interferir con la hidratación.
   // Usamos únicamente /api/me, que ya contempla fallback dev con Authorization: Bearer.
@@ -192,6 +183,7 @@ export default function ProfessionalsList({
             <div className="mt-2" onClick={(e) => e.stopPropagation()}>
               <Button
                 size="sm"
+                data-testid="open-request-chat"
                 onClick={async (event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -221,10 +213,7 @@ export default function ProfessionalsList({
                     }
                     if (!res.ok) throw new Error(j?.error || "start_failed");
                     const convId: string | undefined = j?.data?.id ?? j?.conversation?.id;
-                    if (convId) {
-                      setOpenConvId(convId);
-                      setChatOpen(true);
-                    }
+                    if (convId) router.push(`/mensajes/${convId}`);
                   } catch (e) {
                     const msg = e instanceof Error ? e.message : "No se pudo iniciar el chat";
                     toast.error(msg);
@@ -240,16 +229,7 @@ export default function ProfessionalsList({
           </div>
         </Card>
       ))}
-      {chatOpen && openConvId ? (
-        <ChatPanel
-          conversationId={openConvId}
-          userId={meId}
-          onClose={() => {
-            setChatOpen(false);
-            setOpenConvId(null);
-          }}
-        />
-      ) : null}
+      {/* Redirección a /mensajes/{id} sustituye el panel embebido */}
     </div>
   );
 }

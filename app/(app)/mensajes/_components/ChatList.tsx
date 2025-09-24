@@ -65,7 +65,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           {editing ? "Listo" : "Editar"}
         </button>
       </div>
-      <ul className="divide-y">
+      <ul className="divide-y" data-testid="chat-thread-list">
         {items.map((c) => (
           <ChatListItem
             key={c.id}
@@ -81,5 +81,4 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
     </div>
   );
 }
-
 

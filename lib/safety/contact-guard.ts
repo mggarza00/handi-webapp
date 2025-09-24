@@ -1,117 +1,98 @@
-/* eslint-disable no-control-regex */
-export type ContactFinding = {
-  kind: "email" | "phone" | "address";
-  match: string;
-  index: number;
-};
+import { getContactPolicyMessage } from "./policy";
 
-type ScanResult = {
-  sanitized: string;
-  findings: ContactFinding[];
-};
+export type Finding = { kind: "phone" | "email" | "url" | "address"; value: string };
+export type ContactScan = { sanitized: string; findings: Finding[] };
+export type ScanResult = ContactScan & { hasContact: boolean; reason: string | null };
 
-const EMAIL_PLACEHOLDER = "[bloqueado: email]";
-const PHONE_PLACEHOLDER = "[bloqueado: telefono]";
-const ADDRESS_PLACEHOLDER = "[bloqueado: direccion]";
-
-function normalizeObfuscations(input: string): string {
-  let output = input;
-  const replacements: Array<[RegExp, string]> = [
-    [/\s*\(at\)|\s*\[at\]|\s+arroba\s+/gi, "@"],
-    [/\s*\(dot\)|\s*\[dot\]|\s+punto\s+/gi, "."],
-    [/\s+guion\s+/gi, "-"],
-  ];
-  for (const [pattern, value] of replacements) {
-    output = output.replace(pattern, value);
-  }
-  return output.replace(/\u200B|\u200C|\u200D|\uFEFF/g, "");
+/* ---- Normalización mínima ---- */
+function normalizeObfuscations(text: string): string {
+  // quita NBSP, trimming básico
+  return text.replace(/\u00A0/g, " ").trim();
 }
 
-const EMAIL_RX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+/* ---- Detectores ---- */
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_RE = /(?:\+?\d[\d\s().-]{7,}\d)/g; // simple: 9+ dígitos con separadores
+const URL_RE   = /\b(?:https?:\/\/|www\.)[^\s]+/gi;
+// De momento no implementamos address real; placeholder:
+const ADDRESS_RE = /(calle\s+\S+|\bcp\s*\d{5}\b)/gi;
 
-function detectEmails(text: string): ContactFinding[] {
-  const findings: ContactFinding[] = [];
-  let match: RegExpExecArray | null;
-  EMAIL_RX.lastIndex = 0;
-  while ((match = EMAIL_RX.exec(text)) !== null) {
-    findings.push({ kind: "email", match: match[0], index: match.index });
-  }
-  return findings;
+export function detectEmails(input: string): Finding[] {
+  const out: Finding[] = [];
+  const s = input;
+  let m: RegExpExecArray | null;
+  EMAIL_RE.lastIndex = 0;
+  while ((m = EMAIL_RE.exec(s))) out.push({ kind: "email", value: m[0] });
+  return out;
 }
 
-function detectPhones(text: string): ContactFinding[] {
-  const findings: ContactFinding[] = [];
-  let buffer = "";
-  let start = -1;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    if (/\d/.test(ch)) {
-      if (start === -1) start = i;
-      buffer += ch;
-      continue;
-    }
-    if (/[()\s.+-]/.test(ch)) {
-      continue;
-    }
-    if (buffer.length >= 10 && buffer.length <= 14) {
-      findings.push({ kind: "phone", match: text.slice(start, i), index: start });
-    }
-    buffer = "";
-    start = -1;
-  }
-  if (buffer.length >= 10 && buffer.length <= 14) {
-    findings.push({ kind: "phone", match: text.slice(start), index: start === -1 ? 0 : start });
-  }
-  return findings;
+export function detectPhones(input: string): Finding[] {
+  const out: Finding[] = [];
+  const s = input;
+  let m: RegExpExecArray | null;
+  PHONE_RE.lastIndex = 0;
+  while ((m = PHONE_RE.exec(s))) out.push({ kind: "phone", value: m[0] });
+  return out;
 }
 
-const ADDRESS_KEYWORDS = [
-  "calle",
-  "avenida",
-  "colonia",
-  "municipio",
-  "alcaldia",
-  "estado",
-  "codigo postal",
-  "cp",
-  "col.",
-  "mz",
-  "lt",
-  "numero",
-];
-
-function detectAddresses(text: string): ContactFinding[] {
-  const lowered = text.toLowerCase();
-  for (const keyword of ADDRESS_KEYWORDS) {
-    const idx = lowered.indexOf(keyword);
-    if (idx !== -1) {
-      return [{ kind: "address", match: keyword, index: idx }];
-    }
-  }
-  const zip = lowered.match(/\b\d{5}\b/);
-  if (zip && zip.index !== undefined) {
-    return [{ kind: "address", match: zip[0], index: zip.index }];
-  }
-  return [];
+export function detectUrls(input: string): Finding[] {
+  const out: Finding[] = [];
+  const s = input;
+  let m: RegExpExecArray | null;
+  URL_RE.lastIndex = 0;
+  while ((m = URL_RE.exec(s))) out.push({ kind: "url", value: m[0] });
+  return out;
 }
 
-export function scanContact(input: string): ScanResult {
+export function detectAddresses(input: string): Finding[] {
+  const out: Finding[] = [];
+  const s = input;
+  let m: RegExpExecArray | null;
+  ADDRESS_RE.lastIndex = 0;
+  while ((m = ADDRESS_RE.exec(s))) out.push({ kind: "address", value: m[0] });
+  return out;
+}
+
+/* ---- Escaneo (no redacción) ---- */
+export function scanContact(input: string): ContactScan {
   const sanitized = normalizeObfuscations(input);
-  const findings = [...detectEmails(sanitized), ...detectPhones(sanitized), ...detectAddresses(sanitized)];
+  const findings = [
+    ...detectEmails(sanitized),
+    ...detectPhones(sanitized),
+    ...detectUrls(sanitized),
+    ...detectAddresses(sanitized),
+  ];
   return { sanitized, findings };
 }
 
-export function redactContact(input: string): ScanResult {
-  const { sanitized, findings } = scanContact(input);
-  let redacted = sanitized;
-  for (const finding of findings) {
-    const placeholder =
-      finding.kind === "email"
-        ? EMAIL_PLACEHOLDER
-        : finding.kind === "phone"
-          ? PHONE_PLACEHOLDER
-          : ADDRESS_PLACEHOLDER;
-    redacted = redacted.replace(finding.match, placeholder);
+/* ---- Redacción (con placeholders en español, esperado por tests) ---- */
+export function redactContact(input: string): ContactScan {
+  const base = scanContact(input);
+  let redacted = base.sanitized;
+
+  if (base.findings.some(f => f.kind === "email")) {
+    redacted = redacted.replace(EMAIL_RE, "[bloqueado: email]");
   }
-  return { sanitized: redacted, findings };
+  if (base.findings.some(f => f.kind === "phone")) {
+    redacted = redacted.replace(PHONE_RE, "[bloqueado: telefono]");
+  }
+  if (base.findings.some(f => f.kind === "url")) {
+    redacted = redacted.replace(URL_RE, "[bloqueado: url]");
+  }
+  if (base.findings.some(f => f.kind === "address")) {
+    redacted = redacted.replace(ADDRESS_RE, "[bloqueado: direccion]");
+  }
+
+  return { sanitized: redacted, findings: base.findings };
+}
+
+/* ---- Resultado para UI (mensaje + política) ---- */
+export function scanMessage(text: string): ScanResult {
+  const contact = scanContact(text);
+  const hasContact = contact.findings.length > 0;
+  return {
+    ...contact,
+    hasContact,
+    reason: hasContact ? getContactPolicyMessage() : null,
+  };
 }

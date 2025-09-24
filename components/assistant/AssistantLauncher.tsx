@@ -20,13 +20,15 @@ export default function AssistantLauncher() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
-  const [hasMobileTabbar, setHasMobileTabbar] = useState(false);
+  const [hasBottomBar, setHasBottomBar] = useState(false);
 
   useEffect(() => {
-    // Detecta si el tab bar móvil está presente en la página
-    const el = document.getElementById("mobile-client-tabbar");
-    setHasMobileTabbar(!!el);
-  }, []);
+    // Detectar si hay una barra inferior móvil (cliente o profesional)
+    const clientBar = document.getElementById("mobile-client-tabbar");
+    const proBar = document.getElementById("pro-mobile-tabbar");
+    setHasBottomBar(!!clientBar || !!proBar);
+    // Re-evaluar al cambiar de ruta (por si cambia el rol/vista)
+  }, [pathname]);
 
   const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "";
   const waLink = useMemo(() => {
@@ -42,7 +44,7 @@ export default function AssistantLauncher() {
     <>
       {/* Botón flotante fijo en toda la app */}
       <div
-        className={`fixed right-4 z-50 ${hasMobileTabbar ? "bottom-[76px]" : "bottom-4"} md:bottom-4`}
+        className={`fixed right-4 z-50 ${hasBottomBar ? "bottom-[76px]" : "bottom-4"} md:bottom-4`}
       >
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>

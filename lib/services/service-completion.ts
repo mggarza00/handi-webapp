@@ -69,7 +69,7 @@ function buildSuccessMessage(params: {
   operation: ServiceCompletionOptions["operation"];
 }): string {
   if (params.status === "completed") {
-    return "Servicio finalizado por ambas partes.";
+    return "Servicio finalizado por ambas partes. Pago liberado al profesional.";
   }
 
   if (params.alreadyConfirmed) {
