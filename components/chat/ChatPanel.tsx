@@ -8,12 +8,15 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import MessageList from "@/components/chat/MessageList";
 import MessageInput from "@/components/chat/MessageInput";
+import ChatUploader from "@/app/(app)/messages/_components/ChatUploader";
 import { getContactPolicyMessage } from "@/lib/safety/policy";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "sonner";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { appendAttachment, removeAttachment } from "@/components/chat/utils";
+import { useChatRealtime } from "@/app/(app)/messages/_hooks/useChatRealtime";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +33,16 @@ type Msg = {
   readBy?: string[];
   messageType: string;
   payload: Record<string, unknown> | null;
+  attachments?: Array<{
+    id?: string;
+    filename: string;
+    mime_type: string;
+    byte_size?: number | null;
+    width?: number | null;
+    height?: number | null;
+    storage_path: string;
+    created_at?: string;
+  }>;
 };
 type Participants = { customer_id: string; pro_id: string };
 type HistoryResponse = {
@@ -64,6 +77,7 @@ function mapHistoryRow(raw: unknown): Msg | null {
     read_by?: unknown;
     message_type?: unknown;
     payload?: unknown;
+    attachments?: unknown;
   };
   if (!row?.id) return null;
   const id = String(row.id);
@@ -87,7 +101,19 @@ function mapHistoryRow(raw: unknown): Msg | null {
       payload = row.payload as Record<string, unknown>;
     }
   }
-  return { id, senderId, body, createdAt, readBy, messageType, payload };
+  const attachments = Array.isArray(row.attachments)
+    ? (row.attachments as Array<Record<string, unknown>>).map((a) => ({
+        id: typeof a.id === 'string' ? a.id : undefined,
+        filename: String(a.filename ?? ''),
+        mime_type: String(a.mime_type ?? ''),
+        byte_size: typeof a.byte_size === 'number' ? a.byte_size : (a.byte_size != null ? Number(a.byte_size) : null),
+        width: typeof a.width === 'number' ? a.width : (a.width != null ? Number(a.width) : null),
+        height: typeof a.height === 'number' ? a.height : (a.height != null ? Number(a.height) : null),
+        storage_path: String(a.storage_path ?? ''),
+        created_at: typeof a.created_at === 'string' ? a.created_at : undefined,
+      }))
+    : [];
+  return { id, senderId, body, createdAt, readBy, messageType, payload, attachments };
 }
 async function parseJsonSafe<T>(res: Response): Promise<T | null> {
   try {
@@ -417,62 +443,6 @@ export default function ChatPanel({
     if (!conversationId) return;
     const channel = supabaseBrowser
       .channel(`messages:${conversationId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          const row = payload.new as {
-            id: string;
-            sender_id: string;
-            body?: string | null;
-            text?: string | null;
-            created_at: string;
-            read_by?: unknown[];
-            message_type?: string | null;
-            payload?: unknown;
-          };
-          let parsedPayload: Record<string, unknown> | null = null;
-          if (row.payload) {
-            if (typeof row.payload === "string" && row.payload.trim().length) {
-              try {
-                parsedPayload = JSON.parse(row.payload);
-              } catch {
-                parsedPayload = null;
-              }
-            } else if (typeof row.payload === "object") {
-              parsedPayload = row.payload as Record<string, unknown>;
-            }
-          }
-          const msg: Msg = {
-            id: row.id,
-            senderId: row.sender_id,
-            body: (row.body ?? row.text ?? "").toString(),
-            createdAt: row.created_at,
-            readBy: Array.isArray(row.read_by)
-              ? (row.read_by as unknown[]).map((value) => String(value))
-              : [],
-            messageType: row.message_type ? String(row.message_type) : "text",
-            payload: parsedPayload,
-          };
-          // Si llega el system message de aceptacion desde el servidor, elimina el tmp de broadcast
-          try {
-            if (msg.messageType === "system" && msg.payload && typeof msg.payload === "object") {
-              const p = msg.payload as Record<string, unknown>;
-              const st = typeof p.status === "string" ? p.status : null;
-              const oid = typeof p.offer_id === "string" ? p.offer_id : null;
-              if (st === "accepted" && oid) {
-                removeMessageById(`tmp_b_${oid}`);
-              }
-            }
-          } catch { /* ignore */ }
-          mergeMessages(msg, { fromServer: true });
-        },
-      )
       .on("broadcast", { event: "typing" }, (payload) => {
         try {
           const from = (payload as any)?.payload?.from as string | undefined;
@@ -519,6 +489,55 @@ export default function ChatPanel({
       }
     };
   }, [conversationId, mergeMessages, meId]);
+
+  // Hook: realtime messages + attachments
+  useChatRealtime(conversationId, {
+    onMessageInsert: (row) => {
+      let parsedPayload: Record<string, unknown> | null = null;
+      const rawPayload = row.payload;
+      if (rawPayload) {
+        if (typeof rawPayload === "string" && rawPayload.trim().length) {
+          try { parsedPayload = JSON.parse(rawPayload) as Record<string, unknown>; } catch { parsedPayload = null; }
+        } else if (typeof rawPayload === "object") {
+          parsedPayload = rawPayload as Record<string, unknown>;
+        }
+      }
+      const msg: Msg = {
+        id: row.id,
+        senderId: row.sender_id,
+        body: (row.body ?? row.text ?? "").toString(),
+        createdAt: row.created_at,
+        readBy: Array.isArray(row.read_by) ? (row.read_by as unknown[]).map((v) => String(v)) : [],
+        messageType: row.message_type ? String(row.message_type) : "text",
+        payload: parsedPayload,
+        attachments: [],
+      };
+      try {
+        if (msg.messageType === "system" && msg.payload && typeof msg.payload === "object") {
+          const p = msg.payload as Record<string, unknown>;
+          const st = typeof p.status === "string" ? p.status : null;
+          const oid = typeof p.offer_id === "string" ? p.offer_id : null;
+          if (st === "accepted" && oid) removeMessageById(`tmp_b_${oid}`);
+        }
+      } catch { /* ignore */ }
+      mergeMessages(msg, { fromServer: true });
+    },
+    onAttachmentInsert: (r) => {
+      setMessages((prev) => appendAttachment(prev, r.message_id, {
+        id: r.id,
+        filename: r.filename,
+        mime_type: r.mime_type,
+        byte_size: r.byte_size ?? null,
+        width: r.width ?? null,
+        height: r.height ?? null,
+        storage_path: r.storage_path,
+        created_at: r.created_at,
+      }));
+    },
+    onAttachmentDelete: (r) => {
+      setMessages((prev) => removeAttachment(prev, r.message_id, r.id));
+    },
+  });
   const viewerRole = React.useMemo(() => {
     if (!participants || !meId) return "guest" as const;
     if (participants?.customer_id === meId) return "customer" as const;
@@ -1308,6 +1327,35 @@ export default function ChatPanel({
         {loadingState || messageList}
         {typingIndicator}
         {actionButtons}
+        <div className="border-t p-2">
+          <ChatUploader
+            conversationId={conversationId}
+            mode="draft-first"
+            onMessageCreated={({ messageId, attachments }) => {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === messageId
+                    ? {
+                        ...m,
+                        attachments: [
+                          ...(Array.isArray(m.attachments) ? m.attachments : []),
+                          ...attachments.map((a) => ({
+                            id: undefined,
+                            filename: a.filename,
+                            mime_type: a.mime_type,
+                            byte_size: a.byte_size,
+                            width: a.width ?? null,
+                            height: a.height ?? null,
+                            storage_path: a.storage_path,
+                          })),
+                        ],
+                      }
+                    : m,
+                ),
+              );
+            }}
+          />
+        </div>
         <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} />
         {offerDialog}
         {dialog}
@@ -1337,6 +1385,35 @@ export default function ChatPanel({
               {actionButtons}
             </>
           )}
+          <div className="border-t p-2">
+            <ChatUploader
+              conversationId={conversationId}
+              mode="draft-first"
+              onMessageCreated={({ messageId, attachments }) => {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === messageId
+                      ? {
+                          ...m,
+                          attachments: [
+                            ...(Array.isArray(m.attachments) ? m.attachments : []),
+                            ...attachments.map((a) => ({
+                              id: undefined,
+                              filename: a.filename,
+                              mime_type: a.mime_type,
+                              byte_size: a.byte_size,
+                              width: a.width ?? null,
+                              height: a.height ?? null,
+                              storage_path: a.storage_path,
+                            })),
+                          ],
+                        }
+                      : m,
+                  ),
+                );
+              }}
+            />
+          </div>
           <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} />
           {offerDialog}
           {dialog}
