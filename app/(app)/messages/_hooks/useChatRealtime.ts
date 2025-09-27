@@ -53,19 +53,44 @@ export function useChatRealtime(conversationId: string, h: Handlers) {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-        (payload) => h.onMessageUpdate?.(payload.new as RealtimeMessage),
+        (payload) => {
+          if (process.env.NODE_ENV != "production") { console.debug("rt message update", conversationId, (payload.new as { id?: string })?.id); }
+          h.onMessageUpdate?.(payload.new as RealtimeMessage);
+        },
       )
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "message_attachments", filter: `conversation_id=eq.${conversationId}` },
-        (payload) => h.onAttachmentInsert?.(payload.new as RealtimeAttachment),
+        (payload) => {
+          if (process.env.NODE_ENV != "production") {
+            console.debug("rt attachment insert", conversationId, (payload.new as { message_id?: string })?.message_id, (payload.new as { id?: string })?.id);
+          }
+          h.onAttachmentInsert?.(payload.new as RealtimeAttachment);
+        },
       )
       .on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "message_attachments", filter: `conversation_id=eq.${conversationId}` },
         (payload) => h.onAttachmentDelete?.(payload.old as { id: string; message_id: string; conversation_id: string }),
       )
+      // DEV-only broad listener (no filter) to diagnose filtering issues. Remove after validation.
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "message_attachments" },
+        (payload) => {
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.debug(
+              "rt dev raw att insert",
+              (payload.new as { conversation_id?: string })?.conversation_id,
+              (payload.new as { message_id?: string })?.message_id,
+              (payload.new as { id?: string })?.id,
+            );
+          }
+        },
+      )
       .subscribe();
+    if (process.env.NODE_ENV != "production") { console.debug("rt sub to conv", conversationId); }
     return () => {
       try { sb.removeChannel(channel); } catch { /* ignore */ }
     };

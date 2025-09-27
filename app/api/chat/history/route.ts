@@ -75,6 +75,32 @@ export async function GET(req: Request) {
       payload: (m as any).payload ?? null,
     }));
 
+    // Fetch attachments for these messages
+    const ids = normalized.map((m) => m.id).filter(Boolean);
+    let byMessage: Record<string, unknown[]> = {};
+    if (ids.length > 0) {
+      const { data: attRows } = await (supabase as any)
+        .from("message_attachments")
+        .select("id, message_id, filename, mime_type, byte_size, width, height, storage_path, created_at")
+        .in("message_id", ids);
+      byMessage = (attRows || []).reduce((acc: Record<string, unknown[]>, row: any) => {
+        const mid = row.message_id as string;
+        (acc[mid] ||= []).push({
+          id: row.id,
+          filename: row.filename,
+          mime_type: row.mime_type,
+          byte_size: row.byte_size,
+          width: row.width,
+          height: row.height,
+          storage_path: row.storage_path,
+          created_at: row.created_at,
+        });
+        return acc;
+      }, {} as Record<string, unknown[]>);
+    }
+
+    const enriched = normalized.map((m) => ({ ...m, attachments: byMessage[m.id] || [] }));
+
     // Marcar como leídos los mensajes del otro participante (agregar nuestro user.id a read_by)
     const toMark = normalized.filter((m) => m.sender_id !== user.id && !m.read_by.includes(user.id));
     if (toMark.length) {
@@ -90,7 +116,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      data: normalized,
+      data: enriched,
       participants: { customer_id: conv.data.customer_id, pro_id: conv.data.pro_id },
       request_id: conv.data.request_id,
     }, { headers: JSONH });

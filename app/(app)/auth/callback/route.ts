@@ -35,9 +35,16 @@ export async function GET(req: Request) {
 
     await ensureProfile(supabase);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "oauth_exchange_failed";
-    console.error("[auth/callback]", message);
+    const anyErr = err as unknown as { status?: number; code?: string; message?: string };
+    const status = typeof anyErr?.status === "number" ? anyErr.status : undefined;
+    const code = typeof anyErr?.code === "string" ? anyErr.code : undefined;
+    const message = anyErr?.message || (err instanceof Error ? err.message : "oauth_exchange_failed");
+    // Log once on server
+    console.error("[auth/callback] OAuth exchange error:", { status, code, message });
     const redirectUrl = new URL("/auth/sign-in", env.appUrl);
+    // Preserve details so UI can show a friendlier message
+    if (status) redirectUrl.searchParams.set("status", String(status));
+    if (code) redirectUrl.searchParams.set("code", code);
     redirectUrl.searchParams.set("error", message);
     return NextResponse.redirect(redirectUrl, { status: 302 });
   }
@@ -100,4 +107,3 @@ async function ensureProfile(supabase: SupabaseClient<Database, "public">) {
     .update(updatePayload)
     .eq("id", user.id);
 }
-

@@ -25,6 +25,7 @@ export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
         const user = userData?.user ?? null;
         let session = sessData?.session ?? null;
         if (user && session) {
+          try { if (session.access_token) { supabase.realtime.setAuth(session.access_token); } } catch { /* ignore */ }
           // Check if server sees the session; if not, sync cookies then refresh
           try {
             const me = await fetch("/api/me", { cache: "no-store", credentials: "include" }).then((r) => r.json()).catch(() => ({}));
@@ -49,6 +50,7 @@ export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
                     refresh_token: session.refresh_token,
                   }),
                 }).catch(() => undefined);
+                try { if (session.access_token) { supabase.realtime.setAuth(session.access_token); } } catch { /* ignore */ }
               }
             }
           } catch {

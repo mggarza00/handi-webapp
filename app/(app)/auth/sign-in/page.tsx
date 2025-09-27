@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -19,6 +19,19 @@ export default function SignInPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [facebookLoading, setFacebookLoading] = useState(false);
   const sp = useSearchParams();
+  // Surface OAuth errors (e.g., over_request_rate_limit) from /auth/callback redirect
+  useEffect(() => {
+    const err = sp?.get("error");
+    const code = sp?.get("code");
+    const status = sp?.get("status");
+    if (err) {
+      if (code === "over_request_rate_limit" || status === "429" || /rate limit/i.test(err)) {
+        setError("Demasiados intentos al iniciar sesión. Espera 1–2 minutos e inténtalo de nuevo, o usa el enlace por correo.");
+      } else {
+        setError(err);
+      }
+    }
+  }, [sp]);
   const next = useMemo(() => {
     const n = sp?.get("next");
     if (n && n.startsWith("/")) return n;

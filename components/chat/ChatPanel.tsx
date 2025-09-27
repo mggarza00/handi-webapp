@@ -523,6 +523,10 @@ export default function ChatPanel({
       mergeMessages(msg, { fromServer: true });
     },
     onAttachmentInsert: (r) => {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug('ui addAttachment <-', r.message_id, r.filename, r.storage_path);
+      }
       setMessages((prev) => appendAttachment(prev, r.message_id, {
         id: r.id,
         filename: r.filename,
@@ -1332,6 +1336,10 @@ export default function ChatPanel({
             conversationId={conversationId}
             mode="draft-first"
             onMessageCreated={({ messageId, attachments }) => {
+              if (process.env.NODE_ENV !== "production") {
+                // eslint-disable-next-line no-console
+                console.debug("ui att add optimistic", messageId, attachments.length);
+              }
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === messageId
@@ -1390,6 +1398,10 @@ export default function ChatPanel({
               conversationId={conversationId}
               mode="draft-first"
               onMessageCreated={({ messageId, attachments }) => {
+                if (process.env.NODE_ENV !== "production") {
+                  // eslint-disable-next-line no-console
+                  console.debug("ui att add optimistic", messageId, attachments.length);
+                }
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === messageId

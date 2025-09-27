@@ -29,11 +29,25 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
     const supabase: any = usedDevFallback ? createServiceClient() : await getDbClientForRequest(req);
 
-    // Fetch message to validate conversation and membership
-    const msg = await supabase.from("messages").select("id, conversation_id").eq("id", messageId).maybeSingle();
+    // 1) Fetch conversation_id from message
+    const msg = await supabase
+      .from("messages")
+      .select("id, conversation_id")
+      .eq("id", messageId)
+      .maybeSingle();
     if (!msg?.data)
       return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404, headers: JSONH });
     const conversationId = msg.data.conversation_id as string;
+
+    // 2) Validate participation (explicit, avoids bypass with SERVICE ROLE in dev)
+    const { data: isParticipant, error: rpcErr } = await supabase.rpc(
+      "is_conversation_participant",
+      { conv_id: conversationId },
+    );
+    if (rpcErr)
+      return NextResponse.json({ ok: false, error: rpcErr.message }, { status: 400, headers: JSONH });
+    if (!isParticipant)
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
     const raw = await req.json().catch(() => ({}));
     const parsed = BodySchema.safeParse(raw);
@@ -41,16 +55,16 @@ export async function POST(req: Request, { params }: Ctx) {
       return NextResponse.json({ ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() }, { status: 422, headers: JSONH });
 
     const items = parsed.data.attachments;
-    // Validate storage_path prefix and size
     const MAX_FILE_BYTES = 20 * 1024 * 1024;
     for (const a of items) {
-      const norm = a.storage_path.replace(/\\/g, "/");
+      const norm = a.storage_path.split(String.fromCharCode(92)).join('/');
       if (!norm.startsWith(`conversation/${conversationId}/`))
         return NextResponse.json({ ok: false, error: "INVALID_STORAGE_PATH", detail: a.storage_path }, { status: 400, headers: JSONH });
       if (a.byte_size > MAX_FILE_BYTES)
         return NextResponse.json({ ok: false, error: "FILE_TOO_LARGE", detail: { filename: a.filename, limit: MAX_FILE_BYTES } }, { status: 413, headers: JSONH });
     }
 
+    // 3) Insert with correct conversation_id
     const rows = items.map((a) => ({
       message_id: messageId,
       conversation_id: conversationId,
@@ -75,4 +89,3 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ ok: false, error: message }, { status, headers: JSONH });
   }
 }
-

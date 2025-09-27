@@ -7,10 +7,26 @@ import { createServerClient as createServiceClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-const BodySchema = z.object({
-  conversationId: z.string().uuid(),
-  body: z.string().min(1).max(4000),
+const AttachmentSchema = z.object({
+  filename: z.string(),
+  mime_type: z.string(),
+  byte_size: z.number().int().positive(),
+  storage_path: z.string(),
+  width: z.number().int().optional(),
+  height: z.number().int().optional(),
+  sha256: z.string().optional(),
 });
+
+const BodySchema = z
+  .object({
+    conversationId: z.string().uuid(),
+    body: z.string().max(4000).optional(),
+    attachments: z.array(AttachmentSchema).optional().default([]),
+  })
+  .refine((v) => (v.body && v.body.trim().length > 0) || (Array.isArray(v.attachments) && v.attachments.length > 0), {
+    message: "EMPTY_MESSAGE",
+    path: ["body"],
+  });
 
 export async function POST(req: Request) {
   try {
@@ -31,7 +47,7 @@ export async function POST(req: Request) {
         { ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() },
         { status: 422, headers: JSONH },
       );
-    const { conversationId, body } = parsed.data;
+    const { conversationId, body = "", attachments = [] } = parsed.data;
 
     // Validar participación con Service Role (comprobación explícita de pertenencia)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,7 +66,7 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ins = await (supabase as any)
       .from("messages")
-      .insert({ conversation_id: conversationId, sender_id: user.id, body })
+      .insert({ conversation_id: conversationId, sender_id: user.id, body: body || "" })
       .select("id, created_at")
       .single();
     if (ins.error)
@@ -58,6 +74,53 @@ export async function POST(req: Request) {
         { ok: false, error: "MESSAGE_CREATE_FAILED", detail: ins.error.message },
         { status: 400, headers: JSONH },
       );
+
+    // Registrar adjuntos si vienen en el payload (ruta ya subida al bucket)
+    if (attachments.length > 0) {
+      // Valida que los paths pertenezcan a la conversación
+      for (const a of attachments) {
+        const norm = a.storage_path.replace(/\\/g, "/");
+        if (!norm.startsWith(`conversation/${conversationId}/`)) {
+          return NextResponse.json(
+            { ok: false, error: "INVALID_STORAGE_PATH", detail: { storage_path: a.storage_path } },
+            { status: 400, headers: JSONH },
+          );
+        }
+      }
+      // Tamaño máximo por archivo: 20MB
+      const MAX_FILE_BYTES = 20 * 1024 * 1024;
+      for (const a of attachments) {
+        if (a.byte_size > MAX_FILE_BYTES) {
+          return NextResponse.json(
+            { ok: false, error: "FILE_TOO_LARGE", detail: { filename: a.filename, limit: MAX_FILE_BYTES } },
+            { status: 413, headers: JSONH },
+          );
+        }
+      }
+      const rows = attachments.map((a) => {
+        const norm = a.storage_path.replace(/\\/g, "/");
+        const parts = norm.split("/").filter(Boolean);
+        const filename = parts.length ? parts[parts.length - 1] : a.filename;
+        return {
+          message_id: ins.data.id,
+          conversation_id: conversationId,
+          uploader_id: user.id,
+          storage_path: a.storage_path,
+          filename,
+          mime_type: a.mime_type,
+          byte_size: a.byte_size,
+          width: a.width ?? null,
+          height: a.height ?? null,
+          sha256: a.sha256 ?? null,
+        };
+      });
+      const insAtt = await (supabase as any).from("message_attachments").insert(rows).select("id");
+      if (insAtt.error)
+        return NextResponse.json(
+          { ok: false, error: "ATTACHMENTS_CREATE_FAILED", detail: insAtt.error.message },
+          { status: 400, headers: JSONH },
+        );
+    }
 
     // Actualizar last_message_at (RLS permite a participantes)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
