@@ -22,6 +22,8 @@ export const ACCEPTED_MIME_TYPES = [
   "image/webp",
   "image/gif",
   "application/pdf",
+  // Tolerar PDFs silenciosos y tipos desconocidos
+  "application/octet-stream",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/msword",
 ] as const;
@@ -152,7 +154,8 @@ export default function ChatUploader({
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 25 } : p));
             const ext = (f.name.split('.').pop() || '').toLowerCase();
             const extToMime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword' };
-            const chosenMime = f.type || extToMime[ext] || 'application/octet-stream';
+            // Si file.type es "", trátalo como application/octet-stream (Windows)
+            const chosenMime = (f.type === '' ? 'application/octet-stream' : (f.type || extToMime[ext] || 'application/octet-stream'));
             const { error: upErr } = await supabase.storage.from('chat-attachments').upload(path, f, { contentType: chosenMime, upsert: false });
             if (upErr) { setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'error', error: upErr.message, progress: 0 } : p)); continue; }
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 70, storagePath: path } : p));
@@ -160,16 +163,21 @@ export default function ChatUploader({
           }
           // 3) Registrar adjuntos y patch contenido
           let ok = true;
+          let serverAttachments: Array<{ filename: string; mime_type: string; byte_size: number; storage_path: string; width?: number | null; height?: number | null; id?: string; created_at?: string; message_id?: string; conversation_id?: string; }> = [];
           if (uploaded.length > 0) {
             const reg = await fetch(`/api/messages/${messageId}/attachments`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ attachments: uploaded }) });
-            ok = reg.ok;
+            const regJson = (await reg.json().catch(() => ({}))) as { ok?: boolean; attachments?: unknown };
+            ok = reg.ok && regJson?.ok !== false;
+            if (ok && Array.isArray(regJson?.attachments)) {
+              serverAttachments = regJson.attachments as typeof serverAttachments;
+            }
           }
           if (ok && content && content.trim().length) {
             await fetch(`/api/messages/${messageId}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json; charset=utf-8' }, body: JSON.stringify({ content }) }).catch(() => undefined);
           }
           setItems(prev => prev.map(p => p.status !== 'error' ? { ...p, status: ok ? 'done' : 'error', progress: ok ? 100 : p.progress, error: ok ? null : 'Error registrando adjuntos' } : p));
           onDone?.({ ok, messageId, createdAt, error: ok ? undefined : 'failed' });
-          if (ok) { onMessageCreated?.({ messageId, createdAt, attachments: uploaded }); onUploaded?.(); }
+          if (ok) { onMessageCreated?.({ messageId, createdAt, attachments: serverAttachments.length > 0 ? serverAttachments : uploaded }); onUploaded?.(); }
         } else {
           // upload-first (compat)
           for (let i = 0; i < initial.length; i++) {
@@ -183,7 +191,7 @@ export default function ChatUploader({
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 25 } : p));
             const ext = (f.name.split('.').pop() || '').toLowerCase();
             const extToMime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword' };
-            const chosenMime = f.type || extToMime[ext] || 'application/octet-stream';
+            const chosenMime = (f.type === '' ? 'application/octet-stream' : (f.type || extToMime[ext] || 'application/octet-stream'));
             const { error: upErr } = await supabase.storage.from('chat-attachments').upload(path, f, { contentType: chosenMime, upsert: false });
             if (upErr) { setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'error', error: upErr.message, progress: 0 } : p)); continue; }
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 70, storagePath: path } : p));
