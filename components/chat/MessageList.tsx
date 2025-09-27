@@ -126,6 +126,36 @@ export default function MessageList({
     }
   }, []);
   const ref = React.useRef<HTMLDivElement | null>(null);
+  // Auto-scroll: ensure last message is visible on mount and when new items arrive
+  const lastKey = items.length ? `${items[items.length - 1]?.id}-${items[items.length - 1]?.createdAt}` : "";
+  const lastKeyRef = React.useRef<string>("");
+  const scrollToBottom = React.useCallback((smooth = false) => {
+    const el = ref.current;
+    if (!el) return;
+    try {
+      const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    } catch {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+  React.useEffect(() => {
+    // On first mount, jump to bottom
+    if (!lastKeyRef.current) {
+      scrollToBottom(false);
+      lastKeyRef.current = lastKey;
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    // If user is near bottom or a new message arrived, keep anchored to bottom
+    const threshold = 200; // px
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom <= threshold;
+    const changed = lastKeyRef.current !== lastKey && lastKey.length > 0;
+    if (nearBottom) scrollToBottom(changed); // keep anchored when user is near bottom
+    lastKeyRef.current = lastKey;
+  }, [lastKey, scrollToBottom]);
   React.useEffect(() => {
     const el = ref.current;
     if (el) el.scrollTop = el.scrollHeight;

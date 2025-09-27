@@ -9,11 +9,14 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 const AttachmentSchema = z.object({
   filename: z.string(),
-  mime_type: z.string(),
-  byte_size: z.number().int().positive(),
+  // Allow empty string; normalize later. Accept any string to avoid client-specific MIME quirks.
+  mime_type: z.string().optional().transform((v) => (v ?? "")),
+  // Coerce to number to accept string inputs from some browsers/clients
+  byte_size: z.coerce.number().int().positive(),
   storage_path: z.string(),
-  width: z.number().int().optional(),
-  height: z.number().int().optional(),
+  // Coerce when present; keep optional for clients that omit
+  width: z.coerce.number().int().optional(),
+  height: z.coerce.number().int().optional(),
   sha256: z.string().optional(),
 });
 
@@ -77,40 +80,67 @@ export async function POST(req: Request) {
 
     // Registrar adjuntos si vienen en el payload (ruta ya subida al bucket)
     if (attachments.length > 0) {
-      // Valida que los paths pertenezcan a la conversación
+      // Helper: normaliza path (Windows/backslashes y quita prefijo de bucket)
+      const normalizePath = (p: string): string => {
+        if (!p) return p as unknown as string;
+        p = p.split(String.fromCharCode(92)).join("/");
+        if (p.startsWith("chat-attachments/")) p = p.slice("chat-attachments/".length);
+        return p;
+      };
+      // Tamaño máximo por archivo: 20MB
+      const MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+      // Validación básica de cada adjunto + normalización
       for (const a of attachments) {
-        const norm = a.storage_path.replace(/\\/g, "/");
+        const norm = normalizePath(a.storage_path || "");
         if (!norm.startsWith(`conversation/${conversationId}/`)) {
           return NextResponse.json(
             { ok: false, error: "INVALID_STORAGE_PATH", detail: { storage_path: a.storage_path } },
             { status: 400, headers: JSONH },
           );
         }
-      }
-      // Tamaño máximo por archivo: 20MB
-      const MAX_FILE_BYTES = 20 * 1024 * 1024;
-      for (const a of attachments) {
-        if (a.byte_size > MAX_FILE_BYTES) {
+        const size = Number(a.byte_size);
+        if (!Number.isFinite(size) || size > MAX_FILE_BYTES) {
           return NextResponse.json(
             { ok: false, error: "FILE_TOO_LARGE", detail: { filename: a.filename, limit: MAX_FILE_BYTES } },
             { status: 413, headers: JSONH },
           );
         }
+        // MIME relajado: permite image/*, application/pdf, y octet-stream; corrige PDFs silenciosos
+        const ext = (a.filename || "").toLowerCase().split(".").pop() || "";
+        let mime = (a.mime_type || "").trim();
+        if (!mime) mime = "application/octet-stream";
+        if ((mime === "application/octet-stream" || mime === "") && ext === "pdf") mime = "application/pdf";
+        if (mime === "application/x-pdf") mime = "application/pdf";
+        const allowed = mime === "application/pdf" || mime === "application/octet-stream" || mime.startsWith("image/");
+        if (!allowed) {
+          return NextResponse.json(
+            { ok: false, error: "INVALID_MIME_TYPE", detail: { filename: a.filename, mime_type: a.mime_type } },
+            { status: 422, headers: JSONH },
+          );
+        }
       }
+
       const rows = attachments.map((a) => {
-        const norm = a.storage_path.replace(/\\/g, "/");
+        const norm = normalizePath(a.storage_path || "");
         const parts = norm.split("/").filter(Boolean);
         const filename = parts.length ? parts[parts.length - 1] : a.filename;
+        const ext = (a.filename || "").toLowerCase().split(".").pop() || "";
+        let mime = (a.mime_type || "").trim();
+        if (!mime) mime = "application/octet-stream";
+        if ((mime === "application/octet-stream" || mime === "") && ext === "pdf") mime = "application/pdf";
+        if (mime === "application/x-pdf") mime = "application/pdf";
+        const size = Number(a.byte_size);
         return {
           message_id: ins.data.id,
           conversation_id: conversationId,
           uploader_id: user.id,
-          storage_path: a.storage_path,
+          storage_path: norm,
           filename,
-          mime_type: a.mime_type,
-          byte_size: a.byte_size,
-          width: a.width ?? null,
-          height: a.height ?? null,
+          mime_type: mime,
+          byte_size: size,
+          width: typeof a.width === "number" && Number.isFinite(a.width) ? a.width : null,
+          height: typeof a.height === "number" && Number.isFinite(a.height) ? a.height : null,
           sha256: a.sha256 ?? null,
         };
       });

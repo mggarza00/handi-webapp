@@ -1340,27 +1340,39 @@ export default function ChatPanel({
                 // eslint-disable-next-line no-console
                 console.debug("ui att add optimistic", messageId, attachments.length);
               }
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === messageId
-                    ? {
-                        ...m,
-                        attachments: [
-                          ...(Array.isArray(m.attachments) ? m.attachments : []),
-                          ...attachments.map((a) => ({
-                            id: undefined,
-                            filename: a.filename,
-                            mime_type: a.mime_type,
-                            byte_size: a.byte_size,
-                            width: a.width ?? null,
-                            height: a.height ?? null,
-                            storage_path: a.storage_path,
-                          })),
-                        ],
-                      }
-                    : m,
-                ),
-              );
+              setMessages((prev) => {
+                const exists = prev.some((m) => m.id === messageId);
+                let next = prev;
+                if (!exists) {
+                  const createdAtIso = new Date().toISOString();
+                  next = [
+                    ...prev,
+                    {
+                      id: messageId,
+                      senderId: meId ?? "me",
+                      body: "",
+                      createdAt: createdAtIso,
+                      messageType: "text",
+                      payload: null,
+                      attachments: [],
+                    },
+                  ];
+                }
+                const converted = attachments.map((a) => ({
+                  id: (a as any)?.id as string | undefined,
+                  filename: a.filename,
+                  mime_type: a.mime_type,
+                  byte_size: a.byte_size,
+                  width: a.width ?? null,
+                  height: a.height ?? null,
+                  storage_path: a.storage_path,
+                  created_at: (a as any)?.created_at as string | undefined,
+                }));
+                for (const att of converted) {
+                  next = appendAttachment(next, messageId, att);
+                }
+                return next;
+              });
             }}
           />
         </div>
@@ -1402,27 +1414,39 @@ export default function ChatPanel({
                   // eslint-disable-next-line no-console
                   console.debug("ui att add optimistic", messageId, attachments.length);
                 }
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === messageId
-                      ? {
-                          ...m,
-                          attachments: [
-                            ...(Array.isArray(m.attachments) ? m.attachments : []),
-                            ...attachments.map((a) => ({
-                              id: undefined,
-                              filename: a.filename,
-                              mime_type: a.mime_type,
-                              byte_size: a.byte_size,
-                              width: a.width ?? null,
-                              height: a.height ?? null,
-                              storage_path: a.storage_path,
-                            })),
-                          ],
-                        }
-                      : m,
-                  ),
-                );
+                setMessages((prev) => {
+                  const exists = prev.some((m) => m.id === messageId);
+                  let next = prev;
+                  if (!exists) {
+                    const createdAtIso = new Date().toISOString();
+                    next = [
+                      ...prev,
+                      {
+                        id: messageId,
+                        senderId: meId ?? "me",
+                        body: "",
+                        createdAt: createdAtIso,
+                        messageType: "text",
+                        payload: null,
+                        attachments: [],
+                      },
+                    ];
+                  }
+                  const converted = attachments.map((a) => ({
+                    id: (a as any)?.id as string | undefined,
+                    filename: a.filename,
+                    mime_type: a.mime_type,
+                    byte_size: a.byte_size,
+                    width: a.width ?? null,
+                    height: a.height ?? null,
+                    storage_path: a.storage_path,
+                    created_at: (a as any)?.created_at as string | undefined,
+                  }));
+                  for (const att of converted) {
+                    next = appendAttachment(next, messageId, att);
+                  }
+                  return next;
+                });
               }}
             />
           </div>
