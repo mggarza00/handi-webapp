@@ -1,4 +1,4 @@
-name: e2e
+name: e2e / tests (pull_request)
 on: { pull_request: {} }
 
 concurrency:
@@ -28,19 +28,21 @@ jobs:
         with:
           version: 10
 
-      - name: Setup Node
+      - name: Setup Node with pnpm cache
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build
+      - name: Build (Next.js)
         run: pnpm build
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
       - name: Run e2e
         run: pnpm test:e2e

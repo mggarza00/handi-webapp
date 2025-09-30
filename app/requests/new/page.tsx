@@ -21,11 +21,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-// Using relative import to avoid CI path alias resolution issues
+// Keep relative imports to avoid CI resolver edge-cases in this PR
 import { buildStorageKey, buildUltraSafeKey } from "../../../lib/storage-sanitize";
 // Inline container to avoid RSC/Client mismatches during build
 import { CITIES } from "@/lib/cities";
-// Using relative import to avoid CI path alias resolution issues
+// Keep relative imports to avoid CI resolver edge-cases in this PR
 import ConditionsCombobox from "../../../components/requests/ConditionsCombobox";
 import {
   readDraft,
