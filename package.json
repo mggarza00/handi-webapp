@@ -36,7 +36,7 @@
     "seed:reviews-jobs": "curl -s -X POST http://localhost:3000/api/dev/seed-reviews-jobs || true",
     "dev:seed:reviews": "cross-env ENABLE_DEV_SEED=1 tsx ./scripts/call-seed-reviews-jobs.ts",
     "verify:reviews-jobs": "node scripts/verify-reviews-jobs.mjs",
-    "test:e2e:ci": "playwright test --reporter=line",
+    "test:e2e:ci": "playwright test -c playwright.ci.config.ts",
     "db:link": "supabase link",
     "db:gen": "supabase gen types --lang=typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts",
     "db:migrate": "supabase db push",
