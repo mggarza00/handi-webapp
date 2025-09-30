@@ -1,8 +1,8 @@
 // app/requests/new/page.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { User } from "@supabase/supabase-js";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
 // Date: usamos input nativo
 import { z } from "zod";
@@ -21,8 +21,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { buildStorageKey, buildUltraSafeKey } from "@/lib/storage-sanitize";
 // Inline container to avoid RSC/Client mismatches during build
 import { CITIES } from "@/lib/cities";
+import ConditionsCombobox from "@/components/requests/ConditionsCombobox";
 import {
   readDraft,
   writeDraft,
@@ -33,6 +35,7 @@ import {
   getReturnTo,
   clearGatingFlags,
 } from "@/lib/drafts";
+import { useDebounced } from "./hooks/useClassify";
 
 //
 
@@ -48,6 +51,7 @@ export default function NewRequestPage() {
   const [subcategory, setSubcategory] = useState("");
   const [budget, setBudget] = useState<number | "">("");
   const [requiredAt, setRequiredAt] = useState("");
+  const [conditionsText, setConditionsText] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [files, setFiles] = useState<File[]>([]);
@@ -62,6 +66,17 @@ export default function NewRequestPage() {
   type Subcat = { name: string; icon: string | null };
   const [catMap, setCatMap] = useState<Record<string, Subcat[]>>({});
   const [loadingCats, setLoadingCats] = useState(false);
+  // Autoclasificador: sugerencias + control de override
+  const [, setClassifying] = useState(false);
+  const [manualOverride, setManualOverride] = useState(false);
+  const [_autoApplied, setAutoApplied] = useState(false);
+  type AiSuggestion = {
+    category: string;
+    subcategory: string;
+    confidence: number;
+    source?: "keyword" | "heuristic";
+  };
+  const [suggestion, setSuggestion] = useState<AiSuggestion | null>(null);
 
   const categoriesList: string[] = useMemo(() => {
     return Object.keys(catMap).sort((a, b) => a.localeCompare(b));
@@ -112,6 +127,7 @@ export default function NewRequestPage() {
         subcategory?: string;
         budget?: number | "";
         required_at?: string;
+        conditions?: string | string[];
       }>("draft:create-service");
       if (d) {
         if (typeof d.title === "string") setTitle(d.title);
@@ -121,6 +137,8 @@ export default function NewRequestPage() {
         if (typeof d.subcategory === "string") setSubcategory(d.subcategory);
         if (typeof d.budget !== "undefined") setBudget(d.budget as number | "");
         if (typeof d.required_at === "string") setRequiredAt(d.required_at);
+        if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
+        else if (typeof d.conditions === "string") setConditionsText(d.conditions);
       }
     } catch (_e) {
       void _e;
@@ -203,6 +221,93 @@ export default function NewRequestPage() {
     };
   }, []);
 
+  // Autoclasiﬁcación (debounced) al escribir título/descrición (mín. 10 chars combinados)
+  const doClassify = useCallback(async (t: string, d: string) => {
+    try {
+      setClassifying(true);
+      const res = await fetch("/api/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ title: t, description: d }),
+        cache: "no-store",
+      });
+      const j = await res.json();
+      if (!res.ok || j?.ok === false) {
+        setSuggestion(null);
+        setAutoApplied(false);
+        return;
+      }
+      const best = (j?.best ?? null) as
+        | { category?: string; subcategory?: string; confidence?: number; source?: "keyword" | "heuristic" }
+        | null;
+      if (best && typeof best.category === "string") {
+        setSuggestion({
+          category: best.category,
+          subcategory: String(best.subcategory ?? ""),
+          confidence: Number(best.confidence ?? 0),
+          source: best.source,
+        });
+      } else {
+        setSuggestion(null);
+        setAutoApplied(false);
+      }
+    } catch {
+      setSuggestion(null);
+      setAutoApplied(false);
+    } finally {
+      setClassifying(false);
+    }
+  }, []);
+
+  const debouncedClassify = useDebounced((t: string, d: string) => doClassify(t, d), 500);
+
+  useEffect(() => {
+    const t = (title || "").trim();
+    const d = (description || "").trim();
+    const combinedLen = (t + " " + d).trim().length;
+    if (combinedLen < 10) {
+      setSuggestion(null);
+      setAutoApplied(false);
+      return;
+    }
+    debouncedClassify(t, d);
+  }, [title, description, debouncedClassify]);
+
+  // Aplicar automáticamente si confianza >= 0.80 y no hay override manual
+  useEffect(() => {
+    if (!suggestion) return;
+    if (manualOverride) return;
+    if (loadingCats) return;
+    if (!suggestion || suggestion.confidence < 0.8) return;
+    const catOk = Object.prototype.hasOwnProperty.call(catMap, suggestion.category);
+    if (!catOk) return;
+    const desiredSub = suggestion.subcategory || "";
+    const normEq = (a: string, b: string) =>
+      a?.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim() ===
+      b?.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
+    const options = (catMap[suggestion.category] || []).map((s) => s.name);
+    const subOk = desiredSub
+      ? options.some((n) => n === desiredSub || normEq(n, desiredSub))
+      : true;
+    const nextCat = suggestion.category;
+    const nextSub = subOk ? desiredSub : "";
+    // Solo cambiar si difiere
+    const willChange = category !== nextCat || subcategory !== nextSub;
+    if (willChange) {
+      setCategory(nextCat);
+      // Aplazar el set de subcategoría para respetar el recálculo de opciones
+      setTimeout(() => {
+        setSubcategory(nextSub);
+      }, 0);
+      setIsDirty(true);
+      try {
+        // Telemetría mínima
+        console.info("ai.classify.applied", suggestion.confidence, nextCat, nextSub);
+      } catch {}
+    }
+    setAutoApplied(true);
+  }, [suggestion, manualOverride, loadingCats, catMap, category, subcategory]);
+
   // Persist draft anytime fields change
   useEffect(() => {
     writeDraft("draft:create-service", {
@@ -213,8 +318,9 @@ export default function NewRequestPage() {
       subcategory,
       budget,
       required_at: requiredAt,
+      conditions: conditionsText,
     });
-  }, [title, description, city, category, subcategory, budget, requiredAt]);
+  }, [title, description, city, category, subcategory, budget, requiredAt, conditionsText]);
 
   // Warn before unload if dirty
   useEffect(() => {
@@ -249,6 +355,18 @@ export default function NewRequestPage() {
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD")
       .optional()
       .or(z.literal("")),
+    conditions: z.union([
+      z.string().max(240),
+      z
+        .array(
+          z
+            .string()
+            .min(2)
+            .max(40)
+            .transform((s) => s.replace(/\s+/g, " ").trim()),
+        )
+        .max(10),
+    ]).optional(),
   });
 
   async function onSubmit(e: React.FormEvent) {
@@ -270,6 +388,7 @@ export default function NewRequestPage() {
           subcategory,
           budget,
           required_at: requiredAt,
+          conditions: conditionsText,
         });
         setPendingAutoSubmit(true);
         setReturnTo(`${window.location.pathname}${window.location.search}`);
@@ -292,6 +411,7 @@ export default function NewRequestPage() {
       subcategory,
       budget,
       required_at: requiredAt,
+      conditions: conditionsText,
     });
 
     if (!parsed.success) {
@@ -353,52 +473,10 @@ export default function NewRequestPage() {
           if (f.size > max) throw new Error(`El archivo ${f.name} excede 5MB`);
           if (!/^image\//i.test(f.type))
             throw new Error(`Tipo inválido para ${f.name}`);
-          const path = `${prefix}/${Date.now()}-${encodeURIComponent(f.name)}`;
-          let uploadedUrl: string | null = null;
-          // Intento 1: subir directo con cliente público
-          try {
-            const up = await supabaseBrowser.storage
-              .from("requests")
-              .upload(path, f, { contentType: f.type, upsert: false });
-            if (up.error) throw up.error;
-            const pub = supabaseBrowser.storage
-              .from("requests")
-              .getPublicUrl(path);
-            uploadedUrl = pub.data.publicUrl;
-          } catch {
-            // Intento 2: asegurar bucket y reintentar
-            try {
-              await fetch("/api/storage/ensure?b=requests", { method: "POST" });
-              const up2 = await supabaseBrowser.storage
-                .from("requests")
-                .upload(path, f, { contentType: f.type, upsert: false });
-              if (!up2.error) {
-                const pub2 = supabaseBrowser.storage
-                  .from("requests")
-                  .getPublicUrl(path);
-                uploadedUrl = pub2.data.publicUrl;
-              }
-            } catch {
-              /* ignore */
-            }
-            // Intento 3: subir vía endpoint server (Service Role) si aún falla (típico RLS en storage.objects)
-            if (!uploadedUrl) {
-              const fd = new FormData();
-              fd.append("file", f);
-              fd.append("path", path);
-              fd.append("bucket", "requests");
-              const r = await fetch("/api/storage/upload", {
-                method: "POST",
-                body: fd,
-              });
-              const j = await r.json();
-              if (!r.ok || !j?.ok) throw new Error(j?.error || "upload_failed");
-              uploadedUrl = j.url as string;
-            }
-          }
+          const { url: uploadedUrl, path, mime } = await uploadRequestFile(supabaseBrowser, prefix, f);
           attachments.push({
-            url: uploadedUrl!,
-            mime: f.type || "image/*",
+            url: uploadedUrl,
+            mime: mime,
             size: f.size,
             path,
           });
@@ -431,6 +509,12 @@ export default function NewRequestPage() {
     if (parsed.data.required_at && parsed.data.required_at.length > 0)
       payload.required_at = parsed.data.required_at;
     if (attachments.length > 0) payload.attachments = attachments;
+    if (typeof parsed.data.conditions === "string") {
+      const s = parsed.data.conditions.trim();
+      if (s) payload.conditions = s;
+    } else if (Array.isArray(parsed.data.conditions)) {
+      payload.conditions = parsed.data.conditions;
+    }
 
     try {
       const res = await fetch("/api/requests", {
@@ -494,6 +578,7 @@ export default function NewRequestPage() {
           subcategory?: string;
           budget?: number | "";
           required_at?: string;
+          conditions?: string | string[];
         }>("draft:create-service");
         if (!d) {
           toast.message(
@@ -509,6 +594,8 @@ export default function NewRequestPage() {
         if (typeof d.subcategory === "string") setSubcategory(d.subcategory);
         if (typeof d.budget !== "undefined") setBudget(d.budget as number | "");
         if (typeof d.required_at === "string") setRequiredAt(d.required_at);
+        if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
+        else if (typeof d.conditions === "string") setConditionsText(d.conditions);
         setTimeout(() => {
           if (!cancelled) {
             try {
@@ -644,6 +731,8 @@ export default function NewRequestPage() {
                   setCategory(v);
                   setSubcategory("");
                   setIsDirty(true);
+                  setManualOverride(true);
+                  setAutoApplied(false);
                 }}
               >
                 <SelectTrigger data-testid="request-category">
@@ -671,6 +760,8 @@ export default function NewRequestPage() {
                 onValueChange={(v) => {
                   setSubcategory(v);
                   setIsDirty(true);
+                  setManualOverride(true);
+                  setAutoApplied(false);
                 }}
               >
                 <SelectTrigger
@@ -720,6 +811,23 @@ export default function NewRequestPage() {
                 No hay categorías disponibles. Verifica la tabla{" "}
                 <code>categories_subcategories</code> o tu configuración.
               </div>
+            )}
+          </div>
+
+          {/* Sugerencia AI: no se muestra UI; autoselección silenciosa si alta confianza. */}
+
+          <div className="space-y-1.5">
+            <Label>Condiciones</Label>
+            <p className="text-xs text-slate-500">Selecciona o escribe condiciones relevantes (máx. 10).</p>
+            <ConditionsCombobox
+              value={conditionsText}
+              onChange={(v) => {
+                setConditionsText(v);
+                setIsDirty(true);
+              }}
+            />
+            {errors.conditions && (
+              <p className="text-xs text-red-600">{errors.conditions}</p>
             )}
           </div>
 
@@ -846,4 +954,56 @@ export default function NewRequestPage() {
       </div>
     </main>
   );
+}
+
+// Helper: sube un archivo al bucket "requests" con key segura y fallback ultra-conservador.
+async function uploadRequestFile(
+  supabase: SupabaseClient,
+  ownerPrefix: string,
+  file: File,
+): Promise<{ url: string; path: string; mime: string }> {
+  const bucket = "requests";
+  const owner = (ownerPrefix || "anon").trim();
+  const contentType = file.type || "application/octet-stream";
+
+  // Key segura estándar (ASCII, preserva extensión, sin bucket, sin "/" inicial)
+  let key = buildStorageKey(owner, file.name, { allowUnicode: false, maxNameLength: 180 });
+  let { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(key, file, { cacheControl: "3600", upsert: false, contentType });
+
+  // Retry con key ultra-conservadora ante Invalid key / 400
+  if (error && /invalid key/i.test(String(error.message || ""))) {
+    const ultraKey = buildUltraSafeKey(owner, file.name);
+    const retry = await supabase.storage
+      .from(bucket)
+      .upload(ultraKey, file, { cacheControl: "3600", upsert: false, contentType });
+    if (!retry.error) {
+      key = ultraKey;
+      data = retry.data;
+      error = null;
+    } else {
+      error = retry.error;
+    }
+  }
+
+  // Último recurso: subir vía endpoint server (Service Role) si aún falla
+  if (error) {
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", key);
+      fd.append("bucket", bucket);
+      const r = await fetch("/api/storage/upload", { method: "POST", body: fd });
+      const j = await r.json().catch(() => ({} as any));
+      if (r.ok && j?.ok && typeof j?.url === "string") {
+        return { url: j.url as string, path: key, mime: contentType };
+      }
+    } catch {
+      // ignore
+    }
+    throw error;
+  }
+  const pub = supabase.storage.from(bucket).getPublicUrl(key);
+  return { url: pub.data.publicUrl, path: key, mime: contentType };
 }

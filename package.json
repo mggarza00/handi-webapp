@@ -30,6 +30,7 @@
     "test:ui": "playwright test --ui",
     "snap": "node scripts/snapshots.js",
     "poster": "node scripts/extract-poster.mjs",
+    "classify:gen": "tsx scripts/generate-heuristics.ts",
     "format": "prettier --write .",
     "test:e2e:headed": "playwright test --headed",
     "seed:reviews-jobs": "curl -s -X POST http://localhost:3000/api/dev/seed-reviews-jobs || true",
