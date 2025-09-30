@@ -21,10 +21,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabaseBrowser } from "@/lib/supabase-browser";
-import { buildStorageKey, buildUltraSafeKey } from "@/lib/storage-sanitize";
+// Using relative import to avoid CI path alias resolution issues
+import { buildStorageKey, buildUltraSafeKey } from "../../../lib/storage-sanitize";
 // Inline container to avoid RSC/Client mismatches during build
 import { CITIES } from "@/lib/cities";
-import ConditionsCombobox from "@/components/requests/ConditionsCombobox";
+// Using relative import to avoid CI path alias resolution issues
+import ConditionsCombobox from "../../../components/requests/ConditionsCombobox";
 import {
   readDraft,
   writeDraft,
