@@ -3,6 +3,7 @@ import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AttachmentList } from "@/app/(app)/messages/_components/AttachmentList";
 
 type Item = {
   id: string;
@@ -12,6 +13,16 @@ type Item = {
   readBy?: string[];
   messageType: string;
   payload: Record<string, unknown> | null;
+  attachments?: Array<{
+    id?: string;
+    filename: string;
+    mime_type: string;
+    byte_size?: number | null;
+    width?: number | null;
+    height?: number | null;
+    storage_path: string;
+    created_at?: string;
+  }>;
 };
 
 type MessageListProps = {
@@ -115,6 +126,36 @@ export default function MessageList({
     }
   }, []);
   const ref = React.useRef<HTMLDivElement | null>(null);
+  // Auto-scroll: ensure last message is visible on mount and when new items arrive
+  const lastKey = items.length ? `${items[items.length - 1]?.id}-${items[items.length - 1]?.createdAt}` : "";
+  const lastKeyRef = React.useRef<string>("");
+  const scrollToBottom = React.useCallback((smooth = false) => {
+    const el = ref.current;
+    if (!el) return;
+    try {
+      const behavior: ScrollBehavior = smooth ? "smooth" : "auto";
+      el.scrollTo({ top: el.scrollHeight, behavior });
+    } catch {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, []);
+  React.useEffect(() => {
+    // On first mount, jump to bottom
+    if (!lastKeyRef.current) {
+      scrollToBottom(false);
+      lastKeyRef.current = lastKey;
+      return;
+    }
+    const el = ref.current;
+    if (!el) return;
+    // If user is near bottom or a new message arrived, keep anchored to bottom
+    const threshold = 200; // px
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom <= threshold;
+    const changed = lastKeyRef.current !== lastKey && lastKey.length > 0;
+    if (nearBottom) scrollToBottom(changed); // keep anchored when user is near bottom
+    lastKeyRef.current = lastKey;
+  }, [lastKey, scrollToBottom]);
   React.useEffect(() => {
     const el = ref.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -358,6 +399,11 @@ export default function MessageList({
                   {formatRelative(m.createdAt)}
                 </div>
                 {renderBody(m)}
+                {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
+                  <div className="mt-2">
+                    <AttachmentList items={m.attachments} />
+                  </div>
+                ) : null}
                 {isMe ? (
                   <div className="mt-1 text-[11px] text-slate-400 text-right">
                     {isRead ? "Leido" : "Enviado"}

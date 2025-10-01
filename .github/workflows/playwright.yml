@@ -1,4 +1,4 @@
-name: e2e
+name: e2e / tests (pull_request)
 on: { pull_request: {} }
 
 concurrency:
@@ -8,12 +8,12 @@ concurrency:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
 
     # ENVs para build y runtime (heredadas por todos los steps)
     env:
       PORT: 3000
-      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+      NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -26,21 +26,23 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 9
 
-      - name: Setup Node
+      - name: Use Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: 'pnpm-lock.yaml'
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build
+      - name: Build (Next.js)
         run: pnpm build
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps
+        run: pnpm exec playwright install --with-deps
 
-      - name: Run e2e
-        run: pnpm test:e2e
+      - name: Run E2E (CI config)
+        run: pnpm test:e2e:ci

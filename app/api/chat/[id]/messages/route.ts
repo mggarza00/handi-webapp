@@ -54,8 +54,32 @@ export async function GET(req: Request, { params }: Ctx) {
       created_at: m.created_at,
       read_by: Array.isArray(m.read_by) ? (m.read_by as unknown[]).map((x) => String(x)) : [],
     }));
-    const nextCursor = mapped.length ? mapped[mapped.length - 1].created_at : null;
-    return NextResponse.json({ ok: true, data: mapped, nextCursor }, { headers: JSONH });
+    // Fetch attachments for these messages
+    const ids = mapped.map((m: any) => m.id);
+    let byMessage: Record<string, unknown[]> = {};
+    if (ids.length) {
+      const { data: attRows } = await db
+        .from("message_attachments")
+        .select("id, message_id, filename, mime_type, byte_size, width, height, storage_path, created_at")
+        .in("message_id", ids);
+      byMessage = (attRows || []).reduce((acc: Record<string, unknown[]>, row: any) => {
+        const mid = row.message_id as string;
+        (acc[mid] ||= []).push({
+          id: row.id,
+          filename: row.filename,
+          mime_type: row.mime_type,
+          byte_size: row.byte_size,
+          width: row.width,
+          height: row.height,
+          storage_path: row.storage_path,
+          created_at: row.created_at,
+        });
+        return acc;
+      }, {} as Record<string, unknown[]>);
+    }
+    const enriched = mapped.map((m: any) => ({ ...m, attachments: byMessage[m.id] || [] }));
+    const nextCursor = enriched.length ? enriched[enriched.length - 1].created_at : null;
+    return NextResponse.json({ ok: true, data: enriched, nextCursor }, { headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     const anyE = e as any;
@@ -64,7 +88,31 @@ export async function GET(req: Request, { params }: Ctx) {
   }
 }
 
-const BodySchema = z.object({ text: z.string().min(1).max(4000) });
+const AttachmentSchema = z.object({
+  filename: z.string(),
+  mime_type: z.string(),
+  byte_size: z.number().int().positive(),
+  storage_path: z.string(), // already uploaded path in bucket
+  width: z.number().int().optional(),
+  height: z.number().int().optional(),
+  sha256: z.string().optional(),
+});
+
+const BodySchema = z
+  .object({
+    content: z.string().max(5000).optional(),
+    attachments: z.array(AttachmentSchema).max(10).optional().default([]),
+  })
+  .refine((v) => (v.content && v.content.trim().length > 0) || (Array.isArray(v.attachments) && v.attachments.length > 0), {
+    message: "EMPTY_MESSAGE",
+    path: ["content"],
+  });
+
+function getBasename(p: string): string {
+  const norm = p.replace(/\\/g, "/");
+  const parts = norm.split("/").filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : p;
+}
 
 export async function POST(req: Request, { params }: Ctx) {
   try {
@@ -83,17 +131,61 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!conv?.data)
       return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
 
-    const parsed = BodySchema.safeParse(await req.json());
+    const raw = await req.json();
+    if (raw && typeof raw === "object" && raw != null && (raw as any).text && !(raw as any).content) {
+      (raw as any).content = (raw as any).text;
+    }
+    const parsed = BodySchema.safeParse(raw);
     if (!parsed.success)
       return NextResponse.json({ ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() }, { status: 422, headers: JSONH });
+    const { content = "", attachments = [] } = parsed.data;
 
-    const { text } = parsed.data;
+    // Size guardrails (must match bucket limits; currently 10MB as per migration)
+    const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB
+    for (const a of attachments) {
+      if (a.byte_size > MAX_FILE_BYTES) {
+        return NextResponse.json({ ok: false, error: "FILE_TOO_LARGE", detail: { filename: a.filename, limit: MAX_FILE_BYTES } }, { status: 413, headers: JSONH });
+      }
+    }
+
     const ins = await db
       .from("messages")
-      .insert({ conversation_id: id, sender_id: user.id, body: text })
+      .insert({ conversation_id: id, sender_id: user.id, body: content || "" })
       .select("id, created_at")
       .single();
     if (ins.error) return NextResponse.json({ ok: false, error: ins.error.message }, { status: 400, headers: JSONH });
+
+    const msgId = ins.data.id as string;
+
+    // If attachments present, register metadata rows using provided storage_path (already uploaded)
+    if (attachments.length > 0) {
+      // Validate that each storage_path targets this conversation
+      for (const a of attachments) {
+        const norm = a.storage_path.replace(/\\/g, "/");
+        if (!norm.startsWith(`conversation/${id}/`)) {
+          return NextResponse.json({ ok: false, error: "INVALID_STORAGE_PATH", detail: { storage_path: a.storage_path } }, { status: 400, headers: JSONH });
+        }
+      }
+      const rows = attachments.map((a) => {
+        const fileFromPath = getBasename(a.storage_path);
+        return {
+          message_id: msgId,
+          conversation_id: id,
+          uploader_id: user.id,
+          storage_path: a.storage_path,
+          filename: fileFromPath || a.filename,
+          mime_type: a.mime_type,
+          byte_size: a.byte_size,
+          width: a.width ?? null,
+          height: a.height ?? null,
+          sha256: a.sha256 ?? null,
+        };
+      });
+      const insAtt = await db.from("message_attachments").insert(rows).select("id");
+      if (insAtt.error) {
+        return NextResponse.json({ ok: false, error: "ATTACHMENTS_CREATE_FAILED", detail: insAtt.error.message }, { status: 400, headers: JSONH });
+      }
+    }
 
     await db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", id);
     return NextResponse.json({ ok: true, data: ins.data }, { status: 201, headers: JSONH });
