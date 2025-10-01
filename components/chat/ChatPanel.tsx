@@ -6,6 +6,7 @@ import * as React from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { X } from "lucide-react";
 import MessageList from "@/components/chat/MessageList";
 import MessageInput from "@/components/chat/MessageInput";
 import ChatUploader from "@/app/(app)/messages/_components/ChatUploader";
@@ -14,6 +15,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "sonner";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Button } from "@/components/ui/button";
+import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
 import { Slider } from "@/components/ui/slider";
 import { appendAttachment, removeAttachment } from "@/components/chat/utils";
 import { useChatRealtime } from "@/app/(app)/messages/_hooks/useChatRealtime";
@@ -64,7 +66,7 @@ export type ChatPanelProps = {
 const JSON_HEADER = { "Content-Type": "application/json; charset=utf-8" } as const;
 const AUTH_REQUIRED_MESSAGE = "Tu sesion expiro. Vuelve a iniciar sesion.";
 function normalizeStatus(value?: string | null): string {
-  if (!value) return "sent";
+  if (!value) return "pending";
   return value;
 }
 function mapHistoryRow(raw: unknown): Msg | null {
@@ -170,6 +172,11 @@ export default function ChatPanel({
   const [acceptingOfferId, setAcceptingOfferId] = React.useState<string | null>(null);
   const [rejectingOfferId, setRejectingOfferId] = React.useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = React.useState<string | null>(null);
+  // Show the safety tip every time a chat is opened (per conversation)
+  const [showSafetyTip, setShowSafetyTip] = React.useState<boolean>(true);
+  React.useEffect(() => { setShowSafetyTip(true); }, [conversationId]);
+  // Smooth fade out for safety tip
+  const [safetyClosing, setSafetyClosing] = React.useState(false);
   void budget;
   void rejectingOfferId;
   void rejectOpen;
@@ -182,6 +189,8 @@ export default function ChatPanel({
   const typingTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedTokenRef = React.useRef<string | null>(null);
   const syncInFlightRef = React.useRef(false);
+  // Expose uploader API to trigger from MessageInput icons
+  const uploaderApiRef = React.useRef<{ pickFiles: () => void; pickCamera: () => void } | null>(null);
   // Date helpers (avoid TZ off-by-one issues)
   const toYMD = React.useCallback((d: Date): string => {
     const y = d.getFullYear();
@@ -474,6 +483,14 @@ export default function ChatPanel({
             payload: checkoutUrl ? { offer_id: oid, status: "accepted", checkout_url: checkoutUrl } : { offer_id: oid, status: "accepted" },
           };
           mergeMessages(optimistic, { fromServer: true });
+          // Update any prior 'offer' message with same offer_id
+          setMessages((prev) => prev.map((m) => {
+            if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+              const po = m.payload as Record<string, unknown>;
+              if (po.offer_id === oid) return { ...m, payload: { ...po, status: 'accepted' } };
+            }
+            return m;
+          }));
         } catch {
           /* ignore */
         }
@@ -517,7 +534,19 @@ export default function ChatPanel({
           const p = msg.payload as Record<string, unknown>;
           const st = typeof p.status === "string" ? p.status : null;
           const oid = typeof p.offer_id === "string" ? p.offer_id : null;
-          if (st === "accepted" && oid) removeMessageById(`tmp_b_${oid}`);
+          if (st === "accepted" && oid) {
+            removeMessageById(`tmp_b_${oid}`);
+            // Update any prior 'offer' message for same offer_id to accepted
+            setMessages((prev) => prev.map((m) => {
+              if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+                const po = m.payload as Record<string, unknown>;
+                if (po.offer_id === oid) {
+                  return { ...m, payload: { ...po, status: 'accepted' } };
+                }
+              }
+              return m;
+            }));
+          }
         }
       } catch { /* ignore */ }
       mergeMessages(msg, { fromServer: true });
@@ -557,7 +586,7 @@ export default function ChatPanel({
       if (typeof rawId !== "string" || !rawId) continue;
       const summary = map.get(rawId) ?? {
         offerId: rawId,
-        status: "sent",
+        status: "pending",
         checkoutUrl: null,
         title: null,
         amount: null,
@@ -810,20 +839,20 @@ export default function ChatPanel({
       return;
     }
     const summary = offerSummaries.get(offerId);
-    if (!summary || normalizeStatus(summary.status) !== "sent") {
+    if (!summary || normalizeStatus(summary.status) !== "pending") {
       toast.error("La oferta ya no esta disponible");
       return;
     }
     setAcceptingOfferId(offerId);
     try {
-      // Intento 1: PostgREST directo (rapido, condicionado a sent) usando token del usuario
+      // Intento 1: PostgREST directo (rápido, condicionado a pending) usando token del usuario
       try {
         const supaUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
         const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
         const headers = await getAuthHeaders();
         const hasBearer = typeof (headers as any).Authorization === "string" && (headers as any).Authorization.startsWith("Bearer ");
         if (supaUrl && anonKey && hasBearer) {
-          const restUrl = `${supaUrl.replace(/\/$/, "")}/rest/v1/offers?id=eq.${encodeURIComponent(offerId)}&status=eq.sent&select=id,status,checkout_url`;
+          const restUrl = `${supaUrl.replace(/\/$/, "")}/rest/v1/offers?id=eq.${encodeURIComponent(offerId)}&status=eq.pending&select=id,status,checkout_url`;
           const res = await fetch(restUrl, {
             method: "PATCH",
             headers: {
@@ -973,7 +1002,7 @@ export default function ChatPanel({
             toast.success("Oferta aceptada");
             return;
           }
-          if (st !== "sent") {
+          if (st !== "pending") {
             toast.error("La oferta ya no está disponible");
             return;
           }
@@ -1000,7 +1029,7 @@ export default function ChatPanel({
       if (!p || typeof p !== "object") continue;
       const oid = (p as Record<string, unknown>)["offer_id"];
       const status = (p as Record<string, unknown>)["status"];
-      if (typeof oid === "string" && typeof status === "string" && normalizeStatus(status) === "sent") {
+      if (typeof oid === "string" && typeof status === "string" && normalizeStatus(status) === "pending") {
         return oid;
       }
     }
@@ -1106,30 +1135,115 @@ export default function ChatPanel({
       Cargando...
     </div>
   ) : null;
+  const acceptedForPay = React.useMemo(() => {
+    // Pick any accepted offer to enable checkout CTA
+    for (const [, summary] of offerSummaries) {
+      if (normalizeStatus(summary.status) === "accepted") return summary;
+    }
+    return null as { offerId: string; status: string; checkoutUrl: string | null; title?: string | null; amount?: number | null; currency?: string | null } | null;
+  }, [offerSummaries]);
+
+  // Fee dialog state (customer confirms before redirect)
+  const [feeOpen, setFeeOpen] = React.useState(false);
+  const feeAmount = acceptedForPay?.amount ?? null;
+  const feeCurrency = acceptedForPay?.currency || "MXN";
+
+  async function handleClientPayNow() {
+    const summary = acceptedForPay;
+    if (!summary) return;
+    const offerId = summary.offerId;
+    const existingUrl = summary.checkoutUrl;
+    try {
+      let url = existingUrl && existingUrl.trim().length ? existingUrl : null;
+      if (!url) {
+        const res = await fetch(`/api/offers/${encodeURIComponent(offerId)}/checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          credentials: "include",
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) url = (json?.checkoutUrl as string | null) ?? null;
+        else toast.error(json?.error || "No se pudo iniciar el checkout");
+      }
+      if (url) window.location.assign(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "checkout_error");
+    }
+  }
+
   const actionButtons = (
     <>
       {participants && meId === participants?.customer_id ? (
-        <div className="p-3 flex items-center justify-end">
-          <Button
-            onClick={() => {
-              // Ensure title is prefilled on click
-              if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
-              setOfferDialogOpen(true);
-            }}
-          >
-            Contratar
-          </Button>
+        <div className="p-3 flex items-center justify-between">
+          <div>
+            {acceptedForPay ? (
+              <Button
+                onClick={() => setFeeOpen(true)}
+                variant="success"
+              >
+                Continuar al pago
+              </Button>
+            ) : null}
+          </div>
+          <div>
+            <Button
+              onClick={() => {
+                // Ensure title is prefilled on click
+                if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
+                setOfferDialogOpen(true);
+              }}
+            >
+              Contratar
+            </Button>
+          </div>
         </div>
       ) : null}
     </>
   );
+
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
   const messageList = (
     <MessageList
       items={messagesState}
+      conversationId={conversationId}
       currentUserId={meId ?? undefined}
       viewerRole={viewerRole}
       onAcceptOffer={handleAcceptOffer}
+      onOfferAcceptedUI={(offerId, opts) => {
+        // Merge system message so both sides see acceptance immediately
+        try {
+          const createdAtIso = new Date().toISOString();
+          const payload: Record<string, unknown> = { offer_id: offerId, status: "accepted" };
+          if (opts?.checkoutUrl) payload.checkout_url = opts.checkoutUrl;
+          mergeMessages(
+            { id: `tmp_${Date.now()}`, senderId: meId ?? "me", body: "Oferta aceptada", createdAt: createdAtIso, messageType: "system", payload },
+            { fromServer: true },
+          );
+          // Update original offer message status locally to accepted
+          setMessages((prev) => prev.map((m) => {
+            if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+              const po = m.payload as Record<string, unknown>;
+              if (po.offer_id === offerId) {
+                const next = { ...po, status: 'accepted' } as Record<string, unknown>;
+                if (opts?.checkoutUrl) next.checkout_url = opts.checkoutUrl;
+                return { ...m, payload: next };
+              }
+            }
+            return m;
+          }));
+          // Broadcast to other participant so client sees Pay CTA without reload
+          try {
+            if (channelRef.current) {
+              void channelRef.current.send({
+                type: "broadcast",
+                event: "offer-accepted",
+                payload: { from: meId || "me", offer_id: offerId, checkout_url: opts?.checkoutUrl ?? null },
+              });
+            }
+          } catch { /* ignore */ }
+          toast.success("Oferta aceptada");
+        } catch { /* ignore */ }
+      }}
       onRejectOffer={handleOpenReject}
       actionOfferId={acceptingOfferId ?? rejectingOfferId}
       dataPrefix={dataPrefix}
@@ -1325,16 +1439,31 @@ export default function ChatPanel({
   if (mode === "page") {
     return (
       <div className="flex h-full flex-col">
-        <div className="border-b p-3">
-          <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
-        </div>
+        {showSafetyTip ? (
+          <div className={["border-b p-3 bg-[#fbfbfb]","transition-opacity","duration-200", (safetyClosing ? "opacity-0" : "opacity-100")].join(" ")}>
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
+              <button
+                type="button"
+                aria-label="Cerrar aviso"
+                onClick={() => { setSafetyClosing(true); setTimeout(() => { setShowSafetyTip(false); setSafetyClosing(false); }, 200); }}
+                className="inline-flex items-center justify-center h-5 w-5 rounded-full border text-slate-500 hover:bg-neutral-100"
+                title="Cerrar"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        ) : null}
         {loadingState || messageList}
         {typingIndicator}
         {actionButtons}
         <div className="border-t p-2">
           <ChatUploader
             conversationId={conversationId}
-            mode="draft-first"
+              mode="draft-first"
+              showButton={false}
+              onReady={(api) => { uploaderApiRef.current = api; }}
             onMessageCreated={({ messageId, attachments }) => {
               if (process.env.NODE_ENV !== "production") {
                 // eslint-disable-next-line no-console
@@ -1376,7 +1505,20 @@ export default function ChatPanel({
             }}
           />
         </div>
-        <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} />
+        <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} onPickFiles={() => uploaderApiRef.current?.pickFiles()} onPickCamera={() => uploaderApiRef.current?.pickCamera()} />
+        {acceptedForPay ? (
+          <ClientFeeDialog
+            open={feeOpen}
+            onOpenChange={setFeeOpen}
+            amount={typeof feeAmount === 'number' ? feeAmount : 0}
+            currency={feeCurrency || 'MXN'}
+            confirmLabel="Continuar al pago"
+            onConfirm={() => {
+              setFeeOpen(false);
+              void handleClientPayNow();
+            }}
+          />
+        ) : null}
         {offerDialog}
         {dialog}
       </div>
@@ -1395,9 +1537,22 @@ export default function ChatPanel({
           <SheetTitle>Chat</SheetTitle>
         </SheetHeader>
         <div className="flex h-full flex-col">
-          <div className="border-b p-3">
-            <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
-          </div>
+          {showSafetyTip ? (
+            <div className={["border-b p-3 bg-[#fbfbfb]","transition-opacity","duration-200", (safetyClosing ? "opacity-0" : "opacity-100")].join(" ")}>
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
+                <button
+                  type="button"
+                  aria-label="Cerrar aviso"
+                  onClick={() => { setSafetyClosing(true); setTimeout(() => { setShowSafetyTip(false); setSafetyClosing(false); }, 200); }}
+                  className="inline-flex items-center justify-center h-5 w-5 rounded-full border text-slate-500 hover:bg-neutral-100"
+                  title="Cerrar"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          ) : null}
           {loadingState || (
             <>
               {messageList}
@@ -1409,6 +1564,8 @@ export default function ChatPanel({
             <ChatUploader
               conversationId={conversationId}
               mode="draft-first"
+              showButton={false}
+              onReady={(api) => { uploaderApiRef.current = api; }}
               onMessageCreated={({ messageId, attachments }) => {
                 if (process.env.NODE_ENV !== "production") {
                   // eslint-disable-next-line no-console
@@ -1450,7 +1607,21 @@ export default function ChatPanel({
               }}
             />
           </div>
-          <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} />
+          <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} onPickFiles={() => uploaderApiRef.current?.pickFiles()} onPickCamera={() => uploaderApiRef.current?.pickCamera()} />
+          {/* Fee dialog visible for customer to confirm breakdown before checkout */}
+          {acceptedForPay ? (
+            <ClientFeeDialog
+              open={feeOpen}
+              onOpenChange={setFeeOpen}
+              amount={typeof feeAmount === 'number' ? feeAmount : 0}
+              currency={feeCurrency || 'MXN'}
+              confirmLabel="Continuar al pago"
+              onConfirm={() => {
+                setFeeOpen(false);
+                void handleClientPayNow();
+              }}
+            />
+          ) : null}
           {offerDialog}
           {dialog}
         </div>
@@ -1458,3 +1629,8 @@ export default function ChatPanel({
     </Sheet>
   );
 }
+
+
+
+
+

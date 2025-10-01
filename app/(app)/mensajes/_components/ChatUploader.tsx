@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { sanitizeForStorageFilename, joinStoragePath } from "@/lib/storage-sanitize";
 
 type UploadItem = {
   id: string;
@@ -45,6 +46,10 @@ export type ChatUploaderProps = {
   onMessageCreated?: (info: { messageId: string; createdAt: string | null; attachments: Array<{ filename: string; mime_type: string; byte_size: number; storage_path: string; width?: number | null; height?: number | null; }> }) => void;
   // Estrategia: 'draft-first' (recomendado) o 'upload-first'
   mode?: 'draft-first' | 'upload-first';
+  // Exponer API para disparar los pickers desde fuera
+  onReady?: (api: { pickFiles: () => void; pickCamera: () => void }) => void;
+  // Mostrar/ocultar el botón incorporado
+  showButton?: boolean;
 };
 
 // Props mínimos sugeridos
@@ -57,15 +62,7 @@ function makeId(len = 8) {
   return out;
 }
 
-function sanitizeFilename(name: string): string {
-  return name
-    .replace(/\\/g, "/")
-    .split("/")
-    .filter(Boolean)
-    .join("-")
-    .replace(/[^A-Za-z0-9._-]/g, "_")
-    .slice(0, 150);
-}
+// Usar helper compartido para normalizar nombres en Storage
 
 async function getImageSize(file: File): Promise<{ width: number; height: number } | null> {
   if (!file.type.startsWith("image/")) return null;
@@ -98,15 +95,25 @@ export default function ChatUploader({
   onUploaded,
   onMessageCreated,
   mode = 'draft-first',
+  onReady,
+  showButton = true,
 }: ChatUploaderProps) {
   const supabase = React.useMemo(() => createClientComponentClient(), []);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const cameraRef = React.useRef<HTMLInputElement | null>(null);
   const [items, setItems] = React.useState<UploadItem[]>([]);
   const [busy, setBusy] = React.useState(false);
 
   const onPick = React.useCallback(() => {
     inputRef.current?.click();
   }, []);
+  const onPickCamera = React.useCallback(() => {
+    cameraRef.current?.click();
+  }, []);
+
+  React.useEffect(() => {
+    onReady?.({ pickFiles: onPick, pickCamera: onPickCamera });
+  }, [onReady, onPick, onPickCamera]);
 
   const handleFiles = React.useCallback(
     async (filesList: FileList | null) => {
@@ -149,8 +156,8 @@ export default function ChatUploader({
             if (f.size > maxBytes) { setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'error', error: 'Archivo > límite' } : p)); continue; }
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'uploading', progress: 10 } : p));
             const size = await getImageSize(f);
-            const safe = sanitizeFilename(f.name);
-            const path = `conversation/${conversationId}/${messageId}/${safe}`;
+            const safe = sanitizeForStorageFilename(f.name, { allowUnicode: false, maxLength: 150 });
+            const path = joinStoragePath("conversation", conversationId, messageId, safe);
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 25 } : p));
             const ext = (f.name.split('.').pop() || '').toLowerCase();
             const extToMime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword' };
@@ -187,7 +194,8 @@ export default function ChatUploader({
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'uploading', progress: 10 } : p));
             const size = await getImageSize(f);
             const base = `${conversationId}/${Date.now()}_${makeId(6)}`;
-            const path = `conversation/${base}/${sanitizeFilename(f.name)}`;
+            const safe = sanitizeForStorageFilename(f.name, { allowUnicode: false, maxLength: 150 });
+            const path = joinStoragePath("conversation", base, safe);
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 25 } : p));
             const ext = (f.name.split('.').pop() || '').toLowerCase();
             const extToMime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword' };
@@ -231,20 +239,31 @@ export default function ChatUploader({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
-          onClick={onPick}
-          disabled={disabled || busy}
-        >
-          Subir archivo
-        </button>
+        {showButton ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+            onClick={onPick}
+            disabled={disabled || busy}
+          >
+            Subir archivo
+          </button>
+        ) : null}
         <input
           ref={inputRef}
           type="file"
           className="hidden"
           multiple
           accept={accept}
+          onChange={onFileChange}
+          disabled={disabled || busy}
+        />
+        <input
+          ref={cameraRef}
+          type="file"
+          className="hidden"
+          accept="image/*"
+          capture="environment"
           onChange={onFileChange}
           disabled={disabled || busy}
         />

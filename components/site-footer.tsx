@@ -31,6 +31,11 @@ export default function SiteFooter() {
                   Aviso de privacidad
                 </Link>
               </li>
+              <li>
+                <Link href="/politicas-facturacion" className="hover:text-slate-900">
+                  Políticas de facturación
+                </Link>
+              </li>
             </ul>
           </div>
           <div id="preguntas">
@@ -58,4 +63,3 @@ export default function SiteFooter() {
     </footer>
   );
 }
-

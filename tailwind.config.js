@@ -8,6 +8,12 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        handi: {
+          primary: '#11304A',
+          green: '#3e9554',
+        },
+      },
       fontFamily: {
         sans: ["var(--font-nunito)", "system-ui", "sans-serif"],
         varela: ["var(--font-varela)", "system-ui", "sans-serif"],

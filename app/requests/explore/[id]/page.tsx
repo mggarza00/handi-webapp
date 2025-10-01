@@ -14,8 +14,36 @@ import { getConversationIdForRequest } from "@/app/(app)/mensajes/_lib/getConver
 import { Card } from "@/components/ui/card";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import type { Database } from "@/types/supabase";
+import { mapConditionToLabel } from "@/lib/conditions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import RatingStars from "@/components/ui/RatingStars";
+
+// Helpers para normalizar/mostrar fechas como dd-mm-aaaa
+function normalizeDateInput(input?: string | null): string {
+  if (!input) return "";
+  const s = String(input);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+function formatDateDisplay(input?: string | null): string {
+  const v = normalizeDateInput(input ?? "");
+  if (!v) return "";
+  const [y, m, d] = v.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+function formatCurrencyMXN(n: number | null): string | null {
+  if (n == null) return null;
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
 
 type Params = { params: { id: string } };
 
@@ -122,7 +150,12 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const budget = typeof d.budget === "number" ? (d.budget as number) : null;
   const requiredAt = (d.required_at as string | null) ?? null;
   const status = (d.status as string | null) ?? null;
-  const createdAt = (d.created_at as string | null) ?? null;
+  const conditions: string[] = ((d.conditions as string | undefined) || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .slice(0, 10);
+  const _createdAt = (d.created_at as string | null) ?? null; // sin uso en UI
   // Usa helper con service role para obtener client_id y perfil (bypass RLS en server)
   const { client: clientFromAdmin } = await getRequestWithClient(params.id);
   const clientId = clientFromAdmin?.id ?? ((d as { created_by?: string }).created_by ?? null);
@@ -155,6 +188,31 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const nombre = clientProfile?.full_name ?? "Cliente";
   const initialConversationId = await getConversationIdForRequest(params.id);
 
+  // Obtener icono de subcategoría desde catálogo
+  let subIcon: string | null = null;
+  try {
+    const catRes = await fetch(`${base}/api/catalog/categories`, {
+      headers: { "Content-Type": "application/json; charset=utf-8", ...(cookieHeader ? { cookie: cookieHeader } : {}) },
+      cache: "no-store",
+    });
+    const cj = await catRes.json().catch(() => null);
+    if (catRes.ok && cj?.ok && Array.isArray(cj.data)) {
+      const rows: Array<{ category?: string; subcategory?: string | null; icon?: string | null }> = cj.data;
+      const c = (category ?? "").trim();
+      const s = (subcategory ?? "").trim();
+      for (const r of rows) {
+        const rc = String(r.category || "").trim();
+        const rs = (r.subcategory ? String(r.subcategory) : "").trim();
+        if (rc === c && rs === s) {
+          subIcon = (r.icon ?? null) as string | null;
+          break;
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <nav className="text-sm text-slate-600">
@@ -166,40 +224,62 @@ export default async function ProRequestDetailPage({ params }: Params) {
       <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-4">
           <h1 className="text-2xl font-semibold">{title ?? "Solicitud"}</h1>
-          <p className="text-sm text-slate-600">
-            {city ?? "—"} · {category ?? "—"}
-            {subcategory ? ` · ${subcategory}` : ""}
-          </p>
-
-          {photos.length > 0 ? (
-            <PhotoGallery photos={photos} className="mt-2" />
-          ) : null}
-
-          {description ? (
-            <div className="prose max-w-none">
-              <h2 className="text-lg font-medium">Descripción</h2>
-              <p className="whitespace-pre-wrap text-slate-800 text-sm">{description}</p>
+          {/* Condiciones: chips bajo el título, sin tarjeta, sin texto "Condiciones" */}
+          {conditions.length > 0 ? (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {conditions.map((c, i) => (
+                <span
+                  key={`${c}-${i}`}
+                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                  title={c}
+                  aria-label={c}
+                >
+                  {mapConditionToLabel(c)}
+                </span>
+              ))}
             </div>
           ) : null}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Card className="p-4 text-sm">
-              <p className="text-slate-500">Presupuesto</p>
-              <p className="font-medium">{budget != null ? `$${budget}` : "No especificado"}</p>
+          {/* Info en tarjetas (mismo diseño que /requests/[id]) */}
+          <div className="space-y-4">
+            <Card className="p-4">
+              <Field label="Descripción" value={description} multiline />
             </Card>
-            <Card className="p-4 text-sm">
-              <p className="text-slate-500">Fecha requerida</p>
-              <p className="font-medium">{requiredAt ?? "Por definir"}</p>
-            </Card>
-            <Card className="p-4 text-sm">
-              <p className="text-slate-500">Estado</p>
-              <p className="font-medium">{status ?? "active"}</p>
-            </Card>
-            <Card className="p-4 text-sm">
-              <p className="text-slate-500">Creada</p>
-              <p className="font-medium">{createdAt?.slice(0,10) ?? "—"}</p>
-            </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <Field label="Estado" value={status} />
+              </Card>
+              <Card className="p-4">
+                <Field label="Ciudad" value={city} />
+              </Card>
+              <Card className="p-4">
+                <Field label="Categoría" value={category} />
+              </Card>
+              <Card className="p-4">
+                <div>
+                  <div className="text-xs text-slate-500">Subcategoría</div>
+                  <div className="text-sm text-slate-700 inline-flex items-center gap-2">
+                    {subIcon ? (
+                      subIcon.startsWith("http") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={subIcon} alt="" className="h-4 w-4 object-contain" />
+                      ) : (
+                        <span className="text-sm leading-none">{subIcon}</span>
+                      )
+                    ) : null}
+                    <span>{subcategory || "—"}</span>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4">
+                <Field label="Presupuesto (MXN)" value={formatCurrencyMXN(budget)} />
+              </Card>
+              <Card className="p-4">
+                <Field label="Fecha requerida" value={formatDateDisplay(requiredAt)} />
+              </Card>
+              {/* Condiciones se muestran arriba bajo el título */}
+            </div>
           </div>
+          {photos.length > 0 ? <PhotoGallery photos={photos} /> : null}
         </div>
 
         <aside className="space-y-4">
@@ -247,5 +327,27 @@ export default async function ProRequestDetailPage({ params }: Params) {
 
       
     </main>
+  );
+}
+
+function Field({
+  label,
+  value,
+  multiline,
+}: {
+  label: string;
+  value?: string | number | null;
+  multiline?: boolean;
+}) {
+  const v = value == null || value === "" ? "—" : String(value);
+  return (
+    <div>
+      <div className="text-xs text-slate-500">{label}</div>
+      {multiline ? (
+        <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{v}</p>
+      ) : (
+        <div className="text-sm text-slate-700">{v}</div>
+      )}
+    </div>
   );
 }

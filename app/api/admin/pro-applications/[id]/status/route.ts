@@ -43,7 +43,7 @@ export async function POST(
       try {
         const { data: app } = await admin
           .from("pro_applications")
-          .select("full_name, cities, categories, subcategories, years_experience, empresa")
+          .select("full_name, cities, categories, subcategories, years_experience, empresa, is_company, rfc, company_legal_name, company_industry, company_employees_count, company_website, company_doc_incorporation_url, company_csf_url, company_rep_id_front_url, company_rep_id_back_url")
           .eq("id", params.id)
           .single();
         const patch: Record<string, unknown> = {
@@ -52,10 +52,31 @@ export async function POST(
         };
         if (app) {
           if (app.full_name) patch.full_name = app.full_name;
+          if ((app as unknown as { rfc?: string | null }).rfc)
+            patch.rfc = (app as unknown as { rfc?: string | null }).rfc as string;
+          const appEmpresa = Boolean((app as unknown as { empresa?: boolean | null }).empresa);
+          const appIsCompany = Boolean((app as unknown as { is_company?: boolean | null }).is_company);
+          if (appEmpresa || appIsCompany) {
+            patch.is_company = true;
+          }
           if ((app as unknown as { empresa?: boolean | null }).empresa != null)
             patch.empresa = Boolean(
               (app as unknown as { empresa?: boolean | null }).empresa,
             );
+          // Company fields
+          const appObj = app as unknown as Record<string, unknown>;
+          const copyIf = (k: string) => {
+            const v = appObj[k];
+            if (v != null) (patch as Record<string, unknown>)[k] = v as unknown;
+          };
+          copyIf("company_legal_name");
+          copyIf("company_industry");
+          copyIf("company_employees_count");
+          copyIf("company_website");
+          copyIf("company_doc_incorporation_url");
+          copyIf("company_csf_url");
+          copyIf("company_rep_id_front_url");
+          copyIf("company_rep_id_back_url");
           // cities: keep as array of strings; set main city if missing
           if (app.cities) {
             patch.cities = app.cities;

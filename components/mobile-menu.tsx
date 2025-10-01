@@ -89,6 +89,7 @@ type MobileMenuProps = {
   role?: Role;
   avatarUrl?: string | null;
   fullName?: string | null;
+  isClientPro?: boolean;
 };
 
 function MobileMenuDrawer({
@@ -97,12 +98,14 @@ function MobileMenuDrawer({
   role,
   avatarUrl,
   fullName,
+  isClientPro,
 }: {
   items: NavLink[];
   isAuth: boolean;
   role: Role;
   avatarUrl: string | null;
   fullName: string | null;
+  isClientPro?: boolean;
 }) {
   const { open, setOpen } = useSidebar();
   const [notifOpen, setNotifOpen] = React.useState(false);
@@ -459,7 +462,7 @@ function MobileMenuDrawer({
                   onClick={() => setOpen(false)}
                   className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
                 >
-                  Configura tu perfil
+                  {role === "pro" || isClientPro ? "Configura tu perfil de profesional" : "Configura tu perfil"}
                 </Link>
                 <Link
                   href="/settings"
@@ -492,13 +495,14 @@ export default function MobileMenu({
   role = null,
   avatarUrl = null,
   fullName = null,
+  isClientPro = false,
 }: MobileMenuProps) {
   const items = links && links.length > 0 ? links : DEFAULT_LINKS;
 
   return (
     <div className="md:hidden">
       <SidebarProvider>
-        <MobileMenuDrawer items={items} isAuth={isAuth} role={role} avatarUrl={avatarUrl} fullName={fullName} />
+        <MobileMenuDrawer items={items} isAuth={isAuth} role={role} avatarUrl={avatarUrl} fullName={fullName} isClientPro={isClientPro} />
       </SidebarProvider>
     </div>
   );

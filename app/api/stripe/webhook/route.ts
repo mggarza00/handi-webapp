@@ -63,7 +63,7 @@ export async function POST(req: Request) {
                 accepting_at: null,
               })
               .eq("id", offerId)
-              .in("status", ["accepted", "sent"]);
+              .in("status", ["accepted", "pending"]);
           }
 
           const agreementId = (session.metadata?.agreement_id || "").trim();

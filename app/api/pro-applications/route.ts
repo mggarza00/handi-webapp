@@ -14,26 +14,70 @@ const RefSchema = z.object({
   phone: z.string(),
   relation: z.string(),
 });
-const PayloadSchema = z.object({
-  full_name: z.string().min(2).max(120),
-  phone: z.string().min(8).max(20),
-  email: z.string().email(),
-  empresa: z.boolean().optional(),
-  services_desc: z.string().min(10).max(2000),
-  cities: z.array(z.string().min(2).max(120)).min(1).max(20),
-  categories: z.array(z.string().min(2).max(120)).min(1).max(20),
-  subcategories: z.array(z.string().min(1).max(120)).max(50).optional(),
-  years_experience: z.number().int().min(0).max(80),
-  privacy_accept: z.literal(true),
-  references: z.array(RefSchema).min(1).max(10),
-  uploads: z.object({
-    cv_url: z.string().url(),
-    letters_urls: z.array(z.string().url()).min(1),
-    id_front_url: z.string().url(),
-    id_back_url: z.string().url(),
-    signature_url: z.string().url(),
-  }),
-});
+const RFC_REGEX = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
+
+const PayloadSchema = z
+  .object({
+    full_name: z.string().min(2).max(120),
+    phone: z.string().min(8).max(20),
+    email: z.string().email(),
+    rfc: z
+      .string()
+      .trim()
+      .transform((s) => s.toUpperCase())
+      .refine((s) => RFC_REGEX.test(s), "RFC inválido"),
+    empresa: z.boolean().optional(),
+    company_legal_name: z.string().min(2).optional(),
+    company_industry: z.string().min(1).optional(),
+    company_employees_count: z.number().int().min(1).optional(),
+    company_website: z
+      .string()
+      .optional()
+      .refine((s) => !s || /^https?:\/\//i.test(s), "Sitio inválido"),
+    services_desc: z.string().min(10).max(2000),
+    cities: z.array(z.string().min(2).max(120)).min(1).max(20),
+    categories: z.array(z.string().min(2).max(120)).min(1).max(20),
+    subcategories: z.array(z.string().min(1).max(120)).max(50).optional(),
+    years_experience: z.number().int().min(0).max(80),
+    privacy_accept: z.literal(true),
+    references: z.array(RefSchema).min(1).max(10),
+    uploads: z.object({
+      // legacy (persona física) - ahora opcional
+      cv_url: z.string().url().optional(),
+      letters_urls: z.array(z.string().url()).min(1).optional(),
+      id_front_url: z.string().url().optional(),
+      id_back_url: z.string().url().optional(),
+      // nuevo para empresa
+      company_doc_incorporation_url: z.string().url().optional(),
+      company_csf_url: z.string().url().optional(),
+      company_rep_id_front_url: z.string().url().optional(),
+      company_rep_id_back_url: z.string().url().optional(),
+      // firma (se mantiene)
+      signature_url: z.string().url().optional(),
+    }),
+  })
+  .superRefine((data, ctx) => {
+    if (data.empresa) {
+      if (!data.company_legal_name || data.company_legal_name.trim().length < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_legal_name"], message: "Requerido" });
+      }
+      if (!data.company_industry || data.company_industry.trim().length < 1) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_industry"], message: "Requerido" });
+      }
+      if (data.company_employees_count != null && (!Number.isInteger(data.company_employees_count) || data.company_employees_count < 1)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_employees_count"], message: "Inválido" });
+      }
+      if (data.company_website && !/^https?:\/\//i.test(data.company_website)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_website"], message: "Inválido" });
+      }
+      if (!data.uploads.company_doc_incorporation_url) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["uploads", "company_doc_incorporation_url"], message: "Requerido" });
+      }
+      if (!data.uploads.company_csf_url) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["uploads", "company_csf_url"], message: "Requerido" });
+      }
+    }
+  });
 
 export const dynamic = "force-dynamic";
 
@@ -100,7 +144,17 @@ export async function POST(req: Request) {
         full_name: p.full_name,
         phone: p.phone,
         email: p.email,
+        rfc: p.rfc,
         empresa: p.empresa ?? false,
+        is_company: p.empresa ?? false,
+        company_legal_name: p.company_legal_name ?? null,
+        company_industry: p.company_industry ?? null,
+        company_employees_count: p.company_employees_count ?? null,
+        company_website: p.company_website ?? null,
+        company_doc_incorporation_url: (p.uploads as Record<string, unknown>).company_doc_incorporation_url ?? null,
+        company_csf_url: (p.uploads as Record<string, unknown>).company_csf_url ?? null,
+        company_rep_id_front_url: (p.uploads as Record<string, unknown>).company_rep_id_front_url ?? null,
+        company_rep_id_back_url: (p.uploads as Record<string, unknown>).company_rep_id_back_url ?? null,
         services_desc: p.services_desc,
         cities: p.cities,
         categories: p.categories,
@@ -167,7 +221,21 @@ export async function POST(req: Request) {
       <p><b>Nombre:</b> ${escapeHtml(p.full_name)}</p>
       <p><b>Teléfono:</b> ${escapeHtml(p.phone)}</p>
       <p><b>Correo:</b> ${escapeHtml(p.email)}</p>
+      <p><b>RFC:</b> ${escapeHtml(p.rfc)}</p>
       <p><b>Empresa:</b> ${p.empresa ? 'Sí' : 'No'}</p>
+      ${p.empresa ? `
+      <p><b>Razón social:</b> ${escapeHtml(p.company_legal_name || '')}</p>
+      <p><b>Giro:</b> ${escapeHtml(p.company_industry || '')}</p>
+      ${p.company_employees_count ? `<p><b>Empleados:</b> ${p.company_employees_count}</p>` : ''}
+      ${p.company_website ? `<p><b>Sitio:</b> ${escapeHtml(p.company_website)}</p>` : ''}
+      <p><b>Docs empresa:</b></p>
+      <ul>
+        ${p.uploads.company_doc_incorporation_url ? `<li>Acta: <a href="${p.uploads.company_doc_incorporation_url}">${p.uploads.company_doc_incorporation_url}</a></li>` : ''}
+        ${p.uploads.company_csf_url ? `<li>CSF: <a href="${p.uploads.company_csf_url}">${p.uploads.company_csf_url}</a></li>` : ''}
+        ${p.uploads.company_rep_id_front_url ? `<li>ID Rep (frente): <a href="${p.uploads.company_rep_id_front_url}">${p.uploads.company_rep_id_front_url}</a></li>` : ''}
+        ${p.uploads.company_rep_id_back_url ? `<li>ID Rep (reverso): <a href="${p.uploads.company_rep_id_back_url}">${p.uploads.company_rep_id_back_url}</a></li>` : ''}
+      </ul>
+      ` : ''}
       <p><b>Experiencia (años):</b> ${p.years_experience}</p>
       <p><b>Categorías:</b> ${p.categories.map(escapeHtml).join(", ")}</p>
   ${p.subcategories && p.subcategories.length ? `<p><b>Subcategorías:</b> ${(p.subcategories as string[]).map(escapeHtml).join(", ")}</p>` : ""}
@@ -179,13 +247,15 @@ export async function POST(req: Request) {
         ${p.references.map((r) => `<li>${escapeHtml(r.name)} — ${escapeHtml(r.phone)} — ${escapeHtml(r.relation)}</li>`).join("")}
       </ul>
       <p><b>Archivos:</b></p>
+      ${!p.empresa ? `
       <ul>
-        <li>CV: <a href="${p.uploads.cv_url}">${p.uploads.cv_url}</a></li>
-        ${p.uploads.letters_urls.map((u) => `<li>Carta: <a href="${u}">${u}</a></li>`).join("")}
-        <li>INE/Pasaporte (frente): <a href="${p.uploads.id_front_url}">${p.uploads.id_front_url}</a></li>
-        <li>INE/Pasaporte (reverso): <a href="${p.uploads.id_back_url}">${p.uploads.id_back_url}</a></li>
-        <li>Firma: <a href="${p.uploads.signature_url}">${p.uploads.signature_url}</a></li>
+        ${p.uploads.cv_url ? `<li>CV: <a href="${p.uploads.cv_url}">${p.uploads.cv_url}</a></li>` : ''}
+        ${Array.isArray(p.uploads.letters_urls) ? p.uploads.letters_urls.map((u: string) => `<li>Carta: <a href="${u}">${u}</a></li>`).join("") : ''}
+        ${p.uploads.id_front_url ? `<li>Identificación (frente): <a href="${p.uploads.id_front_url}">${p.uploads.id_front_url}</a></li>` : ''}
+        ${p.uploads.id_back_url ? `<li>Identificación (reverso): <a href="${p.uploads.id_back_url}">${p.uploads.id_back_url}</a></li>` : ''}
+        ${p.uploads.signature_url ? `<li>Firma: <a href="${p.uploads.signature_url}">${p.uploads.signature_url}</a></li>` : ''}
       </ul>
+      ` : ''}
       <p><a href="${profileUrl}">Ver perfil</a></p>
     `;
 

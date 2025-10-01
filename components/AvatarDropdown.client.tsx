@@ -13,10 +13,12 @@ export default function AvatarDropdown({
   avatarUrl,
   fullName,
   role,
+  isClientPro,
 }: {
   avatarUrl: string | null;
   fullName: string | null;
   role: Role;
+  isClientPro?: boolean | null;
 }) {
   const detailsRef = useRef<HTMLDetailsElement | null>(null);
 
@@ -53,6 +55,7 @@ export default function AvatarDropdown({
   ).toUpperCase();
 
   const avatarSrc = normalizeAvatarUrl(avatarUrl);
+  const setupLabel = role === "pro" || isClientPro ? "Configura tu perfil de profesional" : "Configura tu perfil";
   return (
     <details ref={detailsRef} className="relative">
       <summary
@@ -73,7 +76,7 @@ export default function AvatarDropdown({
           Mi perfil
         </Link>
         <Link href="/profile/setup" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
-          Configura tu perfil
+          {setupLabel}
         </Link>
         <Link href="/settings" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
           Configuración

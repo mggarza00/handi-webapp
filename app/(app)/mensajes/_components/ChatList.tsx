@@ -54,13 +54,13 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-white sticky top-0 z-10">
-        <div className="font-medium text-sm text-muted-foreground">Chats</div>
+    <div className="flex flex-col bg-[#fbfbfb]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-blue-100/50 bg-[#fbfbfb] sticky top-0 z-10">
+        <div className="font-medium text-sm text-slate-700">Chats</div>
         <button
           type="button"
           onClick={() => setEditing((v) => !v)}
-          className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded border hover:bg-neutral-50"
+          className="text-xs inline-flex items-center gap-1 px-2 py-1 rounded border border-blue-100/50 hover:bg-blue-100/20"
         >
           {editing ? "Listo" : "Editar"}
         </button>
@@ -81,4 +81,3 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
     </div>
   );
 }
-

@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import SetupForm from "./setup.client";
+import { createChangeRequest } from "./actions";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import PageContainer from "@/components/page-container";
@@ -16,34 +18,34 @@ export default async function ProfileSetupPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return (
-      <PageContainer>
-        <div>
-          <Breadcrumbs
-            items={[
-              { label: "Inicio", href: "/" },
-              { label: "Perfil" },
-              { label: "Configurar" },
-            ]}
-          />
-          <h1 className="text-2xl font-semibold mt-4">
-            Configura tu perfil profesional
-          </h1>
-          <p className="mt-4 text-sm text-slate-700">
-            Necesitas iniciar sesión para continuar.
-          </p>
-        </div>
-      </PageContainer>
-    );
+    redirect("/auth/sign-in");
   }
 
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "full_name, avatar_url, headline, bio, years_experience, city, categories, subcategories",
+      "full_name, avatar_url, headline, bio, years_experience, city, categories, subcategories, role, is_client_pro",
     )
     .eq("id", user.id)
     .maybeSingle();
+
+  const isPro = (profile?.role === "pro") || (profile as any)?.is_client_pro === true;
+
+  // Solicitudes pendientes (si existe la tabla)
+  let pendingAt: string | null = null;
+  try {
+    const { data: req } = await supabase
+      .from("profile_change_requests")
+      .select("created_at")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    pendingAt = (req?.created_at as string | null) ?? null;
+  } catch {
+    pendingAt = null;
+  }
 
   return (
     <PageContainer>
@@ -57,14 +59,20 @@ export default async function ProfileSetupPage() {
         />
         <header>
           <h1 className="text-2xl font-semibold">
-            Configura tu perfil profesional
+            {isPro ? "Configura tu perfil de profesional" : "Configura tu perfil"}
           </h1>
           <p className="text-sm text-slate-600">
-            Estos datos ayudarán a los clientes a encontrarte.
+            Tus cambios serán revisados por el equipo antes de publicarse.
           </p>
         </header>
-        <SetupForm initial={profile ?? null} />
+        {pendingAt ? (
+          <div className="rounded-2xl border bg-yellow-50 text-yellow-900 p-4">
+            Tienes una solicitud pendiente desde {new Date(pendingAt).toLocaleString()}.
+          </div>
+        ) : null}
+        <SetupForm initial={profile ?? null} onRequestChanges={createChangeRequest} />
       </div>
     </PageContainer>
   );
 }
+

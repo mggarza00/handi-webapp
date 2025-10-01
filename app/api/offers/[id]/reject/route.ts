@@ -51,7 +51,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (offer.professional_id !== auth.user.id)
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
-    if (offer.status !== "sent")
+    if (offer.status !== "pending")
       return NextResponse.json({ ok: false, error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
 
     const { data: updated, error: upErr } = await supabase
@@ -59,7 +59,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .update({ status: "rejected", reject_reason: reason })
       .eq("id", offer.id)
       .eq("professional_id", auth.user.id)
-      .eq("status", "sent")
+      .eq("status", "pending")
       .select("*")
       .single();
 
@@ -75,4 +75,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
