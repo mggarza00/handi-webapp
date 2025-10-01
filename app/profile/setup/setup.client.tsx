@@ -18,7 +18,7 @@ const FormSchema = z.object({
     .transform((v) => (v ? Number(v) : undefined))
     .refine(
       (v) => v === undefined || (Number.isInteger(v) && v >= 0 && v <= 80),
-      "Años inválidos",
+      "AÃ±os invÃ¡lidos",
     ),
   city: z.string().min(2).max(120),
   categories: z.string().optional(), // CSV simple
@@ -36,7 +36,7 @@ type Profile = {
   subcategories?: Array<{ name: string }> | null;
 } | null;
 
-export default function SetupForm({ initial }: { initial: Profile }) {
+export default function SetupForm({ initial, onRequestChanges }: { initial: Profile; onRequestChanges?: (fd: FormData) => Promise<{ ok: boolean; error?: string }> }) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
@@ -125,25 +125,22 @@ export default function SetupForm({ initial }: { initial: Profile }) {
       .filter(Boolean)
       .map((name) => ({ name }));
     try {
-      const res = await fetch("/api/profile/setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({
-          full_name: fullName,
-          avatar_url: avatarUrl || undefined,
-          headline,
-          bio: bio || undefined,
-          years_experience: years ? Number(years) : undefined,
-          city,
-          categories: c,
-          subcategories: sc,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "No se pudo guardar");
-      setOk("Tu perfil se guardó correctamente.");
-      // Emitir evento para que otras vistas refresquen, si aplica
-      window.dispatchEvent(new CustomEvent("profile:updated"));
+            if (onRequestChanges) {
+        const fd = new FormData();
+        fd.set("full_name", fullName);
+        fd.set("avatar_url", avatarUrl);
+        fd.set("headline", headline);
+        fd.set("bio", bio);
+        fd.set("years_experience", years);
+        fd.set("city", city);
+        fd.set("categories", c.map((x) => x.name).join(", "));
+        fd.set("subcategories", sc.map((x) => x.name).join(", "));
+        const r = await onRequestChanges(fd);
+        if (!r?.ok) throw new Error(r?.error || "No se pudo enviar la solicitud");
+        setOk("Tu solicitud fue enviada a revisión.");
+      } else {
+        setOk("Guardado localmente.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
     } finally {
@@ -184,7 +181,7 @@ export default function SetupForm({ initial }: { initial: Profile }) {
       </div>
 
       <div>
-        <label className="block text-sm mb-1">Años de experiencia</label>
+        <label className="block text-sm mb-1">AÃ±os de experiencia</label>
         <Input
           value={years}
           onChange={(e) => setYears(e.target.value)}
@@ -195,23 +192,23 @@ export default function SetupForm({ initial }: { initial: Profile }) {
 
       <div>
         <label className="block text-sm mb-1">
-          Categorías (separadas por coma)
+          CategorÃ­as (separadas por coma)
         </label>
         <Input
           value={categories}
           onChange={(e) => setCategories(e.target.value)}
-          placeholder="Electricidad, Plomería"
+          placeholder="Electricidad, PlomerÃ­a"
         />
       </div>
 
       <div>
         <label className="block text-sm mb-1">
-          Subcategorías (separadas por coma)
+          SubcategorÃ­as (separadas por coma)
         </label>
         <Input
           value={subcategories}
           onChange={(e) => setSubcategories(e.target.value)}
-          placeholder="Instalación, Mantenimiento"
+          placeholder="InstalaciÃ³n, Mantenimiento"
         />
       </div>
 
@@ -221,7 +218,7 @@ export default function SetupForm({ initial }: { initial: Profile }) {
           value={bio}
           onChange={(e) => setBio(e.target.value)}
           rows={4}
-          placeholder="Cuéntanos sobre tu experiencia y servicios."
+          placeholder="CuÃ©ntanos sobre tu experiencia y servicios."
         />
       </div>
 
@@ -235,10 +232,10 @@ export default function SetupForm({ initial }: { initial: Profile }) {
       </div>
 
       <div>
-        <h3 className="text-sm font-medium mb-1">Galería profesional</h3>
+        <h3 className="text-sm font-medium mb-1">GalerÃ­a profesional</h3>
         <p className="text-xs text-slate-600 mb-2">
-          Sube imágenes de tus trabajos (máx 5MB c/u). Se mostrarán en tu perfil
-          público.
+          Sube imÃ¡genes de tus trabajos (mÃ¡x 5MB c/u). Se mostrarÃ¡n en tu perfil
+          pÃºblico.
         </p>
         <Input
           type="file"
@@ -254,7 +251,7 @@ export default function SetupForm({ initial }: { initial: Profile }) {
                 if (f.size > max)
                   throw new Error(`El archivo ${f.name} excede 5MB`);
                 if (!/^image\//i.test(f.type))
-                  throw new Error(`Tipo inválido para ${f.name}`);
+                  throw new Error(`Tipo invÃ¡lido para ${f.name}`);
                 const path = `${meId}/${Date.now()}-${encodeURIComponent(f.name)}`;
                 const up = await supabaseBrowser.storage
                   .from("profiles-gallery")
@@ -268,7 +265,7 @@ export default function SetupForm({ initial }: { initial: Profile }) {
               if (g.ok) setGallery(gj.data ?? []);
             } catch (err) {
               alert(
-                err instanceof Error ? err.message : "Error al subir imágenes",
+                err instanceof Error ? err.message : "Error al subir imÃ¡genes",
               );
             } finally {
               setUploading(false);
@@ -317,8 +314,9 @@ export default function SetupForm({ initial }: { initial: Profile }) {
 
       <div className="pt-2">
         <Button type="submit" disabled={loading}>
-          {loading ? "Guardando…" : "Guardar perfil"}
+          {loading ? "Enviando…" : "Solicitar cambios"}
         </Button>
+        <p className="mt-2 text-xs text-slate-600">Tus cambios serán revisados por el equipo antes de publicarse.</p>
       </div>
     </form>
   );

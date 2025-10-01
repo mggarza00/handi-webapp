@@ -3,7 +3,8 @@
 import * as React from "react";
 
 import useCompletionReview from "../../_components/_hooks/useCompletionReview";
-
+import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 import ChatPanel from "@/components/chat/ChatPanel";
 
 type Profile = {
@@ -133,12 +134,8 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={other?.avatar_url || "/avatar.png"}
-          alt={other?.full_name || "Avatar"}
-          className="size-10 rounded-full object-cover border"
-        />
+        {/* Avatar con skeleton mientras carga */}
+        <AvatarWithSkeleton src={normalizeAvatarUrl(other?.avatar_url) || "/avatar.png"} alt={other?.full_name || "Avatar"} sizeClass="size-10" />
         <div className="min-w-0">
           <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
           <div className="text-xs text-muted-foreground">

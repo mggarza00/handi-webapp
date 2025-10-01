@@ -329,10 +329,9 @@ export default function RequestDetailClient({
                 onClick={() => setEdit(true)}
                 aria-label="Editar"
                 className={compactActions ? "p-2" : "gap-1"}
-              >
-                <SquarePen className="h-4 w-4" />
-                {compactActions ? null : <span>Editar</span>}
-              </Button>
+                >
+                  <SquarePen className="h-4 w-4" />
+                </Button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -565,4 +564,3 @@ function Field({
     </div>
   );
 }
-

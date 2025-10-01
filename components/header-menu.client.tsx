@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Menu, Settings as SettingsIcon } from "lucide-react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -114,6 +115,7 @@ export default function HeaderMenu() {
   const [hasNotifs, setHasNotifs] = React.useState(false);
   const [hasNewMsgs, setHasNewMsgs] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
+  const pathname = usePathname();
   type Notif = {
     id: string;
     title: string;
@@ -307,6 +309,18 @@ export default function HeaderMenu() {
     }
   }
 
+  // Close menu utility (used when clicking any item)
+  const closeMenu = React.useCallback(() => {
+    setOpen(false);
+    try { if (detailsRef.current) detailsRef.current.open = false; } catch { /* ignore */ }
+  }, []);
+
+  // Close menu on route change as a safety net
+  React.useEffect(() => {
+    if (open) closeMenu();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   return (
     <details
       ref={detailsRef}
@@ -360,7 +374,7 @@ export default function HeaderMenu() {
                     <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
                       <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ""}</span>
                       {n.link ? (
-                        <Link href={n.link} className="text-blue-600 hover:underline">Abrir</Link>
+                        <Link href={n.link} className="text-blue-600 hover:underline" onClick={closeMenu}>Abrir</Link>
                       ) : null}
                     </div>
                   </li>
@@ -373,6 +387,7 @@ export default function HeaderMenu() {
         <Link
           href="/favorites"
           className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
+          onClick={closeMenu}
         >
           <HeartIcon />
           <span>Favoritos</span>
@@ -381,6 +396,7 @@ export default function HeaderMenu() {
           href="/messages"
           className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 relative"
           data-testid="open-messages-link"
+          onClick={closeMenu}
         >
           <MessageIcon />
           <span>Mensajes</span>
@@ -392,6 +408,7 @@ export default function HeaderMenu() {
         <Link
           href="/settings"
           className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
+          onClick={closeMenu}
         >
           <SettingsIcon className="h-4 w-4" />
           <span>Configuración</span>
@@ -399,7 +416,7 @@ export default function HeaderMenu() {
         <div className="my-1 h-px bg-neutral-200" />
         <button
           type="button"
-          onClick={onShare}
+          onClick={() => { void onShare(); closeMenu(); }}
           className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
         >
           <ShareIcon />

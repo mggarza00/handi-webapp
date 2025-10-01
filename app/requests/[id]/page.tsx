@@ -14,9 +14,11 @@ import AgreementsClient from "./Agreements.client";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Card } from "@/components/ui/card";
+import MobileProsAnchorButton from "./MobileProsAnchorButton.client";
 // Removed pre-card PhotoGallery to avoid duplicate images
 import ProfessionalsList from "@/components/professionals/ProfessionalsList";
 import type { Database } from "@/types/supabase";
+import { mapConditionToLabel } from "@/lib/conditions";
 
 type Params = {
   params: { id: string };
@@ -138,8 +140,15 @@ export default async function RequestDetailPage({ params }: Params) {
     subcategory,
     budget: typeof d.budget === "number" ? (d.budget as number) : null,
     required_at: (d.required_at as string | null) ?? null,
+    conditions: (d.conditions as string | undefined) ?? "",
     photos,
   };
+
+  const conditionsList: string[] = ((initial.conditions as string) || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+    .slice(0, 10);
 
   const category = (initial.category ?? "").toString() || undefined;
   const subcat = (initial.subcategory ?? "").toString() || undefined;
@@ -164,6 +173,41 @@ export default async function RequestDetailPage({ params }: Params) {
             </h1>
             <RequestHeaderActions requestId={initial.id} />
           </div>
+          {/* Condiciones chips debajo del título (desktop) */}
+          {conditionsList.length > 0 ? (
+            <div className="hidden md:flex flex-wrap gap-2 mt-2">
+              {conditionsList.map((c, i) => (
+                <span
+                  key={`${c}-${i}`}
+                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                  title={c}
+                  aria-label={c}
+                >
+                  {mapConditionToLabel(c)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {/* Mobile-only anchor button to jump to available professionals list */}
+          {!disablePros ? (
+            <MobileProsAnchorButton category={category} subcategory={subcat} />
+          ) : null}
+          {/* Condiciones chips debajo del botón (móvil) con espacio */}
+          {conditionsList.length > 0 ? (
+            <div className="md:hidden flex flex-wrap gap-2 mt-8">
+              {conditionsList.map((c, i) => (
+                <span
+                  key={`${c}-${i}`}
+                  className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700"
+                  title={c}
+                  aria-label={c}
+                >
+                  {mapConditionToLabel(c)}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {/* Photo gallery removed here; it is rendered after the detail card within RequestDetailClient */}
 
@@ -183,7 +227,7 @@ export default async function RequestDetailPage({ params }: Params) {
 
         <aside className="order-last md:order-none md:sticky md:top-4 space-y-4">
           {!disablePros ? (
-            <Card className="p-4">
+            <Card id="available-professionals" className="p-4 scroll-mt-24">
               <h2 className="font-medium mb-2">Profesionales disponibles</h2>
               <ProfessionalsList
                 requestId={initial.id}
@@ -202,8 +246,3 @@ export default async function RequestDetailPage({ params }: Params) {
 }
 
 export const metadata: Metadata = { title: "Solicitud | Handi" };
-
-
-
-
-

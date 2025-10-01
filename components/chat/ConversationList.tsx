@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import { Button } from "@/components/ui/button";
+import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 
 type Item = {
   id: string;
@@ -17,7 +18,7 @@ type Item = {
 export default function ConversationList({ items }: { items: Item[] }) {
   if (!items.length)
     return (
-      <div className="rounded border bg-white p-8 text-center">
+      <div className="rounded border bg-[#fbfbfb] p-8 text-center">
         <div className="mx-auto mb-3 size-12 rounded-full bg-slate-100" aria-hidden />
         <div className="text-sm text-muted-foreground mb-4">Aún no hay conversaciones.</div>
         <div className="flex items-center justify-center gap-2">
@@ -44,16 +45,16 @@ export default function ConversationList({ items }: { items: Item[] }) {
     return d.toLocaleDateString() + ' ' + hm;
   }
   return (
-    <ul className="divide-y rounded border bg-white">
+    <ul className="divide-y rounded border bg-[#fbfbfb]">
       {items.map((c) => (
         <li key={c.id} className="p-3 hover:bg-neutral-50">
           <Link href={`/messages/${c.id}`} className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <AvatarWithSkeleton
                 src={normalizeAvatarUrl(c.avatarUrl) || "/avatar.png"}
                 alt={(c.title || "").trim() || "El nombre del profesional"}
-                className="size-9 rounded-full object-cover border shrink-0"
+                sizeClass="size-9"
+                className="shrink-0"
               />
               <div className="min-w-0">
                 <div className="font-medium text-sm truncate flex items-center gap-2">

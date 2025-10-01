@@ -1,9 +1,13 @@
 "use client";
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AttachmentList } from "@/app/(app)/messages/_components/AttachmentList";
+import AcceptOfferButton from "@/app/(app)/offers/_components/AcceptOfferButton";
+import { extractOfferId, extractStatus, extractProIds, extractViewerIds, isOwnerPro, canProAct } from "@/lib/offers/actors";
+import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
 
 type Item = {
   id: string;
@@ -27,10 +31,12 @@ type Item = {
 
 type MessageListProps = {
   items: Item[];
+  conversationId?: string | null;
   currentUserId?: string | null;
   otherUserId?: string | null;
   viewerRole?: "customer" | "professional" | "guest";
   onAcceptOffer?: (offerId: string) => void;
+  onOfferAcceptedUI?: (offerId: string, opts?: { checkoutUrl?: string | null }) => void;
   onRejectOffer?: (offerId: string) => void;
   actionOfferId?: string | null;
   dataPrefix?: string; // e2e: chat | request-chat
@@ -84,22 +90,33 @@ function formatCurrency(amount: number | null, currency: string): string | null 
   }
 }
 
-function normalizeStatus(status?: string | null): string {
-  if (!status) return "sent";
-  return status;
-}
+// Use shared helpers from lib/offers/actors
 
 export default function MessageList({
   items,
+  conversationId,
   currentUserId,
   otherUserId,
   viewerRole = "guest",
-  onAcceptOffer,
-  onRejectOffer,
+  onAcceptOffer: _onAcceptOffer,
+  onOfferAcceptedUI,
+  onRejectOffer: _onRejectOffer,
   actionOfferId,
   dataPrefix = "chat",
 }: MessageListProps) {
-  const [payingOfferId, setPayingOfferId] = React.useState<string | null>(null);
+  const bgStyle = React.useMemo<React.CSSProperties>(() => ({
+    backgroundImage:
+      "linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), url(/images/Handi-Tools-and-Hardware-Pattern.png)",
+    backgroundRepeat: "repeat",
+    backgroundPosition: "top left",
+    backgroundSize: "400px",
+  }), []);
+  const searchParams = useSearchParams();
+  const debugActions = searchParams?.get('debugActions') === '1';
+  // legacy inline pay flow moved to top bar (ChatPanel)
+  const [/* payingOfferId */, setPayingOfferId] = React.useState<string | null>(null);
+  const [feeOpen, setFeeOpen] = React.useState(false);
+  const [feeCtx, setFeeCtx] = React.useState<{ offerId: string; amount: number | null; currency: string; checkoutUrl?: string | null }>({ offerId: "", amount: null, currency: "MXN", checkoutUrl: null });
   const handlePay = React.useCallback(async (offerId: string, existingUrl?: string | null) => {
     let url = typeof existingUrl === "string" && existingUrl.trim().length ? existingUrl : null;
     try {
@@ -180,7 +197,7 @@ export default function MessageList({
           amount: null,
           currency: "MXN",
           serviceDate: null,
-          status: "sent",
+          status: "pending",
           checkoutUrl: null,
           reason: null,
           messageId: message.id,
@@ -209,7 +226,7 @@ export default function MessageList({
         }
 
         const statusRaw = payloadRecord["status"];
-        if (typeof statusRaw === "string") state.status = statusRaw;
+        if (typeof statusRaw === "string") state.status = extractStatus(statusRaw);
 
         const checkoutUrlRaw = payloadRecord["checkout_url"];
         if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) state.checkoutUrl = checkoutUrlRaw;
@@ -218,7 +235,7 @@ export default function MessageList({
         if (typeof reasonRaw === "string" && reasonRaw.length) state.reason = reasonRaw;
       } else if (message.messageType === "system") {
         const statusRaw = payloadRecord["status"];
-        if (typeof statusRaw === "string") state.status = statusRaw;
+        if (typeof statusRaw === "string") state.status = extractStatus(statusRaw);
 
         const checkoutUrlRaw = payloadRecord["checkout_url"];
         if (typeof checkoutUrlRaw === "string" && checkoutUrlRaw.length) state.checkoutUrl = checkoutUrlRaw;
@@ -236,36 +253,52 @@ export default function MessageList({
 
   if (!items.length)
     return (
-      <div ref={ref} className="flex-1 overflow-y-auto p-3 bg-white">
+      <div ref={ref} className="flex-1 overflow-y-auto p-3" style={bgStyle}>
         <div className="text-sm text-slate-500">Aun no hay mensajes.</div>
       </div>
     );
 
   function renderOffer(message: Item) {
     const payload = message.payload || {};
-    const offerId = typeof payload.offer_id === "string" ? payload.offer_id : null;
-    if (!offerId) return <div>{message.body}</div>;
-    const state = offerStates.get(offerId) ?? {
-      offerId,
+    const baseOfferId = typeof payload.offer_id === "string" ? payload.offer_id : null;
+    if (!baseOfferId) return <div>{message.body}</div>;
+    const state = offerStates.get(baseOfferId) ?? {
+      offerId: baseOfferId,
       title: typeof payload.title === "string" ? payload.title : null,
       description: typeof payload.description === "string" ? payload.description : null,
       amount: typeof payload.amount === "number" ? payload.amount : Number(payload.amount ?? NaN),
       currency: typeof payload.currency === "string" ? payload.currency : "MXN",
       serviceDate: typeof payload.service_date === "string" ? payload.service_date : null,
-      status: typeof payload.status === "string" ? payload.status : "sent",
+      status: typeof payload.status === "string" ? payload.status : "pending",
       checkoutUrl: typeof payload.checkout_url === "string" ? payload.checkout_url : null,
       reason: typeof payload.reason === "string" ? payload.reason : null,
       messageId: message.id,
       lastUpdate: message.createdAt,
     };
-    const status = normalizeStatus(state.status);
+    const offerObj = message.payload || {};
+    const offerObjRecord = offerObj as Record<string, unknown>;
+    const resolvedOfferId = extractOfferId(offerObj) ?? (typeof offerObjRecord.id === 'string' ? (offerObjRecord.id as string) : state.offerId);
+    const status = extractStatus(offerObj);
+    const isPending = status === 'pending';
+    const proIds = extractProIds(offerObj);
+    const viewer = currentUserId ? { id: currentUserId } : null;
+    const g = globalThis as unknown as { __sessionUser?: unknown };
+    const sessionUser = g.__sessionUser as unknown;
+    const viewerIds = extractViewerIds(viewer ?? undefined, sessionUser);
+    const ownerOK = isOwnerPro(offerObj, viewer ?? undefined, sessionUser);
+    const pendingOK = isPending;
+    let canAct = canProAct(offerObj, viewer ?? undefined, sessionUser);
+    if (!canAct && viewerRole === 'professional' && proIds.length === 0 && viewer && isPending) {
+      canAct = true;
+    }
     const formattedAmount = formatCurrency(state.amount, state.currency || "MXN") ?? message.body;
     const formattedDate = formatOfferDate(state.serviceDate);
-    const canAct = viewerRole === "professional" && status === "sent";
+    const offerId = resolvedOfferId;
     const disableActions = actionOfferId === offerId;
-    const showPayCta = viewerRole === "customer" && status === "accepted" && state.checkoutUrl;
+    const disabled = Boolean(disableActions);
+    const showPayCta = false; // mover CTA de pago al top bar del chat (ChatPanel)
     const statusLabelMap: Record<string, string> = {
-      sent: "Enviada",
+      pending: "Enviada",
       accepted: "Aceptada",
       rejected: "Rechazada",
       canceled: "Cancelada",
@@ -288,6 +321,22 @@ export default function MessageList({
       }
     })();
 
+    const showActions = canAct || debugActions;
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('[offer-actions]', {
+        offerId: resolvedOfferId,
+        status,
+        proIds,
+        viewerIds,
+        ownerOK,
+        pendingOK,
+        canAct,
+        disabled,
+        debugActions,
+      });
+    }
+
     return (
       <div className="space-y-2">
         <div>
@@ -303,22 +352,52 @@ export default function MessageList({
           <Badge className={badgeTone}>{statusLabelMap[status] || status}</Badge>
           {state.reason && status === "rejected" ? <span>Motivo: {state.reason}</span> : null}
         </div>
-        {canAct ? (
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={() => onAcceptOffer?.(offerId)} disabled={disableActions}>
-              {disableActions ? "Procesando..." : "Aceptar"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onRejectOffer?.(offerId)} disabled={disableActions}>
+        {showActions ? (
+          <div className="flex gap-2 pt-1" data-testid="offer-actions-pro">
+            <AcceptOfferButton
+              offerId={offerId}
+              conversationId={conversationId ?? undefined}
+              onAccepted={(opts) => { onOfferAcceptedUI?.(offerId, { checkoutUrl: opts?.checkoutUrl ?? null }); }}
+              className="text-xs"
+              disabled={disabled}
+              data-testid="accept-offer"
+            >
+              {disabled ? "Procesando..." : "Aceptar"}
+            </AcceptOfferButton>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const res = await fetch(`/api/offers/${offerId}/reject`, { method: "POST" });
+                  if (!res.ok) {
+                    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+                    throw new Error((j as Record<string, unknown>)?.error as string || "No se pudo rechazar la oferta");
+                  }
+                } catch (e) {
+                  // eslint-disable-next-line no-console
+                  console.error(e);
+                  alert("Hubo un problema al rechazar la oferta");
+                }
+              }}
+              disabled={disabled}
+              data-testid="reject-offer"
+              className="text-xs"
+            >
               Rechazar
             </Button>
+            {debugActions && !canAct ? (
+              <span className="text-[10px] text-muted-foreground">
+                (debug: ownerOK={String(ownerOK)}, pendingOK={String(pendingOK)})
+              </span>
+            ) : null}
           </div>
         ) : null}
         {showPayCta ? (
           <div className="pt-1">
-            <Button size="sm" asChild>
-              <a href={state.checkoutUrl as string} target="_blank" rel="noreferrer">
-                Pagar ahora
-              </a>
+            <Button size="sm" onClick={() => { setFeeCtx({ offerId: resolvedOfferId, amount: state.amount, currency: state.currency || "MXN", checkoutUrl: state.checkoutUrl }); setFeeOpen(true); }}>
+              Pagar ahora
             </Button>
           </div>
         ) : null}
@@ -333,7 +412,7 @@ export default function MessageList({
     if (message.messageType === "system" && message.payload && typeof message.payload === "object") {
       const payloadRecord = message.payload as Record<string, unknown>;
       const statusValue = typeof payloadRecord.status === "string" ? payloadRecord.status : undefined;
-      const status = normalizeStatus(statusValue);
+      const status = extractStatus(statusValue);
       const reasonValue = typeof payloadRecord.reason === "string" ? payloadRecord.reason : null;
       if (reasonValue && status === "rejected") {
         return (
@@ -344,27 +423,9 @@ export default function MessageList({
         );
       }
       if (status === "accepted") {
-        const coUrlRaw = (payloadRecord["checkout_url"] ?? payloadRecord["checkoutUrl"]) as unknown;
-        const checkoutUrl = typeof coUrlRaw === "string" && coUrlRaw.trim().length ? (coUrlRaw as string) : null;
-        const offerIdRaw = payloadRecord["offer_id"] as unknown;
-        const offerId = typeof offerIdRaw === "string" && offerIdRaw ? offerIdRaw : null;
-        const isCustomer = viewerRole === "customer";
         return (
           <div className="flex items-center gap-2">
             <div className="text-sm font-medium text-emerald-700">Oferta aceptada</div>
-            {isCustomer && offerId ? (
-              checkoutUrl ? (
-                <Button size="sm" asChild>
-                  <a href={checkoutUrl} target="_blank" rel="noreferrer">
-                    Pagar ahora
-                  </a>
-                </Button>
-              ) : (
-                <Button size="sm" onClick={() => void handlePay(offerId, null)} disabled={payingOfferId === offerId}>
-                  {payingOfferId === offerId ? "Abriendo..." : "Pagar ahora"}
-                </Button>
-              )
-            ) : null}
           </div>
         );
       }
@@ -376,7 +437,7 @@ export default function MessageList({
   }
 
   return (
-    <div ref={ref} className="flex-1 overflow-y-auto p-3 bg-white">
+    <div ref={ref} className="flex-1 overflow-y-auto p-3" style={bgStyle}>
       <ul className="space-y-2">
         {items.map((m) => {
           const isMe = currentUserId && (m.senderId === currentUserId || m.senderId === "me");
@@ -414,6 +475,17 @@ export default function MessageList({
           );
         })}
       </ul>
+      <ClientFeeDialog
+        open={feeOpen}
+        onOpenChange={setFeeOpen}
+        amount={feeCtx.amount ?? 0}
+        currency={feeCtx.currency}
+        confirmLabel="Continuar al pago"
+        onConfirm={() => {
+          setFeeOpen(false);
+          void handlePay(feeCtx.offerId, feeCtx.checkoutUrl ?? null);
+        }}
+      />
     </div>
   );
 }

@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import {
-  RequestCreateSchema,
-  RequestListQuerySchema,
-} from "@/lib/validators/requests";
+import { RequestCreateSchema, RequestListQuerySchema } from "@/lib/validators/requests";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import { createBearerClient } from "@/lib/supabase";
 import { getDevUserFromHeader } from "@/lib/auth-route";
@@ -234,13 +231,58 @@ export async function POST(req: Request) {
   }
 
   const payload = parsed.data;
+  // Normaliza el título: primera letra en mayúscula (resto se mantiene), y recorta espacios laterales
+  const normalizedTitle = (() => {
+    const t = (payload.title || "").trim();
+    if (!t) return t;
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  })();
   const insert: Record<string, unknown> = {
-    title: payload.title,
+    title: normalizedTitle,
     city: payload.city,
     created_by: actingUserId, // RLS exige que sea = auth.uid() (or admin bypass)
   };
   if (payload.description) insert.description = payload.description;
   if (payload.category) insert.category = payload.category;
+  // conditions: aceptar string o array; normalizar y deduplicar
+  try {
+    const cond = (payload as { conditions?: unknown }).conditions;
+    let arr: string[] = [];
+    if (typeof cond === "string") {
+      arr = cond
+        .split(",")
+        .map((s) => s.replace(/\s+/g, " ").trim())
+        .filter((s) => s.length > 0);
+    } else if (Array.isArray(cond)) {
+      arr = cond
+        .map((s) => (typeof s === "string" ? s : ""))
+        .map((s) => s.replace(/\s+/g, " ").trim())
+        .filter((s) => s.length >= 2 && s.length <= 40);
+    }
+    if (arr.length > 0) {
+      // Dedup sin perder orden; máx 10; longitud total 240
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const s of arr) {
+        if (!seen.has(s)) {
+          seen.add(s);
+          out.push(s);
+          if (out.length >= 10) break;
+        }
+      }
+      let joined = out.join(", ");
+      if (joined.length > 240) {
+        // recorta quitando del final
+        while (joined.length > 240 && out.length > 0) {
+          out.pop();
+          joined = out.join(", ");
+        }
+      }
+      if (joined) insert.conditions = joined;
+    }
+  } catch {
+    /* ignore conditions */
+  }
   // Persist subcategories and attachments as JSON if provided
   if (
     Array.isArray(payload.subcategories) &&

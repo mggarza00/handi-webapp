@@ -4,6 +4,7 @@ import type { ChatSummary } from "./types";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import * as React from "react";
 import { Loader2 } from "lucide-react";
+import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 
 function formatRel(ts?: string | null) {
   if (!ts) return "";
@@ -46,7 +47,7 @@ export default function ChatListItem({
 
   return (
     <li
-      className={`p-3 hover:bg-neutral-50 transition-all duration-300 ease-in-out ${
+      className={`p-3 hover:bg-[#e5e5e5] transition-all duration-300 ease-in-out ${
         active ? "bg-neutral-50" : ""
       } ${
         removing
@@ -66,11 +67,11 @@ export default function ChatListItem({
           className="flex items-center justify-between gap-3 flex-1 min-w-0"
         >
           <div className="min-w-0 flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <AvatarWithSkeleton
               src={normalizeAvatarUrl(chat.avatarUrl) || "/avatar.png"}
               alt={displayTitle}
-              className="size-9 rounded-full object-cover border shrink-0"
+              sizeClass="size-9"
+              className="shrink-0"
             />
             <div className="min-w-0">
               <div className="font-medium text-sm truncate flex items-center gap-2">

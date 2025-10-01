@@ -36,7 +36,6 @@ export default function RequestHeaderActions({ requestId }: { requestId: string 
         className="gap-1"
       >
         <SquarePen className="h-4 w-4" />
-        <span>Editar</span>
       </Button>
     );
   }

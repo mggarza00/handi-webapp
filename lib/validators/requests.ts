@@ -30,6 +30,13 @@ export const RequestCreateSchema = z.object({
     .transform((arr) =>
       arr.map((s) => (typeof s === "string" ? { name: s } : s)),
     ),
+  // Aceptar string (serializado) o array de strings; normalización se hace en handler
+  conditions: z
+    .union([
+      z.string().max(240),
+      z.array(z.string().min(2).max(40)).max(10),
+    ])
+    .optional(),
   budget: z.number().positive().max(1_000_000).optional(),
   // Aceptar 'YYYY-MM-DD'; si viene ISO con tiempo, recortar antes de insertar
   required_at: z

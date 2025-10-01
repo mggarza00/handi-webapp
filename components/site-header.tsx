@@ -36,7 +36,7 @@ async function getSessionInfo() {
 
   let { data: profileRaw } = await supabase
     .from("profiles")
-    .select("role, is_admin, avatar_url, full_name")
+    .select("role, is_admin, is_client_pro, avatar_url, full_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -53,7 +53,7 @@ async function getSessionInfo() {
     }
     const retry = await supabase
       .from("profiles")
-  .select("role, is_admin, avatar_url, full_name")
+      .select("role, is_admin, is_client_pro, avatar_url, full_name")
       .eq("id", user.id)
       .maybeSingle();
     profileRaw = retry.data ?? null;
@@ -61,6 +61,7 @@ async function getSessionInfo() {
   const profile = (profileRaw ?? null) as null | {
     role: Role | null;
     is_admin: boolean | null;
+    is_client_pro?: boolean | null;
     avatar_url: string | null;
     full_name: string | null;
   };
@@ -72,7 +73,8 @@ async function getSessionInfo() {
   return {
     isAuth: true as const,
     role,
-  is_admin: profile?.is_admin === true,
+    is_admin: profile?.is_admin === true,
+    is_client_pro: profile?.is_client_pro === true,
     avatar_url: avatarUrl,
     full_name: fullName,
   };
@@ -95,6 +97,7 @@ async function getSessionInfoSafe() {
             isAuth: true as const,
             role: mappedRole,
             is_admin: m === "admin",
+            is_client_pro: mappedRole === "pro",
             avatar_url: null as null,
             full_name: null as null,
           };
@@ -112,6 +115,7 @@ async function getSessionInfoSafe() {
         isAuth: false as const,
         role: null as null,
         is_admin: false as const,
+        is_client_pro: false as const,
         avatar_url: null as null,
         full_name: null as null,
       };
@@ -122,6 +126,7 @@ async function getSessionInfoSafe() {
       isAuth: false as const,
       role: null as null,
       is_admin: false as const,
+      is_client_pro: false as const,
       avatar_url: null as null,
       full_name: null as null,
     };
@@ -142,7 +147,7 @@ export default async function SiteHeader() {
       </header>
     );
   }
-  const { isAuth, role, is_admin, avatar_url, full_name } = await getSessionInfoSafe();
+  const { isAuth, role, is_admin, is_client_pro, avatar_url, full_name } = await getSessionInfoSafe();
   const cookieStore = cookies();
   const proApply =
     cookieStore.get("handi_pro_apply")?.value === "1" ||
@@ -300,6 +305,7 @@ export default async function SiteHeader() {
               role={role}
               avatarUrl={avatar_url}
               fullName={full_name}
+              isClientPro={is_client_pro}
             />
           </div>
         ) : (
@@ -489,7 +495,7 @@ export default async function SiteHeader() {
             })}
           
           {isAuth ? (
-            <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} />
+            <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} isClientPro={is_client_pro} />
           ) : null}
           {/* Botón de menú a la derecha del avatar; solo autenticado */}
           {isAuth ? (

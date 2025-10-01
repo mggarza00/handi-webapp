@@ -24,6 +24,8 @@ const PatchSchema = z.object({
   city: z.string().max(120).optional(),
   category: z.string().max(120).optional(),
   subcategories: z.array(z.string()).max(6).optional(),
+  // Aceptar string o array; normalizar en handler
+  conditions: z.union([z.string().max(240), z.array(z.string().min(2).max(40)).max(10)]).optional(),
   budget: z.number().nonnegative().nullable().optional(),
   required_at: z.string().datetime().optional(),
   attachments: z
@@ -129,6 +131,39 @@ export async function PATCH(
     const patch: Database["public"]["Tables"]["requests"]["Update"] = {
       ...parsed.data,
     } as Database["public"]["Tables"]["requests"]["Update"];
+    // Normaliza conditions si vienen
+    const cond = parsed.data.conditions as unknown;
+    if (typeof cond === "string" || Array.isArray(cond)) {
+      let arr: string[] = [];
+      if (typeof cond === "string") {
+        arr = cond
+          .split(",")
+          .map((s) => s.replace(/\s+/g, " ").trim())
+          .filter((s) => s.length > 0);
+      } else {
+        arr = cond
+          .map((s) => (typeof s === "string" ? s : ""))
+          .map((s) => s.replace(/\s+/g, " ").trim())
+          .filter((s) => s.length >= 2 && s.length <= 40);
+      }
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const s of arr) {
+        if (!seen.has(s)) {
+          seen.add(s);
+          out.push(s);
+          if (out.length >= 10) break;
+        }
+      }
+      let joined = out.join(", ");
+      if (joined.length > 240) {
+        while (joined.length > 240 && out.length > 0) {
+          out.pop();
+          joined = out.join(", ");
+        }
+      }
+      (patch as Record<string, unknown>).conditions = joined;
+    }
     if (parsed.data.required_at)
       patch.required_at = parsed.data.required_at.split("T")[0];
 

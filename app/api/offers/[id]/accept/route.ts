@@ -3,12 +3,11 @@ import { cookies } from "next/headers";
 import Stripe from "stripe";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import { createBearerClient } from "@/lib/supabase";
+import { createBearerClient, createServerClient } from "@/lib/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
 import type { Database } from "@/types/supabase";
 
 type OfferRow = Database["public"]["Tables"]["offers"]["Row"];
-type OfferLockFields = Pick<OfferRow, "id" | "status" | "accepting_at" | "currency" | "amount" | "title" | "description" | "conversation_id" | "professional_id">;
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -57,193 +56,179 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       // ignore UNAUTHENTICATED from assertRateLimit when using x-user-id/bearer in dev
     }
 
+    // Use transactional RPC to accept atomically with all guards inside
     const offerId = params.id;
-    // Optional fallback context for resolving the right offer
-    let conversationIdBody: string | null = null;
-    let probeTitle: string | null = null;
-    let probeAmount: number | null = null;
-    let probeCurrency: string | null = null;
-    try {
-      const raw = await req.text();
-      if (raw && raw.trim().length) {
-        const b = JSON.parse(raw) as { conversationId?: string; title?: string | null; amount?: number | null; currency?: string | null };
-        if (b?.conversationId && typeof b.conversationId === "string") {
-          conversationIdBody = b.conversationId;
+    if (!offerId) return NextResponse.json({ error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
+
+    const { data: rpcResult, error: rpcErr } = await supabase.rpc("accept_offer_tx", { p_offer_id: offerId, p_actor: actingUserId });
+    if (rpcErr) {
+      const msg = String(rpcErr.message || "");
+      const missingFn = /could not find the function/i.test(msg) || /schema cache/i.test(msg);
+      const mentionsAcceptTx = /accept_offer_tx/i.test(msg);
+      if (missingFn && mentionsAcceptTx) {
+        // Fallback path when RPC isn't available: emulate accept logic for this offer id
+        const admin = createServerClient();
+        let row: OfferRow | null = null;
+        {
+          const { data: target, error: fetchErr } = await admin.from("offers").select("*").eq("id", offerId).maybeSingle();
+          if (!fetchErr && target) row = target as OfferRow;
         }
-        if (typeof b?.title === "string") probeTitle = b.title;
-        if (typeof b?.amount === "number" && Number.isFinite(b.amount)) probeAmount = b.amount;
-        if (typeof b?.currency === "string" && b.currency.trim().length) probeCurrency = b.currency.toUpperCase();
+        // Fallback: algunos mensajes pueden traer un offer_id que no corresponde al row.id; intenta resolver por mensajes -> conversacion -> oferta pending
+        if (!row) {
+          const { data: msgRow } = await admin
+            .from("messages")
+            .select("conversation_id")
+            .contains("payload", { offer_id: offerId })
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const conversationId = (msgRow as { conversation_id?: string } | null)?.conversation_id ?? null;
+          if (conversationId) {
+            const { data: offersList } = await admin
+              .from("offers")
+              .select("*")
+              .eq("conversation_id", conversationId)
+              .in("status", ["pending", "sent"]) // legacy support
+              .order("created_at", { ascending: false })
+              .limit(1);
+            const candidate = Array.isArray(offersList) && offersList.length ? (offersList[0] as OfferRow) : null;
+            row = candidate;
+          }
+        }
+        if (!row) return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
+        if (row.professional_id !== actingUserId) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
+        const normalized = String(row.status).toLowerCase();
+        if (!(normalized === "pending" || normalized === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
+        // Lock
+        const lockTime = new Date().toISOString();
+        const { data: locked, error: lockErr } = await admin
+          .from("offers")
+          .update({ accepting_at: lockTime })
+          .eq("id", row.id)
+          .is("accepting_at", null)
+          .in("status", ["pending", "sent"]) // allow legacy
+          .select("*")
+          .single();
+        if (lockErr || !locked) {
+          // Check if lock is stale or status changed
+          const { data: current } = await admin
+            .from("offers")
+            .select("id,status,accepting_at,currency,amount,title,description,conversation_id,professional_id")
+            .eq("id", row.id)
+            .maybeSingle();
+          if (!current) return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
+          if (!(current.status === "pending" || current.status === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
+          // En entornos sin columna 'accepting_at', evitamos lock y procedemos directo a actualizar estado más abajo
+        }
+        // Stripe session
+        if (stripe) {
+          try {
+            const baseAmount = Number(row.amount ?? NaN);
+            const fee = Number.isFinite(baseAmount) && baseAmount > 0
+              ? Math.min(1500, Math.max(50, Math.round((baseAmount * 0.05 + Number.EPSILON) * 100) / 100))
+              : 0;
+            const iva = Number.isFinite(baseAmount)
+              ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
+              : 0;
+            const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
+            stripeSession = await stripe.checkout.sessions.create({
+              mode: "payment",
+              success_url: `${APP_URL}/offers/${row.id}?status=success`,
+              cancel_url: `${APP_URL}/offers/${row.id}?status=cancel`,
+              line_items: [
+                {
+                  quantity: 1,
+                  price_data: {
+                    currency: (row.currency || "MXN").toLowerCase(),
+                    unit_amount: Math.round(total * 100),
+                    product_data: { name: row.title, description: row.description || undefined },
+                  },
+                },
+              ],
+              metadata: { offer_id: row.id, conversation_id: row.conversation_id },
+            });
+          } catch {
+            // ignore: proceed without checkout_url
+          }
+        }
+        // Update status to accepted
+        const { data: updatedRows, error: upErr } = await admin
+          .from("offers")
+          .update({ status: "accepted", checkout_url: stripeSession?.url ?? null })
+          .eq("id", row.id)
+          .select("*");
+        if (upErr) return NextResponse.json({ error: upErr.message || "UPDATE_FAILED" }, { status: 409, headers: JSONH });
+        const updated = (Array.isArray(updatedRows) ? updatedRows[0] : (updatedRows as OfferRow | null)) ?? null;
+        if (!updated) return NextResponse.json({ error: "UPDATE_NO_ROWS" }, { status: 409, headers: JSONH });
+        // Notify
+        if (stripeSession && stripeSession.url) {
+          await fetch(`${APP_URL}/api/notify/offer-accepted`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            body: JSON.stringify({ offerId: row.id }),
+          }).catch(() => undefined);
+        }
+        return NextResponse.json({ ok: true, offer: updated, checkoutUrl: stripeSession?.url ?? null }, { status: 200, headers: JSONH });
       }
-    } catch {
-      // ignore invalid body
+      return NextResponse.json({ error: rpcErr.message }, { status: 400, headers: JSONH });
     }
-    if (!offerId)
-      return NextResponse.json({ error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
+    const ok = Boolean((rpcResult as { ok?: boolean } | null)?.ok);
+    const err = String((rpcResult as { error?: string } | null)?.error || "");
+    if (!ok) {
+      const code = err.toLowerCase();
+      if (code === "bank_account_required") return NextResponse.json({ error: code }, { status: 409, headers: JSONH });
+      if (code === "offer_not_found") return NextResponse.json({ error: code }, { status: 404, headers: JSONH });
+      if (code === "forbidden") return NextResponse.json({ error: code }, { status: 403, headers: JSONH });
+      if (code === "invalid_state") return NextResponse.json({ error: code }, { status: 409, headers: JSONH });
+      return NextResponse.json({ error: code || "UNKNOWN" }, { status: 400, headers: JSONH });
+    }
+
+    // No need to parse body context; RPC accepted or returned error
 
     let offer: OfferRow | null = null;
     {
-      const { data, error } = await supabase.from("offers").select("*").eq("id", offerId).maybeSingle();
-      offer = !error ? (data as OfferRow | null) : null;
+      const { data } = await supabase.from("offers").select("*").eq("id", offerId).maybeSingle();
+      offer = (data as OfferRow | null) ?? null;
     }
-    if (!offer && conversationIdBody) {
-      // Fallback: resolve latest 'sent' offer by conversation id
-      const { data: convOffer } = await supabase
-        .from("offers")
-        .select("*")
-        .eq("conversation_id", conversationIdBody)
-        .eq("status", "sent")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      offer = (convOffer as OfferRow | null) ?? null;
-    }
-    if (!offer && conversationIdBody && (probeTitle || probeAmount || probeCurrency)) {
-      // Fallback: try matching by fields
-      const query = supabase
-        .from("offers")
-        .select("*")
-        .eq("conversation_id", conversationIdBody)
-        .order("created_at", { ascending: false })
-        .limit(5);
-      const { data: rows } = await query;
-      const offers = (rows ?? []) as OfferRow[];
-      if (offers.length) {
-        const norm = (s: string | null) => (s || "").trim().toUpperCase();
-        const targetTitle = norm(probeTitle);
-        const targetCurr = norm(probeCurrency);
-        offer =
-          offers.find((candidate) => {
-            const normalizedTitle = norm(candidate.title ?? null);
-            const normalizedCurrency = norm(candidate.currency ?? "MXN");
-            const amount = Number(candidate.amount);
-            const isSent = String(candidate.status) === "sent";
-            const titleMatches = targetTitle ? normalizedTitle === targetTitle : true;
-            const currencyMatches = targetCurr ? normalizedCurrency === targetCurr : true;
-            const amountMatches =
-              typeof probeAmount === "number" && Number.isFinite(probeAmount)
-                ? Math.abs(amount - probeAmount) < 0.005
-                : true;
-            return isSent && titleMatches && currencyMatches && amountMatches;
-          }) ?? null;
-      }
-    }
-    if (!offer && conversationIdBody) {
-      // Fallback #2: latest offer by conversation (any status)
-      const { data: anyOffer } = await supabase
-        .from("offers")
-        .select("*")
-        .eq("conversation_id", conversationIdBody)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      offer = (anyOffer as OfferRow | null) ?? null;
-    }
-    if (!offer)
-      return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
+    // After RPC success, we expect the target offer to exist and be accepted
+    if (!offer) return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
 
-    if (offer.professional_id !== actingUserId)
-      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
-    if (offer.status !== "sent")
-      return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
+    // No locking dance required; RPC already accepted atomically
 
-    const lockTime = new Date().toISOString();
-    const { data: locked, error: lockErr } = await supabase
-      .from("offers")
-      .update({ accepting_at: lockTime })
-      .eq("id", offer.id)
-      .is("accepting_at", null)
-      .eq("status", "sent")
-      .select("*")
-      .single();
-
-    if (lockErr || !locked) {
-      // Intento de recuperación: si el lock está "atascado" desde hace más de 2 minutos, retomarlo
-      const { data: row } = await supabase
-        .from("offers")
-        .select("id, status, accepting_at, currency, amount, title, description, conversation_id, professional_id")
-        .eq("id", offer.id)
-        .single();
-      if (!row) {
-        return NextResponse.json(
-          { error: "OFFER_NOT_FOUND" },
-          { status: 404, headers: JSONH },
-        );
-      }
-      if (row.status !== "sent") {
-        return NextResponse.json(
-          { error: "INVALID_STATUS" },
-          { status: 409, headers: JSONH },
-        );
-      }
-      const lockInfo = row as OfferLockFields;
-      const accAt = lockInfo.accepting_at || null;
-      const stuck = accAt ? Date.now() - new Date(accAt).getTime() > 2 * 60 * 1000 : false;
-      if (stuck) {
-        const { data: relocked } = await supabase
-          .from("offers")
-          .update({ accepting_at: lockTime })
-          .eq("id", offer.id)
-          .eq("status", "sent")
-          .select("*")
-          .single();
-        if (!relocked) {
-          return NextResponse.json(
-            { error: "LOCKED", message: "Ya se esta procesando la oferta" },
-            { status: 409, headers: JSONH },
-          );
-        }
-      } else {
-        return NextResponse.json(
-          { error: "LOCKED", message: "Ya se esta procesando la oferta" },
-          { status: 409, headers: JSONH },
-        );
-      }
-    }
-
-    if (stripe) {
-      try {
-        stripeSession = await stripe.checkout.sessions.create({
-          mode: "payment",
-          success_url: `${APP_URL}/offers/${offer.id}?status=success`,
-          cancel_url: `${APP_URL}/offers/${offer.id}?status=cancel`,
-          line_items: [
-            {
-              quantity: 1,
-              price_data: {
-                currency: (locked.currency || "MXN").toLowerCase(),
-                unit_amount: Math.round(Number(locked.amount) * 100),
-                product_data: {
-                  name: locked.title,
-                  description: locked.description || undefined,
-                },
+    if (stripe && offer) {
+      stripeSession = await stripe.checkout.sessions.create({
+        mode: "payment",
+        success_url: `${APP_URL}/offers/${offer.id}?status=success`,
+        cancel_url: `${APP_URL}/offers/${offer.id}?status=cancel`,
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: (offer.currency || "MXN").toLowerCase(),
+              unit_amount: Math.round(Number(offer.amount) * 100),
+              product_data: {
+                name: offer.title,
+                description: offer.description || undefined,
               },
             },
-          ],
-          metadata: {
-            offer_id: locked.id,
-            conversation_id: locked.conversation_id,
           },
-        });
-      } catch (stripeError) {
-        await supabase.from("offers").update({ accepting_at: null }).eq("id", offer.id);
-        throw stripeError;
-      }
+        ],
+        metadata: {
+          offer_id: offer.id,
+          conversation_id: offer.conversation_id,
+        },
+      });
     }
-
-    const { data: updated, error: updateErr } = await supabase
-      .from("offers")
-      .update({ status: "accepted", checkout_url: stripeSession?.url ?? null, accepting_at: null })
-      .eq("id", offer.id)
-      .eq("status", "sent")
-      .select("*")
-      .single();
-
-    if (updateErr || !updated) {
-      await supabase.from("offers").update({ accepting_at: null }).eq("id", offer.id);
-      return NextResponse.json(
-        { error: "INVALID_STATUS", checkoutUrl: stripeSession ? stripeSession.url : null },
-        { status: 409, headers: JSONH },
-      );
+    // Update checkout_url only (status already accepted by RPC)
+    let updated: OfferRow | null = offer;
+    if (stripeSession?.url) {
+      const { data: upd } = await supabase
+        .from("offers")
+        .update({ checkout_url: stripeSession.url })
+        .eq("id", offer.id)
+        .select("*")
+        .single();
+      if (upd) updated = upd as OfferRow;
     }
 
     if (stripeSession && stripeSession.url) {

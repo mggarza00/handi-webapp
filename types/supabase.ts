@@ -99,6 +99,16 @@ export interface Tables {
       is_featured: boolean | null;
       active: boolean | null;
       empresa?: boolean | null;
+      rfc?: string | null;
+      is_company?: boolean | null;
+      company_legal_name?: string | null;
+      company_industry?: string | null;
+      company_employees_count?: number | null;
+      company_website?: string | null;
+      company_doc_incorporation_url?: string | null;
+      company_csf_url?: string | null;
+      company_rep_id_front_url?: string | null;
+      company_rep_id_back_url?: string | null;
       city: string | null;
       cities: Json | null;
       categories: Json | null;
@@ -121,6 +131,7 @@ export interface Tables {
       required_at: string | null; // date
       status: "active" | "in_process" | "completed" | "cancelled" | null;
       attachments: Json | null;
+      conditions: string; // chips serialized as text (comma-separated)
       created_by: string;
       created_at: string | null;
     };
@@ -229,7 +240,17 @@ export interface Tables {
       full_name: string;
       phone: string | null;
       email: string | null;
+      rfc?: string | null;
       empresa?: boolean | null;
+      is_company?: boolean | null;
+      company_legal_name?: string | null;
+      company_industry?: string | null;
+      company_employees_count?: number | null;
+      company_website?: string | null;
+      company_doc_incorporation_url?: string | null;
+      company_csf_url?: string | null;
+      company_rep_id_front_url?: string | null;
+      company_rep_id_back_url?: string | null;
       services_desc: string | null;
       cities: Json;
       categories: Json;

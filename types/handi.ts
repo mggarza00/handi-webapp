@@ -42,6 +42,7 @@ export interface RequestItem {
   subcategories: Array<{ id?: string; name: string }> | [];
   budget: number | null;
   required_at: ISODate | null;
+  conditions: string; // chips serializados como texto
   status: RequestStatus;
   attachments: FileAttachment[];
   created_by: UUID;
@@ -98,4 +99,3 @@ export interface PageParams<T extends Record<string, string> = { id: string }> {
   params: T;
   searchParams?: Record<string, string | string[] | undefined>;
 }
-

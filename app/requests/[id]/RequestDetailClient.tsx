@@ -17,6 +17,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import ConditionsChips from "@/components/requests/ConditionsChips";
+import { mapConditionToLabel } from "@/lib/conditions";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +31,25 @@ import {
 type Photo = { url: string; alt?: string | null };
 type Attachment = { url?: string; path?: string; mime: string; size: number };
 
+// Normaliza fecha a formato de input HTML (YYYY-MM-DD)
+function normalizeDateInput(input?: string | null): string {
+  if (!input) return "";
+  const s = String(input);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+// Devuelve dd-mm-aaaa para mostrar
+function formatDateDisplay(input?: string | null): string {
+  const v = normalizeDateInput(input ?? "");
+  if (!v) return "";
+  const [y, m, d] = v.split("-");
+  return `${d}-${m}-${y}`;
+}
+
 export type RequestDetail = {
   id: string;
   title?: string | null;
@@ -39,6 +60,7 @@ export type RequestDetail = {
   subcategory?: string | null;
   budget?: number | null;
   required_at?: string | null; // YYYY-MM-DD
+  conditions?: string | null; // serialized as comma-separated
   photos?: Photo[] | null;
   [key: string]: unknown;
 };
@@ -77,9 +99,10 @@ export default function RequestDetailClient({
   const [budget, setBudget] = React.useState<string>(
     typeof initial.budget === "number" ? String(initial.budget) : "",
   );
-  const [requiredAt, setRequiredAt] = React.useState<string>(
-    initial.required_at ?? "",
+  const [requiredAt, setRequiredAt] = React.useState<string>(() =>
+    normalizeDateInput(initial.required_at ?? ""),
   );
+  const [conditionsText, setConditionsText] = React.useState<string>(() => (initial.conditions ?? "").toString());
   const [attachments, setAttachments] = React.useState<Attachment[]>(() => {
     const raw = (initial as Record<string, unknown>)["attachments"] as unknown;
     if (Array.isArray(raw)) {
@@ -106,6 +129,27 @@ export default function RequestDetailClient({
   const [subOptions, setSubOptions] = React.useState<
     Record<string, Array<{ name: string; icon?: string | null }>>
   >({});
+
+  const subIcon: string | null = React.useMemo(() => {
+    const c = (category || "").trim();
+    const s = (subcategory || "").trim();
+    if (!c || !s) return null;
+    const list = subOptions[c] || [];
+    const found = list.find((x) => x.name === s);
+    return (found?.icon ?? null) as string | null;
+  }, [category, subcategory, subOptions]);
+
+  function formatCurrencyMXN(value: string | number | null | undefined): string | null {
+    if (value == null || value === "") return null;
+    const n = typeof value === "string" ? Number(value) : Number(value);
+    if (!Number.isFinite(n)) return null;
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: "MXN",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n);
+  }
 
   
 
@@ -165,7 +209,8 @@ export default function RequestDetailClient({
     setCategory(initial.category ?? "");
     setSubcategory(initial.subcategory ?? "");
     setBudget(typeof initial.budget === "number" ? String(initial.budget) : "");
-    setRequiredAt(initial.required_at ?? "");
+    setRequiredAt(normalizeDateInput(initial.required_at ?? ""));
+    setConditionsText(((initial.conditions ?? "") as string).toString());
     setError(null);
     const raw = (initial as Record<string, unknown>)["attachments"] as unknown;
     if (Array.isArray(raw)) {
@@ -225,8 +270,9 @@ export default function RequestDetailClient({
         required_at: requiredAt
           ? new Date(`${requiredAt}T00:00:00.000Z`).toISOString()
           : undefined,
-        attachments: attachments.slice(0, 5),
-      };
+         attachments: attachments.slice(0, 5),
+       };
+      if (conditionsText && conditionsText.trim().length > 0) body.conditions = conditionsText.trim();
       let res = await fetch(`/api/requests/${initial.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -418,7 +464,6 @@ export default function RequestDetailClient({
                   className={compactActions ? "p-2" : "gap-1"}
                 >
                   <SquarePen className="h-4 w-4" />
-                  {compactActions ? null : <span>Editar</span>}
                 </Button>
               </div>
             ) : (
@@ -464,49 +509,80 @@ export default function RequestDetailClient({
 
       {error ? <Card className="p-3 text-sm text-red-600">{error}</Card> : null}
 
-      <Card id="request-detail-card" className="p-4 space-y-4">
+      <div id="request-detail-card" className="space-y-4">
         {!edit ? (
-          <div className="space-y-3">
-            <Field label="Descripción" value={description} multiline />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Estado" value={status} />
-              <Field label="Ciudad" value={city} />
-              <Field label="Categoría" value={category} />
-              <Field label="Subcategoría" value={subcategory} />
-              <Field label="Presupuesto (MXN)" value={budget} />
-              <Field label="Fecha requerida" value={requiredAt} />
+          <>
+            <Card className="p-4">
+              <Field label="Descripción" value={description} multiline />
+            </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="p-4">
+                <Field label="Estado" value={status} />
+              </Card>
+              <Card className="p-4">
+                <Field label="Ciudad" value={city} />
+              </Card>
+              <Card className="p-4">
+                <Field label="Categoría" value={category} />
+              </Card>
+              <Card className="p-4">
+                <div>
+                  <div className="text-xs text-slate-500">Subcategoría</div>
+                  <div className="text-sm text-slate-700 inline-flex items-center gap-2">
+                    {subIcon ? (
+                      subIcon.startsWith("http") ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={subIcon} alt="" className="h-4 w-4 object-contain" />
+                      ) : (
+                        <span className="text-sm leading-none">{subIcon}</span>
+                      )
+                    ) : null}
+                    <span>{subcategory == null || subcategory === "" ? "—" : subcategory}</span>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4">
+                <Field label="Presupuesto (MXN)" value={formatCurrencyMXN(budget)} />
+              </Card>
+              <Card className="p-4">
+                <Field label="Fecha requerida" value={formatDateDisplay(requiredAt)} />
+              </Card>
+              {/* Condiciones moved to header area; no card here in view mode */}
             </div>
-          </div>
+          </>
         ) : (
-          <div className="space-y-3">
-            <div>
-              <label className="text-sm text-slate-600">Título</label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600">Descripción</label>
-              <Textarea
-                value={description ?? ""}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={6}
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <>
+            <Card className="p-4 space-y-3">
               <div>
+                <label className="text-sm text-slate-600">Título</label>
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+              </div>
+            </Card>
+            <Card className="p-4 space-y-3">
+              <div>
+                <label className="text-sm text-slate-600">Descripción</label>
+                <Textarea
+                  value={description ?? ""}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={6}
+                />
+              </div>
+            </Card>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Estado</label>
                 <Input value={status ?? ""} onChange={(e) => setStatus(e.target.value)} />
-              </div>
-              <div>
+              </Card>
+              <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Ciudad</label>
                 <Input value={city ?? ""} onChange={(e) => setCity(e.target.value)} />
-              </div>
-              <div>
+              </Card>
+              <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Categoría</label>
                 <Select
                   value={category || undefined}
                   onValueChange={(v) => {
                     setCategory(v);
-                    // reset subcategory if it doesn't belong to selected
                     const allowed = (subOptions[v] || []).map((x) => x.name);
                     if (!allowed.includes(subcategory)) setSubcategory(allowed[0] || "");
                   }}
@@ -522,20 +598,19 @@ export default function RequestDetailClient({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div>
-                <div className="grow">
-                  <label className="text-sm text-slate-600">Subcategoría</label>
-                  <Select
-                    value={subcategory || undefined}
-                    onValueChange={(v) => setSubcategory(v)}
-                    disabled={!category}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={category ? "Selecciona subcategoría" : "Selecciona categoría primero"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(subOptions[category] || []).map((s) => (
+              </Card>
+              <Card className="p-4 space-y-2">
+                <label className="text-sm text-slate-600">Subcategoría</label>
+                <Select
+                  value={subcategory || undefined}
+                  onValueChange={(v) => setSubcategory(v)}
+                  disabled={!category}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder={category ? "Selecciona subcategoría" : "Selecciona categoría primero"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(subOptions[category] || []).map((s) => (
                       <SelectItem key={s.name} value={s.name}>
                         <span className="inline-flex items-center gap-2">
                           {s.icon ? (
@@ -549,12 +624,15 @@ export default function RequestDetailClient({
                           <span>{s.name}</span>
                         </span>
                       </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Card>
+              <Card className="p-4 space-y-2">
+                <label className="text-sm text-slate-600">Condiciones</label>
+                <ConditionsChips value={conditionsText} onChange={setConditionsText} />
+              </Card>
+              <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Presupuesto (MXN)</label>
                 <Input
                   type="number"
@@ -562,14 +640,14 @@ export default function RequestDetailClient({
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
                 />
-              </div>
-              <div>
+              </Card>
+              <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Fecha requerida</label>
                 <Input type="date" value={requiredAt} onChange={(e) => setRequiredAt(e.target.value)} />
-              </div>
+              </Card>
             </div>
 
-            <div className="pt-2 space-y-2">
+            <Card className="p-4 space-y-2">
               <div className="text-sm text-slate-600">Fotos</div>
               <div className="flex flex-wrap gap-3">
                 {attachments.map((a, i) => (
@@ -603,10 +681,10 @@ export default function RequestDetailClient({
                 )}
               </div>
               {uploading && <div className="text-xs text-slate-500">Subiendo imágenes…</div>}
-            </div>
-          </div>
+            </Card>
+          </>
         )}
-      </Card>
+      </div>
 
       {photos.length > 0 && <PhotoGallery photos={photos} />}
 
@@ -654,8 +732,3 @@ function Field({
     </div>
   );
 }
-
-
-
-
-

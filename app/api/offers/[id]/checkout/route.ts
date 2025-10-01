@@ -65,6 +65,16 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "INVALID_AMOUNT" }, { status: 400, headers: JSONH });
     }
 
+    // Compute total: servicio + comisión + IVA
+    const baseAmount = Number(row.amount ?? NaN);
+    const fee = Number.isFinite(baseAmount) && baseAmount > 0
+      ? Math.min(1500, Math.max(50, Math.round((baseAmount * 0.05 + Number.EPSILON) * 100) / 100))
+      : 0;
+    const iva = Number.isFinite(baseAmount)
+      ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
+      : 0;
+    const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       success_url: `${APP_URL}/offers/${row.id}?status=success`,
@@ -74,7 +84,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           quantity: 1,
           price_data: {
             currency: (row.currency || "MXN").toLowerCase(),
-            unit_amount: Math.round(amount * 100),
+            unit_amount: Math.round(total * 100),
             product_data: {
               name: row.title || "Servicio",
               description: row.description || undefined,
@@ -102,4 +112,3 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
