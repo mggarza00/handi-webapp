@@ -71,7 +71,7 @@ function isTextFile(p: string) {
 }
 
 function isBinaryFile(p: string) {
-  return BINARY_EXTS.has(path.extname(p).toLowerCase());
+  return BINARY_EXTS.has(path.extname(p));
 }
 
 function shouldSkipDir(dir: string) {
