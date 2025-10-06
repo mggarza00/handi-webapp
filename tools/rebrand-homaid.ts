@@ -352,10 +352,18 @@ function main() {
       console.log(`Total lines changed: +${totalLines}`);
       console.log(`Total occurrences: ${totalOccBefore} -> ${totalOccAfter}`);
     } else {
-      const results = applyTextChanges(textPlan);
+      // Apply replacements directly per your style
+      const results: FileChangeResult[] = [];
+      for (const file of all) {
+        if (!isTextFile(file) || isBinaryFile(file)) continue;
+        const rel = normalizeRel(file);
+        if (SELF_PATHS.has(rel)) continue;
+        const res = replaceInTextFile(file);
+        if (res.changed) results.push(res);
+      }
       const totalLines = results.reduce((s, r) => s + (r.changed ? r.changedLines : 0), 0);
       const totalOcc = results.reduce((s, r) => s + (r.changed ? r.before : 0), 0);
-      console.log(`# Applied text replacements to ${textPlan.length} files.`);
+      console.log(`# Applied text replacements to ${results.length} files.`);
       console.log(`# Total: +${totalLines} lines, ${totalOcc} replacements`);
     }
   }
