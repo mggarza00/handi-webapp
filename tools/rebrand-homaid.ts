@@ -189,10 +189,12 @@ function planTextChangesWithCounts(files: string[]): { textReports: TextReport[]
   return { textReports, changes };
 }
 
-function applyTextChanges(reports: TextReport[]) {
+function applyTextChanges(reports: TextReport[]): FileChangeResult[] {
+  const results: FileChangeResult[] = [];
   for (const r of reports) {
-    replaceInTextFile(r.file);
+    results.push(replaceInTextFile(r.file));
   }
+  return results;
 }
 
 function replaceInTextFile(file: string): FileChangeResult {
@@ -213,9 +215,14 @@ function replaceInTextFile(file: string): FileChangeResult {
   return { file, changed: false, changedLines: 0, before: hitsBefore, after: hitsBefore };
 }
 
-function lowerCaseReplaceHandi(name: string): string {
-  // Replace any case variant of 'handi' with 'homaid'
-  return name.replace(/handi/gi, "homaid");
+function replaceHandiPreserveCase(s: string): string {
+  return s.replace(/handi/gi, (m) => {
+    if (m === m.toUpperCase()) return "HOMAID"; // HANDI
+    if (m === m.toLowerCase()) return "homaid"; // handi
+    // Title-case or mixed: prefer Title Case mapping
+    const isTitle = m[0] === m[0].toUpperCase() && m.slice(1) === m.slice(1).toLowerCase();
+    return isTitle ? "Homaid" : "homaid";
+  });
 }
 
 function planRenames(files: string[], dirs: string[]): RenameReport[] {
@@ -228,7 +235,7 @@ function planRenames(files: string[], dirs: string[]): RenameReport[] {
     const rel = normalizeRel(d);
     if (SELF_PATHS.has(rel)) continue; // never rename the script directory file
     if (/handi/i.test(base)) {
-      const newBase = lowerCaseReplaceHandi(base);
+      const newBase = replaceHandiPreserveCase(base);
       const to = path.join(path.dirname(d), newBase);
       let finalTo = to;
       let collided = false;
@@ -248,7 +255,7 @@ function planRenames(files: string[], dirs: string[]): RenameReport[] {
     const rel = normalizeRel(f);
     if (SELF_PATHS.has(rel)) continue; // never rename the script file(s)
     if (/handi/i.test(base)) {
-      const newBase = lowerCaseReplaceHandi(base);
+      const newBase = replaceHandiPreserveCase(base);
       const to = path.join(path.dirname(f), newBase);
       let finalTo = to;
       let collided = false;
@@ -302,8 +309,9 @@ function main() {
   const files: string[] = [];
   const dirs: string[] = [];
   walk(root, files, dirs);
+  const all = files; // convenience alias
 
-  const filesInScope = files.filter((f) => {
+  const filesInScope = all.filter((f) => {
     const parts = f.split(path.sep);
     if (parts.some((p) => shouldSkipDir(p))) return false;
     return true;
@@ -311,31 +319,83 @@ function main() {
 
   // TEXT REPLACEMENTS
   if (!opts.renameOnly) {
-    const textFiles = filesInScope.filter((f) => isTextFile(f) && !isBinaryFile(f));
-    const { textReports: textPlan, changes } = planTextChangesWithCounts(textFiles);
+    // First, text replacements
+    const textPlan: TextReport[] = [];
+    const changes: Change[] = [];
+    for (const file of all) {
+      if (!isTextFile(file) || isBinaryFile(file)) continue;
+      const rel = normalizeRel(file);
+      if (SELF_PATHS.has(rel)) continue;
+      const src = fs.readFileSync(file, "utf8");
+      const before = countOccurrences(src);
+      const out = replaceTextContent(src);
+      if (out !== src) {
+        const changedLines = countChangedLines(src, out);
+        textPlan.push({ file, changedLines });
+        const after = countOccurrences(out);
+        changes.push({ file, before, after });
+      }
+    }
     if (dryRun) {
       console.log(`# Dry-run: Text replacements`);
       console.log(`Files to change: ${textPlan.length}`);
+      let totalLines = 0;
+      let totalOccBefore = 0;
+      let totalOccAfter = 0;
       for (const r of textPlan) {
         const c = changes.find((x) => x.file === r.file);
         const occ = c ? `, occ ${c.before} -> ${c.after}` : "";
         console.log(` - ${path.relative(root, r.file)} (+${r.changedLines} lines${occ})`);
+        totalLines += r.changedLines;
+        if (c) { totalOccBefore += c.before; totalOccAfter += c.after; }
       }
+      console.log(`Total lines changed: +${totalLines}`);
+      console.log(`Total occurrences: ${totalOccBefore} -> ${totalOccAfter}`);
     } else {
-      applyTextChanges(textPlan);
+      const results = applyTextChanges(textPlan);
+      const totalLines = results.reduce((s, r) => s + (r.changed ? r.changedLines : 0), 0);
+      const totalOcc = results.reduce((s, r) => s + (r.changed ? r.before : 0), 0);
       console.log(`# Applied text replacements to ${textPlan.length} files.`);
+      console.log(`# Total: +${totalLines} lines, ${totalOcc} replacements`);
     }
   }
 
   // RENAMES (dirs then files)
   if (!opts.textOnly) {
-    const renamePlan = planRenames(
+    // Extra scan pass (skip binaries) to plan file-level renames in the requested style
+    const scanPairs: Array<{ from: string; to: string }> = [];
+    for (const file of all) {
+      if (isBinaryFile(file)) continue; // skip binaries here; planRenames handles them if needed
+      const base = path.basename(file);
+      if (/handi/i.test(base)) {
+        const newBase = replaceHandiPreserveCase(base);
+        let to = path.join(path.dirname(file), newBase);
+        if (fs.existsSync(to) && path.resolve(to) !== path.resolve(file)) {
+          to = ensureNoCollision(to);
+        }
+        if (path.resolve(to) !== path.resolve(file)) {
+          scanPairs.push({ from: file, to });
+        }
+      }
+    }
+
+    let renamePlan = planRenames(
       filesInScope,
       dirs.filter((d) => {
         const parts = d.split(path.sep);
         return !parts.some((p) => shouldSkipDir(p));
       }),
     );
+    // Merge with scanPairs, dedupe by `from`
+    const seen = new Set(renamePlan.map((r) => path.resolve(r.from)));
+    for (const p of scanPairs) {
+      const key = path.resolve(p.from);
+      if (!seen.has(key)) {
+        renamePlan.push({ from: p.from, to: p.to, collided: fs.existsSync(p.to) });
+        seen.add(key);
+      }
+    }
+    const planPairs: Array<{ from: string; to: string }> = renamePlan.map((r) => ({ from: r.from, to: r.to }));
 
     if (dryRun) {
       console.log(`\n# Dry-run: Renames`);
@@ -351,7 +411,8 @@ function main() {
       }
     } else {
       applyRenames(renamePlan);
-      console.log(`# Applied ${renamePlan.length} renames.`);
+      const dirCount = renamePlan.filter(r => fs.existsSync(path.dirname(r.to)) && r.from !== r.to).length;
+      console.log(`# Applied ${renamePlan.length} renames (${dirCount} directories + ${renamePlan.length - dirCount} files).`);
     }
   }
 }
