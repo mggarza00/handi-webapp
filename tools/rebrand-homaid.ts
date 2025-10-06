@@ -303,6 +303,7 @@ function applyRenames(renames: RenameReport[]) {
       console.warn(`Collision: ${to} exists. Renamed ${from} -> ${alt}`);
     } else {
       fs.renameSync(from, to);
+      console.log(`Renamed: ${from} -> ${to}`);
     }
   }
   for (const { from, to } of dirRenames) {
@@ -314,6 +315,7 @@ function applyRenames(renames: RenameReport[]) {
       console.warn(`Collision: ${to} exists. Renamed ${from} -> ${alt}`);
     } else {
       fs.renameSync(from, to);
+      console.log(`Renamed: ${from} -> ${to}`);
     }
   }
 }
