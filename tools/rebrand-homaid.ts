@@ -91,15 +91,17 @@ function walk(
   files: string[] = [],
   dirs: string[] = [],
 ): { files: string[]; dirs: string[] } {
+  if (shouldSkipDir(dir)) return { files, dirs };
   const entries = fs.readdirSync(dir, { withFileTypes: true });
-  for (const ent of entries) {
-    const full = path.join(dir, ent.name);
-    if (ent.isDirectory()) {
-      if (shouldSkipDir(ent.name)) continue;
-      dirs.push(full);
-      walk(full, files, dirs);
-    } else if (ent.isFile()) {
-      files.push(full);
+  for (const entry of entries) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (shouldSkipDir(p)) continue;
+      dirs.push(p);
+      const { dirs: childDirs } = walk(p, files);
+      if (childDirs && childDirs.length) dirs.push(...childDirs);
+    } else {
+      if (entry.isFile()) files.push(p);
     }
   }
   return { files, dirs };
