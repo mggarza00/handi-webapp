@@ -66,9 +66,9 @@ function isEnvFile(filePath: string) {
   return base === ".env" || base.startsWith(".env.");
 }
 
-function isTextFile(filePath: string) {
-  if (isEnvFile(filePath)) return true;
-  const ext = path.extname(filePath).toLowerCase();
+function isTextFile(p: string) {
+  if (isEnvFile(p)) return true;
+  const ext = path.extname(p).toLowerCase();
   return TEXT_EXTS.has(ext);
 }
 
