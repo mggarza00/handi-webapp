@@ -19,7 +19,7 @@ const EXCLUDE_DIRS = new Set<string>([
   "playwright-report",
 ]);
 
-const EXCLUDE_FILE_EXT = new Set<string>([
+const BINARY_EXTS = new Set<string>([
   ".png",
   ".jpg",
   ".jpeg",
@@ -32,7 +32,7 @@ const EXCLUDE_FILE_EXT = new Set<string>([
   ".zip",
 ]);
 
-const INCLUDE_TEXT_EXT = new Set<string>([
+const TEXT_EXTS = new Set<string>([
   ".ts",
   ".tsx",
   ".js",
@@ -50,10 +50,6 @@ const INCLUDE_TEXT_EXT = new Set<string>([
   ".cjs",
 ]);
 
-// Aliases matching the requested constant names (non-breaking)
-const TEXT_EXTS = INCLUDE_TEXT_EXT;
-const BINARY_EXTS = EXCLUDE_FILE_EXT;
-
 const SELF_PATHS = new Set<string>([
   path.join("tools", "rebrand-homaid.ts").replace(/\\/g, "/"),
   path.join("tools", "rebrand-homaid-old.ts").replace(/\\/g, "/"),
@@ -67,12 +63,12 @@ function isEnvFile(filePath: string) {
 function isTextFile(filePath: string) {
   if (isEnvFile(filePath)) return true;
   const ext = path.extname(filePath).toLowerCase();
-  return INCLUDE_TEXT_EXT.has(ext);
+  return TEXT_EXTS.has(ext);
 }
 
 function isBinaryOrAsset(filePath: string) {
   const ext = path.extname(filePath).toLowerCase();
-  return EXCLUDE_FILE_EXT.has(ext);
+  return BINARY_EXTS.has(ext);
 }
 
 function shouldExcludeDir(dirName: string) {
