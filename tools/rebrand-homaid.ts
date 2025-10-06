@@ -394,6 +394,8 @@ function main() {
         for (const c of changed) {
           console.log(` - ${c.file} (${c.after} replacements)`);
         }
+      } else {
+        console.log(`No text changes.`);
       }
     }
   }
