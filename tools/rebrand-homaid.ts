@@ -90,7 +90,7 @@ function walk(
   dir: string,
   files: string[] = [],
   dirs: string[] = [],
-): { files: string[]; dirs: string[] } {
+): string[] {
   if (shouldSkipDir(dir)) return { files, dirs };
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
@@ -98,13 +98,12 @@ function walk(
     if (entry.isDirectory()) {
       if (shouldSkipDir(p)) continue;
       dirs.push(p);
-      const { dirs: childDirs } = walk(p, files);
-      if (childDirs && childDirs.length) dirs.push(...childDirs);
+      walk(p, files, dirs);
     } else {
       if (entry.isFile()) files.push(p);
     }
   }
-  return { files, dirs };
+  return files;
 }
 
 function replaceTextContent(content: string) {
@@ -278,7 +277,9 @@ function main() {
   const opts: RunOptions = { dryRun, textOnly, renameOnly };
 
   const root = process.cwd();
-  const { files, dirs } = walk(root);
+  const files: string[] = [];
+  const dirs: string[] = [];
+  walk(root, files, dirs);
 
   const filesInScope = files.filter((f) => {
     const parts = f.split(path.sep);
