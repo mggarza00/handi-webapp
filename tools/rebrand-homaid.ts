@@ -156,6 +156,14 @@ type RenameReport = {
   collided: boolean;
 };
 
+type FileChangeResult = {
+  file: string;
+  changed: boolean;
+  changedLines: number;
+  before: number;
+  after: number;
+};
+
 function planTextChangesWithCounts(files: string[]): { textReports: TextReport[]; changes: Change[] } {
   const textReports: TextReport[] = [];
   const changes: Change[] = [];
@@ -180,12 +188,21 @@ function planTextChangesWithCounts(files: string[]): { textReports: TextReport[]
 
 function applyTextChanges(reports: TextReport[]) {
   for (const r of reports) {
-    const before = fs.readFileSync(r.file, "utf8");
-    const after = replaceTextContent(before);
-    if (before !== after) {
-      fs.writeFileSync(r.file, after, "utf8");
-    }
+    replaceInTextFile(r.file);
   }
+}
+
+function replaceInTextFile(file: string): FileChangeResult {
+  const before = fs.readFileSync(file, "utf8");
+  const beforeOcc = countOccurrences(before);
+  const after = replaceTextContent(before);
+  if (before === after) {
+    return { file, changed: false, changedLines: 0, before: beforeOcc, after: beforeOcc };
+  }
+  const changedLines = countChangedLines(before, after);
+  fs.writeFileSync(file, after, "utf8");
+  const afterOcc = countOccurrences(after);
+  return { file, changed: true, changedLines, before: beforeOcc, after: afterOcc };
 }
 
 function lowerCaseReplaceHandi(name: string): string {
