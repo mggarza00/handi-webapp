@@ -392,7 +392,7 @@ function main() {
       if (changed.length) {
         console.log(`\nChanged ${changed.length} files:`);
         for (const c of changed) {
-          console.log(` - ${path.relative(root, c.file)} (+${c.changedLines} lines, repl ${c.before})`);
+          console.log(` - ${c.file} (${c.after} replacements)`);
         }
       }
     }
