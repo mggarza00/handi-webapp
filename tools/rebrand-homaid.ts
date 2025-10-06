@@ -95,13 +95,14 @@ function walk(dir: string, outFiles: string[], outDirs: string[]) {
 
 function replaceTextContent(content: string) {
   // Order-sensitive, word-safe replacements
-  const patterns: Array<[RegExp, string]> = [
-    [/\bHANDI\b/g, "HOMAID"],
-    [/\bHandi\b/g, "Homaid"],
-    [/\bhandi\b/g, "homaid"],
+  const WORD_BOUNDARY = (s: string) => new RegExp(`\\b${s}\\b`, "g");
+  const replacements: Array<[RegExp, string]> = [
+    [WORD_BOUNDARY("HANDI"), "HOMAID"],
+    [WORD_BOUNDARY("Handi"), "Homaid"],
+    [WORD_BOUNDARY("handi"), "homaid"],
   ];
   let result = content;
-  for (const [re, rep] of patterns) {
+  for (const [re, rep] of replacements) {
     result = result.replace(re, rep);
   }
   return result;
