@@ -17,8 +17,6 @@ const EXCLUDE_DIRS = new Set<string>([
   ".vercel",
   "coverage",
   "playwright-report",
-  "test-results",
-  "artifacts",
 ]);
 
 const EXCLUDE_FILE_EXT = new Set<string>([
@@ -51,6 +49,10 @@ const INCLUDE_TEXT_EXT = new Set<string>([
   ".mjs",
   ".cjs",
 ]);
+
+// Aliases matching the requested constant names (non-breaking)
+const TEXT_EXTS = INCLUDE_TEXT_EXT;
+const BINARY_EXTS = EXCLUDE_FILE_EXT;
 
 const SELF_PATHS = new Set<string>([
   path.join("tools", "rebrand-homaid.ts").replace(/\\/g, "/"),
@@ -309,4 +311,3 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-
