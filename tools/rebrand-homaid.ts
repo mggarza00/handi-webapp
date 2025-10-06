@@ -204,13 +204,13 @@ function replaceInTextFile(file: string): FileChangeResult {
     if (matches) hitsBefore += matches.length;
     out = out.replace(rx, to);
   }
-  if (out === src) {
-    return { file, changed: false, changedLines: 0, before: hitsBefore, after: hitsBefore };
+  if (out !== src) {
+    const changedLines = countChangedLines(src, out);
+    fs.writeFileSync(file, out, "utf8");
+    const hitsAfter = countOccurrences(out);
+    return { file, changed: true, changedLines, before: hitsBefore, after: hitsAfter };
   }
-  const changedLines = countChangedLines(src, out);
-  fs.writeFileSync(file, out, "utf8");
-  const hitsAfter = countOccurrences(out);
-  return { file, changed: true, changedLines, before: hitsBefore, after: hitsAfter };
+  return { file, changed: false, changedLines: 0, before: hitsBefore, after: hitsBefore };
 }
 
 function lowerCaseReplaceHandi(name: string): string {
