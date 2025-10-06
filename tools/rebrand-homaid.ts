@@ -52,6 +52,11 @@ const INCLUDE_TEXT_EXT = new Set<string>([
   ".cjs",
 ]);
 
+const SELF_PATHS = new Set<string>([
+  path.join("tools", "rebrand-homaid.ts").replace(/\\/g, "/"),
+  path.join("tools", "rebrand-homaid-old.ts").replace(/\\/g, "/"),
+]);
+
 function isEnvFile(filePath: string) {
   const base = path.basename(filePath);
   return base === ".env" || base.startsWith(".env.");
@@ -70,6 +75,10 @@ function isBinaryOrAsset(filePath: string) {
 
 function shouldExcludeDir(dirName: string) {
   return EXCLUDE_DIRS.has(dirName);
+}
+
+function normalizeRel(p: string) {
+  return path.relative(process.cwd(), p).replace(/\\/g, "/");
 }
 
 function walk(dir: string, outFiles: string[], outDirs: string[]) {
@@ -126,7 +135,9 @@ type RenameReport = {
 function planTextChanges(files: string[]): TextReport[] {
   const reports: TextReport[] = [];
   for (const f of files) {
+    const rel = normalizeRel(f);
     if (!isTextFile(f)) continue;
+    if (SELF_PATHS.has(rel)) continue; // don't rewrite the script itself
     const content = fs.readFileSync(f, "utf8");
     const replaced = replaceTextContent(content);
     if (replaced !== content) {
@@ -150,8 +161,8 @@ function applyTextChanges(reports: TextReport[]) {
 }
 
 function lowerCaseReplaceHandi(name: string): string {
-  // Replace any case variant of 'homaid' with 'homaid'
-  return name.replace(/homaid/gi, "homaid");
+  // Replace any case variant of 'handi' with 'homaid'
+  return name.replace(/handi/gi, "homaid");
 }
 
 function planRenames(files: string[], dirs: string[]): RenameReport[] {
@@ -161,12 +172,16 @@ function planRenames(files: string[], dirs: string[]): RenameReport[] {
   const sortedDirs = [...dirs].sort((a, b) => b.length - a.length);
   for (const d of sortedDirs) {
     const base = path.basename(d);
-    if (/homaid/i.test(base)) {
+    const rel = normalizeRel(d);
+    if (SELF_PATHS.has(rel)) continue; // never rename the script directory file
+    if (/handi/i.test(base)) {
       const newBase = lowerCaseReplaceHandi(base);
       const to = path.join(path.dirname(d), newBase);
       let finalTo = to;
       let collided = false;
       if (fs.existsSync(finalTo)) {
+        // If destination equals source (no-op), skip
+        if (path.resolve(finalTo) === path.resolve(d)) continue;
         collided = true;
         finalTo = ensureNoCollision(finalTo);
       }
@@ -177,12 +192,15 @@ function planRenames(files: string[], dirs: string[]): RenameReport[] {
   // Files: include all files (including images) — but we do NOT edit binary contents.
   for (const f of files) {
     const base = path.basename(f);
-    if (/homaid/i.test(base)) {
+    const rel = normalizeRel(f);
+    if (SELF_PATHS.has(rel)) continue; // never rename the script file(s)
+    if (/handi/i.test(base)) {
       const newBase = lowerCaseReplaceHandi(base);
       const to = path.join(path.dirname(f), newBase);
       let finalTo = to;
       let collided = false;
       if (fs.existsSync(finalTo)) {
+        if (path.resolve(finalTo) === path.resolve(f)) continue;
         collided = true;
         finalTo = ensureNoCollision(finalTo);
       }
@@ -232,9 +250,7 @@ function main() {
   const dirs: string[] = [];
   walk(root, files, dirs);
 
-  // Filter out excluded directories from the top-level list (walk already did)
   const filesInScope = files.filter((f) => {
-    // Exclude files inside excluded dirs (redundant safety)
     const parts = f.split(path.sep);
     if (parts.some((p) => shouldExcludeDir(p))) return false;
     return true;
@@ -258,11 +274,13 @@ function main() {
 
   // RENAMES (dirs then files)
   if (!opts.textOnly) {
-    // Plan using all files/dirs (even binaries), but excluding excluded directories
-    const renamePlan = planRenames(filesInScope, dirs.filter((d) => {
-      const parts = d.split(path.sep);
-      return !parts.some((p) => shouldExcludeDir(p));
-    }));
+    const renamePlan = planRenames(
+      filesInScope,
+      dirs.filter((d) => {
+        const parts = d.split(path.sep);
+        return !parts.some((p) => shouldExcludeDir(p));
+      }),
+    );
 
     if (dryRun) {
       console.log(`\n# Dry-run: Renames`);
@@ -291,3 +309,4 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
+
