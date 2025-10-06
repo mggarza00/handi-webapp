@@ -70,9 +70,8 @@ function isTextFile(p: string) {
   return isEnvFile(p) || TEXT_EXTS.has(path.extname(p).toLowerCase());
 }
 
-function isBinaryOrAsset(filePath: string) {
-  const ext = path.extname(filePath).toLowerCase();
-  return BINARY_EXTS.has(ext);
+function isBinaryFile(p: string) {
+  return BINARY_EXTS.has(path.extname(p).toLowerCase());
 }
 
 function shouldSkipDir(dir: string) {
@@ -89,7 +88,7 @@ function walk(
   files: string[] = [],
   dirs: string[] = [],
 ): string[] {
-  if (shouldSkipDir(dir)) return { files, dirs };
+  if (shouldSkipDir(dir)) return files;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const p = path.join(dir, entry.name);
@@ -287,7 +286,7 @@ function main() {
 
   // TEXT REPLACEMENTS
   if (!opts.renameOnly) {
-    const textFiles = filesInScope.filter((f) => isTextFile(f) && !isBinaryOrAsset(f));
+    const textFiles = filesInScope.filter((f) => isTextFile(f) && !isBinaryFile(f));
     const { textReports: textPlan, changes } = planTextChangesWithCounts(textFiles);
     if (dryRun) {
       console.log(`# Dry-run: Text replacements`);
