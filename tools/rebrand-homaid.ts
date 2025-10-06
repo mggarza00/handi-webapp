@@ -67,9 +67,7 @@ function isEnvFile(filePath: string) {
 }
 
 function isTextFile(p: string) {
-  if (isEnvFile(p)) return true;
-  const ext = path.extname(p).toLowerCase();
-  return TEXT_EXTS.has(ext);
+  return isEnvFile(p) || TEXT_EXTS.has(path.extname(p).toLowerCase());
 }
 
 function isBinaryOrAsset(filePath: string) {
