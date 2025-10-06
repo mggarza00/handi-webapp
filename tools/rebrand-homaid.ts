@@ -207,7 +207,7 @@ function replaceInTextFile(file: string): FileChangeResult {
   if (out !== src) {
     const changedLines = countChangedLines(src, out);
     fs.writeFileSync(file, out, "utf8");
-    const hitsAfter = countOccurrences(out);
+    const hitsAfter = hitsBefore; // number of replacements equals total matches seen
     return { file, changed: true, changedLines, before: hitsBefore, after: hitsAfter };
   }
   return { file, changed: false, changedLines: 0, before: hitsBefore, after: hitsBefore };
