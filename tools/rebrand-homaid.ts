@@ -286,15 +286,35 @@ function ensureNoCollision(dest: string): string {
 }
 
 function applyRenames(renames: RenameReport[]) {
-  // Apply directory renames first (already ordered deepest-first in planning)
-  const dirRenames = renames.filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isDirectory());
-  const fileRenames = renames.filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isFile());
+  // Apply files first (deepest paths first), then directories (deepest first)
+  const fileRenames = renames
+    .filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isFile())
+    .sort((a, b) => b.from.length - a.from.length);
+  const dirRenames = renames
+    .filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isDirectory())
+    .sort((a, b) => b.from.length - a.from.length);
 
-  for (const r of dirRenames) {
-    fs.renameSync(r.from, r.to);
+  for (const { from, to } of fileRenames) {
+    const dirTo = path.dirname(to);
+    try { fs.mkdirSync(dirTo, { recursive: true }); } catch {}
+    if (fs.existsSync(to) && path.resolve(to) !== path.resolve(from)) {
+      const alt = ensureNoCollision(to);
+      fs.renameSync(from, alt);
+      console.warn(`Collision: ${to} exists. Renamed ${from} -> ${alt}`);
+    } else {
+      fs.renameSync(from, to);
+    }
   }
-  for (const r of fileRenames) {
-    fs.renameSync(r.from, r.to);
+  for (const { from, to } of dirRenames) {
+    const dirTo = path.dirname(to);
+    try { fs.mkdirSync(dirTo, { recursive: true }); } catch {}
+    if (fs.existsSync(to) && path.resolve(to) !== path.resolve(from)) {
+      const alt = ensureNoCollision(to);
+      fs.renameSync(from, alt);
+      console.warn(`Collision: ${to} exists. Renamed ${from} -> ${alt}`);
+    } else {
+      fs.renameSync(from, to);
+    }
   }
 }
 
@@ -407,20 +427,25 @@ function main() {
 
     if (dryRun) {
       console.log(`\n# Dry-run: Renames`);
-      const dirPlans = renamePlan.filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isDirectory());
-      const filePlans = renamePlan.filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isFile());
-      console.log(`Directories to rename: ${dirPlans.length}`);
-      for (const r of dirPlans) {
-        console.log(` - ${path.relative(root, r.from)} -> ${path.relative(root, r.to)}${r.collided ? " (collision: -old)" : ""}`);
-      }
+      const filePlans = renamePlan
+        .filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isFile())
+        .sort((a, b) => b.from.length - a.from.length);
+      const dirPlans = renamePlan
+        .filter(r => fs.existsSync(r.from) && fs.lstatSync(r.from).isDirectory())
+        .sort((a, b) => b.from.length - a.from.length);
       console.log(`Files to rename: ${filePlans.length}`);
-      for (const r of filePlans) {
-        console.log(` - ${path.relative(root, r.from)} -> ${path.relative(root, r.to)}${r.collided ? " (collision: -old)" : ""}`);
+      for (const { from, to, collided } of filePlans) {
+        console.log(` - ${path.relative(root, from)} -> ${path.relative(root, to)}${collided ? " (collision: -old)" : ""}`);
+      }
+      console.log(`Directories to rename: ${dirPlans.length}`);
+      for (const { from, to, collided } of dirPlans) {
+        console.log(` - ${path.relative(root, from)} -> ${path.relative(root, to)}${collided ? " (collision: -old)" : ""}`);
       }
     } else {
       applyRenames(renamePlan);
-      const dirCount = renamePlan.filter(r => fs.existsSync(path.dirname(r.to)) && r.from !== r.to).length;
-      console.log(`# Applied ${renamePlan.length} renames (${dirCount} directories + ${renamePlan.length - dirCount} files).`);
+      const filesApplied = renamePlan.filter(r => fs.existsSync(path.dirname(r.to)) && !fs.existsSync(r.from) && path.extname(r.from) !== '').length;
+      const dirsApplied = renamePlan.length - filesApplied;
+      console.log(`# Applied ${renamePlan.length} renames (${filesApplied} files + ${dirsApplied} directories).`);
     }
   }
 }
