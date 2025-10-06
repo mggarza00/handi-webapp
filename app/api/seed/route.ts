@@ -82,8 +82,8 @@ export async function POST() {
     }
 
     const ts = Date.now();
-    const clientEmail = `client+${ts}@handi.test`;
-    const proEmail = `pro+${ts}@handi.test`;
+    const clientEmail = `client+${ts}@homaid.test`;
+    const proEmail = `pro+${ts}@homaid.test`;
 
     // 1) Usuarios (Auth Admin)
     const clientId = await createUser(baseUrl, serviceRole, clientEmail);

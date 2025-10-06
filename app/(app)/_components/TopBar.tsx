@@ -13,7 +13,7 @@ export default async function TopBar() {
     <header className="w-full sticky top-0 z-40 border-b bg-white/80 dark:bg-neutral-900/80 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
         <Link href="/" className="font-semibold">
-          Handi
+          Homaid
         </Link>
 
         {!user ? (

@@ -1,5 +1,5 @@
 /**
- * Stylelint configuration for Handi (Tailwind v4)
+ * Stylelint configuration for Homaid (Tailwind v4)
  * - Uses standard rules + Tailwind-specific adjustments
  */
 module.exports = {

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? "cliente.e2e@handi.mx";
+const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? "cliente.e2e@homaid.mx";
 const ENV_APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.E2E_APP_URL ||

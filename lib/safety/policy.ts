@@ -17,7 +17,7 @@ function resolveContactPolicyMode(): "off" | "block" | "redact" {
 function resolveContactPolicyMessage(): string {
   return (
     process.env.NEXT_PUBLIC_CONTACT_POLICY_MESSAGE ??
-    "Por seguridad, evita compartir telefono, correo o direccion. Usa la oferta dentro de Handi para coordinar."
+    "Por seguridad, evita compartir telefono, correo o direccion. Usa la oferta dentro de Homaid para coordinar."
   );
 }
 

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-import type { Application } from "@/types/handi";
+import type { Application } from "@/types/homaid";
 import { jsonOk, jsonFail } from "@/lib/errors";
 
 /**

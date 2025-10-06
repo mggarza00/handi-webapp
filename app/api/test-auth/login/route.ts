@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     }
 
     const { searchParams, origin } = new URL(req.url);
-    const email = searchParams.get("email") || "cliente.e2e@handi.mx";
+    const email = searchParams.get("email") || "cliente.e2e@homaid.mx";
     const next = searchParams.get("next") || "/";
     const role = (searchParams.get("role") || "client").toLowerCase();
 
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
     // As fallback, still set cookie-based session to keep tests flowing.
     try {
       const { searchParams, origin } = new URL(req.url);
-      const email = searchParams.get("email") || "cliente.e2e@handi.mx";
+      const email = searchParams.get("email") || "cliente.e2e@homaid.mx";
       const role = (searchParams.get("role") || "client").toLowerCase();
       const res = NextResponse.json(
         { ok: true, email, role, fallback: "cookie" },

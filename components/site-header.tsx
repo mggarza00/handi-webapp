@@ -140,7 +140,7 @@ export default async function SiteHeader() {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
         <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           <Link href="/" className="flex items-center">
-            <Image src="/handi-logo.gif" alt="Handi" width={64} height={64} priority className="h-16 w-16 object-contain" />
+            <Image src="/homaid-logo.gif" alt="Homaid" width={64} height={64} priority className="h-16 w-16 object-contain" />
           </Link>
           <nav className="hidden md:flex items-center gap-2" />
         </div>
@@ -318,8 +318,8 @@ export default async function SiteHeader() {
           className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
         >
           <Image
-            src="/handi-logo.gif"
-            alt="Handi"
+            src="/homaid-logo.gif"
+            alt="Homaid"
             width={64}
             height={64}
             priority

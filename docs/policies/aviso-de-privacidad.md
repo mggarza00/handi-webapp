@@ -1,9 +1,9 @@
-Aviso de Privacidad Handi
+Aviso de Privacidad Homaid
 
 **Última actualización:** 4 de septiembre de 2025  
 **Contacto:** soportehandi.mx
 
-Handi (la Plataforma) con domicilio en Monterrey, Nuevo León, México, es responsable del tratamiento de tus datos personales conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) y su Reglamento.
+Homaid (la Plataforma) con domicilio en Monterrey, Nuevo León, México, es responsable del tratamiento de tus datos personales conforme a la Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP) y su Reglamento.
 
 ---
 
@@ -18,7 +18,7 @@ Handi (la Plataforma) con domicilio en Monterrey, Nuevo León, México, es respo
 - **Uso y dispositivos:** logs técnicos, IP, identificadores de sesión, eventos de navegación necesarios para seguridad y funcionamiento.
 - **Contenido en Storage:** imágenes o archivos que subas (máx. 5 MB por imagen; JPG/PNG/WebP, conforme a nuestras reglas).
 
-> **Datos sensibles:** Handi no solicita datos sensibles (salud, religión, origen étnico, etc.). Si por cualquier motivo llegaran a enviarse, serán eliminados salvo obligación legal.
+> **Datos sensibles:** Homaid no solicita datos sensibles (salud, religión, origen étnico, etc.). Si por cualquier motivo llegaran a enviarse, serán eliminados salvo obligación legal.
 
 ---
 
@@ -107,11 +107,11 @@ Puedes controlar las cookies desde la configuración de tu navegador y, cuando a
     nAl enviar tu información en el formulario de postulación o usar la Plataforma, **reconoces haber leído y comprendido** este Aviso de Privacidad y **aceptas** el tratamiento de tus datos conforme a lo aquí descrito.
 
 > **Texto sugerido para checkbox en el formulario:**  
-> He leído y acepto el Aviso de Privacidad de Handi. Autorizo el tratamiento de mis datos personales para las finalidades primarias descritas.
+> He leído y acepto el Aviso de Privacidad de Homaid. Autorizo el tratamiento de mis datos personales para las finalidades primarias descritas.
 
 ---
 
 Contacto del Responsable
-**Handi**  
+**Homaid**  
 Monterrey, Nuevo León, México  
 **Correo:** soportehandi.mx

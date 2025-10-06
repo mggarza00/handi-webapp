@@ -59,7 +59,7 @@ export default function CompanyFields({ open, legalName, setLegalName, industry,
             aria-invalid={!!errors?.website}
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
-            placeholder="https://www.handi.mx"
+            placeholder="https://www.homaid.mx"
           />
         </div>
       </div>

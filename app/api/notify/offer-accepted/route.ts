@@ -95,8 +95,8 @@ export async function POST(req: Request) {
 
     if (phone) {
       const smsBody = serviceDate
-        ? `Handi: Tu profesional acepto la oferta por ${formattedAmount} (dia ${serviceDate}). Paga aqui: ${checkoutUrl}`
-        : `Handi: Tu profesional acepto la oferta por ${formattedAmount}. Paga aqui: ${checkoutUrl}`;
+        ? `Homaid: Tu profesional acepto la oferta por ${formattedAmount} (dia ${serviceDate}). Paga aqui: ${checkoutUrl}`
+        : `Homaid: Tu profesional acepto la oferta por ${formattedAmount}. Paga aqui: ${checkoutUrl}`;
       await sendSms({ to: phone, body: smsBody }).catch(() => null);
     }
 

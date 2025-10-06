@@ -123,7 +123,7 @@ export default function Page() {
     (async () => {
       try {
         const v = document.createElement("video");
-        v.src = "/video/Video Demo Handi.mp4";
+        v.src = "/video/Video Demo Homaid.mp4";
         v.preload = "auto";
         await new Promise<void>((resolve, reject) => {
           const onLoaded = () => resolve();
@@ -286,7 +286,7 @@ export default function Page() {
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
             <h1 className="rubik font-medium mb-6 text-2xl sm:text-3xl md:text-4xl leading-tight tracking-wide text-center whitespace-nowrap text-[#11304a]">
-              Bienvenido a <span>Handi</span>
+              Bienvenido a <span>Homaid</span>
             </h1>
             <p className="mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance">
               La plataforma que te conecta con expertos de confianza para
@@ -326,8 +326,8 @@ export default function Page() {
               <video
                 ref={videoRef}
                 className="h-full w-full object-cover"
-                src="/video/Video Demo Handi.mp4"
-                title="Video Bienvenida Handi"
+                src="/video/Video Demo Homaid.mp4"
+                title="Video Bienvenida Homaid"
                 controls={showControls}
                 poster={posterUrl ?? "/images/poster.png"}
                 playsInline
@@ -392,7 +392,7 @@ export default function Page() {
               <div className="relative h-[104px] w-[104px] md:h-28 md:w-28 lg:h-32 lg:w-32 animate-bounce-subtle md:animate-none">
                 <Image
                   src="/images/handee_mascota.gif"
-                  alt="Handi mascota"
+                  alt="Homaid mascota"
                   fill
                   className="object-contain"
                   unoptimized

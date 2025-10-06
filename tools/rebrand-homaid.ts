@@ -18,6 +18,7 @@ const EXCLUDE_DIRS = new Set<string>([
   "coverage",
   "playwright-report",
   "test-results",
+  "artifacts",
 ]);
 
 const EXCLUDE_FILE_EXT = new Set<string>([
@@ -149,8 +150,8 @@ function applyTextChanges(reports: TextReport[]) {
 }
 
 function lowerCaseReplaceHandi(name: string): string {
-  // Replace any case variant of 'handi' with 'homaid'
-  return name.replace(/handi/gi, "homaid");
+  // Replace any case variant of 'homaid' with 'homaid'
+  return name.replace(/homaid/gi, "homaid");
 }
 
 function planRenames(files: string[], dirs: string[]): RenameReport[] {
@@ -160,7 +161,7 @@ function planRenames(files: string[], dirs: string[]): RenameReport[] {
   const sortedDirs = [...dirs].sort((a, b) => b.length - a.length);
   for (const d of sortedDirs) {
     const base = path.basename(d);
-    if (/handi/i.test(base)) {
+    if (/homaid/i.test(base)) {
       const newBase = lowerCaseReplaceHandi(base);
       const to = path.join(path.dirname(d), newBase);
       let finalTo = to;
@@ -176,7 +177,7 @@ function planRenames(files: string[], dirs: string[]): RenameReport[] {
   // Files: include all files (including images) — but we do NOT edit binary contents.
   for (const f of files) {
     const base = path.basename(f);
-    if (/handi/i.test(base)) {
+    if (/homaid/i.test(base)) {
       const newBase = lowerCaseReplaceHandi(base);
       const to = path.join(path.dirname(f), newBase);
       let finalTo = to;
@@ -290,4 +291,3 @@ if (require.main === module) {
     process.exitCode = 1;
   }
 }
-

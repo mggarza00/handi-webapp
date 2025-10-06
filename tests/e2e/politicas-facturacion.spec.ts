@@ -12,7 +12,7 @@ test.describe("Políticas de facturación", () => {
     for (const id of [
       "modelo",
       "comisiones",
-      "factura-handi",
+      "factura-homaid",
       "factura-servicio",
       "actualizacion",
       "plazos",

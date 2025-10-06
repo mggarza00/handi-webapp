@@ -1,21 +1,21 @@
-# Handi Webapp
+# Homaid Webapp
 
-> Repositorio: https://github.com/mggarza00/handi-webapp
+> Repositorio: https://github.com/mggarza00/homaid-webapp
 
 Estado CI:
 
-[![Design CI](https://github.com/mggarza00/handi-webapp/actions/workflows/design-ci.yml/badge.svg)](https://github.com/mggarza00/handi-webapp/actions/workflows/design-ci.yml)
-[![Playwright E2E](https://github.com/mggarza00/handi-webapp/actions/workflows/playwright.yml/badge.svg)](https://github.com/mggarza00/handi-webapp/actions/workflows/playwright.yml)
-[![Vercel (prod)](https://img.shields.io/github/deployments/mggarza00/handi-webapp/production?label=vercel%20prod&logo=vercel)](https://github.com/mggarza00/handi-webapp/deployments)
-[![Vercel (preview)](https://img.shields.io/github/deployments/mggarza00/handi-webapp/preview?label=vercel%20preview&logo=vercel)](https://github.com/mggarza00/handi-webapp/deployments)
+[![Design CI](https://github.com/mggarza00/homaid-webapp/actions/workflows/design-ci.yml/badge.svg)](https://github.com/mggarza00/homaid-webapp/actions/workflows/design-ci.yml)
+[![Playwright E2E](https://github.com/mggarza00/homaid-webapp/actions/workflows/playwright.yml/badge.svg)](https://github.com/mggarza00/homaid-webapp/actions/workflows/playwright.yml)
+[![Vercel (prod)](https://img.shields.io/github/deployments/mggarza00/homaid-webapp/production?label=vercel%20prod&logo=vercel)](https://github.com/mggarza00/homaid-webapp/deployments)
+[![Vercel (preview)](https://img.shields.io/github/deployments/mggarza00/homaid-webapp/preview?label=vercel%20preview&logo=vercel)](https://github.com/mggarza00/homaid-webapp/deployments)
 
 Deploy:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mggarza00/handi-webapp)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mggarza00/homaid-webapp)
 
 Preview:
 
-https://handi-webapp-woad.vercel.app
+https://homaid-webapp-woad.vercel.app
 
 Next.js 14 (App Router) + Supabase + Google Sheets (Service Account).
 
@@ -238,7 +238,7 @@ Si trabajas con Dev Containers, asegúrate de montar la carpeta del proyecto (pa
 
 ```jsonc
 {
-  "name": "handi-webapp",
+  "name": "homaid-webapp",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
   "customizations": {
     "vscode": {
@@ -314,8 +314,8 @@ El bloque anterior replica la configuración local dentro del contenedor; ajusta
 
 - Stripe: «Usa la herramienta `stripe.paymentLinks.create` para generar un enlace de pago de 1299 MXN para el plan Premium».
 - PayPal: «Consulta con `paypal.list_invoices` los últimos 5 invoices pendientes».
-- Playwright: «Con Playwright abre `https://handi-webapp-woad.vercel.app`, toma una captura y dime si el CTA principal es visible».
+- Playwright: «Con Playwright abre `https://homaid-webapp-woad.vercel.app`, toma una captura y dime si el CTA principal es visible».
 
-> Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://handi.mx`) a los argumentos.
+> Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://homaid.mx`) a los argumentos.
 
 Si alguna herramienta falta, abre la paleta (`Ctrl/Cmd+Shift+P`) y ejecuta `Agents: Reload MCP Servers`. Los prompts `STRIPE_SECRET_KEY` y `PAYPAL_BEARER` quedan guardados como entradas secretas, y `STRIPE_ACCOUNT` como entrada opcional; limpia o reemplaza sus valores desde `Settings → MCP Inputs` si necesitas regenerarlos.

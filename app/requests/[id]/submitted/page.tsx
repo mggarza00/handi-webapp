@@ -14,8 +14,8 @@ export default function RequestSubmittedPage({ params }: Params) {
     <main className="mx-auto max-w-2xl px-4 py-16 text-center">
       <div className="mx-auto mb-6 h-16 w-16">
         <Image
-          src="/handi-logo.gif"
-          alt="Handi"
+          src="/homaid-logo.gif"
+          alt="Homaid"
           width={64}
           height={64}
           className="mx-auto rounded"
@@ -25,7 +25,7 @@ export default function RequestSubmittedPage({ params }: Params) {
         Tu solicitud está en revisión
       </h1>
       <p className="mx-auto mb-6 max-w-prose text-slate-600">
-        Gracias por publicar en Handi. Nuestro equipo y la comunidad de
+        Gracias por publicar en Homaid. Nuestro equipo y la comunidad de
         profesionales podrán ver tu solicitud en cuanto sea revisada.
       </p>
       <div className="flex items-center justify-center gap-3">

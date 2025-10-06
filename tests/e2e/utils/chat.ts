@@ -1,8 +1,8 @@
 import { expect, Page, APIRequestContext, Browser, BrowserContext } from "@playwright/test";
 
-export const CLIENT_EMAIL = "cliente.e2e@handi.mx";
+export const CLIENT_EMAIL = "cliente.e2e@homaid.mx";
 export const CLIENT_PASSWORD = "E2e!Pass123";
-export const PRO_EMAIL = "pro.e2e@handi.mx";
+export const PRO_EMAIL = "pro.e2e@homaid.mx";
 export const PRO_PASSWORD = "E2e!Pass123";
 
 export async function requireTestId(page: Page, id: string, timeout = 10_000) {

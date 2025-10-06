@@ -2,8 +2,8 @@ import { test, expect, APIRequestContext, Page, BrowserContext } from "@playwrig
 
 // Seeded constants per app/api/test-seed
 const SEED_REQUEST_ID = "33333333-3333-4333-8333-333333333333";
-const CLIENT_EMAIL = "client+seed@handi.dev";
-const PRO_EMAIL = "pro+seed@handi.dev";
+const CLIENT_EMAIL = "client+seed@homaid.dev";
+const PRO_EMAIL = "pro+seed@homaid.dev";
 
 async function loginWithMagicLink(
   page: Page,

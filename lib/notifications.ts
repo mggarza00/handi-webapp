@@ -33,8 +33,8 @@ export async function notifyProApplicationDecision(params: {
   const linkUrl = `${base}/profiles/${params.user_id}`;
   const subject =
     params.status === "accepted"
-      ? "¡Bienvenido a Handi como profesional"
-      : "Resultado de tu solicitud en Handi";
+      ? "¡Bienvenido a Homaid como profesional"
+      : "Resultado de tu solicitud en Homaid";
   const html =
     params.status === "accepted"
       ? proApplicationAcceptedHtml({ linkUrl })
@@ -105,7 +105,7 @@ export async function notifyAdminApplicationCreated(params: {
   const adminTo =
     process.env.HANDEE_ADMIN_EMAIL ||
     process.env.MAIL_DEFAULT_TO ||
-    "hola@handi.mx";
+    "hola@homaid.mx";
   const base =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||

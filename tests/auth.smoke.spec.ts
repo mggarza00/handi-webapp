@@ -30,7 +30,7 @@ test.describe("Auth smoke", () => {
 
   test("canonical redirects (solo prod)", async ({ page }) => {
     test.skip(process.env.NODE_ENV !== "production", "Solo en prod");
-    const res = await page.goto("http://www.handi.mx/", {
+    const res = await page.goto("http://www.homaid.mx/", {
       waitUntil: "domcontentloaded",
     });
     expect(res?.status()).toBeGreaterThanOrEqual(300);

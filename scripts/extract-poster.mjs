@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const root = path.resolve(__dirname, '..');
-const input = path.join(root, 'public', 'video', 'Video Demo Handi.mp4');
+const input = path.join(root, 'public', 'video', 'Video Demo Homaid.mp4');
 const outputDir = path.join(root, 'public', 'images');
 const output = path.join(outputDir, 'poster.png');
 
