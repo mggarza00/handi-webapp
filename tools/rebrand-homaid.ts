@@ -395,7 +395,7 @@ function main() {
           console.log(` - ${c.file} (${c.after} replacements)`);
         }
       } else {
-        console.log(`No text changes.`);
+        console.log("No textual replacements were necessary.");
       }
     }
   }
