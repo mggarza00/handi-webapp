@@ -387,6 +387,14 @@ function main() {
       const totalOcc = results.reduce((s, r) => s + (r.changed ? r.before : 0), 0);
       console.log(`# Applied text replacements to ${results.length} files.`);
       console.log(`# Total: +${totalLines} lines, ${totalOcc} replacements`);
+      // Report
+      const changed = results;
+      if (changed.length) {
+        console.log(`\nChanged ${changed.length} files:`);
+        for (const c of changed) {
+          console.log(` - ${path.relative(root, c.file)} (+${c.changedLines} lines, repl ${c.before})`);
+        }
+      }
     }
   }
 
