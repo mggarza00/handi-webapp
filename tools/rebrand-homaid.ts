@@ -83,6 +83,15 @@ function normalizeRel(p: string) {
   return path.relative(process.cwd(), p).replace(/\\/g, "/");
 }
 
+function getReplacements(): Array<[RegExp, string]> {
+  const WORD_BOUNDARY = (s: string) => new RegExp(`\\b${s}\\b`, "g");
+  return [
+    [WORD_BOUNDARY("HANDI"), "HOMAID"],
+    [WORD_BOUNDARY("Handi"), "Homaid"],
+    [WORD_BOUNDARY("handi"), "homaid"],
+  ];
+}
+
 function walk(
   dir: string,
   files: string[] = [],
@@ -105,14 +114,8 @@ function walk(
 
 function replaceTextContent(content: string) {
   // Order-sensitive, word-safe replacements
-  const WORD_BOUNDARY = (s: string) => new RegExp(`\\b${s}\\b`, "g");
-  const replacements: Array<[RegExp, string]> = [
-    [WORD_BOUNDARY("HANDI"), "HOMAID"],
-    [WORD_BOUNDARY("Handi"), "Homaid"],
-    [WORD_BOUNDARY("handi"), "homaid"],
-  ];
   let result = content;
-  for (const [re, rep] of replacements) {
+  for (const [re, rep] of getReplacements()) {
     result = result.replace(re, rep);
   }
   return result;
@@ -193,16 +196,19 @@ function applyTextChanges(reports: TextReport[]) {
 }
 
 function replaceInTextFile(file: string): FileChangeResult {
-  const before = fs.readFileSync(file, "utf8");
-  const beforeOcc = countOccurrences(before);
-  const after = replaceTextContent(before);
-  if (before === after) {
-    return { file, changed: false, changedLines: 0, before: beforeOcc, after: beforeOcc };
+  const src = fs.readFileSync(file, "utf8");
+  let out = src;
+  const hitsBefore = countOccurrences(src);
+  for (const [rx, to] of getReplacements()) {
+    out = out.replace(rx, to);
   }
-  const changedLines = countChangedLines(before, after);
-  fs.writeFileSync(file, after, "utf8");
-  const afterOcc = countOccurrences(after);
-  return { file, changed: true, changedLines, before: beforeOcc, after: afterOcc };
+  if (out === src) {
+    return { file, changed: false, changedLines: 0, before: hitsBefore, after: hitsBefore };
+  }
+  const changedLines = countChangedLines(src, out);
+  fs.writeFileSync(file, out, "utf8");
+  const hitsAfter = countOccurrences(out);
+  return { file, changed: true, changedLines, before: hitsBefore, after: hitsAfter };
 }
 
 function lowerCaseReplaceHandi(name: string): string {
