@@ -86,18 +86,23 @@ function normalizeRel(p: string) {
   return path.relative(process.cwd(), p).replace(/\\/g, "/");
 }
 
-function walk(dir: string, outFiles: string[], outDirs: string[]) {
+function walk(
+  dir: string,
+  files: string[] = [],
+  dirs: string[] = [],
+): { files: string[]; dirs: string[] } {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const ent of entries) {
     const full = path.join(dir, ent.name);
     if (ent.isDirectory()) {
       if (shouldSkipDir(ent.name)) continue;
-      outDirs.push(full);
-      walk(full, outFiles, outDirs);
+      dirs.push(full);
+      walk(full, files, dirs);
     } else if (ent.isFile()) {
-      outFiles.push(full);
+      files.push(full);
     }
   }
+  return { files, dirs };
 }
 
 function replaceTextContent(content: string) {
@@ -271,9 +276,7 @@ function main() {
   const opts: RunOptions = { dryRun, textOnly, renameOnly };
 
   const root = process.cwd();
-  const files: string[] = [];
-  const dirs: string[] = [];
-  walk(root, files, dirs);
+  const { files, dirs } = walk(root);
 
   const filesInScope = files.filter((f) => {
     const parts = f.split(path.sep);
