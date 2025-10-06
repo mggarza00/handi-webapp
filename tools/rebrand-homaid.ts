@@ -198,8 +198,10 @@ function applyTextChanges(reports: TextReport[]) {
 function replaceInTextFile(file: string): FileChangeResult {
   const src = fs.readFileSync(file, "utf8");
   let out = src;
-  const hitsBefore = countOccurrences(src);
+  let hitsBefore = 0;
   for (const [rx, to] of getReplacements()) {
+    const matches = out.match(rx);
+    if (matches) hitsBefore += matches.length;
     out = out.replace(rx, to);
   }
   if (out === src) {
