@@ -8,6 +8,12 @@ type RunOptions = {
   renameOnly?: boolean;
 };
 
+type Change = {
+  file: string;
+  before: number;
+  after: number;
+};
+
 const EXCLUDE_DIRS = new Set<string>([
   ".git",
   "node_modules",
@@ -71,8 +77,9 @@ function isBinaryOrAsset(filePath: string) {
   return BINARY_EXTS.has(ext);
 }
 
-function shouldExcludeDir(dirName: string) {
-  return EXCLUDE_DIRS.has(dirName);
+function shouldSkipDir(dir: string) {
+  const base = path.basename(dir);
+  return EXCLUDE_DIRS.has(base);
 }
 
 function normalizeRel(p: string) {
@@ -84,7 +91,7 @@ function walk(dir: string, outFiles: string[], outDirs: string[]) {
   for (const ent of entries) {
     const full = path.join(dir, ent.name);
     if (ent.isDirectory()) {
-      if (shouldExcludeDir(ent.name)) continue;
+      if (shouldSkipDir(ent.name)) continue;
       outDirs.push(full);
       walk(full, outFiles, outDirs);
     } else if (ent.isFile()) {
@@ -106,6 +113,21 @@ function replaceTextContent(content: string) {
     result = result.replace(re, rep);
   }
   return result;
+}
+
+function countOccurrences(content: string): number {
+  const WORD_BOUNDARY = (s: string) => new RegExp(`\\b${s}\\b`, "g");
+  const regs = [
+    WORD_BOUNDARY("HANDI"),
+    WORD_BOUNDARY("Handi"),
+    WORD_BOUNDARY("handi"),
+  ];
+  let total = 0;
+  for (const re of regs) {
+    const m = content.match(re);
+    total += m ? m.length : 0;
+  }
+  return total;
 }
 
 function countChangedLines(before: string, after: string): number {
@@ -131,22 +153,26 @@ type RenameReport = {
   collided: boolean;
 };
 
-function planTextChanges(files: string[]): TextReport[] {
-  const reports: TextReport[] = [];
+function planTextChangesWithCounts(files: string[]): { textReports: TextReport[]; changes: Change[] } {
+  const textReports: TextReport[] = [];
+  const changes: Change[] = [];
   for (const f of files) {
     const rel = normalizeRel(f);
     if (!isTextFile(f)) continue;
     if (SELF_PATHS.has(rel)) continue; // don't rewrite the script itself
     const content = fs.readFileSync(f, "utf8");
+    const beforeCount = countOccurrences(content);
     const replaced = replaceTextContent(content);
     if (replaced !== content) {
       const changedLines = countChangedLines(content, replaced);
       if (changedLines > 0) {
-        reports.push({ file: f, changedLines });
+        textReports.push({ file: f, changedLines });
+        const afterCount = countOccurrences(replaced);
+        changes.push({ file: f, before: beforeCount, after: afterCount });
       }
     }
   }
-  return reports;
+  return { textReports, changes };
 }
 
 function applyTextChanges(reports: TextReport[]) {
@@ -251,19 +277,21 @@ function main() {
 
   const filesInScope = files.filter((f) => {
     const parts = f.split(path.sep);
-    if (parts.some((p) => shouldExcludeDir(p))) return false;
+    if (parts.some((p) => shouldSkipDir(p))) return false;
     return true;
   });
 
   // TEXT REPLACEMENTS
   if (!opts.renameOnly) {
     const textFiles = filesInScope.filter((f) => isTextFile(f) && !isBinaryOrAsset(f));
-    const textPlan = planTextChanges(textFiles);
+    const { textReports: textPlan, changes } = planTextChangesWithCounts(textFiles);
     if (dryRun) {
       console.log(`# Dry-run: Text replacements`);
       console.log(`Files to change: ${textPlan.length}`);
       for (const r of textPlan) {
-        console.log(` - ${path.relative(root, r.file)} (+${r.changedLines} lines)`);
+        const c = changes.find((x) => x.file === r.file);
+        const occ = c ? `, occ ${c.before} -> ${c.after}` : "";
+        console.log(` - ${path.relative(root, r.file)} (+${r.changedLines} lines${occ})`);
       }
     } else {
       applyTextChanges(textPlan);
@@ -277,7 +305,7 @@ function main() {
       filesInScope,
       dirs.filter((d) => {
         const parts = d.split(path.sep);
-        return !parts.some((p) => shouldExcludeDir(p));
+        return !parts.some((p) => shouldSkipDir(p));
       }),
     );
 
