@@ -50,6 +50,7 @@ export default function NewRequestPage() {
   const [description, setDescription] = useState("");
   const [city, setCity] = useState("Monterrey");
   const [category, setCategory] = useState("");
+  const [cityTouched, setCityTouched] = useState(false);
   const [subcategory, setSubcategory] = useState("");
   const [budget, setBudget] = useState<number | "">("");
   const [requiredAt, setRequiredAt] = useState("");
@@ -343,6 +344,62 @@ export default function NewRequestPage() {
     }
     setAutoApplied(true);
   }, [suggestion, manualOverride, loadingCats, catMap, category, subcategory]);
+
+  // Geolocalización: intenta detectar ciudad si el usuario no la cambió manualmente
+  useEffect(() => {
+    if (cityTouched) return; // respeta selección manual
+    // Solo intenta si ciudad no fue modificada y es una de las default o vacía
+    const defaults = new Set<string>(["", "Monterrey"]);
+    if (!defaults.has((city || "").trim())) return;
+    let cancelled = false;
+    const detect = async () => {
+      try {
+        if (!("geolocation" in navigator)) return;
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            if (cancelled) return;
+            const { latitude, longitude } = pos.coords;
+            try {
+              const res = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+              const j = (await res.json().catch(() => ({}))) as { ok?: boolean; city?: string | null };
+              const detected = typeof j?.city === "string" ? j.city : null;
+              if (detected && CITIES.includes(detected as any)) {
+                setCity(detected);
+              }
+            } catch { /* noop */ }
+          },
+          () => { /* denied or error: ignore */ },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+        );
+      } catch { /* noop */ }
+    };
+    detect();
+    return () => { cancelled = true; };
+  }, [cityTouched]);
+
+  // Acción manual: detectar ciudad ahora
+  const detectCityNow = React.useCallback(async () => {
+    try {
+      if (!("geolocation" in navigator)) return;
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            const res = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+            const j = (await res.json().catch(() => ({}))) as { ok?: boolean; city?: string | null };
+            const detected = typeof j?.city === "string" ? j.city : null;
+            if (detected && CITIES.includes(detected as any)) {
+              setCity(detected);
+            }
+          } catch { /* noop */ }
+        },
+        () => { /* denied or error */ },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+      );
+    } catch { /* noop */ }
+  }, []);
 
   // Persist draft anytime fields change
   useEffect(() => {
@@ -704,11 +761,21 @@ export default function NewRequestPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Ciudad</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Ciudad</Label>
+                <button
+                  type="button"
+                  className="text-xs text-blue-700 hover:underline"
+                  onClick={() => { setCityTouched(false); void detectCityNow(); }}
+                >
+                  Usar mi ubicación
+                </button>
+              </div>
               <Select
                 value={city}
                 onValueChange={(v) => {
                   setCity(v);
+                  setCityTouched(true);
                   setIsDirty(true);
                 }}
               >

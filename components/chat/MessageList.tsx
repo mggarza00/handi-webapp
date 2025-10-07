@@ -430,7 +430,18 @@ export default function MessageList({
         );
       }
       if (status === "paid") {
-        return <div className="text-sm font-medium text-blue-700">Pago recibido</div>;
+        const receiptUrl = typeof payloadRecord.receipt_url === 'string' && payloadRecord.receipt_url.trim().length ? (payloadRecord.receipt_url as string) : null;
+        return (
+          <div className="text-sm font-medium text-blue-700">
+            Pago realizado. Servicio agendado.
+            {receiptUrl ? (
+              <>
+                {" "}
+                <a href={receiptUrl} target="_blank" rel="noreferrer" className="underline text-blue-700 hover:text-blue-800">Ver recibo</a>
+              </>
+            ) : null}
+          </div>
+        );
       }
     }
     return <div>{message.body}</div>;
