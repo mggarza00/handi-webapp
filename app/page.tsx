@@ -3,6 +3,13 @@
 import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import localFont from "next/font/local";
+const comfortaaBold = localFont({
+  src: "../public/fonts/Comfortaa-Bold.ttf",
+  display: "swap",
+  weight: "700",
+  variable: "--font-comfortaa-bold",
+});
 import { useEffect, useRef, useState } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
@@ -123,7 +130,7 @@ export default function Page() {
     (async () => {
       try {
         const v = document.createElement("video");
-        v.src = "/video/Video Demo Homaid.mp4";
+        v.src = "/video/Homaid-video.mp4";
         v.preload = "auto";
         await new Promise<void>((resolve, reject) => {
           const onLoaded = () => resolve();
@@ -286,7 +293,11 @@ export default function Page() {
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
             <h1 className="rubik font-medium mb-6 text-2xl sm:text-3xl md:text-4xl leading-tight tracking-wide text-center whitespace-nowrap text-[#11304a]">
-              Bienvenido a <span>Homaid</span>
+              Bienvenido a {" "}
+              <span className="inline-flex items-baseline gap-0">
+                <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Hom</span>
+                <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>aid</span>
+              </span>
             </h1>
             <p className="mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance">
               La plataforma que te conecta con expertos de confianza para
@@ -301,14 +312,14 @@ export default function Page() {
             <div className="flex flex-row items-center justify-center gap-x-2 md:flex-wrap md:gap-y-3">
               <Link
                 href="/requests/new"
-                className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#11304a] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#0c2336] sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
+                className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#009377] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#0a7f6a] sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
               >
                 <MagnifierIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                 Quiero solicitar un servicio
               </Link>
               <Link
                 href="/pro-apply"
-                className="group inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-900 shadow-sm hover:bg-slate-50 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
+                className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0B3949] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#082634] sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
               >
                 <IdCardIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                 Quiero ofrecer mis servicios
@@ -326,7 +337,7 @@ export default function Page() {
               <video
                 ref={videoRef}
                 className="h-full w-full object-cover"
-                src="/video/Video Demo Homaid.mp4"
+                src="/video/Homaid-video.mp4"
                 title="Video Bienvenida Homaid"
                 controls={showControls}
                 poster={posterUrl ?? "/images/poster.png"}
@@ -614,5 +625,3 @@ function StepCard({
     </div>
   );
 }
-
-

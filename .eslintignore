@@ -2,3 +2,4 @@ generated/**
 next.config.js
 tailwind.config.js
 app/profiles/**
+supabase/migrations/**

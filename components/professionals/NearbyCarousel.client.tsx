@@ -125,9 +125,15 @@ export default function NearbyCarousel() {
 
   const shown = items.slice(0, visibleCount);
   return (
-    <div className="mt-12 rounded-xl px-3 py-4 md:px-4 md:py-6" style={{ backgroundColor: "#fcf6ed" }}>
+    <div
+      className="mt-12 rounded-xl border-2 px-3 py-4 md:px-4 md:py-6"
+      style={{
+        backgroundColor: "#FFFFFF",
+        borderColor: "#009377",
+      }}
+    >
       <div className="mb-3 text-center">
-        <h3 className="text-lg font-semibold tracking-tight">Profesionales cerca de ti</h3>
+        <h3 className="text-lg font-semibold tracking-tight" style={{ color: "#009377" }}>Profesionales cerca de ti</h3>
       </div>
       <div
         ref={gridRef}

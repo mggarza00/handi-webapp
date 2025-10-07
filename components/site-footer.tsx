@@ -8,7 +8,7 @@ export default function SiteFooter() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <Image src="/homaid-logo.gif" alt="Homaid" width={28} height={28} />
+              <Image src="/Logo-Homaid-v1.gif" alt="Homaid" width={28} height={28} />
               <span className="font-semibold">Homaid.mx</span>
             </div>
             <p className="text-sm text-slate-600">Conecta con expertos de confianza.</p>

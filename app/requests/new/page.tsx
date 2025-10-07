@@ -50,6 +50,7 @@ export default function NewRequestPage() {
   const [description, setDescription] = useState("");
   const [city, setCity] = useState("Monterrey");
   const [category, setCategory] = useState("");
+  const [cityTouched, setCityTouched] = useState(false);
   const [subcategory, setSubcategory] = useState("");
   const [budget, setBudget] = useState<number | "">("");
   const [requiredAt, setRequiredAt] = useState("");
@@ -61,8 +62,10 @@ export default function NewRequestPage() {
   // Fecha requerida: input nativo type="date"
   const [uploading, setUploading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const didRefreshRef = useRef(false);
   // Auth tracking to avoid false negatives on submit
   const [me, setMe] = useState<User | null>(null);
   type Subcat = { name: string; icon: string | null };
@@ -108,6 +111,7 @@ export default function NewRequestPage() {
         setMe(session?.user ?? null);
       });
       unsub = () => sub.subscription.unsubscribe();
+      setAuthChecked(true);
     })();
     return () => {
       try {
@@ -117,6 +121,37 @@ export default function NewRequestPage() {
       }
     };
   }, []);
+
+  // Auto-open sign-in modal if unauthenticated on entry
+  useEffect(() => {
+    if (!authChecked) return;
+    if (!me) {
+      try {
+        setReturnTo(`${window.location.pathname}${window.location.search}`);
+      } catch {
+        /* noop */
+      }
+      setShowLoginModal(true);
+    }
+  }, [authChecked, me]);
+
+  // Close modal and refresh page after login so user context is loaded
+  useEffect(() => {
+    if (me && !didRefreshRef.current) {
+      didRefreshRef.current = true;
+      if (showLoginModal) setShowLoginModal(false);
+      try {
+        router.refresh();
+      } catch {
+        // fallback if refresh not available
+        try {
+          if (typeof window !== 'undefined') window.location.reload();
+        } catch {
+          /* noop */
+        }
+      }
+    }
+  }, [me, showLoginModal, router]);
 
   useEffect(() => {
     // Load saved draft, if any
@@ -309,6 +344,62 @@ export default function NewRequestPage() {
     }
     setAutoApplied(true);
   }, [suggestion, manualOverride, loadingCats, catMap, category, subcategory]);
+
+  // Geolocalización: intenta detectar ciudad si el usuario no la cambió manualmente
+  useEffect(() => {
+    if (cityTouched) return; // respeta selección manual
+    // Solo intenta si ciudad no fue modificada y es una de las default o vacía
+    const defaults = new Set<string>(["", "Monterrey"]);
+    if (!defaults.has((city || "").trim())) return;
+    let cancelled = false;
+    const detect = async () => {
+      try {
+        if (!("geolocation" in navigator)) return;
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            if (cancelled) return;
+            const { latitude, longitude } = pos.coords;
+            try {
+              const res = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+              const j = (await res.json().catch(() => ({}))) as { ok?: boolean; city?: string | null };
+              const detected = typeof j?.city === "string" ? j.city : null;
+              if (detected && CITIES.includes(detected as any)) {
+                setCity(detected);
+              }
+            } catch { /* noop */ }
+          },
+          () => { /* denied or error: ignore */ },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+        );
+      } catch { /* noop */ }
+    };
+    detect();
+    return () => { cancelled = true; };
+  }, [cityTouched]);
+
+  // Acción manual: detectar ciudad ahora
+  const detectCityNow = React.useCallback(async () => {
+    try {
+      if (!("geolocation" in navigator)) return;
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            const res = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+            const j = (await res.json().catch(() => ({}))) as { ok?: boolean; city?: string | null };
+            const detected = typeof j?.city === "string" ? j.city : null;
+            if (detected && CITIES.includes(detected as any)) {
+              setCity(detected);
+            }
+          } catch { /* noop */ }
+        },
+        () => { /* denied or error */ },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+      );
+    } catch { /* noop */ }
+  }, []);
 
   // Persist draft anytime fields change
   useEffect(() => {
@@ -670,11 +761,21 @@ export default function NewRequestPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Ciudad</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label>Ciudad</Label>
+                <button
+                  type="button"
+                  className="text-xs text-blue-700 hover:underline"
+                  onClick={() => { setCityTouched(false); void detectCityNow(); }}
+                >
+                  Usar mi ubicación
+                </button>
+              </div>
               <Select
                 value={city}
                 onValueChange={(v) => {
                   setCity(v);
+                  setCityTouched(true);
                   setIsDirty(true);
                 }}
               >
@@ -927,29 +1028,12 @@ export default function NewRequestPage() {
         </form>
         {showLoginModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="w-[90%] max-w-sm rounded-xl border bg-white p-5 shadow-lg">
-              <h2 className="text-base font-semibold mb-2">
-                Se requiere iniciar sesión
-              </h2>
-              <p className="text-sm text-slate-600">
-                Para enviar tu solicitud, inicia sesión o regístrate.
-                Conservaremos tu borrador.
-              </p>
-              <div className="mt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="rounded-md border px-3 py-1.5 text-sm"
-                  onClick={() => setShowLoginModal(false)}
-                >
-                  Cancelar
-                </button>
-                <a
-                  className="rounded-md bg-slate-900 text-white px-3 py-1.5 text-sm"
-                  href={`/auth/sign-in?next=${encodeURIComponent(getReturnTo() || window.location.pathname)}`}
-                >
-                  Iniciar sesión / Registrarme
-                </a>
-              </div>
+            <div role="dialog" aria-modal="true" className="w-[96vw] max-w-lg overflow-hidden rounded-xl border bg-white shadow-lg">
+              <iframe
+                title="Inicia sesión para crear una solicitud"
+                src={`/auth/sign-in?next=${encodeURIComponent(getReturnTo() || (typeof window !== 'undefined' ? window.location.pathname : '/requests/new'))}`}
+                className="h-[80vh] w-full"
+              />
             </div>
           </div>
         ) : null}
