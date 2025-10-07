@@ -1,10 +1,11 @@
 /* eslint-disable import/order */
 import Link from "next/link";
-import type { ChatSummary } from "./types";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import * as React from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail } from "lucide-react";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function formatRel(ts?: string | null) {
   if (!ts) return "";
@@ -20,67 +21,95 @@ function formatRel(ts?: string | null) {
   return d.toLocaleDateString() + " " + hm;
 }
 
-export default function ChatListItem({
-  chat,
-  active,
-  editing,
-  removing,
-  deleting,
-  onDelete,
-  DeleteIcon,
-}: {
-  chat: ChatSummary;
-  active?: boolean;
+export type Props = {
+  chatId: string;
+  avatarUrl?: string | null;
+  displayName: string;
+  lastMessageSnippet?: string | null;
+  lastMessageAt?: string | null;
+  unreadCount?: number; // 0..n
+  isActive?: boolean; // fila seleccionada
+  isNewArrival?: boolean; // true al recibir mensaje recientemente
+  // Opcionales para modo edición/eliminación
   editing?: boolean;
   removing?: boolean;
   deleting?: boolean;
   onDelete?: () => void;
   DeleteIcon?: React.ComponentType<{ className?: string }>;
-}) {
-  const rawTitle = typeof chat.title === "string" ? chat.title : "";
+};
+
+function ChatListItem({
+  chatId,
+  avatarUrl,
+  displayName,
+  lastMessageSnippet,
+  lastMessageAt,
+  unreadCount: unreadCountProp,
+  isActive,
+  isNewArrival,
+  editing,
+  removing,
+  deleting,
+  onDelete,
+  DeleteIcon,
+}: Props) {
+  const rawTitle = typeof displayName === "string" ? displayName : "";
   const trimmedTitle = rawTitle.trim();
   const displayTitle = trimmedTitle.length > 0 ? rawTitle : "Contacto";
-  const rawRequestTitle = typeof chat.requestTitle === "string" ? chat.requestTitle : "";
-  const trimmedRequest = rawRequestTitle.trim();
-  const subtitle =
-    trimmedRequest.length > 0 ? rawRequestTitle : "la solicitud de servicio";
+  const rawSnippet = typeof lastMessageSnippet === "string" ? lastMessageSnippet : "";
+  const subtitle = rawSnippet.trim().length > 0 ? rawSnippet : "la solicitud de servicio";
+
+  const unreadCount = typeof unreadCountProp === "number" ? Math.max(0, unreadCountProp) : 0;
+  const isUnread = unreadCount > 0;
+  const unreadLabel = `${unreadCount} ${unreadCount === 1 ? "mensaje no leído" : "mensajes no leídos"}`;
 
   return (
     <li
-      className={`p-3 hover:bg-[#e5e5e5] transition-all duration-300 ease-in-out ${
-        active ? "bg-neutral-50" : ""
-      } ${
-        removing
-          ? "-translate-x-full opacity-0 pointer-events-none"
-          : deleting
-            ? "opacity-60 animate-pulse pointer-events-none"
-            : ""
-      }`}
+      data-chat-id={chatId}
+      className={cn(
+        "relative flex items-center gap-3 px-3 py-2 rounded-xl transition-colors",
+        isActive ? "bg-neutral-50" : (isUnread ? "bg-slate-100/70" : "hover:bg-slate-50"),
+        isNewArrival ? "animate-popIn_1.2s_ease_1" : "",
+        removing ? "-translate-x-full opacity-0 pointer-events-none" : "",
+        deleting ? "opacity-60 animate-pulse pointer-events-none" : "",
+      )}
       aria-busy={deleting ? true : undefined}
       data-testid="chat-thread-item"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 w-full">
         <Link
-          href={`/mensajes/${chat.id}`}
+          href={`/mensajes/${chatId}`}
           onClick={deleting || removing ? (e) => e.preventDefault() : undefined}
           aria-disabled={deleting || removing ? true : undefined}
           className="flex items-center justify-between gap-3 flex-1 min-w-0"
         >
           <div className="min-w-0 flex items-center gap-3">
-            <AvatarWithSkeleton
-              src={normalizeAvatarUrl(chat.avatarUrl) || "/avatar.png"}
-              alt={displayTitle}
-              sizeClass="size-9"
-              className="shrink-0"
-            />
+            <div className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}>
+              <AvatarWithSkeleton
+                src={normalizeAvatarUrl(avatarUrl) || "/avatar.png"}
+                alt={displayTitle}
+                sizeClass="size-9"
+                className="shrink-0"
+              />
+              {isUnread ? (
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] leading-[18px] text-center shadow"
+                  aria-label={unreadLabel}
+                  title={unreadLabel}
+                  data-testid="chat-unread-badge"
+                >
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </div>
             <div className="min-w-0">
-              <div className="font-medium text-sm truncate flex items-center gap-2">
-                {chat.unread ? (
-                  <span className="inline-block size-2 rounded-full bg-blue-500" aria-label="No leído" data-testid="chat-unread-badge"></span>
-                ) : null}
-                <span className="truncate" data-testid="chat-thread-title">{displayTitle}</span>
+              <div className="text-sm truncate flex items-center gap-2">
+                <span className={`truncate ${isUnread ? "font-semibold text-slate-900" : "font-medium"}`} data-testid="chat-thread-title">{displayTitle}</span>
               </div>
-              <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{subtitle}</div>
+              <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5 flex items-center gap-1">
+                {isUnread ? <Mail className="w-3.5 h-3.5 text-blue-600" aria-hidden /> : null}
+                <span>{subtitle}</span>
+              </div>
             </div>
           </div>
         </Link>
@@ -108,9 +137,34 @@ export default function ChatListItem({
             )}
           </button>
         ) : (
-          <div className="text-[11px] text-muted-foreground shrink-0">{formatRel(chat.lastMessageAt)}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-[11px] text-muted-foreground">{formatRel(lastMessageAt)}</div>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/messages/${chatId}`} aria-label="Abrir chat">Abrir</Link>
+            </Button>
+          </div>
         )}
       </div>
     </li>
   );
 }
+
+function areEqual(a: Props, b: Props): boolean {
+  return (
+    a.chatId === b.chatId &&
+    a.avatarUrl === b.avatarUrl &&
+    a.displayName === b.displayName &&
+    a.lastMessageSnippet === b.lastMessageSnippet &&
+    a.lastMessageAt === b.lastMessageAt &&
+    (a.unreadCount ?? 0) === (b.unreadCount ?? 0) &&
+    !!a.isActive === !!b.isActive &&
+    !!a.isNewArrival === !!b.isNewArrival &&
+    !!a.editing === !!b.editing &&
+    !!a.removing === !!b.removing &&
+    !!a.deleting === !!b.deleting &&
+    a.DeleteIcon === b.DeleteIcon &&
+    a.onDelete === b.onDelete
+  );
+}
+
+export default React.memo(ChatListItem, areEqual);
