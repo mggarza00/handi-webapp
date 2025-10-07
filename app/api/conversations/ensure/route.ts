@@ -34,9 +34,7 @@ async function ensureConversation({ requestId, proId }: { requestId: string; pro
   const customerId = req.data.created_by;
 
   // Upsert conversación única por (request_id, customer_id, pro_id)
-  // NOTE: conversations no está en el esquema generado oficial aún; usamos cast controlado
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const up = (await (admin as any)
+  const up = await admin
     .from("conversations")
     .upsert(
       [
@@ -45,9 +43,9 @@ async function ensureConversation({ requestId, proId }: { requestId: string; pro
       { onConflict: "request_id,customer_id,pro_id" },
     )
     .select("id")
-    .single()) as { data: { id?: string } | null; error: { message?: string } | null };
+    .single<{ id: string }>();
 
-  if (up.error || !up.data || typeof up.data.id !== "string") {
+  if (up.error || !up.data) {
     return { ok: false as const, error: up.error?.message || "UPSERT_FAILED" };
   }
   return { ok: true as const, id: up.data.id };
@@ -129,3 +127,4 @@ export async function GET(req: Request) {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
