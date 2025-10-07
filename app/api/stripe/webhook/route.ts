@@ -53,12 +53,10 @@ export async function POST(req: Request) {
             if (!receipt_url && payment_intent_id) {
               const pi = await stripe.paymentIntents.retrieve(payment_intent_id, { expand: ["latest_charge"] });
               const anyCharge: any = (pi as any)?.latest_charge || null;
-              const receipt = typeof anyCharge?.receipt_url === "string" ? anyCharge.receipt_url : null;
-              if (receipt) receipt_url = receipt;
+              const r = typeof anyCharge?.receipt_url === "string" ? anyCharge.receipt_url : null;
+              if (r) receipt_url = r;
             }
-          } catch {
-            // ignore receipt fetch failure
-          }
+          } catch {}
           if (offerId) {
             console.log(
               JSON.stringify({
@@ -76,14 +74,9 @@ export async function POST(req: Request) {
               })
               .eq("id", offerId)
               .in("status", ["accepted", "pending"]);
-
-            // Fallback: insertar mensaje de pago recibido (idempotente) si el trigger en BD no está presente
+            // Mensaje en chat (idempotente)
             try {
-              const { data: off } = await admin
-                .from("offers")
-                .select("id, conversation_id, client_id")
-                .eq("id", offerId)
-                .single();
+              const { data: off } = await admin.from("offers").select("id, conversation_id, client_id").eq("id", offerId).single();
               const convId = (off as any)?.conversation_id as string | undefined;
               const clientId = (off as any)?.client_id as string | undefined;
               if (convId && clientId) {
@@ -100,18 +93,10 @@ export async function POST(req: Request) {
                   if (receipt_url) payload.receipt_url = receipt_url;
                   await admin
                     .from("messages")
-                    .insert({
-                      conversation_id: convId,
-                      sender_id: clientId,
-                      body: "Pago realizado. Servicio agendado.",
-                      message_type: "system",
-                      payload,
-                    });
+                    .insert({ conversation_id: convId, sender_id: clientId, body: "Pago realizado. Servicio agendado.", message_type: "system", payload });
                 }
               }
-            } catch {
-              // ignore
-            }
+            } catch {}
           }
 
           const agreementId = (session.metadata?.agreement_id || "").trim();
