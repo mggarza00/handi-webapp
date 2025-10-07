@@ -1,5 +1,5 @@
 /**
- * Lighthouse CI config for Handi UI Review
+ * Lighthouse CI config for Homaid UI Review
  * - Builds URLs from BASE_URL and LH_ROUTES ("," separated)
  * - Stores reports to artifacts/lhci (no upload)
  * - Uses warnings for assertions so review doesn't fail the run

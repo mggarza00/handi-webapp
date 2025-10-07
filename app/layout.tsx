@@ -19,38 +19,38 @@ export const metadata: Metadata = {
       "http://localhost:3000",
   ),
   title: {
-    default: "Handi",
-    template: "%s | Handi",
+    default: "Homaid",
+    template: "%s | Homaid",
   },
   description:
     "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
   openGraph: {
-    title: "Handi",
+    title: "Homaid",
     description:
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
     url: "/",
-    siteName: "Handi",
-    images: ["/handi-logo.gif"],
+    siteName: "Homaid",
+    images: ["/homaid-logo.gif"],
     locale: "es_MX",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Handi",
+    title: "Homaid",
     description:
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
-    images: ["/handi-logo.gif"],
+    images: ["/homaid-logo.gif"],
   },
   icons: {
     // Primary favicon (animated GIF)
     icon: [
-      { url: "/icons/Handi-favicon.gif", type: "image/gif" },
+      { url: "/icons/Homaid-favicon.gif", type: "image/gif" },
     ],
     // Keep ICO route for broader browser support
-    shortcut: ["/favicon.ico", "/icons/Handi-favicon.gif"],
+    shortcut: ["/favicon.ico", "/icons/Homaid-favicon.gif"],
     // Apple touch icons prefer PNG; fallback to GIF if not provided
     apple: [
-      { url: "/icons/Handi-favicon.gif" },
+      { url: "/icons/Homaid-favicon.gif" },
     ],
   },
 };

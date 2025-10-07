@@ -126,8 +126,8 @@ export async function POST(req: Request) {
       }
       if (phone) {
         const smsBody = serviceDate
-          ? `Handi: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN (dia ${serviceDate}). Completa el pago: ${checkout_url}`
-          : `Handi: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN. Completa el pago: ${checkout_url}`;
+          ? `Homaid: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN (dia ${serviceDate}). Completa el pago: ${checkout_url}`
+          : `Homaid: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN. Completa el pago: ${checkout_url}`;
         await sendSms({ to: phone, body: smsBody }).catch(() => null);
       }
     } catch {

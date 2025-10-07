@@ -1,7 +1,7 @@
 import { test, expect, APIRequestContext, Page } from "@playwright/test";
 
 const SEED_REQUEST_ID = "33333333-3333-4333-8333-333333333333";
-const CLIENT_EMAIL = "client+seed@handi.dev";
+const CLIENT_EMAIL = "client+seed@homaid.dev";
 
 async function loginWithMagicLink(
   page: Page,

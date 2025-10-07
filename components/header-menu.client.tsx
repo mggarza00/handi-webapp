@@ -296,10 +296,10 @@ export default function HeaderMenu() {
 
   async function onShare() {
     const url = typeof window !== "undefined" ? window.location.origin : "";
-    const text = "Únete a Handi y conecta con expertos de confianza";
+    const text = "Únete a Homaid y conecta con expertos de confianza";
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Handi", text, url });
+        await navigator.share({ title: "Homaid", text, url });
       } else {
         await navigator.clipboard.writeText(url);
         toast.success("Enlace copiado al portapapeles");

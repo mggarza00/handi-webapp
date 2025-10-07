@@ -8,8 +8,8 @@ export default function SiteFooter() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <Image src="/handi-logo.gif" alt="Handi" width={28} height={28} />
-              <span className="font-semibold">Handi.mx</span>
+              <Image src="/homaid-logo.gif" alt="Homaid" width={28} height={28} />
+              <span className="font-semibold">Homaid.mx</span>
             </div>
             <p className="text-sm text-slate-600">Conecta con expertos de confianza.</p>
           </div>
@@ -49,15 +49,15 @@ export default function SiteFooter() {
               </li>
               <li>
                 Email:{" "}
-                <a href="mailto:hola@handi.mx" className="hover:text-slate-900">
-                  hola@handi.mx
+                <a href="mailto:hola@homaid.mx" className="hover:text-slate-900">
+                  hola@homaid.mx
                 </a>
               </li>
             </ul>
           </div>
         </div>
         <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Handi.mx. Todos los derechos reservados.
+          © {new Date().getFullYear()} Homaid.mx. Todos los derechos reservados.
         </div>
       </div>
     </footer>

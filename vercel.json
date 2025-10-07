@@ -2,12 +2,12 @@
   "redirects": [
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.handi.mx" }],
-      "destination": "https://handi.mx/$1",
+      "has": [{ "type": "host", "value": "www.homaid.mx" }],
+      "destination": "https://homaid.mx/$1",
       "permanent": true
     }
   ],
   "rewrites": [
-    { "source": "/favicon.ico", "destination": "/icons/Handi-favicon.gif" }
+    { "source": "/favicon.ico", "destination": "/icons/Homaid-favicon.gif" }
   ]
 }

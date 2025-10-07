@@ -18,7 +18,7 @@ export function createClient() {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            domain: process.env.NODE_ENV === 'production' ? 'handi.mx' : undefined,
+            domain: process.env.NODE_ENV === 'production' ? 'homaid.mx' : undefined,
           })
         },
         remove(name: string, options: any) {
@@ -30,7 +30,7 @@ export function createClient() {
             secure: process.env.NODE_ENV === 'production',
             expires: new Date(0),
             sameSite: 'lax',
-            domain: process.env.NODE_ENV === 'production' ? 'handi.mx' : undefined,
+            domain: process.env.NODE_ENV === 'production' ? 'homaid.mx' : undefined,
           })
         },
       },

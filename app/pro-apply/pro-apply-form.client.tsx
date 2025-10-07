@@ -1257,7 +1257,7 @@ export default function ProApplyForm({
                   id="billing-authorize"
                   checked={authorizeHandi}
                   onChange={setAuthorizeHandi}
-                  label="Autorizo que Handi elabore las facturas de mis servicios"
+                  label="Autorizo que Homaid elabore las facturas de mis servicios"
                 />
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1338,7 +1338,7 @@ export default function ProApplyForm({
                 >
                   Aviso de Privacidad
                 </a>{' '}
-                y autorizo a Handi a verificar mis datos para validar mi perfil profesional.
+                y autorizo a Homaid a verificar mis datos para validar mi perfil profesional.
               </span>
             </div>
           </label>

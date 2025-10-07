@@ -1,8 +1,8 @@
 import { test, expect, Page, BrowserContext, APIRequestContext } from "@playwright/test";
 
-const CLIENT_EMAIL = "cliente.e2e@handi.mx";
+const CLIENT_EMAIL = "cliente.e2e@homaid.mx";
 const CLIENT_PASSWORD = "E2e!Pass123";
-const PRO_EMAIL = "pro.e2e@handi.mx";
+const PRO_EMAIL = "pro.e2e@homaid.mx";
 const PRO_PASSWORD = "E2e!Pass123";
 
 async function requireTestId(page: Page, id: string, timeout = 5000) {
@@ -224,8 +224,8 @@ test.describe("Handee flujo E2E completo", () => {
       // eslint-disable-next-line no-console
       console.error("seed-e2e-users.error", seed.status(), await seed.text());
     }
-    const c = await request.get(`/api/test-auth/login?email=${encodeURIComponent('cliente.e2e@handi.mx')}&next=/`);
-    const p = await request.get(`/api/test-auth/login?email=${encodeURIComponent('pro.e2e@handi.mx')}&next=/`);
+    const c = await request.get(`/api/test-auth/login?email=${encodeURIComponent('cliente.e2e@homaid.mx')}&next=/`);
+    const p = await request.get(`/api/test-auth/login?email=${encodeURIComponent('pro.e2e@homaid.mx')}&next=/`);
     if (!c.ok() || !p.ok()) test.skip(true, "Test auth endpoint unavailable (missing Supabase env). Skipping.");
   });
 

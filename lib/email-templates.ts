@@ -29,7 +29,7 @@ export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
     <span class="preheader">${safePre}</span>
     <div class="container">
       <div style="margin: 0 0 12px;">
-        <a class="brand" href="https://handi.local">Handi</a>
+        <a class="brand" href="https://homaid.local">Homaid</a>
       </div>
       <div class="card">
         ${childrenHtml}
@@ -50,7 +50,7 @@ export function applicationCreatedHtml(opts: {
   const body = `
     <h1>${title}</h1>
     <p>Recibiste una nueva postulación en: <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
-    <p>Ingresa a Handi para revisar el perfil y crear un acuerdo.</p>
+    <p>Ingresa a Homaid para revisar el perfil y crear un acuerdo.</p>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir solicitud</a></p>` : ""}
   `;
   return emailLayout({
@@ -127,7 +127,7 @@ export function proApplicationAcceptedHtml(opts: { linkUrl?: string }) {
   const title = "¡Has sido aceptado como profesional!";
   const body = `
     <h1>${title}</h1>
-    <p>Tu solicitud para unirte como profesional en Handi fue <strong>aceptada</strong>.</p>
+    <p>Tu solicitud para unirte como profesional en Homaid fue <strong>aceptada</strong>.</p>
     <p>Ya puedes completar tu perfil y comenzar a recibir oportunidades.</p>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ir a mi perfil</a></p>` : ""}
   `;

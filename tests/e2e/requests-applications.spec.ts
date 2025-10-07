@@ -20,7 +20,7 @@ test.describe("Requests + Applications (seed dev/CI)", () => {
   test("Listado muestra la solicitud seed activa", async ({ page, request }) => {
     if (!SEED_OK) test.skip(true, "Seed unavailable (missing Supabase env). Skipping.");
     // Inicia sesión como cliente seed para ver sus propias solicitudes
-    const r = await request.get(`/api/test-auth/login?email=${encodeURIComponent("client+seed@handi.dev")}&next=/`);
+    const r = await request.get(`/api/test-auth/login?email=${encodeURIComponent("client+seed@homaid.dev")}&next=/`);
     if (r.ok()) {
       const payload = await r.json();
       if (payload?.token_hash) {

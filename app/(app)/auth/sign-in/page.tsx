@@ -202,7 +202,7 @@ export default function SignInPage() {
 
         <div className="mt-6 border-t pt-4 text-xs text-neutral-500">
           <div className="flex items-center justify-between">
-            <span>(c) {new Date().getFullYear()} Handi</span>
+            <span>(c) {new Date().getFullYear()} Homaid</span>
             <a href="/" className="hover:underline">Inicio</a>
           </div>
         </div>

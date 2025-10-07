@@ -32,7 +32,7 @@ export default function UIPage() {
     <TooltipProvider>
       <div className="min-h-screen p-6 md:p-10 space-y-8">
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold">UI Kit Handi</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">UI Kit Homaid</h1>
           <Badge variant="secondary">v1 • shadcn/ui</Badge>
         </header>
 

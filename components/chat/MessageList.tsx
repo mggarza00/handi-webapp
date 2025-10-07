@@ -106,7 +106,7 @@ export default function MessageList({
 }: MessageListProps) {
   const bgStyle = React.useMemo<React.CSSProperties>(() => ({
     backgroundImage:
-      "linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), url(/images/Handi-Tools-and-Hardware-Pattern.png)",
+      "linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), url(/images/Homaid-Tools-and-Hardware-Pattern.png)",
     backgroundRepeat: "repeat",
     backgroundPosition: "top left",
     backgroundSize: "400px",

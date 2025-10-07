@@ -35,9 +35,9 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     const j = await res.json();
     const p = j?.data as { full_name?: string | null; headline?: string | null } | undefined;
     const titleName = p?.full_name?.trim() || "Perfil profesional";
-    const desc = p?.headline?.trim() || "Perfil profesional en Handi";
+    const desc = p?.headline?.trim() || "Perfil profesional en Homaid";
 
-    let imageUrl = `${base}/handi-logo.gif`;
+    let imageUrl = `${base}/homaid-logo.gif`;
     try {
       const gRes = await fetch(`${base}/api/professionals/${params.id}/gallery`, {
         headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -49,25 +49,25 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     } catch {}
 
     return {
-      title: `${titleName} · Handi`,
+      title: `${titleName} · Homaid`,
       description: desc,
       openGraph: {
-        title: `${titleName} · Handi`,
+        title: `${titleName} · Homaid`,
         description: desc,
         url: `${base}/profiles/${params.id}`,
         images: [imageUrl],
-        siteName: "Handi",
+        siteName: "Homaid",
         type: "profile",
       },
       twitter: {
         card: "summary_large_image",
-        title: `${titleName} · Handi`,
+        title: `${titleName} · Homaid`,
         description: desc,
         images: [imageUrl],
       },
     };
   } catch {
-    return { title: "Perfil · Handi" };
+    return { title: "Perfil · Homaid" };
   }
 }
 
