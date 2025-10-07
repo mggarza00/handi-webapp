@@ -9,7 +9,7 @@ export default function ProApplySubmittedPage() {
     <main className="mx-auto max-w-2xl px-4 py-16 text-center">
       <div className="mx-auto mb-6 h-16 w-16">
         <Image
-          src="/homaid-logo.gif"
+          src="/Logo-Homaid-v1.gif"
           alt="Homaid"
           width={64}
           height={64}

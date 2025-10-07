@@ -40,6 +40,8 @@
     "node_modules",
     "deno",
     "deno/**",
+    "supabase/functions",
+    "supabase/functions/**",
     "scripts/deno",
     "scripts/deno/**",
     "playwright.config.ts",
