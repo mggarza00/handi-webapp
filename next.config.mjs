@@ -2,6 +2,13 @@ import path from 'node:path';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      // Migración: redirige rutas antiguas de /messages a /mensajes
+      { source: '/messages', destination: '/mensajes', permanent: true },
+      { source: '/messages/:id', destination: '/mensajes/:id', permanent: true },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
