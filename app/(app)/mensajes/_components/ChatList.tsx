@@ -83,13 +83,17 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
             if (i === -1) return prev;
             const prevItem = copy[i];
             const nextCount = (prevItem.unreadCount ?? (prevItem.unread ? 1 : 0)) + (isActive ? 0 : 1);
-            copy[i] = {
+            const updated: ChatSummary = {
               ...prevItem,
               preview: body || prevItem.preview || prevItem.requestTitle || prevItem.title,
               lastMessageAt: row.created_at ? String(row.created_at) : prevItem.lastMessageAt,
               unread: isActive ? false : true,
               unreadCount: isActive ? 0 : Math.min(nextCount, 99),
-            } as ChatSummary;
+            };
+            // Reordenar: si no es el chat activo, mover al tope
+            copy.splice(i, 1);
+            if (!isActive) copy.unshift(updated);
+            else copy.splice(0, 0, updated); // mantener posición si es activo
             return copy;
           });
 

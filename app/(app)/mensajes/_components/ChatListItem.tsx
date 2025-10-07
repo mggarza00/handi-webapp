@@ -4,7 +4,6 @@ import { normalizeAvatarUrl } from "@/lib/avatar";
 import * as React from "react";
 import { Loader2, Mail } from "lucide-react";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function formatRel(ts?: string | null) {
@@ -81,7 +80,7 @@ function ChatListItem({
           href={`/mensajes/${chatId}`}
           onClick={deleting || removing ? (e) => e.preventDefault() : undefined}
           aria-disabled={deleting || removing ? true : undefined}
-          className="flex items-center justify-between gap-3 flex-1 min-w-0"
+          className="flex items-center justify-between gap-3 w-full"
         >
           <div className="min-w-0 flex items-center gap-3">
             <div className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}>
@@ -112,6 +111,7 @@ function ChatListItem({
               </div>
             </div>
           </div>
+          <div className="text-[11px] text-muted-foreground shrink-0 ml-2">{formatRel(lastMessageAt)}</div>
         </Link>
         {editing ? (
           <button
@@ -136,14 +136,7 @@ function ChatListItem({
               <span>×</span>
             )}
           </button>
-        ) : (
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="text-[11px] text-muted-foreground">{formatRel(lastMessageAt)}</div>
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/messages/${chatId}`} aria-label="Abrir chat">Abrir</Link>
-            </Button>
-          </div>
-        )}
+        ) : null}
       </div>
     </li>
   );
