@@ -17,9 +17,10 @@ node_modules/
 *.log
 *.tar.gz
 supabase/
+!supabase
+!supabase/**
 package-lock.json
 .aider*
-!supabase/**
 .vscode/mcp.json.local
 .mcp-auth/
 playwright-report/
