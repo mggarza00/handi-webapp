@@ -358,7 +358,7 @@ export async function POST(req: Request) {
                   if (requestId) {
                     requestIdTouched = requestId;
                     // Actualiza estado a scheduled, pro asignado y fecha/hora
-                    let patch: Record<string, unknown> = { status: "scheduled" };
+                    let patch: Record<string, unknown> = { status: "scheduled", is_explorable: false, visible_in_explore: false } as any;
                     if (proId) {
                       try { (patch as any).professional_id = proId; } catch {}
                       try { (patch as any).accepted_professional_id = proId; } catch {}
@@ -447,11 +447,13 @@ export async function POST(req: Request) {
               .single();
             if (agr?.request_id) {
               requestIdTouched = agr.request_id as any;
-              await admin
-                .from("requests")
-                // Idempotente: marca como scheduled
-                .update({ status: "scheduled" as any })
-                .eq("id", agr.request_id);
+              try {
+                await admin
+                  .from("requests")
+                  // Idempotente: marca como scheduled
+                  .update({ status: "scheduled" as any, is_explorable: false as any, visible_in_explore: false as any })
+                  .eq("id", agr.request_id);
+              } catch { /* ignore */ }
               // Enviar mensaje con dirección si existe conversación
               try {
                 const { data: agrRow } = await admin
@@ -535,7 +537,7 @@ export async function POST(req: Request) {
           if (!offerId && requestIdFromMeta) {
             try {
               requestIdTouched = requestIdFromMeta;
-              const patchReq: Record<string, unknown> = { status: "scheduled" as any };
+              const patchReq: Record<string, unknown> = { status: "scheduled" as any, is_explorable: false as any, visible_in_explore: false as any };
               if (proIdFromMeta) {
                 (patchReq as any).professional_id = proIdFromMeta;
                 (patchReq as any).accepted_professional_id = proIdFromMeta;
@@ -544,10 +546,12 @@ export async function POST(req: Request) {
                 (patchReq as any).scheduled_date = scheduledDateMeta;
                 if (scheduledTimeMeta) (patchReq as any).scheduled_time = scheduledTimeMeta as any;
               }
-              await admin
-                .from("requests")
-                .update(patchReq)
-                .eq("id", requestIdFromMeta);
+              try {
+                await admin
+                  .from("requests")
+                  .update(patchReq)
+                  .eq("id", requestIdFromMeta);
+              } catch { /* ignore */ }
 
               // Busca conversación asociada y arma mensaje al pro
               const { data: convs } = await admin
@@ -660,6 +664,5 @@ export function GET() {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
 
 
