@@ -205,6 +205,13 @@ export default async function SiteHeader() {
         testId: "nav-professional",
       },
       {
+        href: "/pro/calendar",
+        label: "Calendario",
+        variant: "ghost",
+        size: "sm",
+        className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
+      },
+      {
         href: "/applied",
         label: "Trabajos realizados",
         variant: "ghost",
@@ -284,7 +291,10 @@ export default async function SiteHeader() {
     // Para profesionales, ocultar en el menú móvil los botones que ya están en el tab bar
     if (role === "pro") {
       return base.filter(
-        (l) => l.href !== "/requests/explore" && l.href !== "/applied",
+        (l) =>
+          l.href !== "/requests/explore" &&
+          l.href !== "/applied" &&
+          l.href !== "/pro/calendar",
       );
     }
     return base;
@@ -380,7 +390,12 @@ export default async function SiteHeader() {
         {role === "pro" ? (
           <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
             {rightLinks
-              .filter((l) => l.href === "/requests/explore" || l.href === "/applied")
+              .filter(
+                (l) =>
+                  l.href === "/requests/explore" ||
+                  l.href === "/pro/calendar" ||
+                  l.href === "/applied",
+              )
               .map((l) => (
                 <Button
                   key={l.href}
@@ -399,6 +414,14 @@ export default async function SiteHeader() {
                     {l.href === "/requests/explore" ? (
                       <Image
                         src="/images/icono-trabajos-disponibles.gif"
+                        alt=""
+                        width={32}
+                        height={32}
+                        className="h-8 w-8"
+                      />
+                    ) : l.href === "/pro/calendar" ? (
+                      <Image
+                        src="/images/icono-trabajos-realizados.gif"
                         alt=""
                         width={32}
                         height={32}
@@ -433,7 +456,7 @@ export default async function SiteHeader() {
               }
               if (
                 role === "pro" &&
-                (l.href === "/requests/explore" || l.href === "/applied")
+                (l.href === "/requests/explore" || l.href === "/pro/calendar" || l.href === "/applied")
               ) {
                 return false;
               }

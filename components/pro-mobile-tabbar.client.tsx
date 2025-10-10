@@ -7,6 +7,7 @@ export default function ProMobileTabbar() {
   const pathname = usePathname() || "";
   const isExplore = pathname.startsWith("/requests/explore");
   const isApplied = pathname.startsWith("/applied");
+  const isCalendar = pathname.startsWith("/pro/calendar");
 
   const base =
     "inline-flex flex-col items-center gap-1 px-3 py-1 rounded-md text-sm text-[#11314B] hover:bg-neutral-200 dark:hover:bg-neutral-800";
@@ -18,6 +19,10 @@ export default function ProMobileTabbar() {
         <Link href="/requests/explore" className={`${base} ${isExplore ? active : ""}`.trim()}>
           <Image src="/images/icono-trabajos-disponibles.gif" alt="" width={28} height={28} className="h-6 w-6" />
           <span>Trabajos disponibles</span>
+        </Link>
+        <Link href="/pro/calendar" className={`${base} ${isCalendar ? active : ""}`.trim()}>
+          <Image src="/images/icono-trabajos-realizados.gif" alt="" width={28} height={28} className="h-6 w-6" />
+          <span>Calendario</span>
         </Link>
         <Link href="/applied" className={`${base} ${isApplied ? active : ""}`.trim()}>
           <Image src="/images/icono-trabajos-realizados.gif" alt="" width={28} height={28} className="h-6 w-6" />
