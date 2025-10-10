@@ -446,6 +446,7 @@ export async function POST(req: Request) {
               .select("id, request_id")
               .single();
             if (agr?.request_id) {
+              requestIdTouched = agr.request_id as any;
               await admin
                 .from("requests")
                 // Idempotente: marca como scheduled
@@ -471,7 +472,7 @@ export async function POST(req: Request) {
                 }
                 const { data: reqRow } = await admin
                   .from("requests")
-                  .select("created_by,address_line,address_place_id,address_lat,address_lng,scheduled_date,scheduled_time")
+                  .select("title,created_by,address_line,address_place_id,address_lat,address_lng,scheduled_date,scheduled_time")
                   .eq("id", agr.request_id)
                   .single();
                 const clientId = (reqRow as any)?.created_by as string | undefined;
@@ -481,6 +482,22 @@ export async function POST(req: Request) {
                   const address_lng = (reqRow as any)?.address_lng as number | null;
                   const scheduled_date = (reqRow as any)?.scheduled_date as string | null;
                   const scheduled_time = (reqRow as any)?.scheduled_time as string | null;
+                  const reqTitle = ((reqRow as any)?.title as string | undefined) || "Servicio";
+                  // Upsert calendar event (best effort)
+                  try {
+                    if (proId) {
+                      await (admin as any)
+                        .from('pro_calendar_events')
+                        .upsert({
+                          pro_id: proId,
+                          request_id: agr.request_id,
+                          title: reqTitle,
+                          scheduled_date: scheduled_date || null,
+                          scheduled_time: scheduled_time || null,
+                          status: 'scheduled',
+                        }, { onConflict: 'request_id' });
+                    }
+                  } catch { /* ignore calendar errors */ }
                   const mapsUrl = address_lat != null && address_lng != null
                     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address_lat},${address_lng}`)}`
                     : (address_line ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address_line)}` : null);
@@ -517,9 +534,19 @@ export async function POST(req: Request) {
           // Manejo directo por request_id en metadata (flujo de checkout general)
           if (!offerId && requestIdFromMeta) {
             try {
+              requestIdTouched = requestIdFromMeta;
+              const patchReq: Record<string, unknown> = { status: "scheduled" as any };
+              if (proIdFromMeta) {
+                (patchReq as any).professional_id = proIdFromMeta;
+                (patchReq as any).accepted_professional_id = proIdFromMeta;
+              }
+              if (scheduledDateMeta) {
+                (patchReq as any).scheduled_date = scheduledDateMeta;
+                if (scheduledTimeMeta) (patchReq as any).scheduled_time = scheduledTimeMeta as any;
+              }
               await admin
                 .from("requests")
-                .update({ status: "scheduled" as any })
+                .update(patchReq)
                 .eq("id", requestIdFromMeta);
 
               // Busca conversación asociada y arma mensaje al pro
@@ -532,7 +559,7 @@ export async function POST(req: Request) {
               const convId = Array.isArray(convs) && convs.length ? (convs[0] as any).id as string : null;
               const { data: reqRow } = await admin
                 .from("requests")
-                .select("created_by,address_line,address_place_id,address_lat,address_lng,scheduled_date,scheduled_time")
+                .select("title,created_by,address_line,address_place_id,address_lat,address_lng,scheduled_date,scheduled_time")
                 .eq("id", requestIdFromMeta)
                 .single();
               const clientId = (reqRow as any)?.created_by as string | undefined;
@@ -542,6 +569,23 @@ export async function POST(req: Request) {
                 const address_lng = (reqRow as any)?.address_lng as number | null;
                 const scheduled_date = (reqRow as any)?.scheduled_date as string | null;
                 const scheduled_time = (reqRow as any)?.scheduled_time as string | null;
+                const reqTitle = ((reqRow as any)?.title as string | undefined) || "Servicio";
+                // Upsert calendar event
+                try {
+                  const proId = proIdFromMeta || (Array.isArray(convs) && convs.length ? (convs[0] as any).pro_id as string | undefined : undefined);
+                  if (proId) {
+                    await (admin as any)
+                      .from('pro_calendar_events')
+                      .upsert({
+                        pro_id: proId,
+                        request_id: requestIdFromMeta,
+                        title: reqTitle,
+                        scheduled_date: scheduled_date || scheduledDateMeta || null,
+                        scheduled_time: scheduled_time || (scheduledTimeMeta as any) || null,
+                        status: 'scheduled',
+                      }, { onConflict: 'request_id' });
+                  }
+                } catch { /* ignore calendar errors */ }
                 const mapsUrl = address_lat != null && address_lng != null
                   ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address_lat},${address_lng}`)}`
                   : (address_line ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address_line)}` : null);
@@ -552,6 +596,11 @@ export async function POST(req: Request) {
                 const whenStr = scheduled_date
                   ? `${scheduled_date}${scheduled_time ? ` ${scheduled_time}` : ""}`
                   : null;
+                // Confirmation message
+                try {
+                  const paidBody = whenStr ? `Pago confirmado. Servicio agendado para ${whenStr}` : 'Pago realizado. Servicio agendado.';
+                  await admin.from('messages').insert({ conversation_id: convId, sender_id: clientId, body: paidBody, message_type: 'system', payload: { request_id: requestIdFromMeta, status: 'paid' } } as any);
+                } catch { /* ignore */ }
                 const body = [
                   address_line ? `Dirección: ${address_line}` : null,
                   whenStr ? `Día y horario: ${whenStr}` : null,
