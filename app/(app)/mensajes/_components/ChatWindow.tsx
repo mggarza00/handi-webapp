@@ -33,6 +33,8 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
   const [other, setOther] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
+  const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
+  const [requestId, setRequestId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -63,11 +65,14 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
         if (!otherId) return;
         const reqId = (jh?.request_id as string | undefined) ?? null;
         if (reqId) {
+          if (!cancelled) setRequestId(reqId);
           try {
             const rr = await fetch(`/api/requests/${reqId}`, { cache: "no-store", credentials: "include" });
             const rj = await rr.json().catch(() => ({}));
             const title = typeof rj?.data?.title === "string" ? (rj.data.title as string) : null;
             if (!cancelled) setRequestTitle(title);
+            const status = typeof rj?.data?.status === "string" ? (rj.data.status as string) : null;
+            if (!cancelled) setRequestStatus(status);
           } catch {
             /* ignore */
           }
@@ -121,8 +126,8 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     meId && proId && meId === proId ? "pro" : "client";
 
   // TODO: sustituir conversationId por el requestId real cuando esté disponible en el contexto de la conversación.
-  const { modal: reviewModal, handleCompletionResponse: _handleCompletionResponse } = useCompletionReview({
-    requestId: conversationId,
+  const { modal: reviewModal, handleCompletionResponse: _handleCompletionResponse, open: openReview } = useCompletionReview({
+    requestId: requestId ?? conversationId,
     reviewerRole: viewerRole,
     professionalId: proId,
     clientId: customerId,
@@ -130,19 +135,110 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     viewerId: meId,
   });
 
+  async function patchStatus(nextStatus: 'scheduled'|'in_process'|'completed') {
+    if (!requestId) return null;
+    const res = await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ nextStatus }),
+      credentials: 'include',
+    });
+    const json = await res.json().catch(() => null);
+    if (res.ok) {
+      const s = (json?.data?.status as string | null) ?? null;
+      if (s) setRequestStatus(s);
+    }
+    return json;
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
         {/* Avatar con skeleton mientras carga */}
         <AvatarWithSkeleton src={normalizeAvatarUrl(other?.avatar_url) || "/avatar.png"} alt={other?.full_name || "Avatar"} sizeClass="size-10" />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
-          <div className="text-xs text-muted-foreground">
-            {requestTitle || (loading ? "Cargando…" : formatPresence(other?.last_active_at ?? null))}
-          </div>
+          {(() => {
+            const st = (requestStatus || "").toLowerCase();
+            const isScheduled = st === "scheduled";
+            const isInProcess = st === "in_process" || st === "inprogress";
+            const isFinished = st === "finished" || st === "completed";
+            const isCanceled = st === "canceled" || st === "cancelled";
+            const statusLabel = isScheduled
+              ? "Agendada"
+              : isInProcess
+                ? "En proceso"
+                : isFinished
+                  ? "Finalizada"
+                  : isCanceled
+                    ? "Cancelada"
+                    : "Activa";
+            return (
+              <div className="mt-0.5 flex items-center justify-between gap-2">
+                <div className="text-xs text-muted-foreground truncate">
+                  {requestTitle || (loading ? "Cargando…" : formatPresence(other?.last_active_at ?? null))}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="hidden sm:inline text-xs text-muted-foreground">Estatus:</span>
+                  <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
+                    {statusLabel}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
+
+      {/* Actions by status */}
+      {(() => {
+        const st = (requestStatus || '').toLowerCase();
+        const isActive = st === 'active' || st === 'pending';
+        const isScheduled = st === 'scheduled';
+        const isInProcess = st === 'in_process' || st === 'inprogress';
+        const isFinished = st === 'finished' || st === 'completed';
+        if (!requestId) return null;
+        if (viewerRole === 'pro') {
+          return (
+            <div className="border-b bg-white p-2 flex items-center gap-2">
+              {isScheduled ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-slate-50"
+                  onClick={() => { void patchStatus('in_process'); }}
+                >
+                  Empezar trabajo
+                </button>
+              ) : null}
+              {(isScheduled || isInProcess) ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90"
+                  onClick={() => { openReview(); /* completar se hará tras reseña manualmente */ }}
+                >
+                  Trabajo realizado
+                </button>
+              ) : null}
+            </div>
+          );
+        }
+        // viewerRole === 'client'
+        if (isScheduled || isInProcess) {
+          return (
+            <div className="border-b bg-white p-2 flex items-center justify-end">
+              <button
+                type="button"
+                className="inline-flex items-center rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90"
+                onClick={() => { openReview(); /* completar se hará tras reseña manualmente */ }}
+              >
+                Trabajo realizado
+              </button>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Body */}
       <div className="flex-1 min-h-0">
@@ -152,6 +248,10 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
           mode="page"
           userId={meId}
           dataPrefix="chat"
+          hideClientCtas={(() => {
+            const st = (requestStatus || '').toLowerCase();
+            return st === 'scheduled' || st === 'in_process' || st === 'inprogress' || st === 'finished' || st === 'completed';
+          })()}
         />
       </div>
       {/* Para disparar manualmente tras llamar a /api/services/[id]/complete o confirm */}

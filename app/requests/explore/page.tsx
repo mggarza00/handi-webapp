@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import type { Database } from "@/types/supabase";
+import { filterExplorableRequests } from "./_lib/filter";
 
 type RequestRow = {
   id: string;
@@ -123,6 +124,8 @@ export default async function ExploreRequestsPage() {
       "id, title, city, category, status, created_at, attachments, subcategories",
     )
     .eq("status", "active")
+    // Refuerzo: excluir elementos marcados como no explorables si existen estas columnas
+    .is("is_explorable" as any, true)
     .order("created_at", { ascending: false })
     .limit(30);
 
@@ -140,7 +143,16 @@ export default async function ExploreRequestsPage() {
   }
 
   // Filtrar por subcategorías (intersección) solo si el profesional configuró subcategorías
-  const items: RequestRow[] = ((rows ?? []) as Array<Record<string, unknown>>)
+  // Defensa adicional: aplicar filtro por status e is_explorable a nivel UI
+  const prefiltered = filterExplorableRequests(((rows ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    ...(r as Record<string, unknown>),
+    status: (r as Record<string, unknown>).status as string | null,
+    is_explorable: (r as Record<string, unknown>).is_explorable as boolean | null,
+    visible_in_explore: (r as Record<string, unknown>).visible_in_explore as boolean | null,
+    id: String((r as Record<string, unknown>).id ?? ""),
+  })) as any) as unknown as Array<Record<string, unknown>>;
+
+  const items: RequestRow[] = (prefiltered as Array<Record<string, unknown>>)
     .filter((r) => {
       if (subcategoryNames.length === 0) return true; // sin filtro por subcategoría
       const subs = r.subcategories as unknown;

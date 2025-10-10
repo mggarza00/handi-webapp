@@ -19,6 +19,7 @@ import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
 import { Slider } from "@/components/ui/slider";
 import { appendAttachment, removeAttachment } from "@/components/chat/utils";
 import { useChatRealtime } from "@/app/(app)/messages/_hooks/useChatRealtime";
+import CompanyToggle from "@/components/forms/CompanyToggle";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +63,7 @@ export type ChatPanelProps = {
   requestId?: string | null;
   requestBudget?: number | null;
   dataPrefix?: string; // e2e: chat | request-chat
+  hideClientCtas?: boolean;
 };
 const JSON_HEADER = { "Content-Type": "application/json; charset=utf-8" } as const;
 const AUTH_REQUIRED_MESSAGE = "Tu sesion expiro. Vuelve a iniciar sesion.";
@@ -132,6 +134,7 @@ export default function ChatPanel({
   requestId: requestIdProp,
   requestBudget: requestBudgetProp,
   dataPrefix = "chat",
+  hideClientCtas = false,
 }: ChatPanelProps): JSX.Element {
   const supabaseAuth = createClientComponentClient();
   const [open, setOpen] = React.useState(true);
@@ -224,12 +227,31 @@ export default function ChatPanel({
           return prev;
         }
         let base = options.replace ? prev.filter((m) => m.id.startsWith("tmp_")) : [...prev];
-        if (options.fromServer && meId) {
+        // Prepare server-offer ids for dedupe of optimistic offer messages
+        const serverOfferIds = new Set<string>();
+        for (const it of arr) {
+          if (it.messageType === 'offer' && it.payload && typeof it.payload === 'object') {
+            const po = it.payload as Record<string, unknown>;
+            const oid = typeof po.offer_id === 'string' ? (po.offer_id as string) : null;
+            if (oid) serverOfferIds.add(oid);
+          }
+        }
+        if (options.fromServer) {
           base = base.filter((m) => {
             if (!m.id.startsWith("tmp_")) return true;
-            if (m.senderId !== "me") return true;
-            const trimmed = m.body.trim();
-            return !arr.some((msg) => msg.senderId === meId && msg.body.trim() === trimmed);
+            // Always drop tmp 'offer' bound to an offer_id that now exists in server msgs
+            if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+              const po = m.payload as Record<string, unknown>;
+              const oid = typeof po.offer_id === 'string' ? (po.offer_id as string) : null;
+              if (oid && serverOfferIds.has(oid)) return false;
+            }
+            // Body-based dedupe only applies to my own optimistic text messages
+            if (meId) {
+              if (m.senderId !== "me") return true;
+              const trimmed = m.body.trim();
+              return !arr.some((msg) => msg.senderId === meId && msg.body.trim() === trimmed);
+            }
+            return true;
           });
         }
         const map = new Map<string, Msg>();
@@ -475,7 +497,7 @@ export default function ChatPanel({
           if (from && meId && from === meId) return;
           const createdAtIso = new Date().toISOString();
           const optimistic: Msg = {
-            id: `tmp_b_${oid}`,
+            id: `tmp_sys_${oid}`,
             senderId: from || "system",
             body: "Oferta aceptada",
             createdAt: createdAtIso,
@@ -494,6 +516,34 @@ export default function ChatPanel({
         } catch {
           /* ignore */
         }
+      })
+      .on("broadcast", { event: "offer-rejected" }, async (eventPayload) => {
+        try {
+          const p = (eventPayload as any)?.payload as { from?: string; offer_id?: string; reason?: string | null } | undefined;
+          const from = p?.from || null;
+          const oid = (p?.offer_id || "").toString();
+          const reason = typeof p?.reason === 'string' ? p?.reason : null;
+          if (!oid) return;
+          if (from && meId && from === meId) return; // ignore own broadcast
+          const createdAtIso = new Date().toISOString();
+          const optimistic: Msg = {
+            id: `tmp_sys_${oid}`,
+            senderId: from || "system",
+            body: reason ? `Oferta rechazada: ${reason}` : 'Oferta rechazada',
+            createdAt: createdAtIso,
+            messageType: "system",
+            payload: reason ? { offer_id: oid, status: "rejected", reason } : { offer_id: oid, status: "rejected" },
+          };
+          mergeMessages(optimistic, { fromServer: true });
+          // Update any prior 'offer' message with same offer_id
+          setMessages((prev) => prev.map((m) => {
+            if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+              const po = m.payload as Record<string, unknown>;
+              if (po.offer_id === oid) return { ...m, payload: { ...po, status: 'rejected', reason: reason ?? (po as any)?.reason } } as Msg;
+            }
+            return m;
+          }));
+        } catch { /* ignore */ }
       })
       .subscribe();
     channelRef.current = channel;
@@ -529,19 +579,42 @@ export default function ChatPanel({
         payload: parsedPayload,
         attachments: [],
       };
+      // If this is the DB-confirmed 'offer' message, drop any optimistic temp bound to the same offer_id
+      try {
+        if (msg.messageType === 'offer' && msg.payload && typeof msg.payload === 'object') {
+          const p = msg.payload as Record<string, unknown>;
+          const oid = typeof p.offer_id === 'string' ? (p.offer_id as string) : null;
+          if (oid) removeMessageById(`tmp_b_${oid}`);
+        }
+      } catch { /* ignore */ }
       try {
         if (msg.messageType === "system" && msg.payload && typeof msg.payload === "object") {
           const p = msg.payload as Record<string, unknown>;
           const st = typeof p.status === "string" ? p.status : null;
           const oid = typeof p.offer_id === "string" ? p.offer_id : null;
           if (st === "accepted" && oid) {
-            removeMessageById(`tmp_b_${oid}`);
+            removeMessageById(`tmp_sys_${oid}`);
             // Update any prior 'offer' message for same offer_id to accepted
             setMessages((prev) => prev.map((m) => {
               if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
                 const po = m.payload as Record<string, unknown>;
                 if (po.offer_id === oid) {
                   return { ...m, payload: { ...po, status: 'accepted' } };
+                }
+              }
+              return m;
+            }));
+          } else if (st === 'rejected' && oid) {
+            removeMessageById(`tmp_sys_${oid}`);
+            const reason = typeof p.reason === 'string' ? p.reason : null;
+            // Update any prior 'offer' message for same offer_id to rejected + reason
+            setMessages((prev) => prev.map((m) => {
+              if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+                const po = m.payload as Record<string, unknown>;
+                if (po.offer_id === oid) {
+                  const next = { ...po, status: 'rejected' } as Record<string, unknown>;
+                  if (reason) (next as any).reason = reason;
+                  return { ...m, payload: next };
                 }
               }
               return m;
@@ -578,7 +651,7 @@ export default function ChatPanel({
     return "guest" as const;
   }, [participants, meId]);
   const offerSummaries = React.useMemo(() => {
-    const map = new Map<string, { offerId: string; status: string; checkoutUrl: string | null; title?: string | null; amount?: number | null; currency?: string | null }>();
+    const map = new Map<string, { offerId: string; status: string; checkoutUrl: string | null; title?: string | null; amount?: number | null; currency?: string | null; reason?: string | null }>();
     for (const msg of messagesState) {
       const payload = msg.payload;
       if (!payload || typeof payload !== "object") continue;
@@ -610,6 +683,10 @@ export default function ChatPanel({
         if (typeof statusRaw === "string") summary.status = normalizeStatus(statusRaw);
         const checkoutUrlRaw = (payload as Record<string, unknown>).checkout_url;
         if (typeof checkoutUrlRaw === "string") summary.checkoutUrl = checkoutUrlRaw;
+        if (summary.status === 'rejected') {
+          const reasonRaw = (payload as Record<string, unknown>).reason;
+          if (typeof reasonRaw === 'string' && reasonRaw.trim().length) summary.reason = reasonRaw;
+        }
       }
       map.set(rawId, summary);
     }
@@ -796,6 +873,7 @@ export default function ChatPanel({
       try {
         const createdAtIso = new Date().toISOString();
         const offerId = String((json?.offer as Record<string, unknown> | undefined)?.id || `tmp_offer_${Date.now()}`);
+        const tmpId = `tmp_b_${offerId}`; // bind temp message to offer id for easy dedupe
         const payloadMsg: Record<string, unknown> = {
           offer_id: offerId,
           title,
@@ -808,7 +886,7 @@ export default function ChatPanel({
           payloadMsg.service_date = (payload as Record<string, string>).serviceDate;
         }
         const optimisticOffer: Msg = {
-          id: `tmp_${Date.now()}`,
+          id: tmpId,
           senderId: meId ?? "me",
           body: title,
           createdAt: createdAtIso,
@@ -1049,7 +1127,8 @@ export default function ChatPanel({
       return;
     }
     const current = offerSummaries.get(rejectTarget);
-    if (!current || normalizeStatus(current.status) !== "sent") {
+    const st = current ? String(normalizeStatus(current.status) || '').toLowerCase() : '';
+    if (!current || (st !== 'pending' && st !== 'sent')) {
       toast.error("La oferta ya no esta disponible");
       setRejectOpen(false);
       return;
@@ -1070,6 +1149,41 @@ export default function ChatPanel({
         throw new Error(json?.error || "No se pudo rechazar la oferta");
       }
       toast.success("Oferta rechazada");
+      // Optimistic system message so ambos lados lo vean de inmediato
+      try {
+        const createdAtIso = new Date().toISOString();
+        mergeMessages(
+          {
+            id: `tmp_sys_${rejectTarget}`,
+            senderId: meId ?? "me",
+            body: `Oferta rechazada: ${reasonPayload}`,
+            createdAt: createdAtIso,
+            messageType: "system",
+            payload: { offer_id: rejectTarget, status: "rejected", reason: reasonPayload },
+          },
+          { fromServer: true },
+        );
+        // Update original offer message status locally to rejected
+        setMessages((prev) => prev.map((m) => {
+          if (m.messageType === 'offer' && m.payload && typeof m.payload === 'object') {
+            const po = m.payload as Record<string, unknown>;
+            if (po.offer_id === rejectTarget) {
+              return { ...m, payload: { ...po, status: 'rejected', reason: reasonPayload } } as Msg;
+            }
+          }
+          return m;
+        }));
+        // Broadcast to other participant so they see immediate update
+        try {
+          if (channelRef.current) {
+            void channelRef.current.send({
+              type: "broadcast",
+              event: "offer-rejected",
+              payload: { from: meId || "me", offer_id: rejectTarget, reason: reasonPayload },
+            });
+          }
+        } catch { /* ignore */ }
+      } catch { /* ignore */ }
       setRejectOpen(false);
       setRejectReason("");
       setRejectExtra("");
@@ -1143,6 +1257,40 @@ export default function ChatPanel({
     return null as { offerId: string; status: string; checkoutUrl: string | null; title?: string | null; amount?: number | null; currency?: string | null } | null;
   }, [offerSummaries]);
 
+  // Hide CTAs after payment is completed (paid) or scheduled
+  const hasPaid = React.useMemo(() => {
+    for (const [, summary] of offerSummaries) {
+      if (normalizeStatus(summary.status) === 'paid') return true;
+    }
+    for (const m of messagesState) {
+      if (m.messageType === 'system' && m.payload && typeof m.payload === 'object') {
+        const st = (m.payload as Record<string, unknown>)['status'];
+        if (typeof st === 'string' && normalizeStatus(st) === 'paid') return true;
+      }
+    }
+    return false;
+  }, [offerSummaries, messagesState]);
+
+  // When paid is detected, best-effort update request status to 'scheduled'
+  React.useEffect(() => {
+    if (!hasPaid) return;
+    if (!requestId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          credentials: 'include',
+          body: JSON.stringify({ status: 'scheduled' }),
+        });
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hasPaid, requestId]);
+
   // Fee dialog state (customer confirms before redirect)
   const [feeOpen, setFeeOpen] = React.useState(false);
   const feeAmount = acceptedForPay?.amount ?? null;
@@ -1173,7 +1321,7 @@ export default function ChatPanel({
 
   const actionButtons = (
     <>
-      {participants && meId === participants?.customer_id ? (
+      {participants && meId === participants?.customer_id && !hasPaid && !hideClientCtas ? (
         <div className="p-3 flex items-center justify-between">
           <div>
             {acceptedForPay ? (
@@ -1317,19 +1465,14 @@ export default function ChatPanel({
             />
           </div>
           <div className="space-y-2">
-            <label
-              className={`inline-flex items-center gap-2 text-sm font-medium text-slate-700 ${
-                offerFlexibleSchedule ? "opacity-100" : "opacity-60"
-              }`}
-            >
-              <input
-                type="checkbox"
-                className="size-4"
-                checked={offerFlexibleSchedule}
-                onChange={(e) => setOfferFlexibleSchedule(e.target.checked)}
-              />
-              Horario flexible
-            </label>
+            <CompanyToggle
+              id="offer-flexible"
+              checked={offerFlexibleSchedule}
+              onChange={setOfferFlexibleSchedule}
+              label="Horario flexible"
+              size="sm"
+              className={offerFlexibleSchedule ? undefined : "opacity-90"}
+            />
             {!offerFlexibleSchedule ? (
               <div className="px-1">
                 <div className="text-xs text-muted-foreground mb-2">Seleccionar horario.</div>
@@ -1629,8 +1772,3 @@ export default function ChatPanel({
     </Sheet>
   );
 }
-
-
-
-
-
