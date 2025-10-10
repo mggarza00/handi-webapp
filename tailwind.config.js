@@ -13,6 +13,12 @@ module.exports = {
           primary: '#11304A',
           green: '#3e9554',
         },
+        brand: {
+          primary: '#2563EB',
+          accent: '#F59E0B',
+          gray900: '#111827',
+          gray500: '#6B7280',
+        },
       },
       keyframes: {
         'fade-pulse': {

@@ -1,33 +1,28 @@
 "use client";
 import * as React from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
-  addMonth,
-  subMonth,
   monthGrid,
   fmtMonth,
   fmtDayNum,
   fmtDateKey,
-  isSameMonthFn,
+  sameMonth,
+  nextMonth,
+  prevMonth,
 } from "@/lib/calendar/date";
-
-export type CalendarEvent = {
-  date: string; // YYYY-MM-DD
-  title: string;
-  status: string;
-  requestId: string;
-};
+import type { CalendarEvent } from "./types";
 
 export default function CalendarGrid({ events }: { events: CalendarEvent[] }) {
   const [cursor, setCursor] = React.useState<Date>(() => new Date());
+  const router = useRouter();
 
-  const eventsByDay = React.useMemo(() => {
+  const byDay = React.useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
     for (const ev of events) {
-      const key = ev.date;
+      const key = ev.dateKey;
       const arr = map.get(key) || [];
       arr.push(ev);
       map.set(key, arr);
@@ -35,7 +30,7 @@ export default function CalendarGrid({ events }: { events: CalendarEvent[] }) {
     return map;
   }, [events]);
 
-  const grid = React.useMemo(() => monthGrid(cursor, 1), [cursor]);
+  const days = React.useMemo(() => monthGrid(cursor, 1).days, [cursor]);
 
   const todayKey = fmtDateKey(new Date());
   const headerMonth = `${fmtMonth(cursor)} ${cursor.getFullYear()}`;
@@ -47,21 +42,22 @@ export default function CalendarGrid({ events }: { events: CalendarEvent[] }) {
   };
 
   return (
-    <Card className="p-3">
+    <div className="p-0">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setCursor((d) => subMonth(d))}>
-            ◀
+          <Button variant="ghost" size="sm" onClick={() => setCursor((d) => prevMonth(d))} aria-label="Mes anterior">
+            <ChevronLeft className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setCursor(new Date())}>
             Hoy
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setCursor((d) => addMonth(d))}>
-            ▶
+          <Button variant="ghost" size="sm" onClick={() => setCursor((d) => nextMonth(d))} aria-label="Mes siguiente">
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="text-sm font-medium">
-          {headerMonth}
+        <div className="text-sm font-medium inline-flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4" />
+          <span>{headerMonth}</span>
         </div>
       </div>
       <div className="grid grid-cols-7 gap-1 text-xs text-slate-600 mb-1">
@@ -72,38 +68,42 @@ export default function CalendarGrid({ events }: { events: CalendarEvent[] }) {
         ))}
       </div>
       <div className="grid grid-cols-7 gap-1">
-        {grid.days.map((d) => {
+        {days.map((d) => {
           const key = fmtDateKey(d);
-          const list = eventsByDay.get(key) || [];
-          const inMonth = isSameMonthFn(d, cursor);
+          const list = byDay.get(key) || [];
+          const inMonth = sameMonth(d, cursor);
           return (
             <div
               key={key}
-              className={`min-h-24 rounded-md border p-1 ${inMonth ? "bg-white" : "bg-neutral-50"}`}
+              className={`h-28 rounded-2xl border p-2 overflow-hidden ${inMonth ? "bg-white" : "bg-neutral-50 opacity-40"}`}
             >
               <div className="flex items-center justify-between">
-                <div className="text-xs text-slate-500">{fmtDayNum(d)}</div>
+                <div className="text-sm font-medium">{fmtDayNum(d)}</div>
                 {key === todayKey ? (
                   <span className="inline-block rounded-full bg-blue-500 text-white text-[10px] px-1.5 py-0.5">hoy</span>
                 ) : null}
               </div>
-              <div className="mt-1 space-y-1">
+              <div className="mt-1 flex flex-col gap-1">
                 {list.slice(0, 3).map((ev, idx) => (
-                  <Link key={`${ev.requestId}-${idx}`} href={`/requests/explore/${ev.requestId}`}>
-                    <Badge variant="secondary" className="w-full justify-start truncate">
-                      {ev.title || "Servicio"}
-                    </Badge>
-                  </Link>
+                  <button
+                    key={`${ev.id}-${idx}`}
+                    type="button"
+                    onClick={() => router.push(`/requests/explore/${ev.id}`)}
+                    className="w-full truncate rounded-xl bg-muted px-2 py-1 text-left text-xs hover:opacity-90"
+                    title={ev.title || "Servicio"}
+                    aria-label={ev.title || "Servicio"}
+                  >
+                    {ev.title || "Servicio"}
+                  </button>
                 ))}
                 {list.length > 3 ? (
-                  <Badge variant="outline" className="w-full justify-center">+{list.length - 3}</Badge>
+                  <Badge variant="outline" className="w-fit whitespace-nowrap text-[10px]">+{list.length - 3} más</Badge>
                 ) : null}
               </div>
             </div>
           );
         })}
       </div>
-    </Card>
+    </div>
   );
 }
-

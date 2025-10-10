@@ -131,10 +131,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
               ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
               : 0;
             const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
-            stripeSession = await stripe.checkout.sessions.create({
-              mode: "payment",
-              success_url: `${APP_URL}/offers/${row.id}?status=success`,
-              cancel_url: `${APP_URL}/offers/${row.id}?status=cancel`,
+        stripeSession = await stripe.checkout.sessions.create({
+          mode: "payment",
+          success_url: `${APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&cid=${row.conversation_id}`,
+          cancel_url: `${APP_URL}/offers/${row.id}?status=cancel`,
               line_items: [
                 {
                   quantity: 1,
@@ -198,7 +198,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (stripe && offer) {
       stripeSession = await stripe.checkout.sessions.create({
         mode: "payment",
-        success_url: `${APP_URL}/offers/${offer.id}?status=success`,
+        success_url: `${APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&cid=${offer.conversation_id}`,
         cancel_url: `${APP_URL}/offers/${offer.id}?status=cancel`,
         line_items: [
           {

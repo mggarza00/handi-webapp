@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AttachmentList } from "@/app/(app)/messages/_components/AttachmentList";
+import LocationCard from "@/components/chat/LocationCard";
 import AcceptOfferButton from "@/app/(app)/offers/_components/AcceptOfferButton";
 import { extractOfferId, extractStatus, extractProIds, extractViewerIds, isOwnerPro, canProAct } from "@/lib/offers/actors";
 import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
@@ -278,7 +279,7 @@ export default function MessageList({
     const offerObj = message.payload || {};
     const offerObjRecord = offerObj as Record<string, unknown>;
     const resolvedOfferId = extractOfferId(offerObj) ?? (typeof offerObjRecord.id === 'string' ? (offerObjRecord.id as string) : state.offerId);
-    const status = extractStatus(offerObj);
+    const status = extractStatus(state.status);
     const isPending = status === 'pending';
     const proIds = extractProIds(offerObj);
     const viewer = currentUserId ? { id: currentUserId } : null;
@@ -287,7 +288,7 @@ export default function MessageList({
     const viewerIds = extractViewerIds(viewer ?? undefined, sessionUser);
     const ownerOK = isOwnerPro(offerObj, viewer ?? undefined, sessionUser);
     const pendingOK = isPending;
-    let canAct = canProAct(offerObj, viewer ?? undefined, sessionUser);
+    let canAct = (viewerRole === 'professional') && isPending;
     if (!canAct && viewerRole === 'professional' && proIds.length === 0 && viewer && isPending) {
       canAct = true;
     }
@@ -350,7 +351,6 @@ export default function MessageList({
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-600">
           <Badge className={badgeTone}>{statusLabelMap[status] || status}</Badge>
-          {state.reason && status === "rejected" ? <span>Motivo: {state.reason}</span> : null}
         </div>
         {showActions ? (
           <div className="flex gap-2 pt-1" data-testid="offer-actions-pro">
@@ -369,8 +369,13 @@ export default function MessageList({
               size="sm"
               variant="outline"
               onClick={async () => {
+                if (_onRejectOffer) {
+                  _onRejectOffer(offerId);
+                  return;
+                }
+                // Fallback minimal (sin modal) si no se pasa handler desde el contenedor
                 try {
-                  const res = await fetch(`/api/offers/${offerId}/reject`, { method: "POST" });
+                  const res = await fetch(`/api/offers/${offerId}/reject`, { method: "POST", credentials: 'include', headers: { 'Content-Type': 'application/json; charset=utf-8' } });
                   if (!res.ok) {
                     const j = await res.json().catch(() => ({} as Record<string, unknown>));
                     throw new Error((j as Record<string, unknown>)?.error as string || "No se pudo rechazar la oferta");
@@ -411,6 +416,14 @@ export default function MessageList({
     }
     if (message.messageType === "system" && message.payload && typeof message.payload === "object") {
       const payloadRecord = message.payload as Record<string, unknown>;
+      // LocationCard: type 'system/location' o 'schedule_details'
+      const payloadType = typeof payloadRecord.type === 'string' ? payloadRecord.type : '';
+      const hasLocationFlat = typeof payloadRecord.map_image_url === 'string' || typeof payloadRecord.maps_url === 'string' || typeof payloadRecord.address_line === 'string';
+      const nested = (payloadRecord.location && typeof payloadRecord.location === 'object') ? (payloadRecord.location as Record<string, unknown>) : null;
+      const hasLocationNested = nested && (typeof nested.map_image_url === 'string' || typeof nested.maps_url === 'string' || typeof nested.address_line === 'string');
+      if (payloadType === 'system/location' || payloadType === 'schedule_details' || hasLocationFlat || hasLocationNested) {
+        return <LocationCard payload={payloadRecord as any} />;
+      }
       const statusValue = typeof payloadRecord.status === "string" ? payloadRecord.status : undefined;
       const status = extractStatus(statusValue);
       const reasonValue = typeof payloadRecord.reason === "string" ? payloadRecord.reason : null;
@@ -440,6 +453,26 @@ export default function MessageList({
                 <a href={receiptUrl} target="_blank" rel="noreferrer" className="underline text-blue-700 hover:text-blue-800">Ver recibo</a>
               </>
             ) : null}
+          </div>
+        );
+      }
+      if (status === "receipt") {
+        const rid = typeof payloadRecord.receipt_id === 'string' ? (payloadRecord.receipt_id as string) : null;
+        const dl = typeof payloadRecord.download_url === 'string' && payloadRecord.download_url.trim().length
+          ? (payloadRecord.download_url as string)
+          : (rid ? `/api/receipts/${encodeURIComponent(rid)}/pdf` : null);
+        const link = dl || (typeof payloadRecord.receipt_url === 'string' ? (payloadRecord.receipt_url as string) : null);
+        return (
+          <div className="text-sm text-slate-800">
+            {message.body}
+            {Array.isArray((message as any).attachments) && (message as any).attachments.length > 0 ? null : (
+              link ? (
+                <>
+                  {" "}
+                  <a href={link} target="_blank" rel="noreferrer" className="underline text-blue-700 hover:text-blue-800">Descargar PDF</a>
+                </>
+              ) : null
+            )}
           </div>
         );
       }

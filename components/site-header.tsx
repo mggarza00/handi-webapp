@@ -421,7 +421,7 @@ export default async function SiteHeader() {
                       />
                     ) : l.href === "/pro/calendar" ? (
                       <Image
-                        src="/images/icono-trabajos-realizados.gif"
+                        src="/images/icono-calendario.png"
                         alt=""
                         width={32}
                         height={32}

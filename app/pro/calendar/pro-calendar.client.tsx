@@ -69,30 +69,34 @@ export default function ProCalendarClient({ events }: { events: Event[] }) {
         />
       </Card>
       <div className="space-y-3">
-        <h2 className="text-base font-medium">Eventos del día</h2>
-        {!selectedEvents.length ? (
-          <Card className="p-4 text-sm text-slate-600">No tienes servicios agendados para este día.</Card>
+        <h2 className="text-base font-medium">Listado de servicios</h2>
+        {events.length === 0 ? (
+          <Card className="p-4 text-sm text-slate-600">No hay servicios agendados.</Card>
         ) : (
           <ul className="space-y-3">
-            {selectedEvents.map((ev) => (
-              <li key={ev.offerId}>
-                <Card className="p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium truncate">{ev.title || "Servicio"}</span>
-                        <Badge variant="secondary">{ev.status}</Badge>
+            {events
+              .slice()
+              .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+              .map((ev) => (
+                <li key={ev.offerId}>
+                  <Card className="p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium truncate">{ev.title || "Servicio"}</span>
+                          <Badge variant="secondary">{ev.status}</Badge>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">{ev.date}</p>
+                      </div>
+                      <div className="shrink-0">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/requests/explore/${ev.requestId}`}>Ver solicitud</Link>
+                        </Button>
                       </div>
                     </div>
-                    <div className="shrink-0">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/requests/explore/${ev.requestId}`}>Ver solicitud</Link>
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              </li>
-            ))}
+                  </Card>
+                </li>
+              ))}
           </ul>
         )}
       </div>

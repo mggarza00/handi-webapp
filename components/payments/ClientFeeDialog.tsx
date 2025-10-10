@@ -75,7 +75,7 @@ export function ClientFeeDialog({ open, onOpenChange, amount = null, currency = 
 
         <DialogFooter className="bg-muted/30 px-6 sm:px-7 py-4 flex items-center justify-between gap-3">
           <Button variant="ghost" type="button" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button type="button" onClick={onConfirm}>{confirmLabel}</Button>
+          <Button variant="success" type="button" onClick={onConfirm}>{confirmLabel}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -21,7 +21,7 @@ export default function ProMobileTabbar() {
           <span>Trabajos disponibles</span>
         </Link>
         <Link href="/pro/calendar" className={`${base} ${isCalendar ? active : ""}`.trim()}>
-          <Image src="/images/icono-trabajos-realizados.gif" alt="" width={28} height={28} className="h-6 w-6" />
+          <Image src="/images/icono-calendario.png" alt="" width={28} height={28} className="h-6 w-6" />
           <span>Calendario</span>
         </Link>
         <Link href="/applied" className={`${base} ${isApplied ? active : ""}`.trim()}>

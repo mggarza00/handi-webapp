@@ -33,6 +33,9 @@ export const monthGrid = (cursor: Date, weekStartsOn: 0 | 1 = 1): MonthGrid => {
 
 export const addMonth = (d: Date) => addMonths(d, 1);
 export const subMonth = (d: Date) => subMonths(d, 1);
+export const nextMonth = (d: Date) => addMonths(d, 1);
+export const prevMonth = (d: Date) => subMonths(d, 1);
 export const isSameDayFn = isSameDay;
 export const isSameMonthFn = isSameMonth;
-
+export const sameDay = isSameDay;
+export const sameMonth = isSameMonth;

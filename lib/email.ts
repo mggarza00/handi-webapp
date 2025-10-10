@@ -1,12 +1,15 @@
 // Email helper: server-side only. Uses MAIL_PROVIDER_KEY for Resend-compatible API.
 // If no key is configured, functions resolve without sending (no-op).
 
+type EmailAttachment = { filename: string; content: string; mime?: string };
+
 type EmailPayload = {
   to: string;
   subject: string;
   html: string;
   from?: string;
   text?: string;
+  attachments?: EmailAttachment[];
 };
 
 function getMailKey(): string | null {
@@ -39,16 +42,11 @@ function htmlToText(html: string): string {
   }
 }
 
-export async function sendEmail({
-  to,
-  subject,
-  html,
-  from,
-  text,
-}: EmailPayload): Promise<{ ok: boolean; id?: string }> {
+export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; id?: string }> {
   const key = getMailKey();
   if (!key) return { ok: true };
 
+  const { to, subject, html, from, text, attachments } = payload;
   const sender = from || getDefaultFrom();
   const plain = text && text.length > 0 ? text : htmlToText(html);
 
@@ -59,7 +57,7 @@ export async function sendEmail({
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json; charset=utf-8",
     },
-    body: JSON.stringify({ from: sender, to, subject, html, text: plain }),
+    body: JSON.stringify({ from: sender, to, subject, html, text: plain, attachments }),
   }).catch(() => null);
 
   if (!res) return { ok: false };

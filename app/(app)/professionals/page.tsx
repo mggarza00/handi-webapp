@@ -86,6 +86,10 @@ export default async function Professionals({
                       src={p.avatar_url || "/avatar.png"}
                       alt={p.full_name || "Avatar"}
                       className="h-10 w-10 rounded-full object-cover border"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">

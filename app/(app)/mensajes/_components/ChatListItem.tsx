@@ -1,5 +1,6 @@
 /* eslint-disable import/order */
 import Link from "next/link";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import * as React from "react";
 import { Loader2, Mail } from "lucide-react";
@@ -62,12 +63,44 @@ function ChatListItem({
   const isUnread = unreadCount > 0;
   const unreadLabel = `${unreadCount} ${unreadCount === 1 ? "mensaje no leído" : "mensajes no leídos"}`;
 
+  // Resolve avatar URL: sign Supabase storage paths; allow external URLs and proxy paths
+  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() => normalizeAvatarUrl(avatarUrl || null));
+  React.useEffect(() => {
+    const url = avatarUrl || null;
+    const norm = normalizeAvatarUrl(url);
+    if (!url) { setAvatarSrc(null); return; }
+    // Pass through external URLs and API proxy
+    if (/^https?:\/\//i.test(url) || url.startsWith('/api/avatar/')) { setAvatarSrc(url); return; }
+    // If normalize produced a full storage URL, use it
+    if (norm && /^https?:\/\//i.test(norm)) { setAvatarSrc(norm); }
+    // Try to sign if it's a bucket/key path
+    const clean = url.replace(/^\/+/, '');
+    const firstSlash = clean.indexOf('/');
+    if (firstSlash > 0) {
+      const bucket = clean.slice(0, firstSlash);
+      const key = clean.slice(firstSlash + 1);
+      let cancelled = false;
+      (async () => {
+        try {
+          const { data, error } = await supabase.storage.from(bucket).createSignedUrl(key, 600);
+          if (!cancelled) setAvatarSrc(!error && data?.signedUrl ? data.signedUrl : (norm || null));
+        } catch {
+          if (!cancelled) setAvatarSrc(norm || null);
+        }
+      })();
+      return () => { cancelled = true; };
+    } else {
+      setAvatarSrc(norm);
+    }
+  }, [avatarUrl, supabase]);
+
   return (
     <li
       data-chat-id={chatId}
       className={cn(
         "relative flex items-center gap-3 px-3 py-2 rounded-xl transition-colors",
-        isActive ? "bg-neutral-50" : (isUnread ? "bg-slate-100/70" : "hover:bg-slate-50"),
+        isActive ? "bg-slate-200" : "hover:bg-slate-50",
         isNewArrival ? "animate-popIn_1.2s_ease_1" : "",
         removing ? "-translate-x-full opacity-0 pointer-events-none" : "",
         deleting ? "opacity-60 animate-pulse pointer-events-none" : "",
@@ -85,7 +118,7 @@ function ChatListItem({
           <div className="min-w-0 flex items-center gap-3">
             <div className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}>
               <AvatarWithSkeleton
-                src={normalizeAvatarUrl(avatarUrl) || "/avatar.png"}
+                src={avatarSrc || "/avatar.png"}
                 alt={displayTitle}
                 sizeClass="size-9"
                 className="shrink-0"

@@ -114,6 +114,7 @@ export default function HeaderMenu() {
   const detailsRef = React.useRef<HTMLDetailsElement | null>(null);
   const [hasNotifs, setHasNotifs] = React.useState(false);
   const [hasNewMsgs, setHasNewMsgs] = React.useState(false);
+  const [unreadMsgCount, setUnreadMsgCount] = React.useState<number>(0);
   const [notifOpen, setNotifOpen] = React.useState(false);
   const pathname = usePathname();
   type Notif = {
@@ -184,6 +185,22 @@ export default function HeaderMenu() {
     }
   }, []);
 
+  // Initial load from localStorage for message count
+  React.useEffect(() => {
+    try {
+      const raw =
+        localStorage.getItem("handi_unread_messages_count") ??
+        localStorage.getItem("handee_unread_messages_count");
+      const n = raw ? Number(raw) : 0;
+      if (Number.isFinite(n)) {
+        setUnreadMsgCount(n);
+        setHasNewMsgs(n > 0);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Poll unread notifications count periodically and update localStorage+bubble
   React.useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -220,6 +237,64 @@ export default function HeaderMenu() {
       if (timer) clearInterval(timer);
     };
   }, [buildAuthHeaders]);
+
+  // Poll unread messages count periodically
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let aborted = false;
+    async function fetchMsgCount() {
+      try {
+        const headers = await buildAuthHeaders();
+        const res = await fetch("/api/chat/rooms", {
+          cache: "no-store",
+          credentials: "include",
+          headers,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as { ok?: boolean; data?: Array<{ unreadCount?: number }> };
+        const arr = Array.isArray(json?.data) ? json.data : [];
+        const count = arr.reduce((acc, it) => acc + (typeof it.unreadCount === 'number' ? it.unreadCount : 0), 0);
+        if (!aborted) {
+          setUnreadMsgCount(count);
+          setHasNewMsgs(count > 0);
+        }
+        try {
+          localStorage.setItem("handi_unread_messages_count", String(count));
+          localStorage.setItem("handee_unread_messages_count", String(count));
+          localStorage.setItem("handi_has_new_messages", count > 0 ? "1" : "0");
+          localStorage.setItem("handee_has_new_messages", count > 0 ? "1" : "0");
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void fetchMsgCount();
+    timer = setInterval(fetchMsgCount, 60000);
+    return () => {
+      aborted = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [buildAuthHeaders]);
+
+  // Refresh counts when tab gains focus
+  React.useEffect(() => {
+    const onFocus = () => {
+      try {
+        const raw = localStorage.getItem("handi_unread_messages_count");
+        const n = raw ? Number(raw) : 0;
+        if (Number.isFinite(n)) {
+          setUnreadMsgCount(n);
+          setHasNewMsgs(n > 0);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
 
   const loadNotifications = React.useCallback(async () => {
     setNotifLoading(true);
@@ -398,11 +473,18 @@ export default function HeaderMenu() {
           data-testid="open-messages-link"
           onClick={closeMenu}
         >
-          <MessageIcon />
+          <span className="relative inline-flex items-center justify-center">
+            <MessageIcon />
+            {unreadMsgCount > 0 ? (
+              <span
+                aria-label={`${unreadMsgCount} mensajes sin leer`}
+                className="absolute -top-1 -right-2 min-w-[1rem] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center"
+              >
+                {unreadMsgCount > 99 ? "99+" : unreadMsgCount}
+              </span>
+            ) : null}
+          </span>
           <span>Mensajes</span>
-          {hasNewMsgs && (
-            <span className="ml-auto h-2.5 w-2.5 rounded-full bg-red-500" />
-          )}
         </Link>
         <div className="my-1 h-px bg-neutral-200" />
         <Link

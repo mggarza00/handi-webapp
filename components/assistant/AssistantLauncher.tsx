@@ -21,6 +21,7 @@ export default function AssistantLauncher() {
   const [message, setMessage] = useState("");
   const [name, setName] = useState("");
   const [hasBottomBar, setHasBottomBar] = useState(false);
+  const onChatDetail = useMemo(() => /^\/mensajes\/[\w-]+/i.test(pathname || ''), [pathname]);
 
   useEffect(() => {
     // Detectar si hay una barra inferior móvil (cliente o profesional)
@@ -44,7 +45,12 @@ export default function AssistantLauncher() {
     <>
       {/* Botón flotante fijo en toda la app */}
       <div
-        className={`fixed right-4 z-50 ${hasBottomBar ? "bottom-[76px]" : "bottom-4"} md:bottom-4`}
+        className={`fixed right-4 z-50 ${onChatDetail ? 'hidden md:block' : ''} ${
+          // En móvil dentro de /mensajes/:id, colócalo a la altura del botón "← Mensajes"
+          onChatDetail
+            ? 'top-20 bottom-auto md:top-auto md:bottom-4'
+            : (hasBottomBar ? 'bottom-[76px]' : 'bottom-4') + ' md:bottom-4'
+        }`}
       >
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
 // Date: usamos input nativo
@@ -9,6 +10,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 
 import Breadcrumbs from "@/components/breadcrumbs";
+import { MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +26,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 // Keep relative imports to avoid CI resolver edge-cases in this PR
 import { buildStorageKey, buildUltraSafeKey } from "../../../lib/storage-sanitize";
 // Inline container to avoid RSC/Client mismatches during build
-import { CITIES } from "@/lib/cities";
+import { CITIES, canonicalizeCityName, guessCityFromCoords } from "@/lib/cities";
 // Keep relative imports to avoid CI resolver edge-cases in this PR
 import ConditionsCombobox from "../../../components/requests/ConditionsCombobox";
 import {
@@ -38,6 +40,21 @@ import {
   clearGatingFlags,
 } from "@/lib/drafts";
 import { useDebounced } from "./hooks/useClassify";
+import MapPickerModal from "@/components/address/MapPickerModal";
+
+type FormValues = {
+  title: string;
+  description?: string;
+  city: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+  postcode?: string;
+  state?: string;
+  country?: string;
+  place_id?: string;
+  mapbox_context?: string;
+};
 
 //
 
@@ -66,8 +83,36 @@ export default function NewRequestPage() {
   const [isDirty, setIsDirty] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   const didRefreshRef = useRef(false);
+  const geoAskedRef = useRef(false);
   // Auth tracking to avoid false negatives on submit
   const [me, setMe] = useState<User | null>(null);
+  // Dirección seleccionada
+  const [addressLine, setAddressLine] = useState<string>("");
+  const [addressPlaceId, setAddressPlaceId] = useState<string | null>(null);
+  const [addressLat, setAddressLat] = useState<number | null>(null);
+  const [addressLng, setAddressLng] = useState<number | null>(null);
+  const [addressPostcode, setAddressPostcode] = useState<string | null>(null);
+  const [addressState, setAddressState] = useState<string | null>(null);
+  const [addressCountry, setAddressCountry] = useState<string | null>(null);
+  const [addressContext, setAddressContext] = useState<any>(null);
+  const [openMap, setOpenMap] = useState(false);
+
+  // react-hook-form: valores por defecto mínimos para integración
+  const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
+    defaultValues: { city: "Monterrey", address: "" },
+    mode: "onChange",
+  });
+
+  // 🔁 Selecciona ciudad en el <Select> real (ajusta IDs/values si tu selector usa otras opciones)
+  const selectCityIfExists = (maybeCity?: string | null) => {
+    const c = (maybeCity || "").toString().trim();
+    if (!c) return;
+    const canonical = canonicalizeCityName(c);
+    if (canonical && CITIES.includes(canonical)) {
+      setCity(canonical);
+      try { setValue("city", canonical, { shouldDirty: true }); } catch { /* ignore */ }
+    }
+  };
   type Subcat = { name: string; icon: string | null };
   const [catMap, setCatMap] = useState<Record<string, Subcat[]>>({});
   const [loadingCats, setLoadingCats] = useState(false);
@@ -258,6 +303,84 @@ export default function NewRequestPage() {
     };
   }, []);
 
+  // Preselect category/subcategory from URL search params
+  useEffect(() => {
+    try {
+      const urlCat = (_sp?.get("category") || "").toString().trim();
+      const urlSub = (_sp?.get("subcategory") || "").toString().trim();
+      if (!urlCat && !urlSub) return;
+      if (loadingCats) return; // wait until categories are loaded
+
+      // Helper to apply selection safely
+      const apply = (nextCat: string, nextSub?: string) => {
+        if (!nextCat) return;
+        if (!(nextCat in catMap)) return; // ignore unknown
+        const subOk = nextSub
+          ? (catMap[nextCat] || []).some((s) => s.name === nextSub)
+          : false;
+        if (category !== nextCat) setCategory(nextCat);
+        if (subOk) setTimeout(() => setSubcategory(nextSub!), 0);
+        setManualOverride(true);
+        setIsDirty(true);
+      };
+
+      // 1) If category param exists and is valid, apply it; then subcategory if provided
+      if (urlCat && urlCat in catMap) {
+        apply(urlCat, urlSub || undefined);
+        return;
+      }
+
+      // 2) If only subcategory provided, find its category and apply both
+      if (urlSub) {
+        const foundCat = Object.keys(catMap).find((c) =>
+          (catMap[c] || []).some((s) => s.name === urlSub),
+        );
+        if (foundCat) apply(foundCat, urlSub);
+      }
+    } catch {
+      /* noop */
+    }
+  }, [_sp, catMap, loadingCats, category]);
+
+  // Solicitar geolocalización al entrar y actualizar ciudad + dirección + coords
+  useEffect(() => {
+    if (geoAskedRef.current) return;
+    geoAskedRef.current = true;
+    try {
+      if (!("geolocation" in navigator)) return;
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords;
+          try {
+            let j: any = {};
+            try {
+              const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+              j = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error("forward_reverse_failed");
+            } catch {
+              const res2 = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+              j = await res2.json().catch(() => ({}));
+            }
+            const detectedCity = typeof j?.city === "string" ? j.city : null;
+            if (detectedCity) {
+              selectCityIfExists(detectedCity);
+            } else {
+              const fallback = guessCityFromCoords(latitude, longitude);
+              if (fallback) selectCityIfExists(fallback);
+            }
+            if (typeof j?.address_line === "string" && j.address_line.trim().length > 0) setAddressLine(j.address_line);
+            if (typeof j?.place_id === "string" && j.place_id.trim().length > 0) setAddressPlaceId(j.place_id);
+            setAddressLat(latitude);
+            setAddressLng(longitude);
+          } catch { /* ignore */ }
+        },
+        // On error (denied or unavailable), no-op
+        () => { /* noop */ },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+      );
+    } catch { /* ignore */ }
+  }, []);
+
   // Autoclasiﬁcación (debounced) al escribir título/descrición (mín. 10 chars combinados)
   const doClassify = useCallback(async (t: string, d: string) => {
     try {
@@ -345,7 +468,7 @@ export default function NewRequestPage() {
     setAutoApplied(true);
   }, [suggestion, manualOverride, loadingCats, catMap, category, subcategory]);
 
-  // Geolocalización: intenta detectar ciudad si el usuario no la cambió manualmente
+  // Geolocalización: intenta detectar ciudad y dirección si el usuario no la cambió manualmente
   useEffect(() => {
     if (cityTouched) return; // respeta selección manual
     // Solo intenta si ciudad no fue modificada y es una de las default o vacía
@@ -361,12 +484,27 @@ export default function NewRequestPage() {
             if (cancelled) return;
             const { latitude, longitude } = pos.coords;
             try {
-              const res = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-              const j = (await res.json().catch(() => ({}))) as { ok?: boolean; city?: string | null };
-              const detected = typeof j?.city === "string" ? j.city : null;
-              if (detected && CITIES.includes(detected as any)) {
-                setCity(detected);
+              let j: any = {};
+              try {
+                const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+                j = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error("forward_reverse_failed");
+              } catch {
+                const res2 = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+                j = await res2.json().catch(() => ({}));
               }
+              const detected = typeof j?.city === "string" ? j.city : null;
+              if (detected) {
+                selectCityIfExists(detected);
+              } else {
+                const fallback = guessCityFromCoords(latitude, longitude);
+                if (fallback) selectCityIfExists(fallback);
+              }
+              // Actualiza dirección y coords desde geolocalización
+              if (typeof j?.address_line === "string" && j.address_line.trim().length > 0) setAddressLine(j.address_line);
+              if (typeof j?.place_id === "string" && j.place_id.trim().length > 0) setAddressPlaceId(j.place_id);
+              setAddressLat(latitude);
+              setAddressLng(longitude);
             } catch { /* noop */ }
           },
           () => { /* denied or error: ignore */ },
@@ -378,28 +516,7 @@ export default function NewRequestPage() {
     return () => { cancelled = true; };
   }, [cityTouched]);
 
-  // Acción manual: detectar ciudad ahora
-  const detectCityNow = React.useCallback(async () => {
-    try {
-      if (!("geolocation" in navigator)) return;
-      await new Promise<void>((resolve) => setTimeout(resolve, 100));
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          try {
-            const res = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-            const j = (await res.json().catch(() => ({}))) as { ok?: boolean; city?: string | null };
-            const detected = typeof j?.city === "string" ? j.city : null;
-            if (detected && CITIES.includes(detected as any)) {
-              setCity(detected);
-            }
-          } catch { /* noop */ }
-        },
-        () => { /* denied or error */ },
-        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
-      );
-    } catch { /* noop */ }
-  }, []);
+  // (Removed) Acción manual para detectar ciudad ahora
 
   // Persist draft anytime fields change
   useEffect(() => {
@@ -460,6 +577,10 @@ export default function NewRequestPage() {
         )
         .max(10),
     ]).optional(),
+    address_line: z.string().max(500).optional().or(z.literal("")),
+    address_place_id: z.string().max(200).optional().or(z.literal("")),
+    address_lat: z.number().optional(),
+    address_lng: z.number().optional(),
   });
 
   async function onSubmit(e: React.FormEvent) {
@@ -505,6 +626,10 @@ export default function NewRequestPage() {
       budget,
       required_at: requiredAt,
       conditions: conditionsText,
+      address_line: addressLine,
+      address_place_id: addressPlaceId || "",
+      address_lat: addressLat ?? undefined,
+      address_lng: addressLng ?? undefined,
     });
 
     if (!parsed.success) {
@@ -586,6 +711,35 @@ export default function NewRequestPage() {
       }
     }
 
+    // Si el usuario escribió manual y no hay coords, resolver antes de enviar
+    if ((addressLine || '').trim().length > 0 && (addressLat == null || addressLng == null)) {
+      try {
+        const r = await fetch(`/api/geocode?q=${encodeURIComponent(addressLine.trim())}`, { cache: 'no-store' });
+        const j = await r.json().catch(() => ({}));
+        const first = Array.isArray(j?.results) && j.results.length ? j.results[0] : null;
+        if (first) {
+          if (typeof first.lat === 'number') setAddressLat(first.lat);
+          if (typeof first.lng === 'number') setAddressLng(first.lng);
+          if (typeof first.place_id === 'string') setAddressPlaceId(first.place_id);
+          if (typeof first.city === 'string' && first.city.trim().length > 0) selectCityIfExists(first.city);
+          setAddressPostcode(typeof first.postcode === 'string' ? first.postcode : null);
+          setAddressState(typeof first.state === 'string' ? first.state : null);
+          setAddressCountry(typeof first.country === 'string' ? first.country : null);
+          setAddressContext(first.context ?? null);
+          try {
+            setValue('lat', typeof first.lat === 'number' ? first.lat : undefined, { shouldDirty: true });
+            setValue('lng', typeof first.lng === 'number' ? first.lng : undefined, { shouldDirty: true });
+            setValue('place_id', typeof first.place_id === 'string' ? first.place_id : undefined, { shouldDirty: true });
+            if (typeof first.city === 'string' && first.city.trim().length > 0) setValue('city', first.city, { shouldDirty: true });
+            setValue('postcode', typeof first.postcode === 'string' ? first.postcode : undefined, { shouldDirty: true });
+            setValue('state', typeof first.state === 'string' ? first.state : undefined, { shouldDirty: true });
+            setValue('country', typeof first.country === 'string' ? first.country : undefined, { shouldDirty: true });
+            setValue('mapbox_context', first.context ? JSON.stringify(first.context) : undefined, { shouldDirty: true });
+          } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+
     // Construir payload según el schema del server (RequestCreateSchema)
     const payload: Record<string, unknown> = {
       title: parsed.data.title,
@@ -607,6 +761,22 @@ export default function NewRequestPage() {
       if (s) payload.conditions = s;
     } else if (Array.isArray(parsed.data.conditions)) {
       payload.conditions = parsed.data.conditions;
+    }
+    if ((parsed.data.address_line || "").trim()) {
+      payload.address_line = (parsed.data.address_line || "").trim();
+      if ((parsed.data.address_place_id || "").trim()) payload.address_place_id = (parsed.data.address_place_id || "").trim();
+      if (typeof parsed.data.address_lat === "number") payload.address_lat = parsed.data.address_lat;
+      if (typeof parsed.data.address_lng === "number") payload.address_lng = parsed.data.address_lng;
+      if (addressPostcode) payload.address_postcode = addressPostcode;
+      if (addressState) payload.address_state = addressState;
+      if (addressCountry) payload.address_country = addressCountry;
+      if (addressContext != null) {
+        payload.address_context = addressContext;
+        try {
+          // Opcional: incluir string serializado para trazas/depuración
+          (payload as Record<string, unknown>).mapbox_context = JSON.stringify(addressContext);
+        } catch { /* ignore */ }
+      }
     }
 
     try {
@@ -647,9 +817,13 @@ export default function NewRequestPage() {
       setCity("Monterrey");
       setCategory("");
       setSubcategory("");
-      setBudget("");
-      setRequiredAt("");
-      setFiles([]);
+          setBudget("");
+          setRequiredAt("");
+          setFiles([]);
+          setAddressLine("");
+          setAddressPlaceId(null);
+          setAddressLat(null);
+          setAddressLng(null);
     } finally {
       setSubmitting(false);
     }
@@ -763,18 +937,12 @@ export default function NewRequestPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <Label>Ciudad</Label>
-                <button
-                  type="button"
-                  className="text-xs text-blue-700 hover:underline"
-                  onClick={() => { setCityTouched(false); void detectCityNow(); }}
-                >
-                  Usar mi ubicación
-                </button>
               </div>
               <Select
                 value={city}
                 onValueChange={(v) => {
                   setCity(v);
+                  try { setValue("city", v, { shouldDirty: true }); } catch { /* ignore */ }
                   setCityTouched(true);
                   setIsDirty(true);
                 }}
@@ -823,6 +991,64 @@ export default function NewRequestPage() {
                 <p className="text-xs text-red-600">{errors.budget}</p>
               )}
             </div>
+          </div>
+
+          {/* Dirección + mapa */}
+          <div className="space-y-1.5">
+            <Label>Dirección</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Escribe tu dirección o elige en el mapa…"
+                value={addressLine}
+                onChange={(e) => {
+                  setAddressLine(e.target.value);
+                  setAddressPlaceId(null);
+                  setAddressLat(null);
+                  setAddressLng(null);
+                  try { setValue("address", e.target.value, { shouldDirty: true }); } catch { /* ignore */ }
+                  setIsDirty(true);
+                }}
+              />
+              <Button type="button" variant="outline" onClick={() => setOpenMap(true)} title="Seleccionar en mapa">
+                <MapPin size={18} />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Protegemos tu privacidad: tu dirección solo se comparte con el profesional contratado cuando el servicio queda agendado.
+            </p>
+            {openMap ? (
+              <MapPickerModal
+                open={openMap}
+                initial={{
+                  lat: typeof addressLat === 'number' ? addressLat : undefined,
+                  lng: typeof addressLng === 'number' ? addressLng : undefined,
+                  address: addressLine || undefined,
+                }}
+                onClose={() => setOpenMap(false)}
+                onConfirm={(p) => {
+                  setAddressLine(p.address || "");
+                  setAddressPlaceId(p.place_id || null);
+                  setAddressLat(typeof p.lat === 'number' ? p.lat : null);
+                  setAddressLng(typeof p.lng === 'number' ? p.lng : null);
+                  setAddressPostcode(typeof p.postcode === 'string' ? p.postcode : null);
+                  setAddressState(typeof p.state === 'string' ? p.state : null);
+                  setAddressCountry(typeof p.country === 'string' ? p.country : null);
+                  setAddressContext(p.context ?? null);
+                  selectCityIfExists(p.city);
+                  try {
+                    setValue("address", p.address ?? "", { shouldDirty: true });
+                    setValue("place_id", p.place_id ?? undefined, { shouldDirty: true });
+                    setValue("lat", p.lat, { shouldDirty: true });
+                    setValue("lng", p.lng, { shouldDirty: true });
+                    setValue("postcode", p.postcode ?? undefined, { shouldDirty: true });
+                    setValue("state", p.state ?? undefined, { shouldDirty: true });
+                    setValue("country", p.country ?? undefined, { shouldDirty: true });
+                    setValue("mapbox_context", p.context ? JSON.stringify(p.context) : undefined, { shouldDirty: true });
+                  } catch { /* ignore */ }
+                  setIsDirty(true);
+                }}
+              />
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

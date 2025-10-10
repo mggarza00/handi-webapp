@@ -47,6 +47,15 @@ export const RequestCreateSchema = z.object({
     .array(z.union([AttachmentUrl, AttachmentPath]))
     .max(5)
     .optional(),
+  // Dirección (opcional en creación), place id y coordenadas
+  address_line: z.string().max(500).optional(),
+  address_place_id: z.string().max(200).optional(),
+  address_lat: z.number().optional(),
+  address_lng: z.number().optional(),
+  address_postcode: z.string().max(40).optional(),
+  address_state: z.string().max(120).optional(),
+  address_country: z.string().max(120).optional(),
+  address_context: z.any().optional(),
 });
 
 export type RequestCreateInput = z.infer<typeof RequestCreateSchema>;

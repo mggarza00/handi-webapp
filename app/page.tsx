@@ -384,7 +384,7 @@ export default function Page() {
                 {categories.map((c) => (
                   <Link
                     key={c}
-                    href={`/search?category=${encodeURIComponent(c)}`}
+                    href={`/requests/new?category=${encodeURIComponent(c)}`}
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
                   >
                     {c}
@@ -423,7 +423,7 @@ export default function Page() {
                     {subcategories.map((s) => (
                       <Link
                         key={`subcat-a-${s.name}`}
-                        href={`/search?subcategory=${encodeURIComponent(s.name)}`}
+                        href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
                         className="rounded-full border border-slate-200 bg-white px-[0.8rem] py-[0.4rem] text-[0.7rem] text-slate-700 shadow-sm hover:bg-slate-100 inline-flex items-center gap-1"
                       >
                         {s.icon ? (
@@ -447,7 +447,7 @@ export default function Page() {
                     {subcategories.map((s) => (
                       <Link
                         key={`subcat-b-${s.name}`}
-                        href={`/search?subcategory=${encodeURIComponent(s.name)}`}
+                        href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
                         className="rounded-full border border-slate-200 bg-white px-[0.8rem] py-[0.4rem] text-[0.7rem] text-slate-700 shadow-sm hover:bg-slate-100 inline-flex items-center gap-1"
                       >
                         {s.icon ? (

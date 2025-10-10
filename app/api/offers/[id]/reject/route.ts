@@ -51,15 +51,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (offer.professional_id !== auth.user.id)
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
-    if (offer.status !== "pending")
+    const currentStatus = String(offer.status || '').toLowerCase();
+    if (!['pending', 'sent'].includes(currentStatus))
       return NextResponse.json({ ok: false, error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
 
+    // Use the exact current enum value to avoid casting issues when 'pending' is not part of the enum in some envs
+    const currentEnum = (offer as any).status as string;
     const { data: updated, error: upErr } = await supabase
       .from("offers")
       .update({ status: "rejected", reject_reason: reason })
       .eq("id", offer.id)
       .eq("professional_id", auth.user.id)
-      .eq("status", "pending")
+      .eq("status", currentEnum)
       .select("*")
       .single();
 

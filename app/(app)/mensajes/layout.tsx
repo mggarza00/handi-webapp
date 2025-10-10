@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ReactNode } from "react";
 import MessagesShell from "./_components/MessagesShell.client";
+import RealtimeProvider from "@/components/messages/RealtimeProvider";
 import type { ChatSummary } from "./_components/types";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
@@ -117,9 +118,12 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
             .limit(Math.min(300, convIds.length * 3));
           for (const m of msgs || []) {
             const cid = ((m as any).conversation_id ?? "") as string;
+            const bodyStr = String(((m as any).body ?? (m as any).text ?? "") as string).trim();
+            const isLongPayment = /el pago está en custodia/i.test(bodyStr);
+            if (isLongPayment) continue;
             if (!previews.has(cid)) {
               previews.set(cid, {
-                body: String(((m as any).body ?? (m as any).text ?? "") as string),
+                body: bodyStr,
                 sender_id: String((m as any).sender_id ?? ""),
                 created_at: String((m as any).created_at ?? ""),
                 read_by: Array.isArray((m as any).read_by)
@@ -252,9 +256,12 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
         .limit(Math.min(300, convIds.length * 3));
       for (const m of msgs || []) {
         const cid = (m as any).conversation_id as string;
+        const bodyStr = String(((m as any).body ?? (m as any).text ?? "") as string).trim();
+        const isLongPayment = /el pago está en custodia/i.test(bodyStr);
+        if (isLongPayment) continue;
         if (!previews.has(cid)) {
           previews.set(cid, {
-            body: String(((m as any).body ?? (m as any).text ?? "") as string),
+            body: bodyStr,
             sender_id: String((m as any).sender_id ?? ""),
             created_at: String((m as any).created_at ?? ""),
             read_by: Array.isArray((m as any).read_by)
@@ -305,7 +312,11 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
 
 export default async function MensajesLayout({ children }: { children: ReactNode }) {
   const chats = await getChatSummaries();
-  return <MessagesShell chats={chats}>{children}</MessagesShell>;
+  return (
+    <RealtimeProvider>
+      <MessagesShell chats={chats}>{children}</MessagesShell>
+    </RealtimeProvider>
+  );
 }
 /* eslint-disable import/order */
 /* eslint-disable @typescript-eslint/no-explicit-any */

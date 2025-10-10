@@ -6,8 +6,7 @@ import { usePathname } from "next/navigation";
 import ChatListItem from "./ChatListItem";
 import type { ChatSummary } from "./types";
 import { Trash2 } from "lucide-react";
-import { toast } from "@/components/ui/use-toast";
-import { supabaseBrowser } from "@/lib/supabase-browser";
+import ChatListRealtime from "@/components/messages/ChatListRealtime";
 
 export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   const initial = useMemo(() => (Array.isArray(chats) ? chats : []), [chats]);
@@ -27,6 +26,8 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   const activeIdRef = useRef<string | null>(activeId);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
   const [meId, setMeId] = useState<string | null>(null);
+  const meIdRef = useRef<string | null>(null);
+  useEffect(() => { meIdRef.current = meId; }, [meId]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -43,99 +44,89 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
     setItems(initial);
   }, [initial]);
 
+  // Client-side fallback: if SSR provided no chats (env or cookie missing), load via API
+  useEffect(() => {
+    if (initial.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/chat/rooms', { credentials: 'include', cache: 'no-store' });
+        const j = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok && Array.isArray(j?.data)) {
+          const mapped: ChatSummary[] = (j.data as Array<any>).map((it: any) => ({
+            id: String(it.id),
+            title: typeof it.title === 'string' ? it.title : 'Contacto',
+            preview: typeof it.lastMessagePreview === 'string' ? it.lastMessagePreview : null,
+            lastMessageAt: typeof it.lastMessageTime === 'string' ? it.lastMessageTime : null,
+            unread: typeof it.unreadCount === 'number' ? it.unreadCount > 0 : false,
+            avatarUrl: it.avatarUrl ?? null,
+            requestTitle: null,
+            unreadCount: typeof it.unreadCount === 'number' ? it.unreadCount : 0,
+          }));
+          setItems(mapped);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initial.length]);
+
   // Clear unread on navigation into a conversation
   useEffect(() => {
     if (!activeId) return;
     setItems((prev) => prev.map((c) => (c.id === activeId ? { ...c, unread: false, unreadCount: 0 } : c)));
   }, [activeId]);
 
-  // Realtime: listen to incoming messages for all conversations and update UI
-  useEffect(() => {
-    const channel = supabaseBrowser
-      .channel("chat:inbox:rt")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          const row = payload.new as unknown as {
-            id?: string;
-            conversation_id?: string;
-            sender_id?: string;
-            body?: string | null;
-            text?: string | null;
-            created_at?: string;
-          };
-          const cid = (row.conversation_id || "").toString();
-          if (!cid) return;
-          const list = itemsRef.current || [];
-          const idx = list.findIndex((c) => c.id === cid);
-          if (idx === -1) return; // not in sidebar list, ignore
-          const isIncoming = meId ? (row.sender_id || "").toString() !== meId : true;
-          if (!isIncoming) return;
-          const isActive = activeIdRef.current === cid;
-          const body = typeof row.body === "string" && row.body.trim().length
-            ? row.body
-            : (typeof row.text === "string" ? row.text : "");
-
-          setItems((prev) => {
-            const copy = [...prev];
-            const i = copy.findIndex((c) => c.id === cid);
-            if (i === -1) return prev;
-            const prevItem = copy[i];
-            const nextCount = (prevItem.unreadCount ?? (prevItem.unread ? 1 : 0)) + (isActive ? 0 : 1);
-            const updated: ChatSummary = {
-              ...prevItem,
-              preview: body || prevItem.preview || prevItem.requestTitle || prevItem.title,
-              lastMessageAt: row.created_at ? String(row.created_at) : prevItem.lastMessageAt,
-              unread: isActive ? false : true,
-              unreadCount: isActive ? 0 : Math.min(nextCount, 99),
-            };
-            // Reordenar: si no es el chat activo, mover al tope
-            copy.splice(i, 1);
-            if (!isActive) copy.unshift(updated);
-            else copy.splice(0, 0, updated); // mantener posición si es activo
-            return copy;
-          });
-
-          if (!isActive) {
-            const id = cid;
-            setFlash((prev) => {
-              const s = new Set(prev);
-              s.add(id);
-              return s;
-            });
-            // one-shot timer to clear flash in ~1.2s
-            const existing = timersRef.current.get(id);
-            if (existing) clearTimeout(existing);
-            const t = setTimeout(() => {
-              setFlash((prev) => {
-                if (!prev.has(id)) return prev;
-                const s = new Set(prev);
-                s.delete(id);
-                return s;
-              });
-              timersRef.current.delete(id);
-            }, 1300);
-            timersRef.current.set(id, t);
-            try {
-              const title = list[idx]?.title || "";
-              toast({
-                title: "Nuevo mensaje",
-                description: `Nuevo mensaje de ${title}`,
-                action: { label: "Abrir chat", href: `/messages/${cid}` },
-                duration: 4000,
-              });
-            } catch { /* ignore */ }
-          }
-        },
-      )
-      .subscribe();
-    return () => {
-      try { supabaseBrowser.removeChannel(channel); } catch { /* ignore */ }
-      for (const t of timersRef.current.values()) clearTimeout(t);
-      timersRef.current.clear();
-    };
-  }, [meId]);
+  // Realtime via helper component (minimal wiring inside ChatList)
+  const handleGlobalInsert = React.useCallback((cid: string, row: any, isActive: boolean) => {
+    const rawBody = typeof row?.body === "string" && row.body.trim().length
+      ? row.body
+      : (typeof row?.text === "string" ? row.text : "");
+    const body = (() => {
+      const s = String(rawBody || '').trim();
+      return /el pago está en custodia/i.test(s) ? '' : s;
+    })();
+    setItems((prev) => {
+      const copy = [...prev];
+      const i = copy.findIndex((c) => c.id === cid);
+      if (i === -1) return prev;
+      const prevItem = copy[i];
+      const nextCount = (prevItem.unreadCount ?? (prevItem.unread ? 1 : 0)) + (isActive ? 0 : 1);
+      const updated: ChatSummary = {
+        ...prevItem,
+        preview: body || prevItem.preview || prevItem.requestTitle || prevItem.title,
+        lastMessageAt: row?.created_at ? String(row.created_at) : prevItem.lastMessageAt,
+        unread: isActive ? false : true,
+        unreadCount: isActive ? 0 : Math.min(nextCount, 99),
+      };
+      // Reordenar: si no es el chat activo, mover al tope; si es activo, mantener índice
+      copy.splice(i, 1);
+      if (!isActive) copy.unshift(updated);
+      else copy.splice(i, 0, updated);
+      return copy;
+    });
+    if (!isActive) {
+      const id = cid;
+      setFlash((prev) => {
+        const s = new Set(prev);
+        s.add(id);
+        return s;
+      });
+      const existing = timersRef.current.get(id);
+      if (existing) clearTimeout(existing);
+      const t = setTimeout(() => {
+        setFlash((prev) => {
+          if (!prev.has(id)) return prev;
+          const s = new Set(prev);
+          s.delete(id);
+          return s;
+        });
+        timersRef.current.delete(id);
+      }, 1300);
+      timersRef.current.set(id, t);
+    }
+  }, []);
 
   const onDelete = async (id: string) => {
     if (busyId) return;
@@ -186,6 +177,12 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
         </button>
       </div>
       <ul className="divide-y" data-testid="chat-thread-list" aria-live="polite" aria-relevant="additions text">
+        <ChatListRealtime
+          meId={meId}
+          ids={items.map((x) => x.id)}
+          onUnreadIncrement={handleGlobalInsert}
+          getChatTitle={(id) => (itemsRef.current.find((x) => x.id === id)?.title || "")}
+        />
         {items.map((c) => (
           <ChatListItem
             key={c.id}

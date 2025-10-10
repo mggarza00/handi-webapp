@@ -61,6 +61,10 @@ export default async function MePage() {
             src={avatarUrl || "/avatar.png"}
             alt={fullName}
             className="h-20 w-20 rounded-full border object-cover"
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+            loading="lazy"
+            decoding="async"
           />
           <div>
             <h1 className="text-2xl font-semibold leading-tight">{fullName}</h1>

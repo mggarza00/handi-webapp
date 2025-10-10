@@ -65,15 +65,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "INVALID_AMOUNT" }, { status: 400, headers: JSONH });
     }
 
-    // Compute total: servicio + comisión + IVA
+    // Compute total: servicio + comisión + IVA (all in cents to avoid rounding drift)
     const baseAmount = Number(row.amount ?? NaN);
-    const fee = Number.isFinite(baseAmount) && baseAmount > 0
-      ? Math.min(1500, Math.max(50, Math.round((baseAmount * 0.05 + Number.EPSILON) * 100) / 100))
-      : 0;
-    const iva = Number.isFinite(baseAmount)
-      ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
-      : 0;
-    const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
+    const baseCents = Number.isFinite(baseAmount) && baseAmount > 0 ? Math.round(baseAmount * 100) : 0;
+    const feeCents = baseCents > 0 ? Math.min(150000, Math.max(5000, Math.round(baseCents * 0.05))) : 0; // 50–1500 MXN
+    const ivaCents = baseCents > 0 ? Math.round((baseCents + feeCents) * 0.16) : 0;
+    const totalCents = baseCents + feeCents + ivaCents;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -84,7 +81,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           quantity: 1,
           price_data: {
             currency: (row.currency || "MXN").toLowerCase(),
-            unit_amount: Math.round(total * 100),
+            unit_amount: totalCents,
             product_data: {
               name: row.title || "Servicio",
               description: row.description || undefined,
@@ -92,7 +89,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           },
         },
       ],
-      metadata: { offer_id: row.id, conversation_id: row.conversation_id || "" },
+      metadata: {
+        offer_id: row.id,
+        conversation_id: row.conversation_id || "",
+        base_cents: String(baseCents),
+        commission_cents: String(feeCents),
+        iva_cents: String(ivaCents),
+        total_cents: String(totalCents),
+      },
     });
 
     const checkoutUrl = session.url || null;

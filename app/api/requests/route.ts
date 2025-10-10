@@ -108,7 +108,18 @@ export async function GET(req: Request) {
     const last = data[data.length - 1] as { created_at?: string };
     if (last?.created_at) nextCursor = new Date(last.created_at).toISOString();
   }
-  return NextResponse.json({ ok: true, data, nextCursor }, { headers: JSONH });
+  // Privacidad: no exponer address_* en listados públicos (solo incluir si mine=1)
+  const safe = Array.isArray(data)
+    ? data.map((row: any) => {
+        if (!mine) {
+          const { address_line, address_place_id, address_lat, address_lng, address_postcode, address_state, address_country, address_context, ...rest } = row || {};
+          return rest;
+        }
+        return row;
+      })
+    : data;
+
+  return NextResponse.json({ ok: true, data: safe, nextCursor }, { headers: JSONH });
 }
 
 // POST /api/requests
@@ -297,6 +308,26 @@ export async function POST(req: Request) {
   if (Array.isArray(payload.attachments) && payload.attachments.length > 0) {
     insert.attachments = payload.attachments;
   }
+  // Meta de dirección extra (opcionales)
+  try {
+    const addr = payload as Record<string, unknown>;
+    if (typeof addr.address_postcode === 'string' && (addr.address_postcode as string).trim()) (insert as Record<string, unknown>).address_postcode = addr.address_postcode;
+    if (typeof addr.address_state === 'string' && (addr.address_state as string).trim()) (insert as Record<string, unknown>).address_state = addr.address_state;
+    if (typeof addr.address_country === 'string' && (addr.address_country as string).trim()) (insert as Record<string, unknown>).address_country = addr.address_country;
+    if (typeof addr.address_context !== 'undefined') (insert as Record<string, unknown>).address_context = addr.address_context;
+  } catch { /* ignore */ }
+  // Dirección opcional
+  try {
+    const addr = (payload as Record<string, unknown>);
+    const address_line = typeof addr.address_line === "string" ? addr.address_line.trim() : "";
+    const address_place_id = typeof addr.address_place_id === "string" ? addr.address_place_id.trim() : "";
+    const address_lat = typeof addr.address_lat === "number" ? addr.address_lat : null;
+    const address_lng = typeof addr.address_lng === "number" ? addr.address_lng : null;
+    if (address_line) (insert as Record<string, unknown>).address_line = address_line;
+    if (address_place_id) (insert as Record<string, unknown>).address_place_id = address_place_id;
+    if (address_lat != null) (insert as Record<string, unknown>).address_lat = address_lat;
+    if (address_lng != null) (insert as Record<string, unknown>).address_lng = address_lng;
+  } catch { /* ignore */ }
 
   const attemptInsert: Record<string, unknown> = insert;
   let data: unknown;
@@ -359,6 +390,54 @@ export async function POST(req: Request) {
       }
     }
   }
+
+  // Best-effort: guarda/actualiza dirección usada por el usuario (match por place_id o address_line)
+  try {
+    const d = (data || {}) as Record<string, unknown>;
+    const address_line = typeof d.address_line === "string" ? d.address_line : null;
+    const address_place_id = typeof d.address_place_id === "string" ? d.address_place_id : null;
+    const lat = typeof d.address_lat === "number" ? d.address_lat : null;
+    const lng = typeof d.address_lng === "number" ? d.address_lng : null;
+    if (actingUserId && (address_line || address_place_id)) {
+      const writer = preferAdminInsert ? getAdminSupabase() : getSupabase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w: any = writer;
+      let savedId: string | null = null;
+      if (address_place_id) {
+        const { data: byPid } = await w
+          .from("user_saved_addresses")
+          .select("id")
+          .eq("user_id", actingUserId)
+          .eq("address_place_id", address_place_id)
+          .maybeSingle();
+        savedId = (byPid as { id?: string } | null)?.id ?? null;
+      }
+      if (!savedId && address_line) {
+        const { data: byLine } = await w
+          .from("user_saved_addresses")
+          .select("id")
+          .eq("user_id", actingUserId)
+          .eq("address_line", address_line)
+          .maybeSingle();
+        savedId = (byLine as { id?: string } | null)?.id ?? null;
+      }
+      if (savedId) {
+        await w
+          .from("user_saved_addresses")
+          .update({
+            address_place_id: address_place_id ?? undefined,
+            lat: lat ?? undefined,
+            lng: lng ?? undefined,
+            last_used_at: new Date().toISOString(),
+          })
+          .eq("id", savedId);
+      } else {
+        await w
+          .from("user_saved_addresses")
+          .insert({ user_id: actingUserId, address_line: address_line ?? "", address_place_id, lat, lng, last_used_at: new Date().toISOString() });
+      }
+    }
+  } catch { /* ignore */ }
 
   return NextResponse.json({ ok: true, data }, { status: 201, headers: JSONH });
 }

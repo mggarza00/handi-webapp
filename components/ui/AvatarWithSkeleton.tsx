@@ -18,16 +18,6 @@ export default function AvatarWithSkeleton({ src, alt = "", className = "", size
   React.useEffect(() => {
     setLoaded(false);
     setError(false);
-    if (!src) return;
-    try {
-      const img = new Image();
-      img.onload = () => setLoaded(true);
-      img.onerror = () => { setError(true); setLoaded(true); };
-      img.src = src;
-    } catch {
-      setError(true);
-      setLoaded(true);
-    }
   }, [src]);
 
   return (
@@ -45,6 +35,8 @@ export default function AvatarWithSkeleton({ src, alt = "", className = "", size
           onError={() => { setError(true); setLoaded(true); }}
           loading="lazy"
           decoding="async"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
         />
       ) : (
         <div className={`${common} flex items-center justify-center bg-neutral-200 text-neutral-600 ${className}`}>

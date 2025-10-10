@@ -172,30 +172,34 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     // Direct accept without lock (for environments without 'accepting_at')
     if (stripe) {
       try {
-        // Compute total: service amount + commission + IVA
+        // Compute total: servicio + comisión + IVA (work in cents)
         const baseAmount = Number(target.amount ?? NaN);
-        const fee = Number.isFinite(baseAmount) && baseAmount > 0
-          ? Math.min(1500, Math.max(50, Math.round((baseAmount * 0.05 + Number.EPSILON) * 100) / 100))
-          : 0;
-        const iva = Number.isFinite(baseAmount)
-          ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
-          : 0;
-        const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
-        stripeSession = await stripe.checkout.sessions.create({
-          mode: "payment",
-          success_url: `${APP_URL}/offers/${target.id}?status=success`,
-          cancel_url: `${APP_URL}/offers/${target.id}?status=cancel`,
+        const baseCents = Number.isFinite(baseAmount) && baseAmount > 0 ? Math.round(baseAmount * 100) : 0;
+        const feeCents = baseCents > 0 ? Math.min(150000, Math.max(5000, Math.round(baseCents * 0.05))) : 0; // 50–1500 MXN
+        const ivaCents = baseCents > 0 ? Math.round((baseCents + feeCents) * 0.16) : 0;
+        const totalCents = baseCents + feeCents + ivaCents;
+      stripeSession = await stripe.checkout.sessions.create({
+        mode: "payment",
+        success_url: `${APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&cid=${target.conversation_id}`,
+        cancel_url: `${APP_URL}/offers/${target.id}?status=cancel`,
           line_items: [
             {
               quantity: 1,
               price_data: {
                 currency: (target.currency || "MXN").toLowerCase(),
-                unit_amount: Math.round(total * 100),
+                unit_amount: totalCents,
                 product_data: { name: target.title, description: target.description || undefined },
               },
             },
           ],
-          metadata: { offer_id: target.id, conversation_id: target.conversation_id },
+          metadata: {
+            offer_id: target.id,
+            conversation_id: target.conversation_id,
+            base_cents: String(baseCents),
+            commission_cents: String(feeCents),
+            iva_cents: String(ivaCents),
+            total_cents: String(totalCents),
+          },
         });
       } catch {
         // ignore: stripe fallback; acceptance can proceed without checkout_url
