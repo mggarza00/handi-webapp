@@ -124,8 +124,6 @@ export default async function ExploreRequestsPage() {
       "id, title, city, category, status, created_at, attachments, subcategories",
     )
     .eq("status", "active")
-    // Refuerzo: excluir elementos marcados como no explorables si existen estas columnas
-    .is("is_explorable" as any, true)
     .order("created_at", { ascending: false })
     .limit(30);
 
