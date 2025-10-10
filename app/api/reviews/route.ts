@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { getAdminSupabase } from '@/lib/supabase/admin';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import type { Database } from '@/types/supabase';
 
 const Body = z.object({
@@ -69,6 +70,17 @@ export async function POST(req: NextRequest) {
     }
     if (!allowed) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
 
+    // Evitar duplicados por (request_id, from_user_id)
+    const { data: exists } = await admin
+      .from('ratings')
+      .select('id')
+      .eq('request_id', requestId)
+      .eq('from_user_id', me)
+      .limit(1);
+    if (Array.isArray(exists) && exists.length) {
+      return NextResponse.json({ error: 'DUPLICATE_REVIEW' }, { status: 409 });
+    }
+
     // Guardar rating
     const ins = await admin
       .from('ratings')
@@ -77,7 +89,7 @@ export async function POST(req: NextRequest) {
       .single();
     if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 400 });
 
-    // Guardar fotos (opcional) en request_photos
+    // Guardar fotos (opcional) en request_photos (se asume que ya fueron subidas a Storage y enviamos sus paths)
     if (Array.isArray(photos) && photos.length) {
       const rows = photos.map((p) => ({
         request_id: requestId,
@@ -91,10 +103,50 @@ export async function POST(req: NextRequest) {
       await admin.from('request_photos').insert(rows as any);
     }
 
+    // Condición de cierre: si existen reseñas de ambas partes (dueño y pro), marcar completed
+    try {
+      const { data: conv } = await admin
+        .from('conversations')
+        .select('customer_id, pro_id, id')
+        .eq('request_id', requestId)
+        .order('last_message_at', { ascending: false })
+        .maybeSingle();
+      const customerId = (conv as any)?.customer_id as string | undefined;
+      const proUserId = (conv as any)?.pro_id as string | undefined;
+      if (customerId && proUserId) {
+        const { data: both } = await admin
+          .from('ratings')
+          .select('from_user_id')
+          .eq('request_id', requestId);
+        const set = new Set<string>((both || []).map((r: any) => String(r.from_user_id)));
+        if (set.has(customerId) && set.has(proUserId)) {
+          // marcar como finished (UI = completed)
+          await admin.from('requests').update({ status: 'finished' } as any).eq('id', requestId);
+          // espejo en calendario
+          try {
+            await (admin as any).from('pro_calendar_events').upsert({ request_id: requestId, status: 'finished' }, { onConflict: 'request_id' });
+          } catch { /* ignore */ }
+          try {
+            revalidatePath(`/requests/${requestId}`);
+            revalidatePath('/pro/calendar');
+            revalidateTag('pro-calendar');
+            if ((conv as any)?.id) revalidatePath(`/mensajes/${(conv as any).id}`);
+          } catch { /* ignore */ }
+        } else {
+          // al menos refrescar vistas si sólo una reseña
+          try {
+            revalidatePath(`/requests/${requestId}`);
+            revalidatePath('/pro/calendar');
+            revalidateTag('pro-calendar');
+            if ((conv as any)?.id) revalidatePath(`/mensajes/${(conv as any).id}`);
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
+
     return NextResponse.json({ ok: true, id: (ins.data as any)?.id ?? null });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

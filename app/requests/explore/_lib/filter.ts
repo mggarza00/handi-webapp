@@ -1,6 +1,8 @@
+import type { RequestStatus } from '@/lib/request-status';
+
 export type ExploreRow = {
   id: string;
-  status?: string | null;
+  status?: RequestStatus | null;
   is_explorable?: boolean | null;
   visible_in_explore?: boolean | null;
   [k: string]: unknown;
@@ -13,7 +15,7 @@ export type ExploreRow = {
  * - y no deben estar marcadas explícitamente como no explorables.
  */
 export function filterExplorableRequests<T extends ExploreRow>(rows: T[]): T[] {
-  const blocked = new Set(["scheduled", "in_process", "finished", "completed", "canceled", "cancelled"]);
+  const blocked = new Set<RequestStatus>(["scheduled", "in_process", "finished", "completed", "canceled", "cancelled"]);
   return rows.filter((r) => {
     const st = (r.status || "").toString().toLowerCase();
     if (!st || st !== "active") return false;
@@ -25,4 +27,3 @@ export function filterExplorableRequests<T extends ExploreRow>(rows: T[]): T[] {
     return true;
   });
 }
-

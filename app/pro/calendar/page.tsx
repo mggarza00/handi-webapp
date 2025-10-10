@@ -17,138 +17,38 @@ export const dynamic = "force-dynamic";
 type AgreementRow = Database["public"]["Tables"]["agreements"]["Row"];
 type RequestRow = Database["public"]["Tables"]["requests"]["Row"];
 
-async function getScheduled(
-  supabase: any,
-  userId: string,
-): Promise<ScheduledService[]> {
-  const since = new Date(new Date().getFullYear() - 1, 0, 1).toISOString();
-  // 1) Intentar vista materializada / view si existe
+async function getScheduledFromApi(cookieHeader: string | null): Promise<ScheduledService[]> {
   try {
-    const { data: viewData, error: viewErr } = await supabase
-      .from("v_pro_scheduled_services" as any)
-      .select(
-        "id,title,scheduled_at,scheduled_end_at,client_name,city,status,professional_id",
-      )
-      .eq("professional_id", userId)
-      .gte("scheduled_at", since)
-      .order("scheduled_at", { ascending: true, nullsFirst: false });
-    if (!viewErr && Array.isArray(viewData) && viewData.length) {
-      const mapped = (viewData as any[])
-        .map((r) => ({
-          id: String((r as any).id),
-          title: (r as any).title ?? "Servicio",
-          scheduled_at: String((r as any).scheduled_at ?? ""),
-          scheduled_end_at: (r as any).scheduled_end_at ?? null,
-          client_name: (r as any).client_name ?? null,
-          city: (r as any).city ?? null,
-          status: (r as any).status ?? null,
-        }))
-        .filter((x) => x.scheduled_at);
-      return mapped as ScheduledService[];
-    }
-  } catch {
-    // ignore
-  }
-
-  // 2) Fallback directo a requests: ajustar a columnas reales (scheduled_date/time)
-  // 2.0) Intentar tabla pro_calendar_events si existe
-  try {
-    const { data: pce, error: pceErr } = await supabase
-      .from('pro_calendar_events' as any)
-      .select('request_id, pro_id, title, scheduled_date, scheduled_time, status')
-      .eq('pro_id', userId)
-      .order('scheduled_date', { ascending: true, nullsFirst: false });
-    if (!pceErr && Array.isArray(pce) && pce.length) {
-      const mapped: ScheduledService[] = (pce as any[])
-        .map((r) => {
-          const d = (r as any).scheduled_date as string | null;
-          if (!d) return null;
-          const t = (r as any).scheduled_time as string | null;
-          const iso = `${d}${t ? `T${t}` : 'T09:00:00'}`;
-          return {
-            id: String((r as any).request_id),
-            title: (r as any).title ?? 'Servicio',
-            scheduled_at: iso,
-            scheduled_end_at: null,
-            client_name: null,
-            city: null,
-            status: (r as any).status ?? null,
-          } as ScheduledService;
-        })
-        .filter((x): x is ScheduledService => !!x);
-      if (mapped.length) return mapped;
-    }
-  } catch { /* ignore */ }
-
-  try {
-    // 2a) Intentar esquema con scheduled_at + service_name + client_name
-    try {
-      const { data: reqs2 } = (await supabase
-        .from("requests")
-        .select(
-          "id,service_name,scheduled_at,scheduled_end_at,client_name,city,status,professional_id",
-        )
-        .eq("professional_id" as any, userId)
-        .in("status" as any, ["scheduled", "in_process"]) // puede fallar si enum no contiene 'scheduled'
-        .gte("scheduled_at" as any, since)
-        .order("scheduled_at", { ascending: true, nullsFirst: false })) as unknown as {
-        data: any[] | null;
-      };
-      const list2 = (reqs2 || []) as any[];
-      if (list2.length) {
-        const mapped: ScheduledService[] = list2
-          .map((r) => ({
-            id: String((r as any).id),
-            title: (r as any).service_name ?? "Servicio",
-            scheduled_at: String((r as any).scheduled_at ?? ""),
-            scheduled_end_at: (r as any).scheduled_end_at ?? null,
-            client_name: (r as any).client_name ?? null,
-            city: (r as any).city ?? null,
-            status: (r as any).status ?? null,
-          }))
-          .filter((x) => x.scheduled_at);
-        if (mapped.length) return mapped;
-      }
-    } catch {
-      // ignore and try legacy shape
-    }
-
-    const { data: reqs } = (await supabase
-      .from("requests")
-      .select(
-        "id,title,city,status,scheduled_date,scheduled_time,professional_id",
-      )
-      .eq("professional_id" as any, userId)
-      .order("scheduled_date", { ascending: true, nullsFirst: false })) as unknown as {
-      data: any[] | null;
-    };
-    const list = (reqs || []) as any[];
-    const services = list
-      .map((r) => {
-        const sd = (r as any).scheduled_date as string | null;
+    const url = new URL('/api/pro/calendar', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    const res = await fetch(url.toString(), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
+      cache: 'no-store',
+      next: { tags: ['pro-calendar'] },
+    });
+    const j = await res.json().catch(() => ({}));
+    const items = Array.isArray(j?.items) ? j.items : [];
+    const out: ScheduledService[] = items
+      .map((r: any) => {
+        const sd = r.scheduled_date as string | null;
         if (!sd) return null;
-        const st = (r as any).scheduled_time as string | null;
-        const scheduled_at = `${sd}${st ? `T${st}` : "T09:00:00"}`;
-        const obj = {
-          id: String((r as any).id),
-          title: (r as any).title ?? "Servicio",
+        const st = r.scheduled_time as string | null;
+        const scheduled_at = `${sd}${st ? `T${st}` : 'T09:00:00'}`;
+        return {
+          id: String(r.request_id),
+          title: (r.title as string) || 'Servicio',
           scheduled_at,
           scheduled_end_at: null,
           client_name: null,
-          city: (r as any).city ?? null,
-          status: (r as any).status ?? null,
+          city: null,
+          status: (r.status as string | null) ?? null,
         } as ScheduledService;
-        return obj;
       })
-      .filter((x): x is ScheduledService => !!x && !!x.scheduled_at);
-    // Filtra estados relevantes si están presentes
-    return services.filter((s) => {
-      const st = (s.status || "").toLowerCase();
-      return st ? st === "scheduled" || st === "in_process" : true;
-    });
-  } catch {
-    return [];
-  }
+      .filter((x: any) => !!x);
+    return out as ScheduledService[];
+  } catch { return []; }
 }
 
 export default async function Page() {
@@ -166,7 +66,10 @@ export default async function Page() {
   const role = (profile?.role ?? null) as null | "client" | "pro" | "admin";
   if (role !== "pro") redirect("/");
 
-  const services = await getScheduled(supabase, user.id);
+  // Forward cookies to API so it can read auth and tag for revalidateTag
+  const ck = cookies();
+  const cookieHeader = ck.getAll().map((c) => `${c.name}=${c.value}`).join('; ');
+  const services = await getScheduledFromApi(cookieHeader || null);
 
   const calendarEvents: CalendarEvent[] = services.map((s) => ({
     ...s,

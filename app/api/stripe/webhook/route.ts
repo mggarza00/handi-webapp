@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import React from 'react';
 import { ReceiptTemplate } from '@/components/pdf/ReceiptTemplate';
 import { getReceiptForPdf } from '@/lib/receipts';
@@ -431,6 +431,7 @@ export async function POST(req: Request) {
                     await admin
                       .from("messages")
                       .insert({ conversation_id: convId, sender_id: clientId, body: body || "Detalles de servicio", message_type: "system", payload: payload2 });
+                    try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }
                   }
                 } catch {}
               }
@@ -528,6 +529,7 @@ export async function POST(req: Request) {
                   await admin
                     .from("messages")
                     .insert({ conversation_id: convId, sender_id: clientId, body: body || "Detalles de servicio", message_type: "system", payload: payload2 });
+                  try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }
                 }
               } catch {}
             }
@@ -622,6 +624,7 @@ export async function POST(req: Request) {
                 await admin
                   .from("messages")
                   .insert({ conversation_id: convId, sender_id: clientId, body: body || "Detalles de servicio", message_type: "system", payload: payload2 });
+                try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }
               }
             } catch {}
           }
@@ -637,10 +640,12 @@ export async function POST(req: Request) {
         break;
     }
 
-    // Best-effort cache revalidation for explore list and request detail
+    // Best-effort cache revalidation for explore list, request detail and pro calendar
     try {
       revalidatePath('/requests/explore');
       if (requestIdTouched) revalidatePath(`/requests/${requestIdTouched}`);
+      revalidatePath('/pro/calendar');
+      revalidateTag('pro-calendar');
     } catch {}
     return NextResponse.json(
       { ok: true, received: true, type: event.type },
@@ -664,5 +669,3 @@ export function GET() {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-

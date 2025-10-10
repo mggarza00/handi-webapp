@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import type { Database } from '@/types/supabase';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 const Body = z.object({
   nextStatus: z.enum(['scheduled', 'in_process', 'completed']),
@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     try {
       const { data: conv } = await admin
         .from('conversations')
-        .select('pro_id')
+        .select('pro_id, id')
         .eq('request_id', requestId)
         .order('created_at', { ascending: false })
         .maybeSingle();
@@ -80,12 +80,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             onConflict: 'request_id',
           });
       }
+      // Revalidar calendario y chat
+      try {
+        revalidatePath('/pro/calendar');
+        revalidateTag('pro-calendar');
+        if ((conv as any)?.id) revalidatePath(`/mensajes/${(conv as any).id}`);
+      } catch { /* ignore */ }
     } catch { /* ignore */ }
 
     // Revalidar vistas clave
     try {
       revalidatePath('/requests/explore');
       revalidatePath(`/requests/${requestId}`);
+      revalidatePath('/pro/calendar');
+      revalidateTag('pro-calendar');
     } catch { /* ignore */ }
 
     const ui = next; // devolver etiqueta conforme a UI solicitada
@@ -95,4 +103,3 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

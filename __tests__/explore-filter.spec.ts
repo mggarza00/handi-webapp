@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { filterExplorableRequests } from '@/app/requests/explore/_lib/filter';
+import { filterExplorableRequests, type ExploreRow } from '@/app/requests/explore/_lib/filter';
 
 describe('filterExplorableRequests', () => {
   it('excludes scheduled requests from explore', () => {
-    const rows = [
+    const rows: ExploreRow[] = [
       { id: '1', status: 'active' },
       { id: '2', status: 'scheduled' },
       { id: '3', status: 'in_process' },
@@ -16,4 +16,3 @@ describe('filterExplorableRequests', () => {
     expect(ids).toEqual(['1']);
   });
 });
-
