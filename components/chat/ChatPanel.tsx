@@ -1279,10 +1279,10 @@ export default function ChatPanel({
     (async () => {
       try {
         await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
-          method: 'POST',
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           credentials: 'include',
-          body: JSON.stringify({ status: 'scheduled' }),
+          body: JSON.stringify({ nextStatus: 'scheduled' }),
         });
       } catch {
         // ignore
