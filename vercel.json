@@ -1,13 +1,6 @@
 {
-  "redirects": [
-    {
-      "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.homaid.mx" }],
-      "destination": "https://homaid.mx/$1",
-      "permanent": true
-    }
-  ],
-  "rewrites": [
-    { "source": "/favicon.ico", "destination": "/icons/Homaid-favicon.gif" }
-  ]
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "framework": "nextjs"
 }
+
