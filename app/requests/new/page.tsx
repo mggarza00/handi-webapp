@@ -96,6 +96,7 @@ export default function NewRequestPage() {
   const [addressCountry, setAddressCountry] = useState<string | null>(null);
   const [addressContext, setAddressContext] = useState<any>(null);
   const [openMap, setOpenMap] = useState(false);
+  const [lastReverseErr, setLastReverseErr] = useState<string | null>(null);
 
   // react-hook-form: valores por defecto mínimos para integración
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
@@ -515,9 +516,14 @@ export default function NewRequestPage() {
         console.debug("[city:auto] coords", { lat, lon });
         const url = `/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
         const r = await fetch(url, { headers: { Accept: "application/json" }});
-        const j = await r.json().catch(() => ({} as any));
-        console.debug("[city:auto] reverse", j);
-        if (!j?.ok) { console.debug("[city:auto] reverse failed", j); return; }
+        const j = await r.json().catch(() => null);
+        console.debug("[city:auto] reverse json", j);
+        if (!j || j.ok === false) {
+          console.debug("[city:auto] reverse failed", j?.code, j?.message, j?.details);
+          try { setLastReverseErr(j?.code ? String(j.code) : "ERR"); } catch {}
+          return;
+        }
+        try { setLastReverseErr(null); } catch {}
         const detected = toCanon(j.city);
         console.debug("[city:auto] detected canon", { raw: j.city, detected });
         if (!detected) { console.debug("[city:auto] no canonical after toCanon"); return; }
@@ -982,7 +988,9 @@ export default function NewRequestPage() {
                 </SelectContent>
               </Select>
               {process.env.NODE_ENV !== 'production' ? (
-                <div className="text-xs text-muted-foreground">auto-city debug: {city}</div>
+                <div className="text-xs text-muted-foreground">
+                  auto-city debug: {city}{lastReverseErr ? ` • last error: ${lastReverseErr}` : ""}
+                </div>
               ) : null}
               {errors.city && (
                 <p className="text-xs text-red-600">{errors.city}</p>

@@ -2,101 +2,109 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { CITIES } from "@/lib/cities";
 
-const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+type ApiOk = { ok: true; city: string | null };
+type ApiErr = { ok: false; code: string; message: string; details?: any };
 
-function normalize(s: string) {
-  return s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
-}
+const JSONH = { headers: { "Content-Type": "application/json; charset=utf-8" } } as const;
 
-const CANON = CITIES.map((c) => ({ raw: c, norm: normalize(c) }));
-const SYNONYMS: Record<string, string> = {
-  "san nicolas de los garza": "San Nicolás",
-  "general escobedo": "Escobedo",
-  "san pedro garza garcia": "San Pedro Garza García",
-  "garcia": "García",
-  "santa catarina": "Santa Catarina",
+const normalize = (s: string) =>
+  s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
+
+const CANON = new Map(CITIES.map((c) => [normalize(c), c]));
+const toCanonical = (raw?: string | null): string | null => {
+  const n = normalize(String(raw ?? ""));
+  return (
+    CANON.get(n) ??
+    (n.includes("san nicolas") ? "San Nicolás" :
+     n.includes("escobedo") ? "Escobedo" :
+     n.includes("san pedro") ? "San Pedro Garza García" :
+     n.includes("santa catarina") ? "Santa Catarina" :
+     n.includes("guadalupe") ? "Guadalupe" :
+     n.includes("apodaca") ? "Apodaca" :
+     n.includes("garcia") ? "García" :
+     n.includes("monterrey") ? "Monterrey" : null)
+  );
 };
 
-function toCanonical(input: string | null | undefined): string | null {
-  const v = (input ?? "").toString();
-  if (!v) return null;
-  const n = normalize(v);
-  const direct = CANON.find((x) => x.norm === n)?.raw;
-  if (direct) return direct;
-  const syn = SYNONYMS[n];
-  if (syn) return syn;
-  if (n.includes("san nicolas")) return "San Nicolás";
-  if (n.includes("escobedo")) return "Escobedo";
-  if (n.includes("san pedro")) return "San Pedro Garza García";
-  if (n.includes("santa catarina")) return "Santa Catarina";
-  if (n.includes("guadalupe")) return "Guadalupe";
-  if (n.includes("apodaca")) return "Apodaca";
-  if (n.includes("garza garcia")) return "San Pedro Garza García";
-  if (n.includes("monterrey")) return "Monterrey";
-  if (n.includes("garcia")) return "García";
+function err(code: string, message: string, details?: any) {
+  try { console.warn("[api/geo/reverse]", code, message, details ?? ""); } catch {}
+  return NextResponse.json<ApiErr>({ ok: false, code, message, details }, { status: 400, ...JSONH });
+}
+
+// OPTIONAL: coarse fallback by lat/lon (NL metro)
+function coarseFallback(lat: number, lon: number): string | null {
+  if (lat > 25.60 && lat < 25.80 && lon > -100.40 && lon < -100.20) return "Monterrey";
+  if (lat > 25.62 && lat < 25.71 && lon > -100.44 && lon < -100.34) return "San Pedro Garza García";
+  if (lat > 25.68 && lat < 25.77 && lon > -100.33 && lon < -100.22) return "San Nicolás";
+  if (lat > 25.63 && lat < 25.76 && lon > -100.28 && lon < -100.15) return "Guadalupe";
+  if (lat > 25.76 && lat < 25.90 && lon > -100.38 && lon < -100.26) return "Escobedo";
+  if (lat > 25.62 && lat < 25.75 && lon > -100.53 && lon < -100.42) return "Santa Catarina";
+  if (lat > 25.70 && lat < 25.85 && lon > -100.60 && lon < -100.48) return "García";
+  if (lat > 25.70 && lat < 25.88 && lon > -100.33 && lon < -100.16) return "Apodaca";
   return null;
 }
 
 export async function GET(req: Request) {
   const search = new URL(req.url).searchParams;
-  const lonParam = search.get("lon") ?? search.get("lng");
   const latParam = search.get("lat");
-  if (!latParam || !lonParam) {
-    return NextResponse.json({ ok: false, error: "MISSING_COORDS" }, { status: 400, headers: JSONH });
+  const lonParam = search.get("lon") ?? search.get("lng");
+  if (!latParam || !lonParam) return err("MISSING_COORDS", "lat and lon/lng are required");
+
+  const lat = Number(latParam), lon = Number(lonParam);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon))
+    return err("BAD_COORDS", "lat/lon must be finite numbers", { latParam, lonParam });
+
+  const token = process.env.MAPBOX_TOKEN;
+  if (!token) {
+    const coarse = coarseFallback(lat, lon);
+    if (coarse) return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
+    return err("NO_MAPBOX_TOKEN", "Missing MAPBOX_TOKEN on server env");
   }
-  const lonNum = Number(lonParam);
-  const latNum = Number(latParam);
-  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {
-    return NextResponse.json({ ok: false, error: "BAD_COORDS" }, { status: 400, headers: JSONH });
-  }
+
   try {
-    const token = process.env.MAPBOX_TOKEN || "";
-    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(String(lonNum))},${encodeURIComponent(String(latNum))}.json`);
+    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
     url.searchParams.set("access_token", token);
     url.searchParams.set("language", "es");
     url.searchParams.set("types", "place,locality,district,region");
     url.searchParams.set("limit", "5");
-    const r = await fetch(url, { headers: { "Content-Type": "application/json; charset=utf-8" } });
-    const j = await r.json();
+
+    const r = await fetch(url);
     if (!r.ok) {
-      const detail = (j && (j.message || j.error)) ? String(j.message || j.error) : "reverse_failed";
-      return NextResponse.json({ ok: false, error: detail }, { status: 400, headers: JSONH });
+      const text = await r.text().catch(() => "");
+      return err("MAPBOX_HTTP_" + r.status, "Mapbox error", { status: r.status, text });
     }
-    const names: string[] = [];
-    const seen = new Set<string>();
-    const pushName = (s?: string | null) => {
-      const t = (s ?? "").toString().trim();
-      if (!t) return;
-      if (seen.has(t)) return;
-      seen.add(t);
-      names.push(t);
-    };
+    const j = await r.json();
+
+    const names = new Set<string>();
     for (const f of (j?.features ?? [])) {
-      if (typeof f?.text === "string") pushName(f.text);
+      if (typeof f?.text === "string") names.add(f.text);
       if (typeof f?.place_name === "string") {
-        f.place_name.split(",").forEach((part: string) => pushName(part));
+        f.place_name.split(",").forEach((p: string) => names.add(p.trim()));
       }
       if (Array.isArray(f?.context)) {
-        for (const c of f.context) if (typeof c?.text === "string") pushName(c.text);
+        for (const c of f.context) if (typeof c?.text === "string") names.add(c.text);
       }
     }
+
     let city: string | null = null;
     for (const name of names) {
       city = toCanonical(name);
       if (city) break;
     }
+
     if (!city) {
-      try { console.warn("[api/geo/reverse] no canonical", { lat: latNum, lon: lonNum, names }); } catch {}
-    } else {
-      try { console.debug("[api/geo/reverse] canonical", { lat: latNum, lon: lonNum, city }); } catch {}
+      const coarse = coarseFallback(lat, lon);
+      if (coarse) {
+        try { console.debug("[api/geo/reverse] coarse fallback", { lat, lon, city: coarse }); } catch {}
+        return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
+      }
+      return err("NO_CANONICAL", "Could not map names to CITIES", { names: Array.from(names) });
     }
-    return NextResponse.json({ ok: true, city }, { headers: JSONH });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { ok: false, error: msg },
-      { status: 400, headers: JSONH },
-    );
+
+    try { console.debug("[api/geo/reverse] canonical", { lat, lon, city }); } catch {}
+    return NextResponse.json<ApiOk>({ ok: true, city }, JSONH);
+  } catch (e: any) {
+    return err("EXCEPTION", e?.message ?? String(e));
   }
 }
 
