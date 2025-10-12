@@ -64,58 +64,119 @@ export async function GET(req: Request) {
   // example:
   // curl "https://api.mapbox.com/geocoding/v5/mapbox.places/-100.3161,25.6866.json?types=place&limit=1&access_token=$MAPBOX_TOKEN"
 
-  async function queryMapboxOnce(lat: number, lon: number, type: string, token: string) {
-    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
-    url.searchParams.set("access_token", token);
-    url.searchParams.set("language", "es");
-    url.searchParams.set("types", type);   // single type per request (Mapbox reverse requirement)
-    url.searchParams.set("limit", "1");    // reverse supports limit only with single type
-    const r = await fetch(url);
-    return r;
+  // Candidate scoring helpers to pick best canonical city
+  type Candidate = {
+    raw: string;
+    canonical: string | null;
+    placeTypeScore: number;   // place=3, locality=2, district=1, region=0, unknown=-1
+    distanceKm: number;       // haversine between (lat,lon) and feature.center
+    relevance: number;        // from Mapbox or 0
+    inBbox: boolean;          // point ∈ bbox if provided
+  };
+
+  function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const toRad = (x: number) => (x * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  try {
-    const typesOrder = ["place", "locality", "district", "region"];
-    let names = new Set<string>();
-    let mapboxOk = false;
+  function ptInBbox(lat: number, lon: number, bbox?: number[]): boolean {
+    if (!Array.isArray(bbox) || bbox.length !== 4) return false;
+    const [minLon, minLat, maxLon, maxLat] = bbox;
+    return lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat;
+  }
 
-    for (const t of typesOrder) {
-      const r = await queryMapboxOnce(lat, lon, t, token);
+  function placeTypePriority(t?: string[]): number {
+    if (!t || !t.length) return -1;
+    const s = t[0];
+    if (s === "place") return 3;
+    if (s === "locality") return 2;
+    if (s === "district") return 1;
+    if (s === "region") return 0;
+    return -1;
+  }
+
+  function score(c: Candidate): number {
+    const bboxBoost = c.inBbox ? 100 : 0;
+    const distPenalty = Math.min(50, c.distanceKm);
+    return bboxBoost + c.placeTypeScore * 10 + (c.relevance || 0) - distPenalty;
+  }
+
+  // Multi-candidate sweep by type with limit=5 to compare
+  async function mapboxReverseSweep(lat: number, lon: number, token: string): Promise<Candidate[]> {
+    const typesOrder = ["place", "locality", "district", "region"];
+    const candidates: Candidate[] = [];
+
+    for (const type of typesOrder) {
+      const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
+      url.searchParams.set("access_token", token);
+      url.searchParams.set("language", "es");
+      url.searchParams.set("types", type);
+      url.searchParams.set("limit", "5");
+
+      const r = await fetch(url);
       if (!r.ok) {
-        if (r.status === 403) {
-          const text = await r.text().catch(() => "");
-          return err("MAPBOX_HTTP_403", "Forbidden (check MAPBOX_TOKEN validity/restrictions)", { status: r.status, text });
-        }
         const text = await r.text().catch(() => "");
-        return err("MAPBOX_HTTP_" + r.status, "Mapbox error", { status: r.status, text });
+        if (r.status === 403) throw Object.assign(new Error("MAPBOX_HTTP_403"), { status: r.status, text });
+        throw Object.assign(new Error("MAPBOX_HTTP_" + r.status), { status: r.status, text });
       }
       const j = await r.json();
-      mapboxOk = true;
-      const f = (j?.features ?? [])[0];
-      if (f) {
-        if (typeof f?.text === "string") names.add(f.text);
-        if (typeof f?.place_name === "string") f.place_name.split(",").forEach((p: string) => names.add(p.trim()));
-        if (Array.isArray(f?.context)) for (const c of f.context) if (typeof c?.text === "string") names.add(c.text);
-        for (const n of names) {
-          const city = toCanonical(n);
-          if (city) {
-            try { console.debug("[api/geo/reverse] canonical", { lat, lon, city, type: t }); } catch {}
-            return NextResponse.json<ApiOk>({ ok: true, city }, JSONH);
+      const feats: any[] = Array.isArray(j?.features) ? j.features : [];
+      for (const f of feats) {
+        const center = Array.isArray(f?.center) ? (f.center as number[]) : null;
+        if (!center || center.length < 2) continue;
+        const [fcLon, fcLat] = center;
+        const dKm = haversineKm(lat, lon, fcLat, fcLon);
+        const inB = ptInBbox(lat, lon, f?.bbox as number[] | undefined);
+        const pscore = placeTypePriority(f?.place_type as string[] | undefined);
+        const rel = typeof f?.relevance === "number" ? (f.relevance as number) : 0;
+
+        if (typeof f?.text === "string" && f.text) {
+          candidates.push({ raw: f.text, canonical: toCanonical(f.text), placeTypeScore: pscore, distanceKm: dKm, relevance: rel, inBbox: inB });
+        }
+        if (Array.isArray(f?.context)) {
+          for (const c of f.context) {
+            const ctxText = typeof c?.text === "string" ? (c.text as string) : "";
+            if (!ctxText) continue;
+            const ctxId = typeof c?.id === "string" ? (c.id as string) : "";
+            const ctxType = ctxId.includes(".") ? ctxId.split(".")[0] : "";
+            if (!["place", "locality", "district"].includes(ctxType)) continue;
+            candidates.push({ raw: ctxText, canonical: toCanonical(ctxText), placeTypeScore: placeTypePriority([ctxType]), distanceKm: dKm, relevance: rel, inBbox: inB });
+          }
+        }
+        if (typeof f?.place_name === "string" && f.place_name) {
+          for (const part of (f.place_name as string).split(",")) {
+            const name = part.trim();
+            if (!name) continue;
+            candidates.push({ raw: name, canonical: toCanonical(name), placeTypeScore: pscore, distanceKm: dKm, relevance: rel, inBbox: inB });
           }
         }
       }
-      // continue to next type if not resolved
+      // Continue to next type; final selection happens after accumulating
     }
+    return candidates;
+  }
 
-    if (mapboxOk) {
-      const coarse = coarseFallback(lat, lon);
-      if (coarse) return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
-      return err("NO_CANONICAL", "Could not map names to CITIES after type sweep", { names: Array.from(names) });
+  try {
+    const cands = await mapboxReverseSweep(lat, lon, token);
+    const canonCands = cands.filter((c) => !!c.canonical) as Candidate[];
+    if (canonCands.length) {
+      const inB = canonCands.filter((c) => c.inBbox);
+      const pool = inB.length ? inB : canonCands;
+      pool.sort((a, b) => score(b) - score(a));
+      const best = pool[0]!;
+      try { console.debug("[api/geo/reverse] pick", { city: best.canonical, raw: best.raw, distanceKm: best.distanceKm.toFixed(2) }); } catch {}
+      return NextResponse.json<ApiOk>({ ok: true, city: best.canonical! }, JSONH);
     }
-
-    // Should not reach here normally due to early error returns
-    return err("NO_MAPBOX", "Mapbox unavailable");
+    // If none canonical from Mapbox, DO NOT coarse fallback here; (optional) place OSM fallback here
+    return err("NO_CANONICAL", "Could not resolve a canonical city from Mapbox", {});
   } catch (e: any) {
+    if (e?.message && String(e.message).startsWith("MAPBOX_HTTP_")) {
+      return err(e.message, "Mapbox error", { status: e.status, text: e.text });
+    }
     return err("EXCEPTION", e?.message ?? String(e));
   }
 }
