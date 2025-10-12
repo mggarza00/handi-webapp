@@ -104,7 +104,7 @@ export default function NewRequestPage() {
   });
 
   // Normalizadores para detección robusta de ciudad (acentos/variantes)
-  const debug = (...args: any[]) => { try { console.debug("[geo/city]", ...args); } catch { /* noop */ } };
+  const debug = (...args: unknown[]) => { try { console.debug("[geo/city]", ...args); } catch { /* noop */ } };
   const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
   const CITIES_NORM = useMemo(() => new Map(CITIES.map((c) => [norm(c), c])), []);
   const toCanon = useCallback((s: string | null | undefined) => {
