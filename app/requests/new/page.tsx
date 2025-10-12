@@ -252,78 +252,6 @@ export default function NewRequestPage() {
     }
   }, [me, showLoginModal, router]);
 
-  // Helper: solicita geolocalización con timeout y logs
-  const askGeolocation = useCallback(async (label: string, timeoutMs = 6000): Promise<{ latitude: number; longitude: number } | null> => {
-    try {
-      if (!("geolocation" in navigator)) { debug("no geolocation API", { label }); return null; }
-      try {
-        if ("permissions" in navigator && (navigator as any).permissions?.query) {
-          const st = await (navigator as any).permissions.query({ name: "geolocation" as any });
-          debug("permission.query", { label, state: st?.state });
-          if (st?.state === "denied") {
-            toast.info("Permiso de ubicación denegado.");
-          }
-        }
-      } catch { /* ignore */ }
-      return await new Promise((resolve) => {
-        let settled = false;
-        const timer = setTimeout(() => {
-          if (settled) return; settled = true;
-          debug("geolocation timeout", { label, timeoutMs });
-          toast.info("No pudimos obtener tu ubicación a tiempo.");
-          resolve(null);
-        }, timeoutMs);
-        try {
-          navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              if (settled) return; settled = true;
-              clearTimeout(timer);
-              const { latitude, longitude } = pos.coords || ({} as any);
-              debug("geolocation success", { label, latitude, longitude });
-              resolve({ latitude, longitude });
-            },
-            (err) => {
-              if (settled) return; settled = true;
-              clearTimeout(timer);
-              debug("geolocation error", { label, code: err?.code, message: err?.message });
-              if (err?.code === 1) toast.info("Permiso de ubicación denegado.");
-              else if (err?.code === 3) toast.info("Ubicación no disponible (timeout).");
-              resolve(null);
-            },
-            { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 300000 },
-          );
-        } catch {
-          if (settled) return; settled = true;
-          clearTimeout(timer);
-          resolve(null);
-        }
-      });
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // Helper: detecta ciudad vía endpoint reverse y aplica selección
-  const detectCityFromCoords = useCallback(async (latitude: number, longitude: number, label: string) => {
-    try {
-      debug("reverse.call", { label, latitude, longitude });
-      const res2 = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-      const j = await res2.json().catch(() => ({}));
-      debug("reverse.res", { label, ok: res2.ok, city: j?.city, error: j?.error });
-      const detected = typeof j?.city === "string" ? j.city : null;
-      if (detected) selectCityIfExists(detected, { source: `${label}.reverse` });
-      if (!detected && res2.ok === false) {
-        const fallback = guessCityFromCoords(latitude, longitude);
-        if (fallback) selectCityIfExists(fallback, { source: `${label}.fallback` });
-      }
-      setAddressLat(latitude);
-      setAddressLng(longitude);
-    } catch (e) {
-      debug("reverse.catch", { label, error: e instanceof Error ? e.message : String(e) });
-      const fallback = guessCityFromCoords(latitude, longitude);
-      if (fallback) selectCityIfExists(fallback, { source: `${label}.fallback.catch` });
-    }
-  }, [selectCityIfExists]);
 
   useEffect(() => {
     // Load saved draft, if any
@@ -469,16 +397,7 @@ export default function NewRequestPage() {
     }
   }, [_sp, catMap, loadingCats, category]);
 
-  // Solicitar geolocalización al entrar y actualizar ciudad + coords
-  useEffect(() => {
-    if (geoAskedRef.current) return;
-    geoAskedRef.current = true;
-    (async () => {
-      const pos = await askGeolocation("init");
-      if (!pos) return;
-      await detectCityFromCoords(pos.latitude, pos.longitude, "init");
-    })();
-  }, [askGeolocation, detectCityFromCoords]);
+  // (removed) initial geolocation effect in favor of the auto-detect below
 
   // Autoclasiﬁcación (debounced) al escribir título/descrición (mín. 10 chars combinados)
   const doClassify = useCallback(async (t: string, d: string) => {
@@ -603,14 +522,21 @@ export default function NewRequestPage() {
         console.debug("[city:auto] detected canon", { raw: j.city, detected });
         if (!detected) { console.debug("[city:auto] no canonical after toCanon"); return; }
         if (!CITIES.includes(detected)) { console.debug("[city:auto] canonical not in CITIES", { detected }); return; }
-        if (cancelled) return;
-        if (cityTouched) { console.debug("[city:auto] skipped at apply: cityTouched"); return; }
+        // Final guard: if user touched while we were fetching, skip
+        if (cancelled || cityTouched) {
+          console.debug("[city:auto] skipped late because cityTouched/cancelled");
+          return;
+        }
+        // IMPORTANT: set exactly the Select value string that exists in options
         setCity(detected);
+        console.debug("[city:auto] setCity", detected);
         try { setValue("city", detected, { shouldDirty: true }); } catch {}
-      } catch { /* noop */ }
+      } catch (e) {
+        console.debug("[city:auto] error", e);
+      }
     })();
     return () => { cancelled = true; };
-  }, [cityTouched, city, setValue, toCanon]);
+  }, [cityTouched]); // do NOT depend on `city` to avoid loops; cityTouched is enough
 
   // (Removed) Acción manual para detectar ciudad ahora
 
@@ -1037,9 +963,10 @@ export default function NewRequestPage() {
               <Select
                 value={city}
                 onValueChange={(v) => {
+                  // mark touched before updating city to avoid auto-overwrite
+                  setCityTouched(true);
                   setCity(v);
                   try { setValue("city", v, { shouldDirty: true }); } catch { /* ignore */ }
-                  setCityTouched(true);
                   setIsDirty(true);
                 }}
               >
@@ -1054,6 +981,9 @@ export default function NewRequestPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {process.env.NODE_ENV !== 'production' ? (
+                <div className="text-xs text-muted-foreground">auto-city debug: {city}</div>
+              ) : null}
               {errors.city && (
                 <p className="text-xs text-red-600">{errors.city}</p>
               )}
