@@ -61,48 +61,64 @@ export async function GET(req: Request) {
     return err("NO_MAPBOX_TOKEN", "Missing MAPBOX_TOKEN on server env");
   }
 
+  // Helper: query Mapbox sequentially by type with limit=1
+  async function reverseSequentialByType(lat: number, lon: number, token: string) {
+    const typesOrder = ["place", "locality", "district", "region"] as const;
+    const allNames = new Set<string>();
+    let lastError: { status: number; text: string; type: string } | null = null;
+
+    for (const type of typesOrder) {
+      const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
+      url.searchParams.set("access_token", token);
+      url.searchParams.set("language", "es");
+      url.searchParams.set("types", type);
+      url.searchParams.set("limit", "1");
+      const r = await fetch(url);
+      if (!r.ok) {
+        const text = await r.text().catch(() => "");
+        lastError = { status: r.status, text, type };
+        continue; // try next type
+      }
+      const j = await r.json().catch(() => null);
+      if (!j) continue;
+      const names = new Set<string>();
+      for (const f of (j?.features ?? [])) {
+        if (typeof f?.text === "string") names.add(f.text);
+        if (typeof f?.place_name === "string") {
+          f.place_name.split(",").forEach((p: string) => names.add(p.trim()));
+        }
+        if (Array.isArray(f?.context)) {
+          for (const c of f.context) if (typeof c?.text === "string") names.add(c.text);
+        }
+      }
+      // try canonical from this type immediately
+      for (const name of names) {
+        const c = toCanonical(name);
+        if (c) {
+          try { console.debug("[api/geo/reverse] canonical", { lat, lon, type, city: c }); } catch {}
+          return { city: c, names: Array.from(new Set([...allNames, ...names])) };
+        }
+      }
+      // accumulate and continue
+      names.forEach((n) => allNames.add(n));
+    }
+    return { city: null, names: Array.from(allNames), lastError };
+  }
+
   try {
-    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
-    url.searchParams.set("access_token", token);
-    url.searchParams.set("language", "es");
-    url.searchParams.set("types", "place,locality,district,region");
-    url.searchParams.set("limit", "5");
-
-    const r = await fetch(url);
-    if (!r.ok) {
-      const text = await r.text().catch(() => "");
-      return err("MAPBOX_HTTP_" + r.status, "Mapbox error", { status: r.status, text });
+    const { city, names, lastError } = await reverseSequentialByType(lat, lon, token);
+    if (city) {
+      return NextResponse.json<ApiOk>({ ok: true, city }, JSONH);
     }
-    const j = await r.json();
-
-    const names = new Set<string>();
-    for (const f of (j?.features ?? [])) {
-      if (typeof f?.text === "string") names.add(f.text);
-      if (typeof f?.place_name === "string") {
-        f.place_name.split(",").forEach((p: string) => names.add(p.trim()));
-      }
-      if (Array.isArray(f?.context)) {
-        for (const c of f.context) if (typeof c?.text === "string") names.add(c.text);
-      }
+    const coarse = coarseFallback(lat, lon);
+    if (coarse) {
+      try { console.debug("[api/geo/reverse] coarse fallback", { lat, lon, city: coarse }); } catch {}
+      return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
     }
-
-    let city: string | null = null;
-    for (const name of names) {
-      city = toCanonical(name);
-      if (city) break;
+    if (lastError) {
+      return err("MAPBOX_HTTP_" + lastError.status, "Mapbox error", lastError);
     }
-
-    if (!city) {
-      const coarse = coarseFallback(lat, lon);
-      if (coarse) {
-        try { console.debug("[api/geo/reverse] coarse fallback", { lat, lon, city: coarse }); } catch {}
-        return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
-      }
-      return err("NO_CANONICAL", "Could not map names to CITIES", { names: Array.from(names) });
-    }
-
-    try { console.debug("[api/geo/reverse] canonical", { lat, lon, city }); } catch {}
-    return NextResponse.json<ApiOk>({ ok: true, city }, JSONH);
+    return err("NO_CANONICAL", "Could not map names to CITIES", { names });
   } catch (e: any) {
     return err("EXCEPTION", e?.message ?? String(e));
   }
