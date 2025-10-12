@@ -62,18 +62,23 @@ export async function GET(req: Request) {
   }
 
   // Helper: query Mapbox sequentially by type with limit=1
+  async function queryMapboxOnce(lat: number, lon: number, type: string, token: string) {
+    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
+    url.searchParams.set("access_token", token);
+    url.searchParams.set("language", "es");
+    url.searchParams.set("types", type);   // single type per request (Mapbox reverse requirement)
+    url.searchParams.set("limit", "1");    // reverse supports limit only with single type
+    const r = await fetch(url);
+    return r;
+  }
+
   async function reverseSequentialByType(lat: number, lon: number, token: string) {
     const typesOrder = ["place", "locality", "district", "region"] as const;
     const allNames = new Set<string>();
     let lastError: { status: number; text: string; type: string } | null = null;
 
     for (const type of typesOrder) {
-      const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
-      url.searchParams.set("access_token", token);
-      url.searchParams.set("language", "es");
-      url.searchParams.set("types", type);
-      url.searchParams.set("limit", "1");
-      const r = await fetch(url);
+      const r = await queryMapboxOnce(lat, lon, type, token);
       if (!r.ok) {
         const text = await r.text().catch(() => "");
         lastError = { status: r.status, text, type };
