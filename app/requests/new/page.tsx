@@ -104,6 +104,7 @@ export default function NewRequestPage() {
   });
 
   // Normalizadores para detección robusta de ciudad (acentos/variantes)
+  const debug = (...args: any[]) => { try { console.debug("[geo/city]", ...args); } catch { /* noop */ } };
   const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
   const CITIES_NORM = useMemo(() => new Map(CITIES.map((c) => [norm(c), c])), []);
   const toCanon = useCallback((s: string | null | undefined) => {
@@ -132,16 +133,24 @@ export default function NewRequestPage() {
     );
   }, [CITIES_NORM]);
 
-  // 🔁 Selecciona ciudad en el <Select> real (ajusta IDs/values si tu selector usa otras opciones)
-  const selectCityIfExists = (maybeCity?: string | null) => {
+  // 🔁 Selecciona ciudad en el <Select> real (respeta selección manual)
+  const selectCityIfExists = useCallback((maybeCity?: string | null, opts?: { source?: string }) => {
     const c = (maybeCity || "").toString().trim();
-    if (!c) return;
+    if (!c) { debug("skip: empty input", { from: opts?.source }); return; }
+    if (cityTouched) { debug("skip: cityTouched=true", { from: opts?.source, input: c }); return; }
     const canonical = toCanon(c);
-    if (canonical && CITIES.includes(canonical)) {
-      setCity(canonical);
-      try { setValue("city", canonical, { shouldDirty: true }); } catch { /* ignore */ }
+    if (!canonical) {
+      debug("no canonical match", { from: opts?.source, input: c, norm: norm(c) });
+      return;
     }
-  };
+    if (!CITIES.includes(canonical)) {
+      debug("canonical not in CITIES (unexpected)", { from: opts?.source, canonical });
+      return;
+    }
+    debug("set city", { from: opts?.source, input: c, canonical });
+    setCity(canonical);
+    try { setValue("city", canonical, { shouldDirty: true }); } catch { /* ignore */ }
+  }, [cityTouched, toCanon, setValue]);
   type Subcat = { name: string; icon: string | null };
   const [catMap, setCatMap] = useState<Record<string, Subcat[]>>({});
   const [loadingCats, setLoadingCats] = useState(false);
@@ -226,6 +235,79 @@ export default function NewRequestPage() {
       }
     }
   }, [me, showLoginModal, router]);
+
+  // Helper: solicita geolocalización con timeout y logs
+  const askGeolocation = useCallback(async (label: string, timeoutMs = 6000): Promise<{ latitude: number; longitude: number } | null> => {
+    try {
+      if (!("geolocation" in navigator)) { debug("no geolocation API", { label }); return null; }
+      try {
+        if ("permissions" in navigator && (navigator as any).permissions?.query) {
+          const st = await (navigator as any).permissions.query({ name: "geolocation" as any });
+          debug("permission.query", { label, state: st?.state });
+          if (st?.state === "denied") {
+            toast.info("Permiso de ubicación denegado.");
+          }
+        }
+      } catch { /* ignore */ }
+      return await new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return; settled = true;
+          debug("geolocation timeout", { label, timeoutMs });
+          toast.info("No pudimos obtener tu ubicación a tiempo.");
+          resolve(null);
+        }, timeoutMs);
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (settled) return; settled = true;
+              clearTimeout(timer);
+              const { latitude, longitude } = pos.coords || ({} as any);
+              debug("geolocation success", { label, latitude, longitude });
+              resolve({ latitude, longitude });
+            },
+            (err) => {
+              if (settled) return; settled = true;
+              clearTimeout(timer);
+              debug("geolocation error", { label, code: err?.code, message: err?.message });
+              if (err?.code === 1) toast.info("Permiso de ubicación denegado.");
+              else if (err?.code === 3) toast.info("Ubicación no disponible (timeout).");
+              resolve(null);
+            },
+            { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 300000 },
+          );
+        } catch {
+          if (settled) return; settled = true;
+          clearTimeout(timer);
+          resolve(null);
+        }
+      });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Helper: detecta ciudad vía endpoint reverse y aplica selección
+  const detectCityFromCoords = useCallback(async (latitude: number, longitude: number, label: string) => {
+    try {
+      debug("reverse.call", { label, latitude, longitude });
+      const res2 = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
+      const j = await res2.json().catch(() => ({}));
+      debug("reverse.res", { label, ok: res2.ok, city: j?.city, error: j?.error });
+      const detected = typeof j?.city === "string" ? j.city : null;
+      if (detected) selectCityIfExists(detected, { source: `${label}.reverse` });
+      if (!detected && res2.ok === false) {
+        const fallback = guessCityFromCoords(latitude, longitude);
+        if (fallback) selectCityIfExists(fallback, { source: `${label}.fallback` });
+      }
+      setAddressLat(latitude);
+      setAddressLng(longitude);
+    } catch (e) {
+      debug("reverse.catch", { label, error: e instanceof Error ? e.message : String(e) });
+      const fallback = guessCityFromCoords(latitude, longitude);
+      if (fallback) selectCityIfExists(fallback, { source: `${label}.fallback.catch` });
+    }
+  }, [selectCityIfExists]);
 
   useEffect(() => {
     // Load saved draft, if any
@@ -371,44 +453,16 @@ export default function NewRequestPage() {
     }
   }, [_sp, catMap, loadingCats, category]);
 
-  // Solicitar geolocalización al entrar y actualizar ciudad + dirección + coords
+  // Solicitar geolocalización al entrar y actualizar ciudad + coords
   useEffect(() => {
     if (geoAskedRef.current) return;
     geoAskedRef.current = true;
-    try {
-      if (!("geolocation" in navigator)) return;
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords;
-          try {
-            let j: any = {};
-            try {
-              const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-              j = await res.json().catch(() => ({}));
-              if (!res.ok) throw new Error("forward_reverse_failed");
-            } catch {
-              const res2 = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-              j = await res2.json().catch(() => ({}));
-            }
-            const detectedCity = typeof j?.city === "string" ? j.city : null;
-            if (detectedCity) {
-              selectCityIfExists(detectedCity);
-            } else {
-              const fallback = guessCityFromCoords(latitude, longitude);
-              if (fallback) selectCityIfExists(fallback);
-            }
-            if (typeof j?.address_line === "string" && j.address_line.trim().length > 0) setAddressLine(j.address_line);
-            if (typeof j?.place_id === "string" && j.place_id.trim().length > 0) setAddressPlaceId(j.place_id);
-            setAddressLat(latitude);
-            setAddressLng(longitude);
-          } catch { /* ignore */ }
-        },
-        // On error (denied or unavailable), no-op
-        () => { /* noop */ },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
-      );
-    } catch { /* ignore */ }
-  }, []);
+    (async () => {
+      const pos = await askGeolocation("init");
+      if (!pos) return;
+      await detectCityFromCoords(pos.latitude, pos.longitude, "init");
+    })();
+  }, [askGeolocation, detectCityFromCoords]);
 
   // Autoclasiﬁcación (debounced) al escribir título/descrición (mín. 10 chars combinados)
   const doClassify = useCallback(async (t: string, d: string) => {
@@ -497,7 +551,7 @@ export default function NewRequestPage() {
     setAutoApplied(true);
   }, [suggestion, manualOverride, loadingCats, catMap, category, subcategory]);
 
-  // Geolocalización: intenta detectar ciudad y dirección si el usuario no la cambió manualmente
+  // Geolocalización: intenta detectar ciudad si el usuario no la cambió manualmente
   useEffect(() => {
     if (cityTouched) return; // respeta selección manual
     // Solo intenta si ciudad no fue modificada y es una de las default o vacía
@@ -506,39 +560,10 @@ export default function NewRequestPage() {
     let cancelled = false;
     const detect = async () => {
       try {
-        if (!("geolocation" in navigator)) return;
         await new Promise<void>((resolve) => setTimeout(resolve, 300));
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            if (cancelled) return;
-            const { latitude, longitude } = pos.coords;
-            try {
-              let j: any = {};
-              try {
-                const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(latitude))}&lng=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-                j = await res.json().catch(() => ({}));
-                if (!res.ok) throw new Error("forward_reverse_failed");
-              } catch {
-                const res2 = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(latitude))}&lon=${encodeURIComponent(String(longitude))}`, { cache: "no-store" });
-                j = await res2.json().catch(() => ({}));
-              }
-              const detected = typeof j?.city === "string" ? j.city : null;
-              if (detected) {
-                selectCityIfExists(detected);
-              } else {
-                const fallback = guessCityFromCoords(latitude, longitude);
-                if (fallback) selectCityIfExists(fallback);
-              }
-              // Actualiza dirección y coords desde geolocalización
-              if (typeof j?.address_line === "string" && j.address_line.trim().length > 0) setAddressLine(j.address_line);
-              if (typeof j?.place_id === "string" && j.place_id.trim().length > 0) setAddressPlaceId(j.place_id);
-              setAddressLat(latitude);
-              setAddressLng(longitude);
-            } catch { /* noop */ }
-          },
-          () => { /* denied or error: ignore */ },
-          { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
-        );
+        const pos = await askGeolocation("auto");
+        if (!pos || cancelled) return;
+        await detectCityFromCoords(pos.latitude, pos.longitude, "auto");
       } catch { /* noop */ }
     };
     detect();
@@ -1063,7 +1088,7 @@ export default function NewRequestPage() {
                   setAddressState(typeof p.state === 'string' ? p.state : null);
                   setAddressCountry(typeof p.country === 'string' ? p.country : null);
                   setAddressContext(p.context ?? null);
-                  selectCityIfExists(p.city);
+                  selectCityIfExists(p.city, { source: "map.confirm" });
                   try {
                     setValue("address", p.address ?? "", { shouldDirty: true });
                     setValue("place_id", p.place_id ?? undefined, { shouldDirty: true });

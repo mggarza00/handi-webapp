@@ -38,8 +38,8 @@ function toCanonical(input: string | null | undefined): string | null {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const lat = searchParams.get("lat");
-  const lon = searchParams.get("lon");
+  const lat = searchParams.get("lat") || searchParams.get("latitude");
+  const lon = searchParams.get("lon") || searchParams.get("lng") || searchParams.get("longitude");
   if (!lat || !lon) {
     return NextResponse.json({ ok: false, error: "MISSING_COORDS" }, { status: 400, headers: JSONH });
   }
@@ -52,6 +52,10 @@ export async function GET(req: Request) {
     url.searchParams.set("limit", "5");
     const r = await fetch(url, { headers: { "Content-Type": "application/json; charset=utf-8" } });
     const j = await r.json();
+    if (!r.ok) {
+      const detail = (j && (j.message || j.error)) ? String(j.message || j.error) : "reverse_failed";
+      return NextResponse.json({ ok: false, error: detail }, { status: 400, headers: JSONH });
+    }
     const names: string[] = [];
     for (const f of (j?.features ?? [])) {
       if (typeof f?.text === "string") names.push(f.text);
@@ -64,6 +68,7 @@ export async function GET(req: Request) {
       city = toCanonical(name);
       if (city) break;
     }
+    try { console.debug("[api/geo/reverse]", { lat, lon, names, city }); } catch {}
     return NextResponse.json({ ok: true, city }, { headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
