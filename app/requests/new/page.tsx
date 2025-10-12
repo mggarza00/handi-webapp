@@ -96,7 +96,7 @@ export default function NewRequestPage() {
   const [addressCountry, setAddressCountry] = useState<string | null>(null);
   const [addressContext, setAddressContext] = useState<any>(null);
   const [openMap, setOpenMap] = useState(false);
-  const [lastReverseErr, setLastReverseErr] = useState<string | null>(null);
+  const [_lastReverseErr, setLastReverseErr] = useState<string | null>(null);
 
   // react-hook-form: valores por defecto mínimos para integración
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
@@ -987,11 +987,7 @@ export default function NewRequestPage() {
                   ))}
                 </SelectContent>
               </Select>
-              {process.env.NODE_ENV !== 'production' ? (
-                <div className="text-xs text-muted-foreground">
-                  auto-city debug: {city}{lastReverseErr ? ` • last error: ${lastReverseErr}` : ""}
-                </div>
-              ) : null}
+              {/* dev debug removed */}
               {errors.city && (
                 <p className="text-xs text-red-600">{errors.city}</p>
               )}
