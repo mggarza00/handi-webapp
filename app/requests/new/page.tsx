@@ -108,30 +108,30 @@ export default function NewRequestPage() {
   const debug = (...args: unknown[]) => { try { console.debug("[geo/city]", ...args); } catch { /* noop */ } };
   const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
   const CITIES_NORM = useMemo(() => new Map(CITIES.map((c) => [norm(c), c])), []);
-  const toCanon = useCallback((s: string | null | undefined) => {
-    const n = norm(String(s || ""));
-    return (
-      CITIES_NORM.get(n) ||
-      (n.includes("san nicolas")
-        ? "San Nicolás"
-        : n.includes("escobedo")
-          ? "Escobedo"
-          : n.includes("san pedro")
-            ? "San Pedro Garza García"
-            : n.includes("santa catarina")
-              ? "Santa Catarina"
-              : n.includes("guadalupe")
-                ? "Guadalupe"
-                : n.includes("apodaca")
-                  ? "Apodaca"
-                  : n.includes("garza garcia")
-                    ? "San Pedro Garza García"
-                    : n.includes("garcia")
-                      ? "García"
-                      : n.includes("monterrey")
-                        ? "Monterrey"
-                        : null)
-    );
+  const toCanon = useCallback((raw?: string | null) => {
+    const n = norm(String(raw ?? ""));
+
+    // 1) Exact canonical map
+    const direct = CITIES_NORM.get(n);
+    if (direct) return direct;
+
+    // 2) High-priority synonyms (must come BEFORE generic matches)
+    if (n.includes("garza garcia")) { try { console.debug("[city:auto] toCanon: garza garcia -> SPGG", { raw }); } catch {} return "San Pedro Garza García"; }
+    if (n.includes("san pedro")) return "San Pedro Garza García";
+    if (n.includes("san nicolas")) return "San Nicolás";
+    if (n.includes("general escobedo")) return "Escobedo";
+    if (n.includes("santa catarina")) return "Santa Catarina";
+
+    // 3) Common direct names
+    if (n.includes("monterrey")) return "Monterrey";
+    if (n.includes("guadalupe")) return "Guadalupe";
+    if (n.includes("apodaca")) return "Apodaca";
+
+    // 4) Generic "garcia" MUST be last to avoid catching "garza garcia"
+    if (n.includes("escobedo")) return "Escobedo";
+    if (n.includes("garcia")) return "García";
+
+    return null;
   }, [CITIES_NORM]);
 
   // Promisified geolocation with timeout

@@ -13,17 +13,31 @@ const normalize = (s: string) =>
 const CANON = new Map(CITIES.map((c) => [normalize(c), c]));
 const toCanonical = (raw?: string | null): string | null => {
   const n = normalize(String(raw ?? ""));
-  return (
-    CANON.get(n) ??
-    (n.includes("san nicolas") ? "San Nicolás" :
-     n.includes("escobedo") ? "Escobedo" :
-     n.includes("san pedro") ? "San Pedro Garza García" :
-     n.includes("santa catarina") ? "Santa Catarina" :
-     n.includes("guadalupe") ? "Guadalupe" :
-     n.includes("apodaca") ? "Apodaca" :
-     n.includes("garcia") ? "García" :
-     n.includes("monterrey") ? "Monterrey" : null)
-  );
+
+  // 1) Exact canonical map
+  const direct = CANON.get(n);
+  if (direct) return direct;
+
+  // 2) High-priority synonyms (must come BEFORE generic matches)
+  if (n.includes("garza garcia")) {
+    try { console.debug("[api/geo/reverse] toCanonical: garza garcia -> SPGG", { raw }); } catch {}
+    return "San Pedro Garza García";
+  }
+  if (n.includes("san pedro")) return "San Pedro Garza García";
+  if (n.includes("san nicolas")) return "San Nicolás";
+  if (n.includes("general escobedo")) return "Escobedo";
+  if (n.includes("santa catarina")) return "Santa Catarina";
+
+  // 3) Common direct names
+  if (n.includes("monterrey")) return "Monterrey";
+  if (n.includes("guadalupe")) return "Guadalupe";
+  if (n.includes("apodaca")) return "Apodaca";
+
+  // 4) Generic "garcia" MUST be last to avoid catching "garza garcia"
+  if (n.includes("escobedo")) return "Escobedo";
+  if (n.includes("garcia")) return "García";
+
+  return null;
 };
 
 function err(code: string, message: string, details?: any) {
