@@ -61,7 +61,9 @@ export async function GET(req: Request) {
     return err("NO_MAPBOX_TOKEN", "Missing MAPBOX_TOKEN on server env");
   }
 
-  // Helper: query Mapbox sequentially by type with limit=1
+  // example:
+  // curl "https://api.mapbox.com/geocoding/v5/mapbox.places/-100.3161,25.6866.json?types=place&limit=1&access_token=$MAPBOX_TOKEN"
+
   async function queryMapboxOnce(lat: number, lon: number, type: string, token: string) {
     const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
     url.searchParams.set("access_token", token);
@@ -72,58 +74,47 @@ export async function GET(req: Request) {
     return r;
   }
 
-  async function reverseSequentialByType(lat: number, lon: number, token: string) {
-    const typesOrder = ["place", "locality", "district", "region"] as const;
-    const allNames = new Set<string>();
-    let lastError: { status: number; text: string; type: string } | null = null;
-
-    for (const type of typesOrder) {
-      const r = await queryMapboxOnce(lat, lon, type, token);
-      if (!r.ok) {
-        const text = await r.text().catch(() => "");
-        lastError = { status: r.status, text, type };
-        continue; // try next type
-      }
-      const j = await r.json().catch(() => null);
-      if (!j) continue;
-      const names = new Set<string>();
-      for (const f of (j?.features ?? [])) {
-        if (typeof f?.text === "string") names.add(f.text);
-        if (typeof f?.place_name === "string") {
-          f.place_name.split(",").forEach((p: string) => names.add(p.trim()));
-        }
-        if (Array.isArray(f?.context)) {
-          for (const c of f.context) if (typeof c?.text === "string") names.add(c.text);
-        }
-      }
-      // try canonical from this type immediately
-      for (const name of names) {
-        const c = toCanonical(name);
-        if (c) {
-          try { console.debug("[api/geo/reverse] canonical", { lat, lon, type, city: c }); } catch {}
-          return { city: c, names: Array.from(new Set([...allNames, ...names])) };
-        }
-      }
-      // accumulate and continue
-      names.forEach((n) => allNames.add(n));
-    }
-    return { city: null, names: Array.from(allNames), lastError };
-  }
-
   try {
-    const { city, names, lastError } = await reverseSequentialByType(lat, lon, token);
-    if (city) {
-      return NextResponse.json<ApiOk>({ ok: true, city }, JSONH);
+    const typesOrder = ["place", "locality", "district", "region"];
+    let names = new Set<string>();
+    let mapboxOk = false;
+
+    for (const t of typesOrder) {
+      const r = await queryMapboxOnce(lat, lon, t, token);
+      if (!r.ok) {
+        if (r.status === 403) {
+          const text = await r.text().catch(() => "");
+          return err("MAPBOX_HTTP_403", "Forbidden (check MAPBOX_TOKEN validity/restrictions)", { status: r.status, text });
+        }
+        const text = await r.text().catch(() => "");
+        return err("MAPBOX_HTTP_" + r.status, "Mapbox error", { status: r.status, text });
+      }
+      const j = await r.json();
+      mapboxOk = true;
+      const f = (j?.features ?? [])[0];
+      if (f) {
+        if (typeof f?.text === "string") names.add(f.text);
+        if (typeof f?.place_name === "string") f.place_name.split(",").forEach((p: string) => names.add(p.trim()));
+        if (Array.isArray(f?.context)) for (const c of f.context) if (typeof c?.text === "string") names.add(c.text);
+        for (const n of names) {
+          const city = toCanonical(n);
+          if (city) {
+            try { console.debug("[api/geo/reverse] canonical", { lat, lon, city, type: t }); } catch {}
+            return NextResponse.json<ApiOk>({ ok: true, city }, JSONH);
+          }
+        }
+      }
+      // continue to next type if not resolved
     }
-    const coarse = coarseFallback(lat, lon);
-    if (coarse) {
-      try { console.debug("[api/geo/reverse] coarse fallback", { lat, lon, city: coarse }); } catch {}
-      return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
+
+    if (mapboxOk) {
+      const coarse = coarseFallback(lat, lon);
+      if (coarse) return NextResponse.json<ApiOk>({ ok: true, city: coarse }, JSONH);
+      return err("NO_CANONICAL", "Could not map names to CITIES after type sweep", { names: Array.from(names) });
     }
-    if (lastError) {
-      return err("MAPBOX_HTTP_" + lastError.status, "Mapbox error", lastError);
-    }
-    return err("NO_CANONICAL", "Could not map names to CITIES", { names });
+
+    // Should not reach here normally due to early error returns
+    return err("NO_MAPBOX", "Mapbox unavailable");
   } catch (e: any) {
     return err("EXCEPTION", e?.message ?? String(e));
   }
