@@ -26,7 +26,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 // Keep relative imports to avoid CI resolver edge-cases in this PR
 import { buildStorageKey, buildUltraSafeKey } from "../../../lib/storage-sanitize";
 // Inline container to avoid RSC/Client mismatches during build
-import { CITIES, canonicalizeCityName, guessCityFromCoords } from "@/lib/cities";
+import { CITIES, guessCityFromCoords } from "@/lib/cities";
 // Keep relative imports to avoid CI resolver edge-cases in this PR
 import ConditionsCombobox from "../../../components/requests/ConditionsCombobox";
 import {
@@ -103,11 +103,40 @@ export default function NewRequestPage() {
     mode: "onChange",
   });
 
+  // Normalizadores para detección robusta de ciudad (acentos/variantes)
+  const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
+  const CITIES_NORM = useMemo(() => new Map(CITIES.map((c) => [norm(c), c])), []);
+  const toCanon = useCallback((s: string | null | undefined) => {
+    const n = norm(String(s || ""));
+    return (
+      CITIES_NORM.get(n) ||
+      (n.includes("san nicolas")
+        ? "San Nicolás"
+        : n.includes("escobedo")
+          ? "Escobedo"
+          : n.includes("san pedro")
+            ? "San Pedro Garza García"
+            : n.includes("santa catarina")
+              ? "Santa Catarina"
+              : n.includes("guadalupe")
+                ? "Guadalupe"
+                : n.includes("apodaca")
+                  ? "Apodaca"
+                  : n.includes("garza garcia")
+                    ? "San Pedro Garza García"
+                    : n.includes("garcia")
+                      ? "García"
+                      : n.includes("monterrey")
+                        ? "Monterrey"
+                        : null)
+    );
+  }, [CITIES_NORM]);
+
   // 🔁 Selecciona ciudad en el <Select> real (ajusta IDs/values si tu selector usa otras opciones)
   const selectCityIfExists = (maybeCity?: string | null) => {
     const c = (maybeCity || "").toString().trim();
     if (!c) return;
-    const canonical = canonicalizeCityName(c);
+    const canonical = toCanon(c);
     if (canonical && CITIES.includes(canonical)) {
       setCity(canonical);
       try { setValue("city", canonical, { shouldDirty: true }); } catch { /* ignore */ }
