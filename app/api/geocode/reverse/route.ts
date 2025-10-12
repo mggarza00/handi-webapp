@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { CITIES } from "@/lib/cities";
 
@@ -37,18 +38,23 @@ function toCanonical(input: string | null | undefined): string | null {
 }
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const lat = searchParams.get("lat") || searchParams.get("latitude");
-  const lon = searchParams.get("lon") || searchParams.get("lng") || searchParams.get("longitude");
-  if (!lat || !lon) {
+  const search = new URL(req.url).searchParams;
+  const lonParam = search.get("lon") ?? search.get("lng");
+  const latParam = search.get("lat");
+  if (!latParam || !lonParam) {
     return NextResponse.json({ ok: false, error: "MISSING_COORDS" }, { status: 400, headers: JSONH });
+  }
+  const lonNum = Number(lonParam);
+  const latNum = Number(latParam);
+  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {
+    return NextResponse.json({ ok: false, error: "BAD_COORDS" }, { status: 400, headers: JSONH });
   }
   try {
     const token = process.env.MAPBOX_TOKEN || "";
-    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(lon)},${encodeURIComponent(lat)}.json`);
+    const url = new URL(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(String(lonNum))},${encodeURIComponent(String(latNum))}.json`);
     url.searchParams.set("access_token", token);
     url.searchParams.set("language", "es");
-    url.searchParams.set("types", "place,locality,region");
+    url.searchParams.set("types", "place,locality,district,region");
     url.searchParams.set("limit", "5");
     const r = await fetch(url, { headers: { "Content-Type": "application/json; charset=utf-8" } });
     const j = await r.json();
@@ -57,10 +63,21 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, error: detail }, { status: 400, headers: JSONH });
     }
     const names: string[] = [];
+    const seen = new Set<string>();
+    const pushName = (s?: string | null) => {
+      const t = (s ?? "").toString().trim();
+      if (!t) return;
+      if (seen.has(t)) return;
+      seen.add(t);
+      names.push(t);
+    };
     for (const f of (j?.features ?? [])) {
-      if (typeof f?.text === "string") names.push(f.text);
+      if (typeof f?.text === "string") pushName(f.text);
+      if (typeof f?.place_name === "string") {
+        f.place_name.split(",").forEach((part: string) => pushName(part));
+      }
       if (Array.isArray(f?.context)) {
-        for (const c of f.context) if (typeof c?.text === "string") names.push(c.text);
+        for (const c of f.context) if (typeof c?.text === "string") pushName(c.text);
       }
     }
     let city: string | null = null;
@@ -68,7 +85,11 @@ export async function GET(req: Request) {
       city = toCanonical(name);
       if (city) break;
     }
-    try { console.debug("[api/geo/reverse]", { lat, lon, names, city }); } catch {}
+    if (!city) {
+      try { console.warn("[api/geo/reverse] no canonical", { lat: latNum, lon: lonNum, names }); } catch {}
+    } else {
+      try { console.debug("[api/geo/reverse] canonical", { lat: latNum, lon: lonNum, city }); } catch {}
+    }
     return NextResponse.json({ ok: true, city }, { headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -80,4 +101,3 @@ export async function GET(req: Request) {
 }
 
 export const dynamic = "force-dynamic";
-export const runtime = "nodejs";

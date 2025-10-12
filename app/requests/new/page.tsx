@@ -133,6 +133,22 @@ export default function NewRequestPage() {
     );
   }, [CITIES_NORM]);
 
+  // Promisified geolocation with timeout
+  function getPosition(opts?: PositionOptions, msTimeout = 8000): Promise<GeolocationPosition> {
+    return new Promise((resolve, reject) => {
+      try {
+        const id = setTimeout(() => reject(new Error("GEO_TIMEOUT")), msTimeout);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { clearTimeout(id); resolve(pos); },
+          (err) => { clearTimeout(id); reject(err as GeolocationPositionError); },
+          opts,
+        );
+      } catch (e) {
+        reject(e as Error);
+      }
+    });
+  }
+
   // 🔁 Selecciona ciudad en el <Select> real (respeta selección manual)
   const selectCityIfExists = useCallback((maybeCity?: string | null, opts?: { source?: string }) => {
     const c = (maybeCity || "").toString().trim();
@@ -553,22 +569,48 @@ export default function NewRequestPage() {
 
   // Geolocalización: intenta detectar ciudad si el usuario no la cambió manualmente
   useEffect(() => {
-    if (cityTouched) return; // respeta selección manual
-    // Solo intenta si ciudad no fue modificada y es una de las default o vacía
-    const defaults = new Set<string>(["", "Monterrey"]);
-    if (!defaults.has((city || "").trim())) return;
     let cancelled = false;
-    const detect = async () => {
+    (async () => {
       try {
-        await new Promise<void>((resolve) => setTimeout(resolve, 300));
-        const pos = await askGeolocation("auto");
-        if (!pos || cancelled) return;
-        await detectCityFromCoords(pos.latitude, pos.longitude, "auto");
+        console.debug("[city:auto] init", { cityTouched, currentCity: city });
+        // do not overwrite manual choice
+        if (cityTouched) { console.debug("[city:auto] skipped: cityTouched"); return; }
+        // only if default/placeholder
+        const isDefault = !city || norm(city) === norm("Monterrey");
+        if (!isDefault) { console.debug("[city:auto] skipped: not default", { city }); return; }
+        if (!("geolocation" in navigator)) {
+          console.debug("[city:auto] no geolocation api");
+          return;
+        }
+        // best-effort permission check
+        try {
+          const p = await (navigator as any)?.permissions?.query?.({ name: "geolocation" as any });
+          console.debug("[city:auto] permission", { state: p?.state });
+        } catch {}
+        const pos = await getPosition({ enableHighAccuracy: false, timeout: 7000, maximumAge: 30000 }, 9000).catch((err) => {
+          console.debug("[city:auto] position error", { code: (err && (err.code ?? undefined)), message: String(err?.message || err) });
+          return null as any;
+        });
+        if (cancelled || !pos) return;
+        const { latitude: lat, longitude: lon } = pos.coords;
+        console.debug("[city:auto] coords", { lat, lon });
+        const url = `/api/geocode/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+        const r = await fetch(url, { headers: { Accept: "application/json" }});
+        const j = await r.json().catch(() => ({} as any));
+        console.debug("[city:auto] reverse", j);
+        if (!j?.ok) { console.debug("[city:auto] reverse failed", j); return; }
+        const detected = toCanon(j.city);
+        console.debug("[city:auto] detected canon", { raw: j.city, detected });
+        if (!detected) { console.debug("[city:auto] no canonical after toCanon"); return; }
+        if (!CITIES.includes(detected)) { console.debug("[city:auto] canonical not in CITIES", { detected }); return; }
+        if (cancelled) return;
+        if (cityTouched) { console.debug("[city:auto] skipped at apply: cityTouched"); return; }
+        setCity(detected);
+        try { setValue("city", detected, { shouldDirty: true }); } catch {}
       } catch { /* noop */ }
-    };
-    detect();
+    })();
     return () => { cancelled = true; };
-  }, [cityTouched]);
+  }, [cityTouched, city, setValue, toCanon]);
 
   // (Removed) Acción manual para detectar ciudad ahora
 
