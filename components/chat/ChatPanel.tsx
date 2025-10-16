@@ -172,6 +172,18 @@ export default function ChatPanel({
   const [offerScheduleRange, setOfferScheduleRange] = React.useState<[number, number]>([9, 17]);
   const [offerFlexibleSchedule, setOfferFlexibleSchedule] = React.useState(true);
   const [offerSubmitting, setOfferSubmitting] = React.useState(false);
+  // Pro: Quote (cotización formal)
+  const [quoteOpen, setQuoteOpen] = React.useState(false);
+  const [quoteItems, setQuoteItems] = React.useState<Array<{ concept: string; amount: string }>>([{ concept: "", amount: "" }]);
+  const [quoteImagePath, setQuoteImagePath] = React.useState<string>("")
+  const [quoteSubmitting, setQuoteSubmitting] = React.useState(false);
+  // Pro: Onsite quote request
+  const [onsiteOpen, setOnsiteOpen] = React.useState(false);
+  const [onsiteDate, setOnsiteDate] = React.useState<string>("");
+  const [onsiteStart, setOnsiteStart] = React.useState<string>("9");
+  const [onsiteEnd, setOnsiteEnd] = React.useState<string>("12");
+  const [onsiteNotes, setOnsiteNotes] = React.useState<string>("");
+  const [onsiteSubmitting, setOnsiteSubmitting] = React.useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = React.useState<string | null>(null);
   const [rejectingOfferId, setRejectingOfferId] = React.useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = React.useState<string | null>(null);
@@ -1271,6 +1283,25 @@ export default function ChatPanel({
     return false;
   }, [offerSummaries, messagesState]);
 
+  // Detect onsite deposit pending (client-side deposit flow)
+  const onsiteDeposit = React.useMemo(() => {
+    let latest: { onsiteId: string; amount: number; checkoutUrl: string | null } | null = null;
+    for (let i = messagesState.length - 1; i >= 0; i--) {
+      const m = messagesState[i];
+      if (!m.payload || typeof m.payload !== 'object') continue;
+      const p = m.payload as Record<string, unknown>;
+      const oid = typeof p.onsite_request_id === 'string' ? (p.onsite_request_id as string) : null;
+      const st = typeof p.status === 'string' ? (p.status as string) : '';
+      if (!oid || (st || '').toLowerCase() !== 'deposit_pending') continue;
+      const amtRaw = p.deposit_amount as unknown;
+      const amt = typeof amtRaw === 'number' ? amtRaw : Number(amtRaw ?? NaN);
+      const checkoutUrl = typeof p.checkout_url === 'string' ? (p.checkout_url as string) : null;
+      latest = { onsiteId: oid, amount: Number.isFinite(amt) ? amt : 200, checkoutUrl };
+      break;
+    }
+    return latest;
+  }, [messagesState]);
+
   // When paid is detected, best-effort update request status to 'scheduled'
   React.useEffect(() => {
     if (!hasPaid) return;
@@ -1319,16 +1350,40 @@ export default function ChatPanel({
     }
   }
 
+  async function handleClientDepositNow() {
+    const summary = onsiteDeposit;
+    if (!summary) return;
+    const onsiteId = summary.onsiteId;
+    const existingUrl = summary.checkoutUrl;
+    try {
+      let url = existingUrl && existingUrl.trim().length ? existingUrl : null;
+      if (!url) {
+        const res = await fetch(`/api/onsite-quote-requests/${encodeURIComponent(onsiteId)}/checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          credentials: 'include',
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok) url = (json?.checkoutUrl as string | null) ?? null;
+        else toast.error(json?.error || 'No se pudo iniciar el checkout de depósito');
+      }
+      if (url) window.location.assign(url);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'checkout_error');
+    }
+  }
+
   const actionButtons = (
     <>
       {participants && meId === participants?.customer_id && !hasPaid && !hideClientCtas ? (
         <div className="p-3 flex items-center justify-between">
-          <div>
-            {acceptedForPay ? (
-              <Button
-                onClick={() => setFeeOpen(true)}
-                variant="success"
-              >
+          <div className="flex items-center gap-2">
+            {onsiteDeposit ? (
+              <Button onClick={() => void handleClientDepositNow()} variant="success">
+                Pagar depósito {typeof onsiteDeposit.amount === 'number' ? `(${new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(onsiteDeposit.amount)})` : ''}
+              </Button>
+            ) : acceptedForPay ? (
+              <Button onClick={() => setFeeOpen(true)} variant="success">
                 Continuar al pago
               </Button>
             ) : null}
@@ -1336,7 +1391,6 @@ export default function ChatPanel({
           <div>
             <Button
               onClick={() => {
-                // Ensure title is prefilled on click
                 if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
                 setOfferDialogOpen(true);
               }}
@@ -1344,6 +1398,12 @@ export default function ChatPanel({
               Contratar
             </Button>
           </div>
+        </div>
+      ) : null}
+      {participants && meId === participants?.pro_id && !hideClientCtas ? (
+        <div className="p-3 flex items-center gap-2 border-t">
+          <Button variant="outline" onClick={() => setQuoteOpen(true)}>Cotizar</Button>
+          <Button onClick={() => setOnsiteOpen(true)}>Cotizar en sitio</Button>
         </div>
       ) : null}
     </>
@@ -1521,6 +1581,183 @@ export default function ChatPanel({
     </Dialog>
   );
 
+  async function submitQuote() {
+    if (viewerRole !== 'professional') {
+      toast.error('Solo el profesional puede cotizar');
+      return;
+    }
+    const items = quoteItems
+      .map((it) => ({ concept: it.concept.trim(), amount: Number(it.amount) }))
+      .filter((it) => it.concept.length > 0 && Number.isFinite(it.amount) && it.amount >= 0);
+    if (!items.length) {
+      toast.error('Agrega al menos un concepto');
+      return;
+    }
+    setQuoteSubmitting(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/quotes`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({ items, image_path: quoteImagePath || undefined }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) throw new Error(json?.error || 'No se pudo crear la cotización');
+      toast.success('Cotización enviada');
+      setQuoteOpen(false);
+      setQuoteItems([{ concept: '', amount: '' }]);
+      setQuoteImagePath('');
+      await load(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setQuoteSubmitting(false);
+    }
+  }
+
+  async function submitOnsite() {
+    if (viewerRole !== 'professional') {
+      toast.error('Solo el profesional puede solicitar cotización en sitio');
+      return;
+    }
+    setOnsiteSubmitting(true);
+    try {
+      const headers = await getAuthHeaders();
+      const payload: Record<string, unknown> = {};
+      if (onsiteDate) payload.schedule_date = onsiteDate;
+      const s = Number(onsiteStart);
+      const e = Number(onsiteEnd);
+      if (Number.isFinite(s)) payload.schedule_time_start = Math.max(0, Math.min(23, Math.floor(s)));
+      if (Number.isFinite(e)) payload.schedule_time_end = Math.max(1, Math.min(24, Math.floor(e)));
+      if (onsiteNotes.trim().length) payload.notes = onsiteNotes.trim();
+      payload.deposit_amount = 200;
+      const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/onsite-quote-requests`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) throw new Error(json?.error || 'No se pudo crear la solicitud');
+      toast.success('Solicitud de cotización en sitio enviada');
+      setOnsiteOpen(false);
+      setOnsiteDate('');
+      setOnsiteStart('9');
+      setOnsiteEnd('12');
+      setOnsiteNotes('');
+      await load(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setOnsiteSubmitting(false);
+    }
+  }
+
+  const quoteDialog = (
+    <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Enviar cotización</DialogTitle>
+          <DialogDescription>Agrega conceptos y montos (MXN).</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {quoteItems.map((it, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2">
+              <input
+                className="col-span-7 border rounded px-2 py-1 text-sm"
+                placeholder="Concepto"
+                value={it.concept}
+                onChange={(e) => setQuoteItems((prev) => prev.map((p, i) => i === idx ? { ...p, concept: e.target.value } : p))}
+              />
+              <input
+                className="col-span-4 border rounded px-2 py-1 text-sm"
+                placeholder="Monto"
+                inputMode="decimal"
+                value={it.amount}
+                onChange={(e) => setQuoteItems((prev) => prev.map((p, i) => i === idx ? { ...p, amount: e.target.value } : p))}
+              />
+              <button
+                type="button"
+                className="col-span-1 text-slate-500 hover:text-slate-700"
+                onClick={() => setQuoteItems((prev) => prev.filter((_, i) => i !== idx))}
+                aria-label="Eliminar"
+                title="Eliminar"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          <div>
+            <button
+              type="button"
+              className="text-sm underline text-blue-700 hover:text-blue-800"
+              onClick={() => setQuoteItems((prev) => [...prev, { concept: '', amount: '' }])}
+            >
+              Agregar concepto
+            </button>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-slate-600">Imagen (URL opcional)</label>
+            <input
+              className="w-full border rounded px-2 py-1 text-sm"
+              placeholder="https://..."
+              value={quoteImagePath}
+              onChange={(e) => setQuoteImagePath(e.target.value)}
+            />
+          </div>
+          <div className="text-sm text-slate-700">
+            Total estimado:{' '}
+            {(() => {
+              const total = quoteItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+              try { return new Intl.NumberFormat('es-MX',{ style: 'currency', currency: 'MXN' }).format(total); } catch { return String(total.toFixed(2)); }
+            })()}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setQuoteOpen(false)} disabled={quoteSubmitting}>Cancelar</Button>
+          <Button onClick={() => void submitQuote()} disabled={quoteSubmitting}>{quoteSubmitting ? 'Enviando...' : 'Enviar'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  const onsiteDialog = (
+    <Dialog open={onsiteOpen} onOpenChange={setOnsiteOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Solicitar cotización en sitio</DialogTitle>
+          <DialogDescription>Agenda fecha y rango de horario. Depósito de $200 MXN requerido del cliente.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-sm text-slate-600">Fecha</label>
+              <input type="date" className="w-full border rounded px-2 py-1 text-sm" value={onsiteDate} onChange={(e) => setOnsiteDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm text-slate-600">Horario</label>
+              <div className="flex items-center gap-2">
+                <input type="number" min={0} max={23} className="w-20 border rounded px-2 py-1 text-sm" value={onsiteStart} onChange={(e) => setOnsiteStart(e.target.value)} />
+                <span>–</span>
+                <input type="number" min={1} max={24} className="w-20 border rounded px-2 py-1 text-sm" value={onsiteEnd} onChange={(e) => setOnsiteEnd(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm text-slate-600">Notas</label>
+            <textarea className="w-full border rounded px-2 py-1 text-sm" rows={3} value={onsiteNotes} onChange={(e) => setOnsiteNotes(e.target.value)} />
+          </div>
+          <div className="text-sm text-slate-700">Depósito: $200 MXN</div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setOnsiteOpen(false)} disabled={onsiteSubmitting}>Cancelar</Button>
+          <Button onClick={() => void submitOnsite()} disabled={onsiteSubmitting}>{onsiteSubmitting ? 'Enviando...' : 'Solicitar'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   const dialog = (
     <Dialog
       open={rejectOpen}
@@ -1663,6 +1900,8 @@ export default function ChatPanel({
           />
         ) : null}
         {offerDialog}
+        {quoteDialog}
+        {onsiteDialog}
         {dialog}
       </div>
     );
@@ -1766,6 +2005,8 @@ export default function ChatPanel({
             />
           ) : null}
           {offerDialog}
+          {quoteDialog}
+          {onsiteDialog}
           {dialog}
         </div>
       </SheetContent>

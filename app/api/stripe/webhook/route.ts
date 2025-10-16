@@ -52,6 +52,7 @@ export async function POST(req: Request) {
         if (url && serviceRole) {
           const admin = createClient(url, serviceRole);
           const offerId = (session.metadata?.offer_id || "").trim();
+          const onsiteId = ((session.metadata as any)?.onsite_request_id || "").trim();
           const requestIdFromMeta = (session.metadata?.request_id || (session.metadata as any)?.requestId || "").trim();
           const proIdFromMeta = ((session.metadata as any)?.proId || "").trim();
           const scheduledDateMeta = ((session.metadata as any)?.scheduled_date || "").trim();
@@ -290,6 +291,23 @@ export async function POST(req: Request) {
               }
             }
           } catch { /* ignore */ }
+          if (onsiteId) {
+            // Depósito de cotización en sitio
+            try {
+              await admin
+                .from('onsite_quote_requests')
+                .update({ status: 'deposit_paid', deposit_payment_intent_id: payment_intent_id })
+                .eq('id', onsiteId)
+                .in('status', ['deposit_pending','requested']);
+            } catch { /* ignore */ }
+            try {
+              // Best-effort to revalidate chat
+              const { data: row } = await admin.from('onsite_quote_requests').select('conversation_id').eq('id', onsiteId).maybeSingle();
+              const convId = (row as any)?.conversation_id as string | undefined;
+              if (convId) { try { revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ } }
+            } catch { /* ignore */ }
+          }
+
           if (offerId) {
             console.log(
               JSON.stringify({
@@ -375,7 +393,22 @@ export async function POST(req: Request) {
                         (patch as any).scheduled_time = time as any;
                       } catch { /* ignore parse */ }
                     }
-                    try { await admin.from("requests").update(patch).eq("id", requestId); } catch { /* ignore */ }
+                    try {
+                      if ((patch as any).status === 'scheduled' && !(patch as any).scheduled_date) {
+                        try {
+                          const { data: r0 } = await admin
+                            .from('requests')
+                            .select('scheduled_date, required_at')
+                            .eq('id', requestId)
+                            .maybeSingle();
+                          let sd: string | null = (r0 as any)?.scheduled_date || null;
+                          if (!sd) sd = (r0 as any)?.required_at || null;
+                          if (!sd) sd = new Date().toISOString().slice(0, 10);
+                          (patch as any).scheduled_date = sd;
+                        } catch { /* ignore */ }
+                      }
+                      await admin.from("requests").update(patch).eq("id", requestId);
+                    } catch { /* ignore */ }
                     // Lee dirección y arma mensaje detallado
                     const { data: reqRow } = await admin
                       .from("requests")
@@ -549,6 +582,17 @@ export async function POST(req: Request) {
                 if (scheduledTimeMeta) (patchReq as any).scheduled_time = scheduledTimeMeta as any;
               }
               try {
+                if (!(patchReq as any).scheduled_date) {
+                  const { data: r0 } = await admin
+                    .from('requests')
+                    .select('scheduled_date, required_at')
+                    .eq('id', requestIdFromMeta)
+                    .maybeSingle();
+                  let sd: string | null = (r0 as any)?.scheduled_date || null;
+                  if (!sd) sd = (r0 as any)?.required_at || null;
+                  if (!sd) sd = new Date().toISOString().slice(0, 10);
+                  (patchReq as any).scheduled_date = sd;
+                }
                 await admin
                   .from("requests")
                   .update(patchReq)
