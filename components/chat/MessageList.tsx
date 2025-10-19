@@ -9,6 +9,7 @@ import LocationCard from "@/components/chat/LocationCard";
 import AcceptOfferButton from "@/app/(app)/offers/_components/AcceptOfferButton";
 import { extractOfferId, extractStatus, extractProIds, extractViewerIds, isOwnerPro, canProAct } from "@/lib/offers/actors";
 import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 type Item = {
   id: string;
@@ -117,6 +118,7 @@ export default function MessageList({
   // legacy inline pay flow moved to top bar (ChatPanel)
   const [/* payingOfferId */, setPayingOfferId] = React.useState<string | null>(null);
   const [feeOpen, setFeeOpen] = React.useState(false);
+  const [quoteLightbox, setQuoteLightbox] = React.useState<string | null>(null);
   const [feeCtx, setFeeCtx] = React.useState<{ offerId: string; amount: number | null; currency: string; checkoutUrl?: string | null }>({ offerId: "", amount: null, currency: "MXN", checkoutUrl: null });
   const handlePay = React.useCallback(async (offerId: string, existingUrl?: string | null) => {
     let url = typeof existingUrl === "string" && existingUrl.trim().length ? existingUrl : null;
@@ -255,7 +257,45 @@ export default function MessageList({
   if (!items.length)
     return (
       <div ref={ref} className="flex-1 overflow-y-auto p-3" style={bgStyle}>
-        <div className="text-sm text-slate-500">Aun no hay mensajes.</div>
+        <div className="w-full max-w-xl mx-auto text-center py-10 space-y-4">
+          {viewerRole === "customer" ? (
+            <div className="space-y-2" data-testid={`${dataPrefix}-empty-state-customer`}>
+              <div className="flex items-center justify-center gap-2">
+                <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Cotiza</Badge>
+                <span className="text-primary">&gt;</span>
+                <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Contrata</Badge>
+                <span className="text-primary">&gt;</span>
+                <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Paga</Badge>
+              </div>
+              <div className="flex justify-center">
+                <Badge
+                  variant="outline"
+                  className="bg-emerald-50 text-black border-emerald-100 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
+                >
+                  Protegemos tu pago hasta que apruebes el servicio finalizado.
+                </Badge>
+              </div>
+            </div>
+          ) : viewerRole === "professional" ? (
+            <div className="space-y-2" data-testid={`${dataPrefix}-empty-state-professional`}>
+              <div className="flex items-center justify-center gap-2">
+                <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Cotiza</Badge>
+                <span className="text-primary">&gt;</span>
+                <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Acepta Oferta</Badge>
+                <span className="text-primary">&gt;</span>
+                <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Agenda Servicio</Badge>
+              </div>
+              <div className="flex justify-center">
+                <Badge
+                  variant="outline"
+                  className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
+                >
+                  Los servicios agendados se agregan a tu calendario en automático.
+                </Badge>
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
 
@@ -414,6 +454,42 @@ export default function MessageList({
     if (message.messageType === "offer") {
       return renderOffer(message);
     }
+    if (message.messageType === "quote" && message.payload && typeof message.payload === "object") {
+      const payloadRecord = message.payload as Record<string, unknown>;
+      const qid = typeof payloadRecord.quote_id === 'string' ? (payloadRecord.quote_id as string) : null;
+      const totalRaw = payloadRecord.total as unknown;
+      const currencyRaw = payloadRecord.currency as unknown;
+      const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? NaN);
+      const currency = typeof currencyRaw === 'string' ? currencyRaw : 'MXN';
+      const totalFmt = Number.isFinite(total) ? formatCurrency(total, currency || 'MXN') : null;
+      const hasAttachment = Array.isArray((message as any).attachments) && (message as any).attachments.length > 0;
+      return (
+        <div className="space-y-1">
+          <div className="text-sm font-medium text-slate-800">Cotización enviada</div>
+          {totalFmt ? <div className="text-sm text-slate-700">Total: {totalFmt}</div> : null}
+          {/* Fallback: si aún no hay adjunto, muestra la imagen renderizada por API */}
+          {!hasAttachment && qid ? (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setQuoteLightbox(`/api/quotes/${encodeURIComponent(qid)}/image`)}
+                className="block overflow-hidden rounded-md border hover:opacity-90"
+                aria-label="Abrir cotización"
+                title="Abrir cotización"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/quotes/${encodeURIComponent(qid)}/image`}
+                  alt="Cotización"
+                  className="block max-h-56 object-contain"
+                  style={{ maxWidth: 300 }}
+                />
+              </button>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
     if (message.messageType === "system" && message.payload && typeof message.payload === "object") {
       const payloadRecord = message.payload as Record<string, unknown>;
       // LocationCard: type 'system/location' o 'schedule_details'
@@ -482,6 +558,43 @@ export default function MessageList({
 
   return (
     <div ref={ref} className="flex-1 overflow-y-auto p-3" style={bgStyle}>
+      {viewerRole === "customer" ? (
+        <div className="w-full max-w-xl mx-auto text-center py-4 space-y-2" data-testid={`${dataPrefix}-conversation-header-customer`}>
+          <div className="flex items-center justify-center gap-2">
+            <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Cotiza</Badge>
+            <span className="text-primary">&gt;</span>
+            <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Contrata</Badge>
+            <span className="text-primary">&gt;</span>
+            <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Paga</Badge>
+          </div>
+          <div className="flex justify-center">
+            <Badge
+              variant="outline"
+              className="bg-emerald-50 text-black border-emerald-100 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
+            >
+              Protegemos tu pago hasta que apruebes el servicio finalizado.
+            </Badge>
+          </div>
+        </div>
+      ) : viewerRole === "professional" ? (
+        <div className="w-full max-w-xl mx-auto text-center py-4 space-y-2" data-testid={`${dataPrefix}-conversation-header-professional`}>
+          <div className="flex items-center justify-center gap-2">
+            <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Cotiza</Badge>
+            <span className="text-primary">&gt;</span>
+            <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Acepta Oferta</Badge>
+            <span className="text-primary">&gt;</span>
+            <Badge variant="outline" className="bg-white text-primary border-slate-200 shadow-sm">Agenda Servicio</Badge>
+          </div>
+          <div className="flex justify-center">
+            <Badge
+              variant="outline"
+              className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
+            >
+              Los servicios agendados se agregan a tu calendario en automático.
+            </Badge>
+          </div>
+        </div>
+      ) : null}
       <ul className="space-y-2">
         {items.map((m) => {
           const isMe = currentUserId && (m.senderId === currentUserId || m.senderId === "me");
@@ -503,10 +616,26 @@ export default function MessageList({
                 <div title={new Date(m.createdAt).toLocaleString()} className="text-[11px] text-slate-500 mb-1">
                   {formatRelative(m.createdAt)}
                 </div>
-                {renderBody(m)}
+                {(() => {
+                  if (m.messageType === 'quote' && m.payload && typeof m.payload === 'object') {
+                    // Reuse unified quote body (text + link). Attachments render below.
+                    return renderBody(m);
+                  }
+                  return renderBody(m);
+                })()}
                 {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
                   <div className="mt-2">
-                    <AttachmentList items={m.attachments} />
+                    <AttachmentList
+                      items={m.attachments}
+                      resolveLightboxUrl={(_att, url) => {
+                        const payload = (m?.payload && typeof m.payload === 'object') ? (m.payload as Record<string, unknown>) : null;
+                        const qid = payload && typeof (payload as any).quote_id === 'string' ? (payload as any).quote_id as string : null;
+                        if (m.messageType === 'quote' && qid) {
+                          return `/api/quotes/${encodeURIComponent(qid)}/image`;
+                        }
+                        return url;
+                      }}
+                    />
                   </div>
                 ) : null}
                 {isMe ? (
@@ -519,6 +648,14 @@ export default function MessageList({
           );
         })}
       </ul>
+      <Dialog open={!!quoteLightbox} onOpenChange={(o) => { if (!o) setQuoteLightbox(null); }}>
+        <DialogContent className="max-w-3xl p-0 sm:p-0">
+          {quoteLightbox ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={quoteLightbox} alt="Cotización" className="h-auto w-full rounded object-contain" />
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <ClientFeeDialog
         open={feeOpen}
         onOpenChange={setFeeOpen}

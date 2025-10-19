@@ -8,6 +8,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { X } from "lucide-react";
 import MessageList from "@/components/chat/MessageList";
+import QuoteComposerDialog from "@/components/quotes/QuoteComposerDialog";
 import MessageInput from "@/components/chat/MessageInput";
 import ChatUploader from "@/app/(app)/messages/_components/ChatUploader";
 import { getContactPolicyMessage } from "@/lib/safety/policy";
@@ -174,9 +175,6 @@ export default function ChatPanel({
   const [offerSubmitting, setOfferSubmitting] = React.useState(false);
   // Pro: Quote (cotización formal)
   const [quoteOpen, setQuoteOpen] = React.useState(false);
-  const [quoteItems, setQuoteItems] = React.useState<Array<{ concept: string; amount: string }>>([{ concept: "", amount: "" }]);
-  const [quoteImagePath, setQuoteImagePath] = React.useState<string>("")
-  const [quoteSubmitting, setQuoteSubmitting] = React.useState(false);
   // Pro: Onsite quote request
   const [onsiteOpen, setOnsiteOpen] = React.useState(false);
   const [onsiteDate, setOnsiteDate] = React.useState<string>("");
@@ -1399,8 +1397,8 @@ export default function ChatPanel({
             </Button>
           </div>
         </div>
-      ) : null}
-      {participants && meId === participants?.pro_id && !hideClientCtas ? (
+      ) : null}      {/* pro CTAs now rendered via actionButtons to keep consistency across views */}
+      {participants && meId === participants?.pro_id ? (
         <div className="p-3 flex items-center gap-2 border-t">
           <Button variant="outline" onClick={() => setQuoteOpen(true)}>Cotizar</Button>
           <Button onClick={() => setOnsiteOpen(true)}>Cotizar en sitio</Button>
@@ -1581,40 +1579,7 @@ export default function ChatPanel({
     </Dialog>
   );
 
-  async function submitQuote() {
-    if (viewerRole !== 'professional') {
-      toast.error('Solo el profesional puede cotizar');
-      return;
-    }
-    const items = quoteItems
-      .map((it) => ({ concept: it.concept.trim(), amount: Number(it.amount) }))
-      .filter((it) => it.concept.length > 0 && Number.isFinite(it.amount) && it.amount >= 0);
-    if (!items.length) {
-      toast.error('Agrega al menos un concepto');
-      return;
-    }
-    setQuoteSubmitting(true);
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/quotes`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ items, image_path: quoteImagePath || undefined }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.ok === false) throw new Error(json?.error || 'No se pudo crear la cotización');
-      toast.success('Cotización enviada');
-      setQuoteOpen(false);
-      setQuoteItems([{ concept: '', amount: '' }]);
-      setQuoteImagePath('');
-      await load(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Error');
-    } finally {
-      setQuoteSubmitting(false);
-    }
-  }
+  // Quote creation handled by QuoteComposerDialog component
 
   async function submitOnsite() {
     if (viewerRole !== 'professional') {
@@ -1655,71 +1620,12 @@ export default function ChatPanel({
   }
 
   const quoteDialog = (
-    <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Enviar cotización</DialogTitle>
-          <DialogDescription>Agrega conceptos y montos (MXN).</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          {quoteItems.map((it, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2">
-              <input
-                className="col-span-7 border rounded px-2 py-1 text-sm"
-                placeholder="Concepto"
-                value={it.concept}
-                onChange={(e) => setQuoteItems((prev) => prev.map((p, i) => i === idx ? { ...p, concept: e.target.value } : p))}
-              />
-              <input
-                className="col-span-4 border rounded px-2 py-1 text-sm"
-                placeholder="Monto"
-                inputMode="decimal"
-                value={it.amount}
-                onChange={(e) => setQuoteItems((prev) => prev.map((p, i) => i === idx ? { ...p, amount: e.target.value } : p))}
-              />
-              <button
-                type="button"
-                className="col-span-1 text-slate-500 hover:text-slate-700"
-                onClick={() => setQuoteItems((prev) => prev.filter((_, i) => i !== idx))}
-                aria-label="Eliminar"
-                title="Eliminar"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <div>
-            <button
-              type="button"
-              className="text-sm underline text-blue-700 hover:text-blue-800"
-              onClick={() => setQuoteItems((prev) => [...prev, { concept: '', amount: '' }])}
-            >
-              Agregar concepto
-            </button>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm text-slate-600">Imagen (URL opcional)</label>
-            <input
-              className="w-full border rounded px-2 py-1 text-sm"
-              placeholder="https://..."
-              value={quoteImagePath}
-              onChange={(e) => setQuoteImagePath(e.target.value)}
-            />
-          </div>
-          <div className="text-sm text-slate-700">
-            Total estimado:{' '}
-            {(() => {
-              const total = quoteItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
-              try { return new Intl.NumberFormat('es-MX',{ style: 'currency', currency: 'MXN' }).format(total); } catch { return String(total.toFixed(2)); }
-            })()}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setQuoteOpen(false)} disabled={quoteSubmitting}>Cancelar</Button>
-          <Button onClick={() => void submitQuote()} disabled={quoteSubmitting}>{quoteSubmitting ? 'Enviando...' : 'Enviar'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <QuoteComposerDialog
+      open={quoteOpen}
+      onOpenChange={setQuoteOpen}
+      conversationId={conversationId}
+      onSubmitted={() => { void load(false); }}
+    />
   );
 
   const onsiteDialog = (

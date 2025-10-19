@@ -52,7 +52,8 @@ export async function POST(req: Request) {
         if (url && serviceRole) {
           const admin = createClient(url, serviceRole);
           const offerId = (session.metadata?.offer_id || "").trim();
-          const onsiteId = ((session.metadata as any)?.onsite_request_id || "").trim();
+          const metadataType = ((session.metadata as any)?.type || "").trim();
+          const onsiteIdMeta = ((session.metadata as any)?.onsite_quote_request_id || (session.metadata as any)?.onsite_request_id || "").trim();
           const requestIdFromMeta = (session.metadata?.request_id || (session.metadata as any)?.requestId || "").trim();
           const proIdFromMeta = ((session.metadata as any)?.proId || "").trim();
           const scheduledDateMeta = ((session.metadata as any)?.scheduled_date || "").trim();
@@ -271,7 +272,7 @@ export async function POST(req: Request) {
                 if (messageId && pdfBuffer) {
                   const filePath = `conversation/${convIdAttach}/${messageId}/handi-recibo-${receiptIdPersist}.pdf`;
                   const up = await admin.storage
-                    .from('chat-attachments')
+                    .from('message-attachments')
                     .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
                   if (!up.error) {
                     await admin.from('message_attachments').insert({
@@ -291,18 +292,18 @@ export async function POST(req: Request) {
               }
             }
           } catch { /* ignore */ }
-          if (onsiteId) {
+          if (metadataType === 'onsite_deposit' && onsiteIdMeta) {
             // Depósito de cotización en sitio
             try {
               await admin
                 .from('onsite_quote_requests')
                 .update({ status: 'deposit_paid', deposit_payment_intent_id: payment_intent_id })
-                .eq('id', onsiteId)
+                .eq('id', onsiteIdMeta)
                 .in('status', ['deposit_pending','requested']);
             } catch { /* ignore */ }
             try {
               // Best-effort to revalidate chat
-              const { data: row } = await admin.from('onsite_quote_requests').select('conversation_id').eq('id', onsiteId).maybeSingle();
+              const { data: row } = await admin.from('onsite_quote_requests').select('conversation_id').eq('id', onsiteIdMeta).maybeSingle();
               const convId = (row as any)?.conversation_id as string | undefined;
               if (convId) { try { revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ } }
             } catch { /* ignore */ }

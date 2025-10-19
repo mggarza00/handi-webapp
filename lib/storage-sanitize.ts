@@ -213,14 +213,12 @@ export function buildStorageKey(
     maxLength: maxNameLength,
   });
 
-  const pref = Array.isArray(prefixes)
-    ? prefixes
-        .filter((p) => typeof p === "string" && p.trim().length > 0)
-        .map((p) => p.replace(/\\/g, "/").split("/").filter(Boolean).join("-"))
+  const prefSegs: string[] = Array.isArray(prefixes)
+    ? prefixes.flatMap((p) => p.replace(/\\/g, "/").split("/").filter(Boolean))
     : (prefixes || "").replace(/\\/g, "/").split("/").filter(Boolean);
 
   const last = `${ts}-${safeName}`;
-  return joinStoragePath(...pref, last);
+  return joinStoragePath(...prefSegs, last);
 }
 
 /**

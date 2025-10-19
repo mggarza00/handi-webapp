@@ -84,7 +84,7 @@ export async function POST(req: Request) {
       const normalizePath = (p: string): string => {
         if (!p) return p as unknown as string;
         p = p.split(String.fromCharCode(92)).join("/");
-        if (p.startsWith("chat-attachments/")) p = p.slice("chat-attachments/".length);
+        if (p.startsWith("message-attachments/")) p = p.slice("message-attachments/".length);
         return p;
       };
       // Tamaño máximo por archivo: 20MB

@@ -44,7 +44,7 @@ export default function MessageItem({ body, attachments = [], createdAt, isMine 
         for (const att of attachments) {
           try {
             const { data, error } = await supabase.storage
-              .from("chat-attachments")
+              .from("message-attachments")
               .createSignedUrl(att.storage_path, 60 * 10); // 10 minutes
             if (error || !data?.signedUrl) continue;
             out.push({ key: att.storage_path, url: data.signedUrl, att });
@@ -130,4 +130,3 @@ function AttachmentPreview({ url, att }: { url: string; att: Attachment }) {
     </a>
   );
 }
-
