@@ -42,8 +42,9 @@ import { useDebounced } from "./hooks/useClassify";
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
-import MapPickerModal from "@/components/address/MapPickerModal";
-import AddressInput from "@/components/address/AddressInput";
+// Legacy map/address inputs removed in favor of LocationPickerDialog
+// import MapPickerModal from "@/components/address/MapPickerModal";
+// import AddressInput from "@/components/address/AddressInput";
 import LocationPickerDialog from "@/components/location/LocationPickerDialog";
 import { MapPin } from "lucide-react";
 
@@ -52,6 +53,9 @@ type FormValues = {
   description?: string;
   city: string;
   address: string;
+  address_line: string;
+  address_lat: number | null;
+  address_lng: number | null;
   lat?: number;
   lng?: number;
   postcode?: string;
@@ -121,7 +125,7 @@ export default function NewRequestPage() {
 
   // react-hook-form: valores por defecto mínimos para integración
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
-    defaultValues: { city: "Monterrey", address: "" },
+    defaultValues: { city: "Monterrey", address: "", address_line: "", address_lat: null, address_lng: null },
     mode: "onChange",
   });
 
@@ -174,7 +178,10 @@ export default function NewRequestPage() {
           const r = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}`, { cache: "no-store", headers: { Accept: "application/json; charset=utf-8", "Content-Type": "application/json; charset=utf-8" } });
           const j = await r.json().catch(() => ({}));
           if (!cancelled && j && j.ok) {
-            if (typeof j.address === 'string') setAddress(j.address);
+            if (typeof j.address === 'string') {
+              setAddress(j.address);
+              try { setValue('address_line', j.address, { shouldDirty: true, shouldValidate: true }); } catch {}
+            }
             if (typeof j.city === 'string') suggestCityUpdate(j.city);
           }
         } catch { /* ignore */ }
@@ -349,9 +356,9 @@ export default function NewRequestPage() {
             setAddressLng(typeof first.lon === "number" ? first.lon : null);
             if (typeof first.city === "string" && first.city) selectCityIfExists(first.city, { source: "prefill.recent" });
             try {
-              setValue("address", first.address, { shouldDirty: true });
-              setValue("lat", typeof first.lat === "number" ? first.lat : undefined, { shouldDirty: true });
-              setValue("lng", typeof first.lon === "number" ? first.lon : undefined, { shouldDirty: true });
+              setValue("address_line", first.address, { shouldDirty: true, shouldValidate: true });
+              setValue("address_lat", typeof first.lat === "number" ? first.lat : null, { shouldDirty: true });
+              setValue("address_lng", typeof first.lon === "number" ? first.lon : null, { shouldDirty: true });
             } catch {
               /* ignore */
             }
@@ -416,9 +423,9 @@ export default function NewRequestPage() {
     if (typeof item.city === "string" && item.city)
       selectCityIfExists(item.city, { source: "addr.pick" });
     try {
-      setValue("address", item.address || "", { shouldDirty: true });
-      setValue("lat", lat ?? undefined, { shouldDirty: true });
-      setValue("lng", lng ?? undefined, { shouldDirty: true });
+      setValue("address_line", item.address || "", { shouldDirty: true, shouldValidate: true });
+      setValue("address_lat", lat ?? null, { shouldDirty: true });
+      setValue("address_lng", lng ?? null, { shouldDirty: true });
     } catch {
       /* ignore */
     }
@@ -439,9 +446,9 @@ export default function NewRequestPage() {
         budget?: number | "";
         required_at?: string;
         conditions?: string | string[];
-        address?: string;
-        lat?: number;
-        lon?: number;
+        address_line?: string;
+        address_lat?: number | null;
+        address_lng?: number | null;
       }>("draft:create-service");
       if (d) {
         if (typeof d.title === "string") setTitle(d.title);
@@ -453,16 +460,18 @@ export default function NewRequestPage() {
         if (typeof d.required_at === "string") setRequiredAt(d.required_at);
         if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
         else if (typeof d.conditions === "string") setConditionsText(d.conditions);
-        if (typeof d.address === "string") {
-          setAddress(d.address);
-          setAddressLine(d.address);
-          try { setValue("address", d.address, { shouldDirty: true }); } catch {}
+        if (typeof (d as any).address_line === "string") {
+          const al = (d as any).address_line as string;
+          setAddress(al);
+          setAddressLine(al);
+          try { setValue("address_line", al, { shouldDirty: true, shouldValidate: true }); } catch {}
         }
-        if (typeof d.lat === 'number' && typeof d.lon === 'number') {
-          setCoords({ lat: d.lat, lon: d.lon });
-          setAddressLat(d.lat);
-          setAddressLng(d.lon);
-          try { setValue("lat", d.lat, { shouldDirty: true }); setValue("lng", d.lon, { shouldDirty: true }); } catch {}
+        if (typeof (d as any).address_lat === 'number' && typeof (d as any).address_lng === 'number') {
+          const dlat = (d as any).address_lat as number; const dlng = (d as any).address_lng as number;
+          setCoords({ lat: dlat, lon: dlng });
+          setAddressLat(dlat);
+          setAddressLng(dlng);
+          try { setValue("address_lat", dlat, { shouldDirty: true }); setValue("address_lng", dlng, { shouldDirty: true }); } catch {}
         }
       }
     } catch (_e) {
@@ -733,7 +742,7 @@ export default function NewRequestPage() {
 
   // (Removed) Acción manual para detectar ciudad ahora
 
-  // Persist draft anytime fields change
+  // Persist draft anytime fields change (address_line + coords)
   useEffect(() => {
     writeDraft("draft:create-service", {
       title,
@@ -744,9 +753,9 @@ export default function NewRequestPage() {
       budget,
       required_at: requiredAt,
       conditions: conditionsText,
-      address,
-      lat: typeof coords?.lat === 'number' ? coords!.lat : undefined,
-      lon: typeof coords?.lon === 'number' ? coords!.lon : undefined,
+      address_line: address,
+      address_lat: typeof coords?.lat === 'number' ? coords!.lat : null,
+      address_lng: typeof coords?.lon === 'number' ? coords!.lon : null,
     });
   }, [title, description, city, category, subcategory, budget, requiredAt, conditionsText, address, coords?.lat, coords?.lon]);
 
@@ -795,10 +804,10 @@ export default function NewRequestPage() {
         )
         .max(10),
     ]).optional(),
-    address_line: z.string().max(500).optional().or(z.literal("")),
+    address_line: z.string().min(5, "Ingresa una dirección válida").max(500),
     address_place_id: z.string().max(200).optional().or(z.literal("")),
-    address_lat: z.number().optional(),
-    address_lng: z.number().optional(),
+    address_lat: z.number().nullable(),
+    address_lng: z.number().nullable(),
   });
 
   async function onSubmit(e: React.FormEvent) {
@@ -821,9 +830,9 @@ export default function NewRequestPage() {
           budget,
           required_at: requiredAt,
           conditions: conditionsText,
-          address,
-          lat: typeof coords?.lat === 'number' ? coords!.lat : undefined,
-          lon: typeof coords?.lon === 'number' ? coords!.lon : undefined,
+          address_line: address,
+          address_lat: typeof coords?.lat === 'number' ? coords!.lat : null,
+          address_lng: typeof coords?.lon === 'number' ? coords!.lon : null,
         });
         setPendingAutoSubmit(true);
         setReturnTo(`${window.location.pathname}${window.location.search}`);
@@ -847,10 +856,10 @@ export default function NewRequestPage() {
       budget,
       required_at: requiredAt,
       conditions: conditionsText,
-      address_line: addressLine,
+      address_line: address,
       address_place_id: addressPlaceId || "",
-      address_lat: addressLat ?? undefined,
-      address_lng: addressLng ?? undefined,
+      address_lat: addressLat ?? null,
+      address_lng: addressLng ?? null,
     });
 
     if (!parsed.success) {
@@ -933,29 +942,20 @@ export default function NewRequestPage() {
     }
 
     // Si el usuario escribió manual y no hay coords, resolver antes de enviar
-    if ((addressLine || '').trim().length > 0 && (addressLat == null || addressLng == null)) {
+    if ((address || '').trim().length > 0 && (addressLat == null || addressLng == null)) {
       try {
-        const r = await fetch(`/api/geocode?q=${encodeURIComponent(addressLine.trim())}`, { cache: 'no-store' });
+        const r = await fetch(`/api/geocode/search?q=${encodeURIComponent(address.trim())}`, { cache: 'no-store', headers: { Accept: 'application/json; charset=utf-8', 'Content-Type': 'application/json; charset=utf-8' } });
         const j = await r.json().catch(() => ({}));
-        const first = Array.isArray(j?.results) && j.results.length ? j.results[0] : null;
+        const first = Array.isArray(j?.data) && j.data.length ? j.data[0] : null;
         if (first) {
           if (typeof first.lat === 'number') setAddressLat(first.lat);
-          if (typeof first.lng === 'number') setAddressLng(first.lng);
-          if (typeof first.place_id === 'string') setAddressPlaceId(first.place_id);
+          if (typeof first.lon === 'number') setAddressLng(first.lon);
           if (typeof first.city === 'string' && first.city.trim().length > 0) selectCityIfExists(first.city);
-          setAddressPostcode(typeof first.postcode === 'string' ? first.postcode : null);
-          setAddressState(typeof first.state === 'string' ? first.state : null);
-          setAddressCountry(typeof first.country === 'string' ? first.country : null);
-          setAddressContext(first.context ?? null);
           try {
-            setValue('lat', typeof first.lat === 'number' ? first.lat : undefined, { shouldDirty: true });
-            setValue('lng', typeof first.lng === 'number' ? first.lng : undefined, { shouldDirty: true });
-            setValue('place_id', typeof first.place_id === 'string' ? first.place_id : undefined, { shouldDirty: true });
+            setValue('address_line', address.trim(), { shouldDirty: true, shouldValidate: true });
+            setValue('address_lat', typeof first.lat === 'number' ? first.lat : null, { shouldDirty: true });
+            setValue('address_lng', typeof first.lon === 'number' ? first.lon : null, { shouldDirty: true });
             if (typeof first.city === 'string' && first.city.trim().length > 0) setValue('city', first.city, { shouldDirty: true });
-            setValue('postcode', typeof first.postcode === 'string' ? first.postcode : undefined, { shouldDirty: true });
-            setValue('state', typeof first.state === 'string' ? first.state : undefined, { shouldDirty: true });
-            setValue('country', typeof first.country === 'string' ? first.country : undefined, { shouldDirty: true });
-            setValue('mapbox_context', first.context ? JSON.stringify(first.context) : undefined, { shouldDirty: true });
           } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
@@ -1115,16 +1115,18 @@ export default function NewRequestPage() {
         if (typeof d.required_at === "string") setRequiredAt(d.required_at);
         if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
         else if (typeof d.conditions === "string") setConditionsText(d.conditions);
-        if (typeof d.address === 'string') {
-          setAddress(d.address);
-          setAddressLine(d.address);
-          try { setValue("address", d.address, { shouldDirty: true }); } catch {}
+        if (typeof (d as any).address_line === 'string') {
+          const al = (d as any).address_line as string;
+          setAddress(al);
+          setAddressLine(al);
+          try { setValue("address_line", al, { shouldDirty: true, shouldValidate: true }); } catch {}
         }
-        if (typeof d.lat === 'number' && typeof d.lon === 'number') {
-          setCoords({ lat: d.lat, lon: d.lon });
-          setAddressLat(d.lat);
-          setAddressLng(d.lon);
-          try { setValue("lat", d.lat, { shouldDirty: true }); setValue("lng", d.lon, { shouldDirty: true }); } catch {}
+        if (typeof (d as any).address_lat === 'number' && typeof (d as any).address_lng === 'number') {
+          const dlat = (d as any).address_lat as number; const dlng = (d as any).address_lng as number;
+          setCoords({ lat: dlat, lon: dlng });
+          setAddressLat(dlat);
+          setAddressLng(dlng);
+          try { setValue("address_lat", dlat as unknown as number, { shouldDirty: true }); setValue("address_lng", dlng as unknown as number, { shouldDirty: true }); } catch {}
         }
         setTimeout(() => {
           if (!cancelled) {
@@ -1258,46 +1260,7 @@ export default function NewRequestPage() {
             </div>
           </div>
 
-          {/* Dirección */}
-          <div className="space-y-1.5">
-            <Label>Dirección</Label>
-            <AddressInput
-              value={{
-                address_line: addressLine || null,
-                place_id: addressPlaceId || null,
-                lat: addressLat ?? null,
-                lng: addressLng ?? null,
-              }}
-              cityHint={city}
-              onChange={(line, pid, lat, lng) => {
-                setAddressLine(line || "");
-                setAddressPlaceId(pid);
-                setAddressLat(lat);
-                setAddressLng(lng);
-                try {
-                  setValue("address", line || "", { shouldDirty: true });
-                  setValue("place_id", pid ?? undefined, { shouldDirty: true });
-                  setValue("lat", lat ?? undefined, { shouldDirty: true });
-                  setValue("lng", lng ?? undefined, { shouldDirty: true });
-                } catch { /* ignore */ }
-                setIsDirty(true);
-              }}
-              onDetails={({ city: c, postcode, state, country, context }) => {
-                try {
-                  if (c) selectCityIfExists(c, { source: "addr.details" });
-                  setAddressPostcode(postcode ?? null);
-                  setAddressState(state ?? null);
-                  setAddressCountry(country ?? null);
-                  setAddressContext(context ?? null);
-                  setValue("postcode", postcode ?? undefined, { shouldDirty: true });
-                  setValue("state", state ?? undefined, { shouldDirty: true });
-                  setValue("country", country ?? undefined, { shouldDirty: true });
-                  setValue("mapbox_context", context ? JSON.stringify(context) : undefined, { shouldDirty: true });
-                } catch { /* ignore */ }
-              }}
-            />
-            {/* debug eliminado: no mostrar address debug en UI */}
-          </div>
+          {/* Dirección - única fuente de verdad */}
 
           
 
@@ -1401,7 +1364,18 @@ export default function NewRequestPage() {
             <div className="flex items-center gap-2">
               <Input
                 value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setAddress(v);
+                  setAddressLine(v);
+                  // Keep RHF in sync
+                  try { setValue('address_line', v, { shouldDirty: true, shouldValidate: true }); } catch {}
+                  // When user edits, clear coords until resolved
+                  setCoords((prev) => prev ? { lat: prev.lat, lon: prev.lon } : null);
+                  setAddressLat(null);
+                  setAddressLng(null);
+                  try { setValue('address_lat', null as unknown as number, { shouldDirty: true }); setValue('address_lng', null as unknown as number, { shouldDirty: true }); } catch {}
+                }}
                 placeholder="Calle y número, colonia, CP"
                 className="flex-1"
               />
@@ -1426,7 +1400,11 @@ export default function NewRequestPage() {
                         setCoords({ lat, lon });
                         setAddressLat(lat);
                         setAddressLng(lon);
-                        try { setValue('lat', lat, { shouldDirty: true }); setValue('lng', lon, { shouldDirty: true }); } catch {}
+                        try {
+                          setValue('address_line', q, { shouldDirty: true, shouldValidate: true });
+                          setValue('address_lat', lat, { shouldDirty: true });
+                          setValue('address_lng', lon, { shouldDirty: true });
+                        } catch {}
                       }
                       if (typeof first.city === 'string') suggestCityUpdate(first.city as string);
                     }
@@ -1569,9 +1547,9 @@ export default function NewRequestPage() {
             setAddressLat(lat);
             setAddressLng(lon);
             try {
-              setValue("address", address || "", { shouldDirty: true });
-              setValue("lat", lat ?? undefined, { shouldDirty: true });
-              setValue("lng", lon ?? undefined, { shouldDirty: true });
+              setValue("address_line", address || "", { shouldDirty: true, shouldValidate: true });
+              setValue("address_lat", lat, { shouldDirty: true });
+              setValue("address_lng", lon, { shouldDirty: true });
             } catch { /* ignore */ }
           }}
         />
