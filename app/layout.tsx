@@ -5,9 +5,10 @@ import type { Metadata } from "next";
 import ClientToaster from "@/components/ClientToaster";
 import AssistantLauncher from "@/components/assistant/AssistantLauncher";
 import SiteHeader from "@/components/site-header";
-import SiteFooter from "@/components/site-footer";
+import ConditionalFooter from "@/components/ConditionalFooter.client";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import { concertOne, nunito, varelaRound } from "@/lib/fonts";
+import LeafletCSS from "@/components/LeafletCSS.client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
     url: "/",
     siteName: "Handi",
-    images: ["/Logo-Homaid-v1.gif"],
+    images: ["/images/Logo-Handi-v2.gif"],
     locale: "es_MX",
     type: "website",
   },
@@ -40,17 +41,16 @@ export const metadata: Metadata = {
     title: "Handi",
     description:
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
-    images: ["/Logo-Homaid-v1.gif"],
+    images: ["/images/Logo-Handi-v2.gif"],
   },
   manifest: "/manifest.json",
   icons: {
-    // Primary favicon (animated GIF)
+    // Mantener rutas originales de favicon por compatibilidad
     icon: [
       { url: "/icons/favicon-homaid.gif", type: "image/gif" },
+      { url: "/favicon.ico", type: "image/x-icon" },
     ],
-    // Keep ICO route for broader browser support
     shortcut: ["/favicon.ico", "/icons/favicon-homaid.gif"],
-    // Apple touch icons prefer PNG; fallback to GIF if not provided
     apple: [
       { url: "/icons/favicon-homaid.gif" },
     ],
@@ -87,9 +87,11 @@ export default function RootLayout({
         <main className="pt-16 pb-16 md:pb-0">{children}</main>
         <ClientToaster />
         {disableAssistant ? null : <AssistantLauncher />}
-        <SiteFooter />
+        <ConditionalFooter />
         {/* Mobile-only bottom tab bar for clients */}
         <MobileClientTabBar />
+        {/* Load Leaflet styles once on client */}
+        <LeafletCSS />
       </body>
     </html>
   );

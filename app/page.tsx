@@ -295,8 +295,8 @@ export default function Page() {
             <h1 className="rubik font-medium mb-6 text-2xl sm:text-3xl md:text-4xl leading-tight tracking-wide text-center whitespace-nowrap text-[#11304a]">
               Bienvenido a {" "}
               <span className="inline-flex items-baseline gap-0">
-                <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Hom</span>
-                <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>aid</span>
+                <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Han</span>
+                <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>di</span>
               </span>
             </h1>
             <p className="mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance">
@@ -309,7 +309,7 @@ export default function Page() {
                 Perfiles verificados y calificaciones reales
               </div>
             </div>
-            <div className="flex flex-row items-center justify-center gap-x-2 md:flex-wrap md:gap-y-3">
+            <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:flex-wrap sm:gap-x-2 sm:gap-y-3">
               <Link
                 href="/requests/new"
                 className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#009377] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#0a7f6a] sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
@@ -374,17 +374,60 @@ export default function Page() {
       >
         <div className="pointer-events-none absolute inset-0 z-0 bg-white/60" />
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-10">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="mb-2 text-xl font-semibold tracking-tight">
-              ¿Qué necesitas hoy?
-            </h2>
-            <p className="mb-5 text-sm text-slate-600">
-              Elige una categoría para empezar rápido o explora todas.
-            </p>
+          <div className="mx-auto max-w-5xl">
+            <div className="md:hidden flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 text-left">
+                <h2 className="mb-1 text-xl font-semibold tracking-tight">
+                  ¿Qué necesitas hoy?
+                </h2>
+                <p className="mb-4 text-sm text-slate-600">
+                  Elige una categoría para empezar rápido o explora todas.
+                </p>
+              </div>
+              <div className="relative h-16 w-16 shrink-0 max-[360px]:hidden">
+                <Image
+                  src="/images/handee_mascota.gif"
+                  alt="Handi mascota"
+                  fill
+                  className="object-contain"
+                  unoptimized
+                  priority
+                />
+              </div>
+            </div>
+            <div className="hidden md:block mx-auto max-w-2xl text-center">
+              <h2 className="mb-2 text-xl font-semibold tracking-tight">
+                ¿Qué necesitas hoy?
+              </h2>
+              <p className="mb-5 text-sm text-slate-600">
+                Elige una categoría para empezar rápido o explora todas.
+              </p>
+            </div>
           </div>
 
-          {/* Categorías y mascota lado a lado (móvil: mascota al fondo) */}
-          <div className="flex flex-row items-end justify-start gap-2 md:items-center md:justify-between md:gap-4">
+          {/* Categorías + mascota: Mobile (chips envuelven a la mascota) */}
+          <div className="md:hidden">
+            <div className="flex flex-wrap items-start justify-start gap-2">
+              {categories.map((c) => (
+                <Link
+                  key={`m-${c}`}
+                  href={`/requests/new?category=${encodeURIComponent(c)}`}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
+                >
+                  {c}
+                </Link>
+              ))}
+              <Link
+                href="/categorias"
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-100"
+              >
+                Ver todas las categorías disponibles
+              </Link>
+            </div>
+          </div>
+
+          {/* Categorías + mascota: Desktop (lado a lado) */}
+          <div className="hidden md:flex flex-row items-center justify-between gap-4">
             <div className="min-w-0 md:flex-1">
               <div id="categorias" className="flex flex-wrap gap-2">
                 {categories.map((c) => (
@@ -404,9 +447,8 @@ export default function Page() {
                 </Link>
               </div>
             </div>
-
-            <div className="flex flex-shrink-0 justify-start md:justify-end">
-              <div className="relative h-[104px] w-[104px] md:h-28 md:w-28 lg:h-32 lg:w-32 animate-bounce-subtle md:animate-none">
+            <div className="flex flex-shrink-0 justify-end">
+              <div className="relative h-28 w-28 lg:h-32 lg:w-32 md:animate-none">
                 <Image
                   src="/images/handee_mascota.gif"
                   alt="Handi mascota"

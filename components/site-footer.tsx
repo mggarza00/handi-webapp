@@ -8,7 +8,7 @@ export default function SiteFooter() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <Image src="/Logo-Homaid-v1.gif" alt="Handi" width={28} height={28} />
+              <Image src="/images/Logo-Handi-v2.gif" alt="Handi" width={28} height={28} />
               <span className="font-semibold">Handi</span>
             </div>
             <p className="text-sm text-slate-600">Conecta con expertos de confianza.</p>
@@ -49,8 +49,8 @@ export default function SiteFooter() {
               </li>
               <li>
                 Email:{" "}
-                <a href="mailto:hola@homaid.mx" className="hover:text-slate-900">
-                  hola@homaid.mx
+                <a href="mailto:hola@handi.mx" className="hover:text-slate-900">
+                  hola@handi.mx
                 </a>
               </li>
             </ul>

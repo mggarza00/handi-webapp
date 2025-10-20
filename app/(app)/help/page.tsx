@@ -269,9 +269,9 @@ export default function Help() {
             · Email:{" "}
             <a
               className="underline"
-              href="mailto:hola@homaid.mx?subject=Soporte%20Handi"
+              href="mailto:hola@handi.mx?subject=Soporte%20Handi"
             >
-              hola@homaid.mx
+              hola@handi.mx
             </a>
           </p>
         </div>

@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
   })();
   const html = `
   <div style="font-family:Inter,system-ui,sans-serif;max-width:640px;margin:0 auto;padding:16px">
-    <img src="${data.business?.logoUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/handi-logo.svg`}" alt="${data.business?.name || 'Handi'}" height="40" style="height:40px" />
+    <img src="${data.business?.logoUrl || `${process.env.NEXT_PUBLIC_APP_URL || ''}/images/Logo-Handi-v2.gif`}" alt="${data.business?.name || 'Handi'}" height="40" style="height:40px" />
     <h1 style="font-size:20px;margin:16px 0 8px 0">Recibo de pago</h1>
     <p style="margin:4px 0;color:#6B7280">Folio: <strong>${data.receiptId}</strong></p>
     <p style="margin:4px 0;color:#6B7280">Cliente: <strong>${data.customer.name}</strong></p>

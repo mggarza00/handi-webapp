@@ -44,6 +44,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import MapPickerModal from "@/components/address/MapPickerModal";
 import AddressInput from "@/components/address/AddressInput";
+import LocationPickerDialog from "@/components/location/LocationPickerDialog";
 import { MapPin } from "lucide-react";
 
 type FormValues = {
@@ -110,11 +111,77 @@ export default function NewRequestPage() {
   const addrDebounceRef = useRef<number | null>(null);
   const addrInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Simple address + coords for the new map dialog
+  const [address, setAddress] = useState<string>("");
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [addrResolveBusy, setAddrResolveBusy] = useState(false);
+
+  // On mount, try to prefill coords/address softly using device geolocation
+  
+
   // react-hook-form: valores por defecto mínimos para integración
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
     defaultValues: { city: "Monterrey", address: "" },
     mode: "onChange",
   });
+
+  const suggestCityUpdate = useCallback((maybeCity?: string | null) => {
+    const c = (maybeCity || "").toString().trim();
+    if (!c) return;
+    if (!(CITIES as ReadonlyArray<string>).includes(c as any)) return;
+    if (c === city) return;
+    try {
+      toast.info(`Detectamos ${c}. ¿Actualizar ciudad?`, {
+        action: {
+          label: "Actualizar",
+          onClick: () => {
+            setCityTouched(true);
+            setCity(c);
+            try { setValue("city", c, { shouldDirty: true }); } catch {}
+          },
+        },
+      } as any);
+    } catch {
+      if (typeof window !== 'undefined' && window.confirm(`Detectamos ${c}. ¿Actualizar ciudad?`)) {
+        setCityTouched(true);
+        setCity(c);
+        try { setValue("city", c, { shouldDirty: true }); } catch {}
+      }
+    }
+  }, [city, setValue]);
+
+  // On mount, try to prefill coords/address softly using device geolocation
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (address) return;
+      if (!("geolocation" in navigator)) return;
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          const id = setTimeout(() => reject(new Error("GEO_TIMEOUT")), 5000);
+          navigator.geolocation.getCurrentPosition(
+            (p) => { clearTimeout(id); resolve(p); },
+            (e) => { clearTimeout(id); reject(e); },
+            { enableHighAccuracy: false, timeout: 4000, maximumAge: 30000 },
+          );
+        }).catch(() => null as any);
+        if (!pos || cancelled) return;
+        const lat = Number(pos.coords.latitude);
+        const lon = Number(pos.coords.longitude);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        setCoords({ lat, lon });
+        try {
+          const r = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}`, { cache: "no-store", headers: { Accept: "application/json; charset=utf-8", "Content-Type": "application/json; charset=utf-8" } });
+          const j = await r.json().catch(() => ({}));
+          if (!cancelled && j && j.ok) {
+            if (typeof j.address === 'string') setAddress(j.address);
+            if (typeof j.city === 'string') suggestCityUpdate(j.city);
+          }
+        } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [address, suggestCityUpdate]);
 
   // Normalizadores para detección robusta de ciudad (acentos/variantes)
   const debug = (...args: unknown[]) => { try { console.debug("[geo/city]", ...args); } catch { /* noop */ } };
@@ -372,6 +439,9 @@ export default function NewRequestPage() {
         budget?: number | "";
         required_at?: string;
         conditions?: string | string[];
+        address?: string;
+        lat?: number;
+        lon?: number;
       }>("draft:create-service");
       if (d) {
         if (typeof d.title === "string") setTitle(d.title);
@@ -383,6 +453,17 @@ export default function NewRequestPage() {
         if (typeof d.required_at === "string") setRequiredAt(d.required_at);
         if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
         else if (typeof d.conditions === "string") setConditionsText(d.conditions);
+        if (typeof d.address === "string") {
+          setAddress(d.address);
+          setAddressLine(d.address);
+          try { setValue("address", d.address, { shouldDirty: true }); } catch {}
+        }
+        if (typeof d.lat === 'number' && typeof d.lon === 'number') {
+          setCoords({ lat: d.lat, lon: d.lon });
+          setAddressLat(d.lat);
+          setAddressLng(d.lon);
+          try { setValue("lat", d.lat, { shouldDirty: true }); setValue("lng", d.lon, { shouldDirty: true }); } catch {}
+        }
       }
     } catch (_e) {
       void _e;
@@ -663,8 +744,11 @@ export default function NewRequestPage() {
       budget,
       required_at: requiredAt,
       conditions: conditionsText,
+      address,
+      lat: typeof coords?.lat === 'number' ? coords!.lat : undefined,
+      lon: typeof coords?.lon === 'number' ? coords!.lon : undefined,
     });
-  }, [title, description, city, category, subcategory, budget, requiredAt, conditionsText]);
+  }, [title, description, city, category, subcategory, budget, requiredAt, conditionsText, address, coords?.lat, coords?.lon]);
 
   // Warn before unload if dirty
   useEffect(() => {
@@ -737,6 +821,9 @@ export default function NewRequestPage() {
           budget,
           required_at: requiredAt,
           conditions: conditionsText,
+          address,
+          lat: typeof coords?.lat === 'number' ? coords!.lat : undefined,
+          lon: typeof coords?.lon === 'number' ? coords!.lon : undefined,
         });
         setPendingAutoSubmit(true);
         setReturnTo(`${window.location.pathname}${window.location.search}`);
@@ -913,6 +1000,14 @@ export default function NewRequestPage() {
       }
     }
 
+    // TODO: cuando el backend soporte estos campos directos, incluirlos también.
+    // (Se envían de forma opcional; el servidor puede ignorarlos sin romper la solicitud.)
+    try {
+      if (address && address.trim().length > 0) (payload as any).address = address.trim();
+      if (typeof addressLat === 'number') (payload as any).lat = addressLat;
+      if (typeof addressLng === 'number') (payload as any).lon = addressLng;
+    } catch { /* ignore */ }
+
     try {
       const res = await fetch("/api/requests", {
         method: "POST",
@@ -1000,6 +1095,9 @@ export default function NewRequestPage() {
           budget?: number | "";
           required_at?: string;
           conditions?: string | string[];
+          address?: string;
+          lat?: number;
+          lon?: number;
         }>("draft:create-service");
         if (!d) {
           toast.message(
@@ -1017,6 +1115,17 @@ export default function NewRequestPage() {
         if (typeof d.required_at === "string") setRequiredAt(d.required_at);
         if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
         else if (typeof d.conditions === "string") setConditionsText(d.conditions);
+        if (typeof d.address === 'string') {
+          setAddress(d.address);
+          setAddressLine(d.address);
+          try { setValue("address", d.address, { shouldDirty: true }); } catch {}
+        }
+        if (typeof d.lat === 'number' && typeof d.lon === 'number') {
+          setCoords({ lat: d.lat, lon: d.lon });
+          setAddressLat(d.lat);
+          setAddressLng(d.lon);
+          try { setValue("lat", d.lat, { shouldDirty: true }); setValue("lng", d.lon, { shouldDirty: true }); } catch {}
+        }
         setTimeout(() => {
           if (!cancelled) {
             try {
@@ -1187,10 +1296,10 @@ export default function NewRequestPage() {
                 } catch { /* ignore */ }
               }}
             />
-            {process.env.NODE_ENV !== 'production' ? (
-              <div className="text-[10px] text-muted-foreground mt-1">address debug: {addressLine}</div>
-            ) : null}
+            {/* debug eliminado: no mostrar address debug en UI */}
           </div>
+
+          
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -1285,6 +1394,58 @@ export default function NewRequestPage() {
           </div>
 
           {/* Sugerencia AI: no se muestra UI; autoselección silenciosa si alta confianza. */}
+
+          {/* Nueva dirección (Leaflet) - colocada abajo de Subcategoría y arriba de Fecha requerida */}
+          <div className="space-y-1.5">
+            <Label>Dirección</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Calle y número, colonia, CP"
+                className="flex-1"
+              />
+              <Button type="button" variant="outline" onClick={() => setOpenMap(true)} aria-label="Abrir mapa">
+                <MapPin size={18} />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  const q = (address || '').trim();
+                  if (!q) return;
+                  setAddrResolveBusy(true);
+                  try {
+                    const r = await fetch(`/api/geocode/search?q=${encodeURIComponent(q)}`, { cache: 'no-store', headers: { Accept: 'application/json; charset=utf-8', 'Content-Type': 'application/json; charset=utf-8' } });
+                    const j = await r.json().catch(() => ({}));
+                    const first = Array.isArray(j?.data) && j.data.length ? j.data[0] : null;
+                    if (first) {
+                      const lat = typeof first.lat === 'number' ? first.lat : null;
+                      const lon = typeof first.lon === 'number' ? first.lon : null;
+                      if (lat != null && lon != null) {
+                        setCoords({ lat, lon });
+                        setAddressLat(lat);
+                        setAddressLng(lon);
+                        try { setValue('lat', lat, { shouldDirty: true }); setValue('lng', lon, { shouldDirty: true }); } catch {}
+                      }
+                      if (typeof first.city === 'string') suggestCityUpdate(first.city as string);
+                    }
+                  } catch { /* ignore */ }
+                  finally { setAddrResolveBusy(false); }
+                }}
+                aria-label="Usar esta dirección"
+                className="text-xs"
+                disabled={addrResolveBusy || !address.trim()}
+                title="Usar esta dirección"
+              >
+                {addrResolveBusy ? 'Usando…' : 'Usar esta dirección'}
+              </Button>
+            </div>
+            <p className="text-xs text-slate-500">Puedes escribir la dirección o elegirla en el mapa.</p>
+            {!address && coords ? (
+              <p className="text-xs text-slate-500">Se usará tu ubicación actual si no cambias la dirección.</p>
+            ) : null}
+          </div>
 
           <div className="space-y-1.5">
             <Label>Condiciones</Label>
@@ -1393,6 +1554,27 @@ export default function NewRequestPage() {
             {submitting || uploading ? "Publicando…" : "Publicar solicitud"}
           </Button>
         </form>
+        {/* Global dialog at end of page to avoid nested layout reflows */}
+        <LocationPickerDialog
+          open={openMap}
+          onOpenChange={setOpenMap}
+          initialCoords={coords}
+          initialAddress={address || null}
+          onConfirm={(lat, lon, address) => {
+            setCoords({ lat, lon });
+            setAddress(address);
+            setOpenMap(false);
+            // Sync with existing form address fields
+            setAddressLine(address || "");
+            setAddressLat(lat);
+            setAddressLng(lon);
+            try {
+              setValue("address", address || "", { shouldDirty: true });
+              setValue("lat", lat ?? undefined, { shouldDirty: true });
+              setValue("lng", lon ?? undefined, { shouldDirty: true });
+            } catch { /* ignore */ }
+          }}
+        />
         {showLoginModal ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
             <div role="dialog" aria-modal="true" className="w-[96vw] max-w-lg overflow-hidden rounded-xl border bg-white shadow-lg">

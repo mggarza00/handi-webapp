@@ -105,7 +105,7 @@ export async function notifyAdminApplicationCreated(params: {
   const adminTo =
     process.env.HANDEE_ADMIN_EMAIL ||
     process.env.MAIL_DEFAULT_TO ||
-    "hola@homaid.mx";
+    "hola@handi.mx";
   const base =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||

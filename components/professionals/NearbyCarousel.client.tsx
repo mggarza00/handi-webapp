@@ -128,7 +128,7 @@ export default function NearbyCarousel() {
     <div
       className="mt-12 rounded-xl border-2 px-3 py-4 md:px-4 md:py-6 shadow-2xl"
       style={{
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "rgba(255, 255, 255, 0.8)",
         borderColor: "#009377",
       }}
     >

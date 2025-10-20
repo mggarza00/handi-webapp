@@ -1,0 +1,3 @@
+/* Leaflet core styles: keep imported once at app root */
+@import url("leaflet/dist/leaflet.css");
+

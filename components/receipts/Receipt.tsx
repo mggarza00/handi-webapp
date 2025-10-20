@@ -53,7 +53,7 @@ export default async function Receipt({ data: src }: Props) {
       <div className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={d.business?.logoUrl || '/handi-logo.svg'} alt={d.business?.name || 'Handi'} className="h-10 w-10 rounded" />
+          <img src={d.business?.logoUrl || '/images/Logo-Handi-v2.gif'} alt={d.business?.name || 'Handi'} className="h-10 w-10 rounded" />
           <div>
             <div className="text-xl font-semibold tracking-tight">{d.business?.name || 'Handi'}</div>
             <div className="text-xs uppercase text-gray-500">Recibo de pago</div>
@@ -61,7 +61,7 @@ export default async function Receipt({ data: src }: Props) {
         </div>
         <div className="text-right">
           {/* Logo top-right */}
-          <img src="/handi-logo.svg" alt="Handi" className="h-6 w-auto ml-auto mb-1 hidden sm:block" />
+          <img src="/images/Logo-Handi-v2.gif" alt="Handi" className="h-6 w-auto ml-auto mb-1 hidden sm:block" />
           <div className="text-xs uppercase text-gray-500">Folio</div>
           <div className="text-sm font-medium">{d.id}</div>
           <div className="text-xs uppercase text-gray-500 mt-2">Fecha</div>
@@ -161,7 +161,7 @@ export default async function Receipt({ data: src }: Props) {
           <div className="text-xs text-gray-600">{receiptUrl}</div>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qrSrc || '/handi-logo.svg'} alt="QR" className="h-24 w-24 border rounded" />
+        <img src={qrSrc || '/images/Logo-Handi-v2.gif'} alt="QR" className="h-24 w-24 border rounded" />
       </div>
     </section>
   );
