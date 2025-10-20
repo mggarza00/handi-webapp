@@ -10,7 +10,6 @@ import { z } from "zod";
 import { toast } from "sonner";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +39,12 @@ import {
   clearGatingFlags,
 } from "@/lib/drafts";
 import { useDebounced } from "./hooks/useClassify";
+import { Popover, PopoverContent } from "@/components/ui/popover";
+import * as PopoverPrimitive from "@radix-ui/react-popover";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import MapPickerModal from "@/components/address/MapPickerModal";
+import AddressInput from "@/components/address/AddressInput";
+import { MapPin } from "lucide-react";
 
 type FormValues = {
   title: string;
@@ -95,8 +99,16 @@ export default function NewRequestPage() {
   const [addressState, setAddressState] = useState<string | null>(null);
   const [addressCountry, setAddressCountry] = useState<string | null>(null);
   const [addressContext, setAddressContext] = useState<any>(null);
-  const [openMap, setOpenMap] = useState(false);
   const [_lastReverseErr, setLastReverseErr] = useState<string | null>(null);
+  const [openMap, setOpenMap] = useState(false);
+  const [addrTouched, setAddrTouched] = useState(false);
+  const [addrOpen, setAddrOpen] = useState(false);
+  const [addrLoading, setAddrLoading] = useState(false);
+  type AddressItem = { id?: string; address: string; city?: string | null; lat?: number | null; lon?: number | null; postal_code?: string | null; label?: string | null };
+  const [recentAddrs, setRecentAddrs] = useState<AddressItem[]>([]);
+  const [addrSuggestions, setAddrSuggestions] = useState<AddressItem[]>([]);
+  const addrDebounceRef = useRef<number | null>(null);
+  const addrInputRef = useRef<HTMLInputElement | null>(null);
 
   // react-hook-form: valores por defecto mínimos para integración
   const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
@@ -252,6 +264,100 @@ export default function NewRequestPage() {
       }
     }
   }, [me, showLoginModal, router]);
+
+  // Load recent addresses on mount and prefill if none
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/addresses/recent", { cache: "no-store", headers: { Accept: "application/json" } });
+        const j = await r.json().catch(() => ({ ok: false, items: [] }));
+        const items = j?.ok && Array.isArray(j.items) ? (j.items as AddressItem[]) : [];
+        if (!cancelled) {
+          setRecentAddrs(items);
+          if (!addressLine && items.length > 0) {
+            const first = items[0];
+            setAddressLine(first.address);
+            setAddressLat(typeof first.lat === "number" ? first.lat : null);
+            setAddressLng(typeof first.lon === "number" ? first.lon : null);
+            if (typeof first.city === "string" && first.city) selectCityIfExists(first.city, { source: "prefill.recent" });
+            try {
+              setValue("address", first.address, { shouldDirty: true });
+              setValue("lat", typeof first.lat === "number" ? first.lat : undefined, { shouldDirty: true });
+              setValue("lng", typeof first.lon === "number" ? first.lon : undefined, { shouldDirty: true });
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchAddrSuggestions = useCallback(
+    async (query: string) => {
+      const qq = (query || "").trim();
+      setAddrLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (qq) params.set("q", qq);
+        if (city) params.set("city", city);
+        params.set("limit", "5");
+        const r = await fetch(`/api/addresses/suggest?${params.toString()}`, {
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+      const j = await r.json().catch(() => ({ ok: false, items: [] }));
+      const items: AddressItem[] = j?.ok && Array.isArray(j.items) ? j.items : [];
+        setAddrSuggestions(items);
+      } catch {
+        setAddrSuggestions([]);
+      } finally {
+        setAddrLoading(false);
+      }
+    },
+    [city],
+  );
+
+  const debouncedFetchAddr = useCallback(
+    (query: string) => {
+      if (addrDebounceRef.current) window.clearTimeout(addrDebounceRef.current);
+      addrDebounceRef.current = window.setTimeout(() => {
+        fetchAddrSuggestions(query);
+      }, 250);
+    },
+    [fetchAddrSuggestions],
+  );
+
+  useEffect(() => {
+    // prefetch suggestions when opening popover
+    if (addrOpen) debouncedFetchAddr(addressLine || "");
+  }, [addrOpen, addressLine, debouncedFetchAddr]);
+
+  function pickAddress(item: AddressItem) {
+    setAddressLine(item.address || "");
+    const lat = typeof item.lat === "number" ? item.lat : null;
+    const lng = typeof item.lon === "number" ? item.lon : null;
+    setAddressLat(lat);
+    setAddressLng(lng);
+    if (typeof item.city === "string" && item.city)
+      selectCityIfExists(item.city, { source: "addr.pick" });
+    try {
+      setValue("address", item.address || "", { shouldDirty: true });
+      setValue("lat", lat ?? undefined, { shouldDirty: true });
+      setValue("lng", lng ?? undefined, { shouldDirty: true });
+    } catch {
+      /* ignore */
+    }
+    setAddrOpen(false);
+    setIsDirty(true);
+  }
 
 
   useEffect(() => {
@@ -823,6 +929,26 @@ export default function NewRequestPage() {
       }
       toast.success("Solicitud creada");
       const newId = j?.data?.id as string | undefined;
+      // Best-effort: record address usage into user_addresses
+      try {
+        const addr = (addressLine || "").trim();
+        if (addr.length > 0) {
+          await fetch("/api/addresses/use", {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            body: JSON.stringify({
+              address: addr,
+              city: (city || null) as string | null,
+              lat: typeof addressLat === "number" ? addressLat : null,
+              lon: typeof addressLng === "number" ? addressLng : null,
+              postal_code: typeof addressPostcode === "string" ? addressPostcode : null,
+              label: null,
+            }),
+          });
+        }
+      } catch {
+        /* ignore use-address failures */
+      }
       if (newId) {
         // Post-submit role transition: to client
         try {
@@ -1023,61 +1149,46 @@ export default function NewRequestPage() {
             </div>
           </div>
 
-          {/* Dirección + mapa */}
+          {/* Dirección */}
           <div className="space-y-1.5">
             <Label>Dirección</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Escribe tu dirección o elige en el mapa…"
-                value={addressLine}
-                onChange={(e) => {
-                  setAddressLine(e.target.value);
-                  setAddressPlaceId(null);
-                  setAddressLat(null);
-                  setAddressLng(null);
-                  try { setValue("address", e.target.value, { shouldDirty: true }); } catch { /* ignore */ }
-                  setIsDirty(true);
-                }}
-              />
-              <Button type="button" variant="outline" onClick={() => setOpenMap(true)} title="Seleccionar en mapa">
-                <MapPin size={18} />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Protegemos tu privacidad: tu dirección solo se comparte con el profesional contratado cuando el servicio queda agendado.
-            </p>
-            {openMap ? (
-              <MapPickerModal
-                open={openMap}
-                initial={{
-                  lat: typeof addressLat === 'number' ? addressLat : undefined,
-                  lng: typeof addressLng === 'number' ? addressLng : undefined,
-                  address: addressLine || undefined,
-                }}
-                onClose={() => setOpenMap(false)}
-                onConfirm={(p) => {
-                  setAddressLine(p.address || "");
-                  setAddressPlaceId(p.place_id || null);
-                  setAddressLat(typeof p.lat === 'number' ? p.lat : null);
-                  setAddressLng(typeof p.lng === 'number' ? p.lng : null);
-                  setAddressPostcode(typeof p.postcode === 'string' ? p.postcode : null);
-                  setAddressState(typeof p.state === 'string' ? p.state : null);
-                  setAddressCountry(typeof p.country === 'string' ? p.country : null);
-                  setAddressContext(p.context ?? null);
-                  selectCityIfExists(p.city, { source: "map.confirm" });
-                  try {
-                    setValue("address", p.address ?? "", { shouldDirty: true });
-                    setValue("place_id", p.place_id ?? undefined, { shouldDirty: true });
-                    setValue("lat", p.lat, { shouldDirty: true });
-                    setValue("lng", p.lng, { shouldDirty: true });
-                    setValue("postcode", p.postcode ?? undefined, { shouldDirty: true });
-                    setValue("state", p.state ?? undefined, { shouldDirty: true });
-                    setValue("country", p.country ?? undefined, { shouldDirty: true });
-                    setValue("mapbox_context", p.context ? JSON.stringify(p.context) : undefined, { shouldDirty: true });
-                  } catch { /* ignore */ }
-                  setIsDirty(true);
-                }}
-              />
+            <AddressInput
+              value={{
+                address_line: addressLine || null,
+                place_id: addressPlaceId || null,
+                lat: addressLat ?? null,
+                lng: addressLng ?? null,
+              }}
+              cityHint={city}
+              onChange={(line, pid, lat, lng) => {
+                setAddressLine(line || "");
+                setAddressPlaceId(pid);
+                setAddressLat(lat);
+                setAddressLng(lng);
+                try {
+                  setValue("address", line || "", { shouldDirty: true });
+                  setValue("place_id", pid ?? undefined, { shouldDirty: true });
+                  setValue("lat", lat ?? undefined, { shouldDirty: true });
+                  setValue("lng", lng ?? undefined, { shouldDirty: true });
+                } catch { /* ignore */ }
+                setIsDirty(true);
+              }}
+              onDetails={({ city: c, postcode, state, country, context }) => {
+                try {
+                  if (c) selectCityIfExists(c, { source: "addr.details" });
+                  setAddressPostcode(postcode ?? null);
+                  setAddressState(state ?? null);
+                  setAddressCountry(country ?? null);
+                  setAddressContext(context ?? null);
+                  setValue("postcode", postcode ?? undefined, { shouldDirty: true });
+                  setValue("state", state ?? undefined, { shouldDirty: true });
+                  setValue("country", country ?? undefined, { shouldDirty: true });
+                  setValue("mapbox_context", context ? JSON.stringify(context) : undefined, { shouldDirty: true });
+                } catch { /* ignore */ }
+              }}
+            />
+            {process.env.NODE_ENV !== 'production' ? (
+              <div className="text-[10px] text-muted-foreground mt-1">address debug: {addressLine}</div>
             ) : null}
           </div>
 

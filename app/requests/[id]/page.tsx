@@ -245,4 +245,4 @@ export default async function RequestDetailPage({ params }: Params) {
   );
 }
 
-export const metadata: Metadata = { title: "Solicitud | Homaid" };
+export const metadata: Metadata = { title: "Solicitud | Handi" };

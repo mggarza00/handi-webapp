@@ -33,8 +33,8 @@ export async function notifyProApplicationDecision(params: {
   const linkUrl = `${base}/profiles/${params.user_id}`;
   const subject =
     params.status === "accepted"
-      ? "¡Bienvenido a Homaid como profesional"
-      : "Resultado de tu solicitud en Homaid";
+      ? "¡Bienvenido a Handi como profesional"
+      : "Resultado de tu solicitud en Handi";
   const html =
     params.status === "accepted"
       ? proApplicationAcceptedHtml({ linkUrl })

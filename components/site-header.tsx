@@ -65,11 +65,31 @@ async function getSessionInfo() {
     avatar_url: string | null;
     full_name: string | null;
   };
+  let proProfile: {
+    avatar_url: string | null;
+    full_name: string | null;
+  } | null = null;
+  if (!profile?.avatar_url || !profile?.full_name) {
+    const { data: proRaw } = await supabase
+      .from("professionals")
+      .select("avatar_url, full_name")
+      .eq("id", user.id)
+      .maybeSingle();
+    proProfile = proRaw ?? null;
+  }
   const role = (profile?.role ?? null) as Role | null;
   type UserMeta = { avatar_url?: string | null; full_name?: string | null };
   const meta = (user.user_metadata as unknown as UserMeta) || {};
-  const avatarUrl = profile?.avatar_url ?? meta.avatar_url ?? null;
-  const fullName = profile?.full_name ?? meta.full_name ?? null;
+  const pickNonEmpty = (...values: Array<string | null | undefined>) => {
+    for (const value of values) {
+      if (typeof value !== "string") continue;
+      const trimmed = value.trim();
+      if (trimmed.length > 0) return trimmed;
+    }
+    return null;
+  };
+  const avatarUrl = pickNonEmpty(profile?.avatar_url, proProfile?.avatar_url, meta.avatar_url);
+  const fullName = pickNonEmpty(profile?.full_name, proProfile?.full_name, meta.full_name);
   return {
     isAuth: true as const,
     role,
@@ -140,7 +160,7 @@ export default async function SiteHeader() {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
         <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
           <Link href="/" className="flex items-center">
-            <Image src="/Logo-Homaid-v1.gif" alt="Homaid" width={64} height={64} priority className="h-16 w-16 object-contain" />
+            <Image src="/Logo-Homaid-v1.gif" alt="Handi" width={64} height={64} priority className="h-16 w-16 object-contain" />
           </Link>
           <nav className="hidden md:flex items-center gap-2" />
         </div>
@@ -329,7 +349,7 @@ export default async function SiteHeader() {
         >
           <Image
             src="/Logo-Homaid-v1.gif"
-            alt="Homaid"
+            alt="Handi"
             width={64}
             height={64}
             priority

@@ -258,7 +258,7 @@ export async function POST(req: Request) {
                         currency: (row as any).currency || 'MXN',
                         notes: null, paymentIntentId: null, sessionId: null,
                       },
-                      business: { name: 'Homaid', website: null, legalName: null, rfc: null, taxInfo: null, logoUrl: null, address: null, addressText: null, supportEmail: null, supportPhone: null },
+                      business: { name: 'Handi', website: null, legalName: null, rfc: null, taxInfo: null, logoUrl: null, address: null, addressText: null, supportEmail: null, supportPhone: null },
                       meta: row.service_description ? { service_description: row.service_description } : null,
                     } as any;
                     const pdfLib: any = await import('@react-pdf/renderer');

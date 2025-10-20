@@ -65,7 +65,7 @@ export default function AssistantLauncher() {
           </SheetTrigger>
           <SheetContent side="right" className="w-full max-w-md">
             <SheetHeader>
-              <SheetTitle>Asistente Homaid</SheetTitle>
+              <SheetTitle>Asistente Handi</SheetTitle>
             </SheetHeader>
 
             <div className="mt-4 space-y-4">

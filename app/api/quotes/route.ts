@@ -4,6 +4,10 @@ import { z } from "zod";
 import { getDevUserFromHeader, getUserFromRequestOrThrow } from "@/lib/auth-route";
 import { createServerClient } from "@/lib/supabase";
 import { renderQuotePNG } from "@/lib/quotes/renderImage";
+import satori from "satori";
+import React from "react";
+import QuoteImage from "@/components/quote/QuoteImage";
+import { getInterFont } from "@/lib/fonts";
 import { buildStorageKey } from "@/lib/storage-sanitize";
 import { getSignedUrl, uploadQuoteImage } from "@/lib/storage/quotes";
 
@@ -38,7 +42,7 @@ export async function POST(req: Request) {
     // Validate pro participation
     const { data: conv } = await admin
       .from("conversations")
-      .select("id, customer_id, pro_id")
+      .select("id, customer_id, pro_id, request_id")
       .eq("id", conversationId)
       .maybeSingle();
     if (!conv) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
@@ -75,6 +79,33 @@ export async function POST(req: Request) {
       admin.from("profiles").select("full_name, email").eq("id", conv.customer_id).maybeSingle(),
     ]);
 
+    // Fetch request meta for service title and conditions
+    let requestTitle: string | null = null;
+    let requestConditions: string | null = null;
+    try {
+      const reqId = (conv as any)?.request_id as string | null;
+      if (reqId) {
+        const { data: req } = await admin.from("requests").select("title, conditions").eq("id", reqId).maybeSingle();
+        if (req) {
+          const r: any = req;
+          requestTitle = typeof r.title === 'string' && r.title.trim().length ? r.title : null;
+          requestConditions = typeof r.conditions === 'string' && r.conditions.trim().length ? r.conditions : null;
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Compose details text: prefer body.notes; if absent, append request conditions
+    let detailsText: string | null = null;
+    {
+      const parts: string[] = [];
+      if (typeof (BodySchema.shape.notes) !== 'undefined') {
+        const raw = (await (async () => body.notes)());
+        if (raw && raw.trim().length) parts.push(raw.trim());
+      }
+      if ((!parts.length) && requestConditions) parts.push(`Condiciones: ${requestConditions}`);
+      detailsText = parts.length ? parts.join("\n\n") : null;
+    }
+
     let png: { buffer: Buffer; contentType: "image/png" } | null = null;
     try {
       png = await renderQuotePNG({
@@ -85,7 +116,8 @@ export async function POST(req: Request) {
         currency: body.currency || "MXN",
         items: body.items.map((i) => ({ concept: i.concept, amount: Number(i.amount) })),
         total,
-        notes: body.notes && body.notes.length ? body.notes : undefined,
+        notes: detailsText ?? undefined,
+        serviceTitle: requestTitle ?? undefined,
       });
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -116,24 +148,69 @@ export async function POST(req: Request) {
 
     // Build key under chat-attachments path convention so participants can read via RLS
     const folioForFile = (folio && folio.trim().length ? folio : shortId).replace(/[^A-Z0-9_-]+/gi, "-");
-    const fileName = `cotizacion-${folioForFile}.png`;
-    const key = messageId
-      ? buildStorageKey(["conversation", conversationId, messageId], fileName)
-      : buildStorageKey(["conversation", conversationId, quoteId], fileName);
+    const fileBase = `cotizacion-${folioForFile}`;
+    let uploadedKey: string | null = null;
+    let uploadedType: string | null = null;
 
-    // Upload PNG to Storage
+    // Prefer PNG. If PNG render failed, fallback to SVG
     if (png) {
+      const fileName = `${fileBase}.png`;
+      const key = messageId
+        ? buildStorageKey(["conversation", conversationId, messageId], fileName)
+        : buildStorageKey(["conversation", conversationId, quoteId], fileName);
       const up = await uploadQuoteImage(key, png.buffer, png.contentType);
       if (!up.ok) {
         // eslint-disable-next-line no-console
         console.error('[quotes:image-upload-error]', up.error);
-        // best-effort cleanup: keep quote without image_path
-        return NextResponse.json({ ok: true, id: quoteId, total, image_url: null }, { status: 201, headers: JSONH });
+      } else {
+        uploadedKey = key;
+        uploadedType = png.contentType;
       }
-      // Persist image_path and attach to chat message if available
-      await admin.from("quotes").update({ image_path: key }).eq("id", quoteId);
+    }
+
+    if (!uploadedKey) {
+      // Try SVG fallback (no resvg dependency)
+      try {
+        let inter: ArrayBuffer | null = null;
+        try { inter = await getInterFont(); } catch { inter = null; }
+        const svg = await satori(React.createElement(QuoteImage, {
+          logoUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ""}/images/Favicon-v1-jpeg.jpg`,
+          title: "Cotización",
+          folio: (folio && folio.trim().length ? folio : shortId),
+          issuedAtISO: new Date().toISOString(),
+          professionalName: (proProfile.data as any)?.full_name || "",
+          clientName: (clientProfile.data as any)?.full_name || "",
+          serviceTitle: requestTitle || "Servicio solicitado",
+          items: body.items.map((i) => ({ description: i.concept, amount: Number(i.amount) })),
+          currency: body.currency || "MXN",
+          notes: detailsText || undefined,
+          brandHex: "#0E7490",
+          grayHex: "#E5E7EB",
+        }), {
+          width: 1080,
+          height: 1600,
+          fonts: inter ? [{ name: "Inter", data: inter, weight: 400, style: "normal" }] : [],
+        });
+        const svgBuf = Buffer.from(svg, 'utf-8');
+        const fileName = `${fileBase}.svg`;
+        const key = messageId
+          ? buildStorageKey(["conversation", conversationId, messageId], fileName)
+          : buildStorageKey(["conversation", conversationId, quoteId], fileName);
+        const up2 = await uploadQuoteImage(key, svgBuf, "image/svg+xml");
+        if (up2.ok) {
+          uploadedKey = key;
+          uploadedType = "image/svg+xml";
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error('[quotes:image-render-fallback-svg-error]', e);
+      }
+    }
+
+    // Persist and attach if we managed to upload any format
+    if (uploadedKey) {
+      await admin.from("quotes").update({ image_path: uploadedKey }).eq("id", quoteId);
       let mid = messageId;
-      // Fallback: si el trigger aún no creó el mensaje, créalo explícitamente
       if (!mid) {
         const insMsg = await admin
           .from("messages")
@@ -147,7 +224,7 @@ export async function POST(req: Request) {
               items: body.items,
               total,
               currency: body.currency || "MXN",
-              image_path: key,
+              image_path: uploadedKey,
               notes: body.notes && body.notes.length ? body.notes : undefined,
               folio: folio && folio.trim().length ? folio : shortId,
             } as unknown as Record<string, unknown>,
@@ -161,19 +238,20 @@ export async function POST(req: Request) {
           message_id: mid,
           conversation_id: conversationId,
           uploader_id: user.id,
-          storage_path: key,
-          filename: fileName,
-          mime_type: "image/png",
-          byte_size: (png.buffer?.length as number) ?? null,
+          storage_path: uploadedKey,
+          filename: uploadedKey.split('/').pop() || `${fileBase}`,
+          mime_type: uploadedType || "image/png",
+          byte_size: null,
           width: null,
           height: null,
           sha256: null,
         } as any);
       }
-      const signed = await getSignedUrl(key, 600);
+      const signed = await getSignedUrl(uploadedKey, 600);
       return NextResponse.json({ ok: true, id: quoteId, total, image_url: signed ?? null }, { status: 201, headers: JSONH });
     }
-    // Si no se pudo renderizar PNG, continuar sin imagen
+
+    // Si no se pudo renderizar ni subir imagen, continuar sin imagen
     return NextResponse.json({ ok: true, id: quoteId, total, image_url: null }, { status: 201, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";

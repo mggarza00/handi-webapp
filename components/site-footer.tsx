@@ -8,8 +8,8 @@ export default function SiteFooter() {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
             <div className="mb-3 flex items-center gap-2">
-              <Image src="/Logo-Homaid-v1.gif" alt="Homaid" width={28} height={28} />
-              <span className="font-semibold">Homaid.mx</span>
+              <Image src="/Logo-Homaid-v1.gif" alt="Handi" width={28} height={28} />
+              <span className="font-semibold">Handi</span>
             </div>
             <p className="text-sm text-slate-600">Conecta con expertos de confianza.</p>
           </div>
@@ -57,7 +57,7 @@ export default function SiteFooter() {
           </div>
         </div>
         <div className="mt-8 border-t border-slate-200 pt-6 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Homaid.mx. Todos los derechos reservados.
+          © {new Date().getFullYear()} Handi. Todos los derechos reservados.
         </div>
       </div>
     </footer>

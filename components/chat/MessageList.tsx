@@ -42,6 +42,7 @@ type MessageListProps = {
   onRejectOffer?: (offerId: string) => void;
   actionOfferId?: string | null;
   dataPrefix?: string; // e2e: chat | request-chat
+  onOpenOfferDialog?: (opts: { amount?: number | null; currency?: string | null }) => void;
 };
 
 type OfferState = {
@@ -105,6 +106,7 @@ export default function MessageList({
   onRejectOffer: _onRejectOffer,
   actionOfferId,
   dataPrefix = "chat",
+  onOpenOfferDialog,
 }: MessageListProps) {
   const bgStyle = React.useMemo<React.CSSProperties>(() => ({
     backgroundImage:
@@ -119,6 +121,11 @@ export default function MessageList({
   const [/* payingOfferId */, setPayingOfferId] = React.useState<string | null>(null);
   const [feeOpen, setFeeOpen] = React.useState(false);
   const [quoteLightbox, setQuoteLightbox] = React.useState<string | null>(null);
+  const [quoteImgLoading, setQuoteImgLoading] = React.useState(false);
+  React.useEffect(() => {
+    if (quoteLightbox) setQuoteImgLoading(true);
+    else setQuoteImgLoading(false);
+  }, [quoteLightbox]);
   const [feeCtx, setFeeCtx] = React.useState<{ offerId: string; amount: number | null; currency: string; checkoutUrl?: string | null }>({ offerId: "", amount: null, currency: "MXN", checkoutUrl: null });
   const handlePay = React.useCallback(async (offerId: string, existingUrl?: string | null) => {
     let url = typeof existingUrl === "string" && existingUrl.trim().length ? existingUrl : null;
@@ -623,36 +630,65 @@ export default function MessageList({
                   }
                   return renderBody(m);
                 })()}
-                {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
-                  <div className="mt-2">
-                    <AttachmentList
-                      items={m.attachments}
-                      resolveLightboxUrl={(_att, url) => {
-                        const payload = (m?.payload && typeof m.payload === 'object') ? (m.payload as Record<string, unknown>) : null;
-                        const qid = payload && typeof (payload as any).quote_id === 'string' ? (payload as any).quote_id as string : null;
-                        if (m.messageType === 'quote' && qid) {
-                          return `/api/quotes/${encodeURIComponent(qid)}/image`;
-                        }
-                        return url;
-                      }}
-                    />
-                  </div>
-                ) : null}
-                {isMe ? (
-                  <div className="mt-1 text-[11px] text-slate-400 text-right">
-                    {isRead ? "Leido" : "Enviado"}
-                  </div>
-                ) : null}
+        {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
+          <div className="mt-2">
+            <AttachmentList
+              items={m.attachments}
+              resolveLightboxUrl={(_att, url) => {
+                const payload = (m?.payload && typeof m.payload === 'object') ? (m.payload as Record<string, unknown>) : null;
+                const qid = payload && typeof (payload as any).quote_id === 'string' ? (payload as any).quote_id as string : null;
+                if (m.messageType === 'quote' && qid) {
+                  return `/api/quotes/${encodeURIComponent(qid)}/image`;
+                }
+                return url;
+              }}
+            />
+          </div>
+        ) : null}
+        {(() => {
+          if (m.messageType !== 'quote' || viewerRole !== 'customer') return null;
+          const payload = (m.payload && typeof m.payload === 'object') ? (m.payload as Record<string, unknown>) : null;
+          const totalRaw = payload ? (payload as any).total : null;
+          const currencyRaw = payload ? (payload as any).currency : null;
+          const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? NaN);
+          const currency = typeof currencyRaw === 'string' ? currencyRaw : 'MXN';
+          if (!Number.isFinite(total)) return null;
+          return (
+            <div className="mt-2 flex justify-center">
+              <Button size="sm" onClick={() => onOpenOfferDialog?.({ amount: total, currency })}>
+                Contratar
+              </Button>
+            </div>
+          );
+        })()}
+        {isMe ? (
+          <div className="mt-1 text-[11px] text-slate-400 text-right">
+            {isRead ? "Leido" : "Enviado"}
+          </div>
+        ) : null}
               </div>
             </li>
           );
         })}
       </ul>
       <Dialog open={!!quoteLightbox} onOpenChange={(o) => { if (!o) setQuoteLightbox(null); }}>
-        <DialogContent className="max-w-3xl p-0 sm:p-0">
+        <DialogContent showCloseButton={false} className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent">
           {quoteLightbox ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={quoteLightbox} alt="Cotización" className="h-auto w-full rounded object-contain" />
+            <div className="relative" aria-busy={quoteImgLoading}>
+              {quoteImgLoading ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="size-8 animate-spin rounded-full border-2 border-white/70 border-t-transparent" aria-label="Cargando" />
+                </div>
+              ) : null}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={quoteLightbox}
+                alt="Cotización"
+                className="h-auto w-full rounded object-contain"
+                onLoad={() => setQuoteImgLoading(false)}
+                onError={() => setQuoteImgLoading(false)}
+              />
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>

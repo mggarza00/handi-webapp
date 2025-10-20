@@ -70,7 +70,7 @@ export async function POST(req: Request) {
         {
           price_data: {
             currency: "mxn",
-            product_data: { name: "Homaid Service Fee" },
+            product_data: { name: "Handi Service Fee" },
             unit_amount: amount,
           },
           quantity: 1,

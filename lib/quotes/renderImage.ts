@@ -18,6 +18,7 @@ export async function renderQuotePNG(input: {
   items: Item[];
   total: number;
   notes?: string | null;
+  serviceTitle?: string | null;
 }): Promise<{ buffer: Buffer; contentType: "image/png" }> {
   let inter: ArrayBuffer | null = null;
   try {
@@ -34,7 +35,7 @@ export async function renderQuotePNG(input: {
       issuedAtISO: input.dateISO,
       professionalName: input.professional?.name || "",
       clientName: input.client?.name || "",
-      serviceTitle: "Servicio solicitado",
+      serviceTitle: (input.serviceTitle && input.serviceTitle.trim().length ? input.serviceTitle : "Servicio solicitado") as string,
       items,
       currency: input.currency || "MXN",
       notes: (input.notes && String(input.notes).trim().length > 0)

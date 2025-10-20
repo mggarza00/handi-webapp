@@ -1,5 +1,5 @@
 /**
- * Tipos Homaid V1 — alineados al Documento Maestro Unificado.
+ * Tipos Handi V1 — alineados al Documento Maestro Unificado.
  * Usar en UI y API para evitar `any`.
  */
 

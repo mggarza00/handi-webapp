@@ -126,7 +126,7 @@ export default function NearbyCarousel() {
   const shown = items.slice(0, visibleCount);
   return (
     <div
-      className="mt-12 rounded-xl border-2 px-3 py-4 md:px-4 md:py-6"
+      className="mt-12 rounded-xl border-2 px-3 py-4 md:px-4 md:py-6 shadow-2xl"
       style={{
         backgroundColor: "#FFFFFF",
         borderColor: "#009377",

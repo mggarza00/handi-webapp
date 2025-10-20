@@ -1,4 +1,4 @@
-# Homaid Webapp
+# Handi Webapp
 
 > Repositorio: https://github.com/mggarza00/homaid-webapp
 
@@ -19,10 +19,23 @@ https://homaid-webapp-woad.vercel.app
 
 Next.js 14 (App Router) + Supabase + Google Sheets (Service Account).
 
+### Estados de Solicitud y Calendario del Pro
+
+- Estados (UI → BD):
+  - `active`/`pending` → Activa
+  - `scheduled` → Agendada
+  - `in_process` → En proceso
+  - `completed`/`finished` → Finalizada
+  - `canceled`/`cancelled` → Cancelada
+
+- Stripe Webhook: al pagar, marca `scheduled`, oculta de Explore y upsert en `pro_calendar_events`.
+- Calendario del pro (`/pro/calendar`): consume `GET /api/pro/calendar` con `revalidateTag('pro-calendar')` para refresco tras webhook y cambios de estado.
+- `PATCH /api/requests/:id/status`: sincroniza `pro_calendar_events.status` y revalida `/pro/calendar`, `/requests/:id` y `/mensajes/:id`.
+
 ## Documentación
 
-- Documento Maestro (actualizado con separación de profesionales): docs/Handi_Documento_Maestro_Unificado_FULL.md
-- Trazabilidad de Tablas (fuente de verdad de flujos y buckets): docs/Handi_Documento_Maestro_Trazabilidad.md
+- Documento Maestro (actualizado con separación de profesionales): docs/homaid_Documento_Maestro_Unificado_FULL.md
+- Trazabilidad de Tablas (fuente de verdad de flujos y buckets): docs/homaid_Documento_Maestro_Trazabilidad.md
 - Migraciones SQL: supabase/migrations
 
 ## Requisitos
@@ -40,7 +53,7 @@ Copia `.env.example` a `.env.local` y rellena:
 - `PRIVATE_KEY` (usar `\n` en una sola línea si el código hace `replace(/\\n/g, '\n')`)
 - `SHEET_ID`
 
-## Handee Webapp · Arranque y Debug
+## Handi Webapp · Arranque y Debug
 
 ### Next.js (recomendado)
 - Desarrollo: `npm run dev` (VS Code: F5 → "Debug Next.js (npm run dev)")

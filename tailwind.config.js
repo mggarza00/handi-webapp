@@ -9,7 +9,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        homaid: {
+        handi: {
           primary: '#11304A',
           green: '#3e9554',
         },

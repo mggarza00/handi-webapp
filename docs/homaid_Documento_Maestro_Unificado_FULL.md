@@ -1,4 +1,4 @@
-# Homaid — Documento Maestro V1 (Unificado)
+# Handi — Documento Maestro V1 (Unificado)
 <!-- Renombrado desde *_Handee_* a *_Handi_* -->
 
 **Fecha:** 13-ago-2025  
@@ -10,13 +10,13 @@
 
 ## 0) Resumen ejecutivo
 
-Homaid conecta **contratantes** con **profesionales** de oficios. El V1 integra:
+Handi conecta **contratantes** con **profesionales** de oficios. El V1 integra:
 
 - **Solicitudes** (requests) y **postulaciones** (applications).
 - **Matching** por categoría/subcategoría y **ubicación**.
 - **Ranking** de prospectos: `is_featured` → `rating` → `distancia` → `recencia` (máx 20).
 - **Chat con candado** (bloqueo de datos personales en front + backend).
-- **Pagos iniciales**: fee de **$50 MXN** vía Stripe para desbloquear datos (opción efectivo). Homaid **recibe** y **paga manualmente** tras doble confirmación.
+- **Pagos iniciales**: fee de **$50 MXN** vía Stripe para desbloquear datos (opción efectivo). Handi **recibe** y **paga manualmente** tras doble confirmación.
 - **Estados y acuerdos**: múltiples acuerdos por solicitud, con flujo `negotiating → accepted → paid → in_progress → completed / cancelled / disputed`.
 - **Validación básica** de profesionales (sin KYC completo en V1).
 - **Inactividad**: se marca inactivo a los 21 días sin interacción; reactivación al iniciar sesión.
@@ -352,7 +352,7 @@ Referencias (repo): `supabase/migrations/*professionals*`, `app/api/professional
 - **Stripe Checkout** para fee (monto fijo).
 - **Webhook** (`/api/stripe/webhook`) para marcar `agreement.status='paid'` y **desbloquear datos** del profesional en esa conversación.
 - **Efectivo**: permitido **solo** después de pagar fee.
-- **Liberaciones**: Homaid libera pago manual al profesional tras **doble confirmación**; **máx 7 días** si el profesional no confirma (liberar de todos modos).
+- **Liberaciones**: Handi libera pago manual al profesional tras **doble confirmación**; **máx 7 días** si el profesional no confirma (liberar de todos modos).
 - **Si cliente confirma**: **no hay retracto** (regla V1).
 
 ---
@@ -491,7 +491,7 @@ Controlar qué botones aparecen en la barra superior según **estado de sesión*
 
 #### 1) Visitante (no autenticado)
 
-- **Izquierda:** Logo Homaid (link a `/`).
+- **Izquierda:** Logo Handi (link a `/`).
 - **Derecha (CTAs):**
   - **Iniciar sesión** → `/auth/sign-in`
     - _Regla:_ tras autenticar, este botón se reemplaza por **avatar de perfil** con menú.
@@ -500,7 +500,7 @@ Controlar qué botones aparecen en la barra superior según **estado de sesión*
 
 #### 2) Autenticado — Cliente/Solicitante (`role = "client"`)
 
-- **Izquierda:** Logo Homaid → `/dashboard`
+- **Izquierda:** Logo Handi → `/dashboard`
 - **Derecha (solo cliente):**
   - **Publicar solicitud** → `/requests/new`
   - **Mis solicitudes** → `/requests`
@@ -509,7 +509,7 @@ Controlar qué botones aparecen en la barra superior según **estado de sesión*
 
 #### 3) Autenticado — Profesional (`role = "pro"`)
 
-- **Izquierda:** Logo Homaid → `/pro/dashboard`
+- **Izquierda:** Logo Handi → `/pro/dashboard`
 - **Derecha (solo profesional):**
   - **Ver solicitudes** → `/requests/explore`
   - **Mis propuestas** → `/applications`
@@ -518,7 +518,7 @@ Controlar qué botones aparecen en la barra superior según **estado de sesión*
 
 #### 4) Autenticado — Administrador (`role = "admin"`)
 
-- **Izquierda:** Logo Homaid → `/admin`
+- **Izquierda:** Logo Handi → `/admin`
 - **Derecha (solo admin):**
   - **Panel** → `/admin`
   - **Usuarios** → `/admin/users`

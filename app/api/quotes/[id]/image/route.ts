@@ -35,16 +35,31 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const admin = createServerClient();
 
     // Cargar quote + validar participación
-    const { data: quote } = await admin
+    let { data: quote } = await admin
       .from("quotes")
-      .select("id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio")
+      .select("id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio, image_path")
       .eq("id", id)
       .maybeSingle();
-    if (!quote) return new Response("Not found", { status: 404 });
+    if (!quote) {
+      // Fallback: intentar por folio (case-insensitive) o por prefijo de id (8-12 chars)
+      const isLikelyShortId = id.length >= 6 && id.length <= 12;
+      const { data: alt } = await admin
+        .from("quotes")
+        .select("id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio, image_path")
+        .or(`lower(folio).eq.${id.toLowerCase()},id.like.${id}%`)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (alt && (isLikelyShortId || (alt as any).folio?.toString().toLowerCase() === id.toLowerCase())) {
+        quote = alt;
+      } else {
+        return new Response("Not found", { status: 404 });
+      }
+    }
 
     const { data: conv } = await admin
       .from("conversations")
-      .select("id, customer_id, pro_id")
+      .select("id, customer_id, pro_id, request_id")
       .eq("id", (quote as any).conversation_id)
       .maybeSingle();
     if (!conv) return new Response("Forbidden", { status: 403 });
@@ -60,6 +75,18 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       admin.from("profiles").select("full_name").eq("id", (quote as any).client_id).maybeSingle(),
     ]);
 
+    // Si ya hay una imagen en Storage, redirige a la URL firmada
+    const imagePath = (quote as any).image_path as string | null;
+    if (imagePath && typeof imagePath === 'string' && imagePath.trim().length) {
+      try {
+        const { getSignedUrl } = await import('@/lib/storage/quotes');
+        const signed = await getSignedUrl(imagePath, 600);
+        if (signed) return NextResponse.redirect(signed, 302);
+      } catch {
+        // Si falla, continúa a render dinámico
+      }
+    }
+
     // Armar props para el componente visual
     const items = Array.isArray((quote as any).items)
       ? ((quote as any).items as Array<{ concept?: string; amount?: number }>).map((r) => ({
@@ -68,6 +95,42 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }))
       : [];
 
+    // Resolve service title + details/conditions
+    let serviceTitle: string | null = null;
+    let detailsText: string | null = null;
+    try {
+      // 1) Prefer 'notes' sent by pro in the original quote message payload
+      const { data: msg } = await admin
+        .from("messages")
+        .select("payload")
+        .eq("conversation_id", (quote as any).conversation_id)
+        .eq("message_type", "quote")
+        .filter("payload->>quote_id", "eq", id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      const payload = (msg as any)?.payload as Record<string, unknown> | null;
+      const notes = payload && typeof (payload as any).notes === 'string' ? String((payload as any).notes) : null;
+
+      // 2) Request meta (title + conditions)
+      let reqConditions: string | null = null;
+      const reqId = (conv as any)?.request_id as string | null;
+      if (reqId) {
+        const { data: req } = await admin.from("requests").select("title, conditions").eq("id", reqId).maybeSingle();
+        const cond = (req as any)?.conditions as string | null;
+        const title = (req as any)?.title as string | null;
+        if (cond && cond.trim().length) reqConditions = cond.trim();
+        if (title && title.trim().length) serviceTitle = title.trim();
+      }
+
+      const parts: string[] = [];
+      if (notes && notes.trim().length) parts.push(notes.trim());
+      if (reqConditions && reqConditions.trim().length) parts.push(`Condiciones: ${reqConditions}`);
+      detailsText = parts.length ? parts.join("\n\n") : null;
+    } catch {
+      detailsText = detailsText || null;
+    }
+
     const props = {
       logoUrl: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ""}/images/Favicon-v1-jpeg.jpg`,
       title: "Cotización",
@@ -75,10 +138,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       issuedAtISO: new Date((quote as any).created_at || Date.now()).toISOString(),
       professionalName: (proProfile?.data as any)?.full_name || "",
       clientName: (clientProfile?.data as any)?.full_name || "",
-      serviceTitle: "Servicio solicitado",
+      serviceTitle: serviceTitle || "Servicio solicitado",
       items,
       currency: (quote as any).currency || "MXN",
-      notes: "Precio no incluye IVA ni comision. Sujeto a condiciones del servicio.",
+      notes: detailsText || "Precio no incluye IVA ni comision. Sujeto a condiciones del servicio.",
       brandHex: "#0E7490",
       grayHex: "#E5E7EB",
     } as const;
@@ -87,21 +150,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     let inter: ArrayBuffer | null = null;
     try { inter = await getInterFont(); } catch { inter = null; }
 
-    // Render SVG con Satori
+    // Render SVG con Satori (siempre generamos SVG primero)
     const svg = await satori(React.createElement(QuoteImage, props), {
       width: 1080,
       height: 1600,
       fonts: inter ? [{ name: "Inter", data: inter, weight: 400, style: "normal" }] : [],
     });
 
-    // Convertir a PNG
-    const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1080 } });
-    const png = resvg.render().asPng();
-    // Copy into a fresh Uint8Array to avoid SharedArrayBuffer typing
-    const u8 = new Uint8Array(png.byteLength);
-    u8.set(png);
-    const blob = new Blob([u8], { type: "image/png" });
-    return new Response(blob, { status: 200, headers: PNG_HEADERS });
+    // Intentar convertir a PNG con Resvg; si falla, devolver SVG
+    try {
+      const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1080 } });
+      const png = resvg.render().asPng();
+      const u8 = new Uint8Array(png);
+      return new Response(u8, { status: 200, headers: PNG_HEADERS });
+    } catch {
+      return new Response(svg, { status: 200, headers: { "Content-Type": "image/svg+xml", "Cache-Control": PNG_HEADERS["Cache-Control"] } });
+    }
   } catch (e: any) {
     const msg = e?.message || String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

@@ -1,4 +1,4 @@
-# Homaid — Trazabilidad de Tablas (Post-separación de profesionales)
+# Handi — Trazabilidad de Tablas (Post-separación de profesionales)
 
 Objetivo: documentar el flujo de datos y la responsabilidad de cada tabla/bucket tras separar el perfil profesional público de `profiles` a `professionals`.
 

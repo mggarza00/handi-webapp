@@ -104,7 +104,22 @@ export async function GET(req: Request) {
         }
         if (scheduled_date) (patch as any).scheduled_date = scheduled_date;
         if (scheduled_time) (patch as any).scheduled_time = scheduled_time as any;
-        try { await (admin as any).from('requests').update(patch).eq('id', requestId); } catch { /* ignore */ }
+        try {
+          if ((patch as any).status === 'scheduled' && !(patch as any).scheduled_date) {
+            try {
+              const { data: r0 } = await admin
+                .from('requests')
+                .select('scheduled_date, required_at')
+                .eq('id', requestId)
+                .maybeSingle();
+              let sd: string | null = (r0 as any)?.scheduled_date || null;
+              if (!sd) sd = (r0 as any)?.required_at || null;
+              if (!sd) sd = new Date().toISOString().slice(0, 10);
+              (patch as any).scheduled_date = sd;
+            } catch { /* ignore */ }
+          }
+          await (admin as any).from('requests').update(patch).eq('id', requestId);
+        } catch { /* ignore */ }
         // Mirror to pro calendar
         try {
           const proId = (patch as any).accepted_professional_id as string | undefined;
@@ -249,7 +264,7 @@ export async function GET(req: Request) {
         if (messageId && pdfBuffer) {
           const filePath = `conversation/${conversationId}/${messageId}/handi-recibo-${receiptId}.pdf`;
           const up = await admin.storage
-            .from("chat-attachments")
+            .from("message-attachments")
             .upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
           if (!up.error) {
             await admin.from("message_attachments").insert({

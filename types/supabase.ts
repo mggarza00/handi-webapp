@@ -172,6 +172,22 @@ export interface Tables {
     };
     Update: Partial<Tables['offers']['Row']>;
   };
+  pro_request_favorites: {
+    Row: {
+      pro_id: string;
+      request_id: string;
+      created_at: string | null; // timestamptz ISO
+    };
+    Insert: {
+      pro_id: string;
+      request_id: string;
+    };
+    Update: Partial<{
+      pro_id: string;
+      request_id: string;
+      created_at: string | null;
+    }>;
+  };
   request_photos: {
     Row: {
       id: string;

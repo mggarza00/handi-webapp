@@ -157,7 +157,7 @@ export default async function CategoriasPage() {
           </div>
 
           <p className="mt-4 text-xs text-slate-500">
-            Fuente: catálogo interno de Homaid. Si notas un error en la clasificación o un ícono faltante, contáctanos.
+            Fuente: catálogo interno de Handi. Si notas un error en la clasificación o un ícono faltante, contáctanos.
           </p>
         </div>
       </section>

@@ -18,7 +18,7 @@ function getMailKey(): string | null {
 
 function getDefaultFrom(): string {
   const from =
-    process.env.MAIL_FROM || process.env.NEXT_PUBLIC_SITE_NAME || "Homaid";
+    process.env.MAIL_FROM || process.env.NEXT_PUBLIC_SITE_NAME || "Handi";
   const email = process.env.MAIL_FROM_ADDRESS || "no-reply@homaid.local";
   return /</.test(from) ? from : `${from} <${email}>`;
 }

@@ -1,4 +1,4 @@
-# Guía de Estilos: Colores y Tipografías (Homaid)
+# Guía de Estilos: Colores y Tipografías (Handi)
 
 Esta guía define los colores y tipografías de la web para mantener consistencia. Se apoya en Tailwind y variables CSS ya declaradas en `app/globals.css` (OKLCH), más utilidades de shadcn/ui.
 

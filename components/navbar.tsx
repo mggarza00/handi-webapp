@@ -53,7 +53,7 @@ export default function Navbar({
             href="/"
             className="font-semibold text-lg tracking-tight text-brand"
           >
-            Homaid
+            Handi
           </Link>
           <nav className="hidden md:flex items-center gap-4 text-sm text-neutral-600 dark:text-neutral-300">
             {links.map((l) => (
@@ -94,7 +94,7 @@ export default function Navbar({
           />
           <aside className="absolute left-0 top-0 h-full w-80 bg-white dark:bg-neutral-950 border-r border-neutral-200 dark:border-neutral-800 p-5">
             <div className="flex items-center justify-between mb-4">
-              <span className="font-semibold text-lg">Homaid</span>
+              <span className="font-semibold text-lg">Handi</span>
               <button
                 className="p-2 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-900"
                 onClick={() => setOpenMenu(false)}

@@ -338,7 +338,7 @@ export default function Page() {
                 ref={videoRef}
                 className="h-full w-full object-cover"
                 src="/video/Homaid-video.mp4"
-                title="Video Bienvenida Homaid"
+                title="Video Bienvenida Handi"
                 controls={showControls}
                 poster={posterUrl ?? "/images/poster.png"}
                 playsInline
@@ -368,14 +368,20 @@ export default function Page() {
       </section>
 
       {/* Quick ask */}
-      <section className="bg-slate-50">
-        <div className="mx-auto max-w-5xl px-4 py-10">
-          <h2 className="mb-2 text-xl font-semibold tracking-tight">
-            ¿Qué necesitas hoy?
-          </h2>
-          <p className="mb-5 text-sm text-slate-600">
-            Elige una categoría para empezar rápido o explora todas.
-          </p>
+      <section
+        className="relative bg-slate-50 bg-cover bg-center bg-no-repeat bg-fixed"
+        style={{ backgroundImage: "url('/images/home_background.png')" }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0 bg-white/60" />
+        <div className="relative z-10 mx-auto max-w-5xl px-4 py-10">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="mb-2 text-xl font-semibold tracking-tight">
+              ¿Qué necesitas hoy?
+            </h2>
+            <p className="mb-5 text-sm text-slate-600">
+              Elige una categoría para empezar rápido o explora todas.
+            </p>
+          </div>
 
           {/* Categorías y mascota lado a lado (móvil: mascota al fondo) */}
           <div className="flex flex-row items-end justify-start gap-2 md:items-center md:justify-between md:gap-4">
@@ -403,7 +409,7 @@ export default function Page() {
               <div className="relative h-[104px] w-[104px] md:h-28 md:w-28 lg:h-32 lg:w-32 animate-bounce-subtle md:animate-none">
                 <Image
                   src="/images/handee_mascota.gif"
-                  alt="Homaid mascota"
+                  alt="Handi mascota"
                   fill
                   className="object-contain"
                   unoptimized

@@ -1,0 +1,66 @@
+-- RLS end-to-end test (psql version)
+-- Usage:
+--   psql "postgres://..." -f supabase/sql/agreements_rls_test.psql
+--   Customize the IDs below with existing values from your project.
+
+\set requester_id '00000000-0000-0000-0000-000000000000'
+\set professional_id '11111111-1111-1111-1111-111111111111'
+\set request_id '22222222-2222-2222-2222-222222222222'
+
+-- Quick sanity checks for the provided IDs
+select 'requester_exists' as check, exists(select 1 from auth.users where id = :'requester_id'::uuid) as ok
+union all
+select 'professional_exists', exists(select 1 from auth.users where id = :'professional_id'::uuid)
+union all
+select 'request_exists', exists(select 1 from public.requests where id = :'request_id'::uuid);
+
+begin;
+
+-- Simulate requester session
+set local role authenticated;
+set local "request.jwt.claim.sub" = :'requester_id';
+select 'requester_auth_uid' as label, auth.uid();
+
+-- Try INSERT as requester (allowed by policy if requester created the request)
+with ins as (
+  insert into public.agreements (request_id, professional_id, amount, status)
+  values (:'request_id'::uuid, :'professional_id'::uuid, 100, 'negotiating')
+  returning *
+)
+select 'inserted_as_requester' as label, id, request_id, professional_id, status, created_at from ins;
+
+-- Capture the latest agreement for this pair
+select id as agreement_id
+from public.agreements
+where request_id = :'request_id'::uuid and professional_id = :'professional_id'::uuid
+order by created_at desc
+limit 1
+\gset
+
+-- Verify visibility as requester
+select 'select_as_requester' as label, id, status
+from public.agreements
+where id = :'agreement_id'::uuid;
+
+-- Simulate professional session
+set local "request.jwt.claim.sub" = :'professional_id';
+select 'professional_auth_uid' as label, auth.uid();
+
+-- Update by professional (allowed by policy)
+update public.agreements a
+set status = 'accepted'
+where a.id = :'agreement_id'::uuid
+returning 'updated_as_professional' as label, id, status;
+
+-- Verify visibility as professional
+select 'select_as_professional' as label, id, status
+from public.agreements
+where id = :'agreement_id'::uuid;
+
+-- Cleanup: rollback so the test doesn't persist data
+rollback;
+
+-- Show indexes/policies quick view
+select policyname, cmd from pg_policies where schemaname='public' and tablename='agreements' order by policyname;
+select indexname from pg_indexes where schemaname='public' and tablename='agreements' order by indexname;
+

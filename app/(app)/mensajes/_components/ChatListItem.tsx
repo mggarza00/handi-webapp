@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import Link from "next/link";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { normalizeAvatarUrl } from "@/lib/avatar";
+import { normalizeAvatarUrl, parseSupabaseStoragePath } from "@/lib/avatar";
 import * as React from "react";
 import { Loader2, Mail } from "lucide-react";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
@@ -72,27 +72,21 @@ function ChatListItem({
     if (!url) { setAvatarSrc(null); return; }
     // Pass through external URLs and API proxy
     if (/^https?:\/\//i.test(url) || url.startsWith('/api/avatar/')) { setAvatarSrc(url); return; }
-    // If normalize produced a full storage URL, use it
-    if (norm && /^https?:\/\//i.test(norm)) { setAvatarSrc(norm); }
-    // Try to sign if it's a bucket/key path
-    const clean = url.replace(/^\/+/, '');
-    const firstSlash = clean.indexOf('/');
-    if (firstSlash > 0) {
-      const bucket = clean.slice(0, firstSlash);
-      const key = clean.slice(firstSlash + 1);
-      let cancelled = false;
-      (async () => {
-        try {
-          const { data, error } = await supabase.storage.from(bucket).createSignedUrl(key, 600);
-          if (!cancelled) setAvatarSrc(!error && data?.signedUrl ? data.signedUrl : (norm || null));
-        } catch {
-          if (!cancelled) setAvatarSrc(norm || null);
-        }
-      })();
-      return () => { cancelled = true; };
-    } else {
-      setAvatarSrc(norm);
-    }
+    // If normalize produced a full absolute URL, use it and do not attempt to sign
+    if (norm && /^https?:\/\//i.test(norm)) { setAvatarSrc(norm); return; }
+    // Try to sign (supports '/storage/v1/object/public/<bucket>/<key>' and '<bucket>/<key>' and 'public/<bucket>/<key>')
+    const parsed = parseSupabaseStoragePath(url);
+    if (!parsed) { setAvatarSrc(norm); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.storage.from(parsed.bucket).createSignedUrl(parsed.key, 600);
+        if (!cancelled) setAvatarSrc(!error && data?.signedUrl ? data.signedUrl : (norm || null));
+      } catch {
+        if (!cancelled) setAvatarSrc(norm || null);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [avatarUrl, supabase]);
 
   return (
@@ -118,7 +112,7 @@ function ChatListItem({
           <div className="min-w-0 flex items-center gap-3">
             <div className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}>
               <AvatarWithSkeleton
-                src={avatarSrc || "/avatar.png"}
+                src={avatarSrc || "/images/Favicon-v1-jpeg.jpg"}
                 alt={displayTitle}
                 sizeClass="size-9"
                 className="shrink-0"

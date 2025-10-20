@@ -51,31 +51,31 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     const firstLine = rawBio.split(/\r?\n/)[0] || "";
     const bioText = firstLine;
     const titleName = `${name} Perfil profesional`;
-    const desc = bioText.length > 160 ? `${bioText.slice(0, 157)}…` : bioText || "Perfil profesional en Homaid";
+    const desc = bioText.length > 160 ? `${bioText.slice(0, 157)}…` : bioText || "Perfil profesional en Handi";
 
     // Prefer avatar as OG if available, else fallback
     let imageUrl = (((ov.pro as any)?.profiles?.avatar_url as string) || (ov.pro as any)?.avatar_url || `${base}/avatar.png`) as string;
 
     return {
-      title: `${titleName} · Homaid`,
+      title: `${titleName} · Handi`,
       description: desc,
       openGraph: {
-        title: `${titleName} · Homaid`,
+        title: `${titleName} · Handi`,
         description: desc,
         url: `${base}/profiles/${params.id}`,
         images: [imageUrl],
-        siteName: "Homaid",
+        siteName: "Handi",
         type: "profile",
       },
       twitter: {
         card: "summary_large_image",
-        title: `${titleName} · Homaid`,
+        title: `${titleName} · Handi`,
         description: desc,
         images: [imageUrl],
       },
     };
   } catch {
-    return { title: "Perfil · Homaid" };
+    return { title: "Perfil · Handi" };
   }
 }
 

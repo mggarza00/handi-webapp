@@ -391,7 +391,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // Best-effort: guarda/actualiza dirección usada por el usuario (match por place_id o address_line)
+  // Best-effort: guarda/actualiza dirección usada por el usuario (RPC, incrementa times_used y refresca last_used_at)
   try {
     const d = (data || {}) as Record<string, unknown>;
     const address_line = typeof d.address_line === "string" ? d.address_line : null;
@@ -399,43 +399,15 @@ export async function POST(req: Request) {
     const lat = typeof d.address_lat === "number" ? d.address_lat : null;
     const lng = typeof d.address_lng === "number" ? d.address_lng : null;
     if (actingUserId && (address_line || address_place_id)) {
-      const writer = preferAdminInsert ? getAdminSupabase() : getSupabase();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w: any = writer;
-      let savedId: string | null = null;
-      if (address_place_id) {
-        const { data: byPid } = await w
-          .from("user_saved_addresses")
-          .select("id")
-          .eq("user_id", actingUserId)
-          .eq("address_place_id", address_place_id)
-          .maybeSingle();
-        savedId = (byPid as { id?: string } | null)?.id ?? null;
-      }
-      if (!savedId && address_line) {
-        const { data: byLine } = await w
-          .from("user_saved_addresses")
-          .select("id")
-          .eq("user_id", actingUserId)
-          .eq("address_line", address_line)
-          .maybeSingle();
-        savedId = (byLine as { id?: string } | null)?.id ?? null;
-      }
-      if (savedId) {
-        await w
-          .from("user_saved_addresses")
-          .update({
-            address_place_id: address_place_id ?? undefined,
-            lat: lat ?? undefined,
-            lng: lng ?? undefined,
-            last_used_at: new Date().toISOString(),
-          })
-          .eq("id", savedId);
-      } else {
-        await w
-          .from("user_saved_addresses")
-          .insert({ user_id: actingUserId, address_line: address_line ?? "", address_place_id, lat, lng, last_used_at: new Date().toISOString() });
-      }
+      // Use cookie-auth client so auth.uid() inside the function resolves correctly
+      const rpc = getSupabase();
+      await rpc.rpc("upsert_user_address", {
+        address_line: address_line ?? "",
+        address_place_id: address_place_id ?? null,
+        lat: lat ?? null,
+        lng: lng ?? null,
+        label: null,
+      });
     }
   } catch { /* ignore */ }
 

@@ -18,29 +18,31 @@ export const metadata: Metadata = {
       process.env.NEXT_PUBLIC_BASE_URL ||
       "http://localhost:3000",
   ),
+  applicationName: "Handi",
   title: {
-    default: "Homaid",
-    template: "%s | Homaid",
+    default: "Handi",
+    template: "%s | Handi",
   },
   description:
     "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
   openGraph: {
-    title: "Homaid",
+    title: "Handi",
     description:
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
     url: "/",
-    siteName: "Homaid",
+    siteName: "Handi",
     images: ["/Logo-Homaid-v1.gif"],
     locale: "es_MX",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Homaid",
+    title: "Handi",
     description:
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
     images: ["/Logo-Homaid-v1.gif"],
   },
+  manifest: "/manifest.json",
   icons: {
     // Primary favicon (animated GIF)
     icon: [

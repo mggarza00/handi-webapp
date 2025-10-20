@@ -15,8 +15,10 @@ export type Attachment = {
   storage_path: string; // e.g. conversation/<convId>/<any>/<file>
 };
 
-function isImage(mime: string): boolean {
-  return /^image\//i.test(mime);
+function isImage(mime: string, filename?: string): boolean {
+  if (/^image\//i.test(mime)) return true;
+  const name = filename || "";
+  return /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)$/i.test(name);
 }
 
 type MessageItemProps = {
@@ -95,7 +97,7 @@ function humanSize(bytes?: number | null): string | null {
 }
 
 function AttachmentPreview({ url, att }: { url: string; att: Attachment }) {
-  const img = isImage(att.mime_type);
+  const img = isImage(att.mime_type, att.filename);
   const size = humanSize(att.byte_size ?? null);
   if (img) {
     return (

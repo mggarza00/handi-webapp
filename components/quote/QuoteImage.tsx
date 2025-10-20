@@ -41,7 +41,7 @@ export default function QuoteImage({
   return (
     <div style={{ width: 1080, height: 1600, backgroundColor: "#FFFFFF", color: "#0F172A", display: "flex", flexDirection: "column", padding: 48, fontFamily: "Inter", gap: 24 }}>
       {/* Header simple */}
-      <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: -0.5, color: brandHex }}>{`Homaid ${title}`}</span>
+      <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: -0.5, color: brandHex }}>{`Handi ${title}`}</span>
 
       {/* Meta compacta */}
       <span style={{ fontSize: 24, color: "#334155" }}>{`Folio: ${folio}  •  Fecha: ${dateStr}`}</span>
@@ -73,9 +73,12 @@ export default function QuoteImage({
         <span style={{ fontSize: 32, fontWeight: 800, color: brandHex }}>{peso(total, currency)}</span>
       </div>
 
-      {/* Notas */}
+      {/* Detalles y condiciones */}
       {notes ? (
-        <span style={{ marginTop: 8, fontSize: 22, color: "#475569", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{notes}</span>
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: 24, fontWeight: 600, color: "#0F172A", marginBottom: 6 }}>Detalles y condiciones</div>
+          <span style={{ fontSize: 22, color: "#475569", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{notes}</span>
+        </div>
       ) : null}
 
       {/* Footer */}

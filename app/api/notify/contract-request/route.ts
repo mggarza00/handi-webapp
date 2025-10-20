@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         .maybeSingle();
       const phone = tel?.data?.phone as string | null;
       if (phone) {
-        const body = `Homaid: Solicitud de contratación por $${amount_mxn} MXN para "${(reqRow.data as any).title || "Trabajo"}". Revisa tu bandeja en Homaid.`;
+        const body = `Handi: Solicitud de contratación por $${amount_mxn} MXN para "${(reqRow.data as any).title || "Trabajo"}". Revisa tu bandeja en Handi.`;
         await sendSms({ to: phone, body }).catch(() => null);
       }
     } catch {

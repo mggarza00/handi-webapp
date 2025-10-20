@@ -33,7 +33,7 @@ export default function AvatarWithSkeleton({ src, alt = "", className = "", size
           className={`${common} ${!loaded ? "opacity-0" : "opacity-100"} transition-opacity duration-200 ${className}`}
           onLoad={() => setLoaded(true)}
           onError={() => { setError(true); setLoaded(true); }}
-          loading="lazy"
+          loading="eager"
           decoding="async"
           referrerPolicy="no-referrer"
           crossOrigin="anonymous"

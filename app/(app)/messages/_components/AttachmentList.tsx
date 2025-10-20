@@ -18,8 +18,12 @@ export type Attachment = {
   storage_path: string;
 };
 
-function isImage(mime: string): boolean {
-  return /^image\//i.test(mime);
+function isImage(mime: string, filename?: string): boolean {
+  // Primary: MIME type
+  if (/^image\//i.test(mime)) return true;
+  // Fallback: common image extensions when MIME is missing or generic
+  const name = filename || "";
+  return /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)$/i.test(name);
 }
 
 function normalizeKey(storagePath: string, bucket: string): string {
@@ -55,6 +59,12 @@ export function AttachmentList({
   const keys = React.useMemo(() => (items || []).map((a) => normalizeKey(a.storage_path, bucket)), [items, bucket]);
   const { urls: signed, loading } = useSignedUrls(bucket, keys, { expireSeconds: signedSeconds });
   const [lightbox, setLightbox] = React.useState<{ url: string; alt: string } | null>(null);
+  const [lbLoading, setLbLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (lightbox?.url) setLbLoading(true);
+    else setLbLoading(false);
+  }, [lightbox?.url]);
 
   if (!items || items.length === 0) return null;
 
@@ -81,22 +91,39 @@ export function AttachmentList({
         {loading ? <div className="text-xs text-muted-foreground">Cargando adjuntos…</div> : null}
       </div>
       <Dialog open={!!lightbox} onOpenChange={(o) => { if (!o) setLightbox(null); }}>
-        <DialogContent className="max-w-3xl p-0 sm:p-0 relative">
+        <DialogContent showCloseButton={false} className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent">
           {lightbox?.url ? (
-            <>
-              <a
-                href={lightbox.url}
-                download
-                target="_blank"
-                rel="noopener noreferrer"
-                className="absolute right-3 top-3 inline-flex items-center rounded bg-black/60 px-2 py-1 text-xs text-white hover:bg-black/70"
-                title="Descargar"
-              >
-                Descargar
-              </a>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={lightbox.url} alt={lightbox.alt || "Imagen"} className="h-auto w-full rounded object-contain" />
-            </>
+            <div>
+              <div className="relative" aria-busy={lbLoading}>
+                {lbLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="size-8 animate-spin rounded-full border-2 border-white/70 border-t-transparent" aria-label="Cargando" />
+                  </div>
+                ) : null}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={lightbox.url}
+                  alt={lightbox.alt || "Imagen"}
+                  className="h-auto w-full rounded object-contain"
+                  onLoad={() => setLbLoading(false)}
+                  onError={() => setLbLoading(false)}
+                />
+              </div>
+              {!lbLoading ? (
+                <div className="flex justify-end px-3 py-2">
+                  <a
+                    href={lightbox.url}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center rounded bg-black/60 px-2 py-1 text-xs text-white hover:bg-black/70"
+                    title="Descargar"
+                  >
+                    Descargar
+                  </a>
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </DialogContent>
       </Dialog>
@@ -105,7 +132,7 @@ export function AttachmentList({
 }
 
 function AttachmentPreview({ url, att, imageMaxWidth, onOpenLightbox }: { url: string; att: Attachment; imageMaxWidth: number; onOpenLightbox: (url: string, alt: string) => void }) {
-  const img = isImage(att.mime_type);
+  const img = isImage(att.mime_type, att.filename);
   const size = humanSize(att.byte_size ?? null);
   if (img) {
     return (

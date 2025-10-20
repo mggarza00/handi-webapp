@@ -156,7 +156,7 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
       {/* Header */}
       <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
         {/* Avatar con skeleton mientras carga */}
-        <AvatarWithSkeleton src={normalizeAvatarUrl(other?.avatar_url) || "/avatar.png"} alt={other?.full_name || "Avatar"} sizeClass="size-10" />
+        <AvatarWithSkeleton src={normalizeAvatarUrl(other?.avatar_url) || "/images/Favicon-v1-jpeg.jpg"} alt={other?.full_name || "Avatar"} sizeClass="size-10" />
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
           {(() => {

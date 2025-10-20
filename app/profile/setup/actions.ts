@@ -108,7 +108,7 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   const admins = listAdmins();
   if (admins.length > 0) {
     const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    const subject = "HOMAID · Solicitud de cambios de perfil";
+    const subject = "HANDI · Solicitud de cambios de perfil";
     const summary: string[] = [];
     for (const k of Object.keys(profChanges)) summary.push(`profiles.${k}`);
     for (const k of Object.keys(proChanges)) summary.push(`professionals.${k}`);

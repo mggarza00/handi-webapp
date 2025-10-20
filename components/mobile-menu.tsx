@@ -312,10 +312,10 @@ function MobileMenuDrawer({
 
   const onShare = React.useCallback(async () => {
     const url = typeof window !== "undefined" ? window.location.origin : "";
-    const text = "Asnete a Homaid y conecta con expertos de confianza";
+    const text = "Asnete a Handi y conecta con expertos de confianza";
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Homaid", text, url });
+        await navigator.share({ title: "Handi", text, url });
       } else {
         await navigator.clipboard.writeText(url);
         toast.success("Enlace copiado al portapapeles");
@@ -342,7 +342,7 @@ function MobileMenuDrawer({
     <>
       <OpenButton />
       <Sidebar side="left" width={320}>
-        <SidebarHeader className="text-xl font-semibold">Homaid</SidebarHeader>
+        <SidebarHeader className="text-xl font-semibold">Handi</SidebarHeader>
         <SidebarContent className="mt-4 gap-4">
           <div className="flex flex-col gap-2">
             <Button

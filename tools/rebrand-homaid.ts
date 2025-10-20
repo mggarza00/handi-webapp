@@ -86,9 +86,9 @@ function normalizeRel(p: string) {
 function getReplacements(): Array<[RegExp, string]> {
   const WORD_BOUNDARY = (s: string) => new RegExp(`\\b${s}\\b`, "g");
   return [
-    [WORD_BOUNDARY("HANDI"), "HOMAID"],
-    [WORD_BOUNDARY("Handi"), "Homaid"],
-    [WORD_BOUNDARY("handi"), "homaid"],
+    [WORD_BOUNDARY("HANDI"), "HANDI"],
+    [WORD_BOUNDARY("Handi"), "Handi"],
+    [WORD_BOUNDARY("handi"), "handi"],
   ];
 }
 
@@ -217,11 +217,11 @@ function replaceInTextFile(file: string): FileChangeResult {
 
 function replaceHandiPreserveCase(s: string): string {
   return s.replace(/handi/gi, (m) => {
-    if (m === m.toUpperCase()) return "HOMAID"; // HANDI
-    if (m === m.toLowerCase()) return "homaid"; // handi
+    if (m === m.toUpperCase()) return "HANDI"; // HANDI
+    if (m === m.toLowerCase()) return "handi"; // handi
     // Title-case or mixed: prefer Title Case mapping
     const isTitle = m[0] === m[0].toUpperCase() && m.slice(1) === m.slice(1).toLowerCase();
-    return isTitle ? "Homaid" : "homaid";
+    return isTitle ? "Handi" : "handi";
   });
 }
 

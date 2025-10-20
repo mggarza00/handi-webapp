@@ -1453,6 +1453,12 @@ export default function ChatPanel({
       onRejectOffer={handleOpenReject}
       actionOfferId={acceptingOfferId ?? rejectingOfferId}
       dataPrefix={dataPrefix}
+      onOpenOfferDialog={(opts) => {
+        if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
+        if (typeof opts?.amount === 'number' && Number.isFinite(opts.amount)) setOfferAmount(String(opts.amount));
+        setOfferCurrency((opts?.currency && typeof opts.currency === 'string' && opts.currency.trim().length) ? opts.currency.toUpperCase() : 'MXN');
+        setOfferDialogOpen(true);
+      }}
     />
   );
   const offerDialog = (
