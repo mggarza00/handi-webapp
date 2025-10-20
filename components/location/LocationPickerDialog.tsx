@@ -63,6 +63,7 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
   const [loading, setLoading] = React.useState(false);
   const [reverseBusy, setReverseBusy] = React.useState(false);
   const [ac, setAc] = React.useState<AbortController | null>(null);
+  const [activeIndex, setActiveIndex] = React.useState<number>(-1);
 
   React.useEffect(() => {
     if (!open) {
@@ -90,9 +91,11 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
       const items: Suggestion[] = Array.isArray(j?.data) ? j.data : [];
       if (!mounted.current) return;
       setSuggestions(items);
+      setActiveIndex(items.length > 0 ? 0 : -1);
     } catch {
       if (!mounted.current) return;
       setSuggestions([]);
+      setActiveIndex(-1);
     } finally {
       if (!mounted.current) return;
       setLoading(false);
@@ -145,16 +148,46 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
               debouncedSearch(v);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); search(query); }
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActiveIndex((prev) => {
+                  const len = suggestions.length; if (len === 0) return -1;
+                  return prev < 0 ? 0 : (prev + 1) % len;
+                });
+                return;
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActiveIndex((prev) => {
+                  const len = suggestions.length; if (len === 0) return -1;
+                  return prev <= 0 ? len - 1 : prev - 1;
+                });
+                return;
+              }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (suggestions.length > 0 && activeIndex >= 0) {
+                  const s = suggestions[activeIndex]!;
+                  setCoords({ lat: s.lat, lon: s.lon });
+                  setAddress(s.label || "");
+                  setQuery(s.label || "");
+                  setSuggestions([]);
+                  setActiveIndex(-1);
+                } else {
+                  void search(query);
+                }
+              }
             }}
             aria-label="Buscar dirección"
+            aria-controls="location-suggestions"
+            aria-activedescendant={activeIndex >= 0 ? `location-suggestion-${activeIndex}` : undefined}
           />
           <Button type="button" variant="outline" onClick={() => search(query)} aria-label="Buscar">
             {loading ? 'Buscando…' : 'Buscar'}
           </Button>
         </div>
         {/* Suggestions list */}
-        <div role="listbox" aria-label="Sugerencias de direcciones" className="max-h-48 overflow-auto rounded border bg-white shadow-sm" hidden={suggestions.length === 0}>
+        <div id="location-suggestions" role="listbox" aria-label="Sugerencias de direcciones" className="max-h-48 overflow-auto rounded border bg-white shadow-sm" hidden={suggestions.length === 0}>
           {suggestions.map((s, idx) => {
             const sub = (() => {
               const a = s.address || {};
@@ -165,10 +198,12 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
               <button
                 type="button"
                 key={`${s.lat},${s.lon},${idx}`}
+                id={`location-suggestion-${idx}`}
                 role="option"
-                aria-selected={false}
+                aria-selected={activeIndex === idx}
+                onMouseEnter={() => setActiveIndex(idx)}
                 onClick={() => onPickSuggestion(s)}
-                className="block w-full text-left px-3 py-2 hover:bg-slate-50"
+                className={`block w-full text-left px-3 py-2 hover:bg-slate-50 ${activeIndex === idx ? 'bg-slate-50' : ''}`}
                 title={s.label}
               >
                 <div className="text-sm text-slate-900 truncate">{s.label}</div>
@@ -179,7 +214,7 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
         </div>
 
         {/* Map */}
-        <div className="relative h-[55vh] min-h-[300px] rounded overflow-hidden border">
+        <div className="relative h-[55vh] min-h-[320px] md:min-h-[520px] rounded overflow-hidden border">
           <MapContainer center={center} zoom={15} style={{ height: "100%", width: "100%" }} aria-label="Mapa de selección de ubicación">
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

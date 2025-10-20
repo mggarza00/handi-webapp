@@ -1126,7 +1126,7 @@ export default function NewRequestPage() {
           setCoords({ lat: dlat, lon: dlng });
           setAddressLat(dlat);
           setAddressLng(dlng);
-          try { setValue("address_lat", dlat as unknown as number, { shouldDirty: true }); setValue("address_lng", dlng as unknown as number, { shouldDirty: true }); } catch {}
+          try { setValue("address_lat", dlat, { shouldDirty: true }); setValue("address_lng", dlng, { shouldDirty: true }); } catch {}
         }
         setTimeout(() => {
           if (!cancelled) {
@@ -1358,6 +1358,7 @@ export default function NewRequestPage() {
 
           {/* Sugerencia AI: no se muestra UI; autoselección silenciosa si alta confianza. */}
 
+          {/* Unified Address field (autocomplete + map). Do not duplicate. */}
           {/* Nueva dirección (Leaflet) - colocada abajo de Subcategoría y arriba de Fecha requerida */}
           <div className="space-y-1.5">
             <Label>Dirección</Label>
@@ -1374,9 +1375,10 @@ export default function NewRequestPage() {
                   setCoords((prev) => prev ? { lat: prev.lat, lon: prev.lon } : null);
                   setAddressLat(null);
                   setAddressLng(null);
-                  try { setValue('address_lat', null as unknown as number, { shouldDirty: true }); setValue('address_lng', null as unknown as number, { shouldDirty: true }); } catch {}
+                  try { setValue('address_lat', null, { shouldDirty: true }); setValue('address_lng', null, { shouldDirty: true }); } catch {}
                 }}
                 placeholder="Calle y número, colonia, CP"
+                aria-label="Dirección"
                 className="flex-1"
               />
               <Button type="button" variant="outline" onClick={() => setOpenMap(true)} aria-label="Abrir mapa">
@@ -1539,18 +1541,19 @@ export default function NewRequestPage() {
           initialCoords={coords}
           initialAddress={address || null}
           onConfirm={(lat, lon, address) => {
-            setCoords({ lat, lon });
+            // Keep a single source of truth and sync RHF
+            setCoords({ lat: lat, lon: lon });
             setAddress(address);
-            setOpenMap(false);
-            // Sync with existing form address fields
-            setAddressLine(address || "");
+            try {
+              setValue('address_line', address, { shouldValidate: true });
+              setValue('address_lat', lat);
+              setValue('address_lng', lon);
+            } catch { /* ignore */ }
+            // Keep internal legacy states in sync (used elsewhere)
+            setAddressLine(address);
             setAddressLat(lat);
             setAddressLng(lon);
-            try {
-              setValue("address_line", address || "", { shouldDirty: true, shouldValidate: true });
-              setValue("address_lat", lat, { shouldDirty: true });
-              setValue("address_lng", lon, { shouldDirty: true });
-            } catch { /* ignore */ }
+            setOpenMap(false);
           }}
         />
         {showLoginModal ? (
