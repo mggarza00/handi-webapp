@@ -4,6 +4,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 import type { Database } from "@/types/supabase";
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
     if (!path) {
       return NextResponse.json(
         { error: "Missing 'path' query param" },
-        { status: 400 },
+        { status: 400, headers: JSONH },
       );
     }
 
@@ -23,11 +25,11 @@ export async function GET(req: NextRequest) {
       .createSignedUrl(path, expires);
 
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: 400, headers: JSONH });
 
-    return NextResponse.json({ url: data.signedUrl, expiresIn: expires });
+    return NextResponse.json({ url: data.signedUrl, expiresIn: expires }, { status: 200, headers: JSONH });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: JSONH });
   }
 }

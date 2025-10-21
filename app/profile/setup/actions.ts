@@ -60,6 +60,16 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   const years_raw = (formData.get("years_experience") as string | null) ?? null;
   const years_experience = years_raw && years_raw.trim() !== "" ? Number(years_raw) : null;
   const city = (formData.get("city") as string | null) ?? null;
+  const service_cities_raw = (formData.get("service_cities") as string | null) ?? null;
+  const service_cities = (() => {
+    const v = (service_cities_raw || "").trim();
+    if (!v) return undefined;
+    try {
+      const parsed = JSON.parse(v);
+      if (Array.isArray(parsed)) return parsed.filter((x) => typeof x === "string").map((s) => s.trim()).filter(Boolean);
+    } catch { /* csv fallback */ }
+    return v.split(",").map((s) => s.trim()).filter(Boolean);
+  })();
   const categories = parseCsvOrJson((formData.get("categories") as string | null) ?? null);
   const subcategories = parseCsvOrJson((formData.get("subcategories") as string | null) ?? null);
 
@@ -71,7 +81,7 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
     .maybeSingle();
   const { data: pro } = await supabase
     .from("professionals")
-    .select("headline, years_experience, city, categories, subcategories, avatar_url, bio")
+    .select("headline, years_experience, city, cities, categories, subcategories, avatar_url, bio")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -89,6 +99,7 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   if (headline != null && headline !== (pro?.headline ?? null)) proChanges.headline = headline;
   if (typeof years_experience === "number" && years_experience !== (pro?.years_experience ?? null)) proChanges.years_experience = years_experience;
   if (city != null && city !== (pro?.city ?? null)) proChanges.city = city;
+  if (service_cities && !deepEqual(service_cities, (pro as any)?.cities ?? null)) (proChanges as any).cities = service_cities;
   if (bio != null && bio !== (pro?.bio ?? null)) proChanges.bio = bio;
   if (avatar_url != null && avatar_url !== (pro?.avatar_url ?? null)) proChanges.avatar_url = avatar_url;
   if (categories && !deepEqual(categories, (pro?.categories as unknown) ?? null)) proChanges.categories = categories;
@@ -126,4 +137,3 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
 
   return { ok: true };
 }
-

@@ -119,7 +119,7 @@ export async function GET(req: Request) {
       })
     : data;
 
-  return NextResponse.json({ ok: true, data: safe, nextCursor }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: safe, nextCursor }, { status: 200, headers: JSONH });
 }
 
 // POST /api/requests

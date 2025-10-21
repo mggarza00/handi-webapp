@@ -75,7 +75,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       pro_headline: proHeadlines.get(a.professional_id) ?? null,
     }));
 
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(

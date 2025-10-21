@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           payload: { offer_id: offerId, status: 'paid' },
         } as any);
     } catch { /* ignore */ }
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'INTERNAL_ERROR';
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
@@ -40,4 +40,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-

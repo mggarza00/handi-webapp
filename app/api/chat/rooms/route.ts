@@ -18,7 +18,7 @@ export async function GET(req: Request) {
         // Unauthenticated: return empty list instead of 401 to avoid UX break
         const status = (e as any)?.status;
         if (status === 401) {
-          return NextResponse.json({ ok: true, data: [] }, { headers: JSONH });
+          return NextResponse.json({ ok: true, data: [] }, { status: 200, headers: JSONH });
         }
         throw e;
       }
@@ -87,7 +87,7 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json({ ok: true, data: items }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: items }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     const anyE = e as any;

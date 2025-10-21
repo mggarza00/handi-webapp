@@ -41,7 +41,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         { status: 400, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data: up.data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: up.data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(
@@ -53,4 +53,3 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

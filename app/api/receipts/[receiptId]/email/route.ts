@@ -8,11 +8,13 @@ import { getAdminSupabase } from '@/lib/supabase/admin';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function POST(req: Request, { params }: { params: { receiptId: string } }) {
   const url = new URL(req.url);
   const to = (url.searchParams.get('to') || '').trim();
   const data = await getReceipt(params.receiptId);
-  if (!data) return NextResponse.json({ ok: false, error: 'NOT_FOUND' }, { status: 404 });
+  if (!data) return NextResponse.json({ ok: false, error: 'NOT_FOUND' }, { status: 404, headers: JSONH });
   const link = `${process.env.NEXT_PUBLIC_APP_URL || ''}/receipts/${encodeURIComponent(params.receiptId)}`;
   const total = (() => {
     if (typeof data.payment.amountMXN === 'number') {
@@ -32,7 +34,7 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
   </div>`;
   const subject = `Recibo ${params.receiptId} - ${data.service.title}`;
   const recipient = to || (data.customer?.email || '');
-  if (!recipient) return NextResponse.json({ ok: false, error: 'MISSING_TO' }, { status: 400 });
+  if (!recipient) return NextResponse.json({ ok: false, error: 'MISSING_TO' }, { status: 400, headers: JSONH });
   // Generate PDF by calling the PDF endpoint (best-effort)
   let pdfBase64: string | null = null;
   try {
@@ -45,7 +47,7 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
   } catch { pdfBase64 = null; }
   const attachments = pdfBase64 ? [{ filename: `handi-recibo-${params.receiptId}.pdf`, content: pdfBase64, mime: 'application/pdf' }] : undefined;
   const res = await sendEmail({ to: recipient, subject, html, attachments });
-  if (!res.ok) return NextResponse.json({ ok: false, error: 'SEND_FAILED' }, { status: 500 });
+  if (!res.ok) return NextResponse.json({ ok: false, error: 'SEND_FAILED' }, { status: 500, headers: JSONH });
   // Also attach into chat (best-effort)
   if (pdfBase64 && data.service.requestId) {
     try {
@@ -89,5 +91,5 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
       }
     } catch { /* ignore chat attach failures */ }
   }
-  return NextResponse.json({ ok: true, attached: Boolean(pdfBase64) });
+  return NextResponse.json({ ok: true, attached: Boolean(pdfBase64) }, { headers: JSONH });
 }

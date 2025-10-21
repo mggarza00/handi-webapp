@@ -67,7 +67,7 @@ export async function GET(req: Request) {
         const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
         // Si falla el fallback admin (p. ej. falta SERVICE_ROLE), no interrumpir: responde vacío.
         const payload = { ok: true, data: [] as unknown[], meta: wantDebug ? { source: "admin_error", error: msg } : undefined };
-        return NextResponse.json(payload, { headers: JSONH });
+        return NextResponse.json(payload, { status: 200, headers: JSONH });
       }
     }
 
@@ -245,7 +245,7 @@ export async function GET(req: Request) {
           },
         }
       : { ok: true, data: mapped };
-    return NextResponse.json(payload, { headers: JSONH });
+    return NextResponse.json(payload, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(

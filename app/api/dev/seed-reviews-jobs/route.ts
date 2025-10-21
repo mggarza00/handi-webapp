@@ -85,7 +85,7 @@ export async function POST() {
       if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: JSONH });
     }
 
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(
@@ -94,4 +94,3 @@ export async function POST() {
     );
   }
 }
-

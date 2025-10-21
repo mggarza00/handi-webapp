@@ -6,12 +6,14 @@ import type { Database } from '@/types/supabase';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function GET(_req: NextRequest) {
   try {
     const supabase = createRouteHandlerClient<Database>({ cookies });
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
-    if (!user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401, headers: JSONH });
 
     // 1) Intentar pro_calendar_events
     try {
@@ -21,7 +23,7 @@ export async function GET(_req: NextRequest) {
         .eq('pro_id', user.id)
         .order('scheduled_date', { ascending: true, nullsFirst: false });
       if (!error && Array.isArray(data) && data.length) {
-        return NextResponse.json({ ok: true, source: 'pro_calendar_events', items: data });
+        return NextResponse.json({ ok: true, source: 'pro_calendar_events', items: data }, { status: 200, headers: JSONH });
       }
     } catch { /* ignore */ }
 
@@ -49,13 +51,12 @@ export async function GET(_req: NextRequest) {
         scheduled_time: r.scheduled_time || null,
         status: r.status || null,
       }));
-      return NextResponse.json({ ok: true, source: 'requests', items });
+      return NextResponse.json({ ok: true, source: 'requests', items }, { status: 200, headers: JSONH });
     } catch { /* ignore */ }
 
-    return NextResponse.json({ ok: true, source: 'empty', items: [] });
+    return NextResponse.json({ ok: true, source: 'empty', items: [] }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: JSONH });
   }
 }
-

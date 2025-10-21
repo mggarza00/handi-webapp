@@ -3,6 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useFormDraft } from "@/hooks/useFormDraft";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { useRouter, useSearchParams } from "next/navigation";
 // Date: usamos input nativo
@@ -135,10 +136,17 @@ export default function NewRequestPage() {
   
 
   // react-hook-form: valores por defecto mínimos para integración
-  const { register, handleSubmit, setValue, watch } = useForm<FormValues>({
+  const form = useForm<FormValues>({
     defaultValues: { city: "Monterrey", address: "", address_line: "", address_lat: null, address_lng: null },
     mode: "onChange",
+    shouldUnregister: false,
   });
+  const { register, handleSubmit, setValue, watch, reset } = form;
+
+  // Clave estable por usuario + ruta para evitar colisiones
+  const userId = me?.id ?? "anon";
+  // Persistencia endurecida: deshabilitada en producción (handi.mx), habilitada en localhost/preview.
+  useFormDraft<FormValues>(`draft:requests/new:${userId}`, watch, reset, { debounceMs: 400 });
 
   const suggestCityUpdate = useCallback((maybeCity?: string | null) => {
     const c = (maybeCity || "").toString().trim();

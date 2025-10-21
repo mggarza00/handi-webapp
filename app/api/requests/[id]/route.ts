@@ -91,14 +91,14 @@ export async function GET(
       }
       if (!canSee) {
         const { address_line, address_place_id, address_lat, address_lng, ...rest } = (data || {}) as Record<string, unknown>;
-        return NextResponse.json({ ok: true, data: rest }, { headers: JSONH });
+        return NextResponse.json({ ok: true, data: rest }, { status: 200, headers: JSONH });
       }
     } catch {
       const { address_line, address_place_id, address_lat, address_lng, ...rest } = (data || {}) as Record<string, unknown>;
-      return NextResponse.json({ ok: true, data: rest }, { headers: JSONH });
+      return NextResponse.json({ ok: true, data: rest }, { status: 200, headers: JSONH });
     }
 
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

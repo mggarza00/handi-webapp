@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       if (error && (error as any).code !== "23505") {
         return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: JSONH });
       }
-      return NextResponse.json({ ok: true, is_favorite: true }, { headers: JSONH });
+      return NextResponse.json({ ok: true, is_favorite: true }, { status: 200, headers: JSONH });
     }
 
     const { error } = await supabase
@@ -54,10 +54,9 @@ export async function POST(req: Request) {
       .eq("pro_id", user.id)
       .eq("request_id", requestId);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400, headers: JSONH });
-    return NextResponse.json({ ok: true, is_favorite: false }, { headers: JSONH });
+    return NextResponse.json({ ok: true, is_favorite: false }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
   }
 }
-

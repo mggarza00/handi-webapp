@@ -83,7 +83,7 @@ export async function POST(req: Request) {
       const { origin } = new URL(req.url);
       return NextResponse.redirect(new URL(`/mensajes/${ensured.id}`, origin), 303);
     }
-    return NextResponse.json({ ok: true, id: ensured.id }, { headers: JSONH });
+    return NextResponse.json({ ok: true, id: ensured.id }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(
@@ -117,7 +117,7 @@ export async function GET(req: Request) {
       const { origin } = new URL(req.url);
       return NextResponse.redirect(new URL(`/mensajes/${ensured.id}`, origin), 303);
     }
-    return NextResponse.json({ ok: true, id: ensured.id }, { headers: JSONH });
+    return NextResponse.json({ ok: true, id: ensured.id }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(

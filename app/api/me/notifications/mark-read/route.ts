@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       .eq("user_id", userId)
       .is("read_at", null);
     if (error) throw error;
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });

@@ -260,7 +260,7 @@ export async function POST(req: Request) {
     `;
 
     await sendEmail({ to: adminTo, subject, html });
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

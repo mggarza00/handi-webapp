@@ -108,7 +108,7 @@ export async function GET() {
             }
           : null,
       };
-      return NextResponse.json({ ok: true, data: payload }, { headers: JSONH });
+      return NextResponse.json({ ok: true, data: payload }, { status: 200, headers: JSONH });
     }
 
     const proCities = uniq([
@@ -223,7 +223,7 @@ export async function GET() {
       },
     };
 
-    return NextResponse.json({ ok: true, data: payload }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: payload }, { status: 200, headers: JSONH });
   } catch (e: unknown) {
     const msg = errorMessage(e);
     const status = msg === "UNAUTHORIZED" ? 401 : 500;

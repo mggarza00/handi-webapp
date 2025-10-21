@@ -77,7 +77,7 @@ export async function POST(
       { status: 500, headers: JSONH },
     );
   }
-  return NextResponse.json({ ok: true, data: upd.data }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: upd.data }, { status: 200, headers: JSONH });
 }
 
 export function GET() {

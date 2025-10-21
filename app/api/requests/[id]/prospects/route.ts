@@ -44,5 +44,5 @@ export async function GET(_req: Request, { params }: CtxP) {
     );
   }
 
-  return NextResponse.json({ ok: true, data: data ?? [] }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: data ?? [] }, { status: 200, headers: JSONH });
 }

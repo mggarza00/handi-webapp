@@ -6,6 +6,8 @@ import { getInterFont } from "@/lib/fonts";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function GET() {
   const candidates = [
     path.join(process.cwd(), "public", "fonts", "Inter-VariableFont_slnt,wght.ttf"),
@@ -35,5 +37,5 @@ export async function GET() {
       error = e?.message || String(e);
     }
   }
-  return NextResponse.json({ ok: true, used, loaded, error, candidates: results });
+  return NextResponse.json({ ok: true, used, loaded, error, candidates: results }, { status: 200, headers: JSONH });
 }

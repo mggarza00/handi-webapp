@@ -41,7 +41,7 @@ export async function GET(_req: Request, { params }: CtxP) {
         { status: 404, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch {
     return new NextResponse(
       JSON.stringify({ ok: false, error: "INTERNAL_ERROR" }),

@@ -4,6 +4,16 @@
 
 export type DraftKey = "draft:create-service" | "draft:apply-professional";
 
+/** Borra de forma segura una clave en localStorage si existe */
+export function clearDraftKey(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
 function truthy(v: string | undefined | null): boolean {
   const s = (v || "").trim().toLowerCase();
   return s === "1" || s === "true" || s === "on" || s === "yes" || s === "enable" || s === "enabled";
@@ -21,19 +31,31 @@ function getHostname(): string {
 
 // Public feature flag to guard draft read/write
 export function draftsEnabled(): boolean {
-  // Allow explicit override via env var
-  const override = process.env.NEXT_PUBLIC_ENABLE_FORM_DRAFTS;
-  if (typeof override === "string" && override.trim() !== "") return truthy(override);
+  // Never on SSR
+  if (typeof window === 'undefined') return false;
 
-  const host = getHostname();
-  const isLocal = host === "localhost" || host === "127.0.0.1" || host === "::1";
-  const isPreview = /\.vercel\.app$/i.test(host);
-  const isHandiProd = host === "handi.mx" || /\.handi\.mx$/i.test(host);
+  // Explicit override via env var takes precedence
+  const explicit = process.env.NEXT_PUBLIC_ENABLE_FORM_DRAFTS;
+  if (typeof explicit === 'string') {
+    return explicit.trim().toLowerCase() === 'true';
+  }
 
-  if (isHandiProd) return false; // disable drafts on production domains
-  if (isLocal || isPreview) return true; // enable on local/preview
-  // Fallback: enable unless explicitly disabled
-  return true;
+  // Autodetect by environment/host
+  const env = (process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV ?? 'production').toLowerCase();
+  const host = window.location.hostname;
+
+  const isProdEnv = env === 'production';
+  const isHandiProdHost = host === 'handi.mx' || host.endsWith('.handi.mx');
+
+  // Local/Preview
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+  const isPreview = env === 'preview' || host.endsWith('.vercel.app');
+
+  // Default policy:
+  // - Production on handi domain: disable
+  // - Local/preview: enable
+  if (isHandiProdHost && isProdEnv) return false;
+  return isLocal || isPreview || !isProdEnv;
 }
 
 export function readDraft<T = unknown>(key: DraftKey): T | null {

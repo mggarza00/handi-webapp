@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, bucket }, { headers: JSONH });
+    return NextResponse.json({ ok: true, bucket }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

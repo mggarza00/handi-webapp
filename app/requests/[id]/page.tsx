@@ -64,7 +64,7 @@ export default async function RequestDetailPage({ params }: Params) {
   if (!res.ok || !j?.ok) {
     return (
       <main className="mx-auto max-w-6xl p-6">
-        No se encontrÃ³ la solicitud.
+        No se encontró la solicitud.
       </main>
     );
   }

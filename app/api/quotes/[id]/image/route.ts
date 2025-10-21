@@ -17,6 +17,8 @@ const PNG_HEADERS = {
   "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
 } as const;
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     const id = (params?.id || "").trim();
@@ -168,6 +170,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
   } catch (e: any) {
     const msg = e?.message || String(e);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
   }
 }

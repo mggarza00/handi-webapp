@@ -84,7 +84,7 @@ export async function POST(req: Request, { params }: Ctx) {
 
     // Invalida caché de página pública del profesional
     try { revalidateTag(`profile:${professional_id}`); } catch (_e) { void _e; }
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(

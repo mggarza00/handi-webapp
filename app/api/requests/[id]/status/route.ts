@@ -10,17 +10,19 @@ const Body = z.object({
   nextStatus: z.enum(['scheduled', 'in_process', 'completed']),
 });
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const requestId = params.id;
     const parsed = Body.safeParse(await req.json().catch(() => ({})));
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400, headers: JSONH });
     const next = parsed.data.nextStatus;
 
     const userClient = createRouteHandlerClient<Database>({ cookies });
     const { data: auth } = await userClient.auth.getUser();
     const me = auth?.user?.id ?? null;
-    if (!me) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+    if (!me) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401, headers: JSONH });
 
     const admin = getAdminSupabase() as any;
     const { data: reqRow } = await admin
@@ -28,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       .select('id, created_by, status')
       .eq('id', requestId)
       .maybeSingle();
-    if (!reqRow) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
+    if (!reqRow) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404, headers: JSONH });
     const current = String((reqRow as any).status ?? '').toLowerCase();
     const ownerId = String((reqRow as any).created_by ?? '');
 
@@ -43,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         .limit(1);
       allowed = Array.isArray(convs) && convs.length > 0;
     }
-    if (!allowed) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
+    if (!allowed) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403, headers: JSONH });
 
     // Mapa de transición simple
     const mapCompletedTo = 'finished';
@@ -55,14 +57,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       (current === 'in_process' && normalizedNext === mapCompletedTo) ||
       // permitir idempotencia
       current === normalizedNext;
-    if (!ok) return NextResponse.json({ error: `INVALID_TRANSITION ${current} -> ${normalizedNext}` }, { status: 400 });
+    if (!ok) return NextResponse.json({ error: `INVALID_TRANSITION ${current} -> ${normalizedNext}` }, { status: 400, headers: JSONH });
 
     // Aplicar cambio en requests
     const { error: upErr } = await admin
       .from('requests')
       .update({ status: normalizedNext } as any)
       .eq('id', requestId);
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 400 });
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 400, headers: JSONH });
 
     // Espejo en calendario del pro (best-effort)
     try {
@@ -97,9 +99,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     } catch { /* ignore */ }
 
     const ui = next; // devolver etiqueta conforme a UI solicitada
-    return NextResponse.json({ ok: true, data: { id: requestId, status: ui } });
+    return NextResponse.json({ ok: true, data: { id: requestId, status: ui } }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: JSONH });
   }
 }

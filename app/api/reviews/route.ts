@@ -30,13 +30,13 @@ export async function POST(req: NextRequest) {
   try {
     const json = await req.json().catch(() => ({}));
     const parsed = Body.safeParse(json);
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400, headers: JSONH });
     const { requestId, reviewerRole, rating, comment, professionalId, clientId, photos } = parsed.data;
 
     const userClient = createRouteHandlerClient<Database>({ cookies });
     const { data: auth } = await userClient.auth.getUser();
     const me = auth?.user?.id ?? null;
-    if (!me) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 });
+    if (!me) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401, headers: JSONH });
 
     // Validación de pertenencia (participante del request)
     const admin = getAdminSupabase() as any;
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       .eq('id', requestId)
       .maybeSingle();
     const ownerId = (reqRow as any)?.created_by as string | undefined;
-    if (!ownerId) return NextResponse.json({ error: 'REQUEST_NOT_FOUND' }, { status: 404 });
+    if (!ownerId) return NextResponse.json({ error: 'REQUEST_NOT_FOUND' }, { status: 404, headers: JSONH });
 
     // Resolver contraparte
     let toUserId: string | null = null;
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     } else {
       toUserId = clientId ?? ownerId;
     }
-    if (!toUserId) return NextResponse.json({ error: 'MISSING_COUNTERPART' }, { status: 400 });
+    if (!toUserId) return NextResponse.json({ error: 'MISSING_COUNTERPART' }, { status: 400, headers: JSONH });
 
     // Comprobar que el revisor es efectivamente parte (cliente dueño o pro con conversación)
     let allowed = me === ownerId;
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         .limit(1);
       allowed = Array.isArray(convs) && convs.length > 0;
     }
-    if (!allowed) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
+    if (!allowed) return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403, headers: JSONH });
 
     // Evitar duplicados por (request_id, from_user_id)
     const { data: exists } = await admin
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       .eq('from_user_id', me)
       .limit(1);
     if (Array.isArray(exists) && exists.length) {
-      return NextResponse.json({ error: 'DUPLICATE_REVIEW' }, { status: 409 });
+      return NextResponse.json({ error: 'DUPLICATE_REVIEW' }, { status: 409, headers: JSONH });
     }
 
     // Guardar rating
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
       .insert({ request_id: requestId, from_user_id: me, to_user_id: toUserId, stars: rating, comment: comment ?? null })
       .select('id')
       .single();
-    if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 400 });
+    if (ins.error) return NextResponse.json({ error: ins.error.message }, { status: 400, headers: JSONH });
 
     // Guardar fotos (opcional) en request_photos (se asume que ya fueron subidas a Storage y enviamos sus paths)
     if (Array.isArray(photos) && photos.length) {
@@ -144,9 +144,10 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* ignore */ }
 
-    return NextResponse.json({ ok: true, id: (ins.data as any)?.id ?? null });
+    return NextResponse.json({ ok: true, id: (ins.data as any)?.id ?? null }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: JSONH });
   }
 }
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;

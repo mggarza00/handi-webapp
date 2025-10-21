@@ -68,7 +68,7 @@ export async function GET(_req: Request, { params }: CtxP) {
       }),
   );
 
-  return NextResponse.json({ ok: true, data: items }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: items }, { status: 200, headers: JSONH });
 }
 
 export async function DELETE(req: Request, { params }: CtxP) {
@@ -118,5 +118,5 @@ export async function DELETE(req: Request, { params }: CtxP) {
       { ok: false, error: error.message },
       { status: 400, headers: JSONH },
     );
-  return NextResponse.json({ ok: true }, { headers: JSONH });
+  return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
 }

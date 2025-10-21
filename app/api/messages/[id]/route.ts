@@ -37,7 +37,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (upd.error)
       return NextResponse.json({ ok: false, error: upd.error.message }, { status: 400, headers: JSONH });
 
-    return NextResponse.json({ ok: true, data: upd.data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: upd.data }, { status: 200, headers: JSONH });
   } catch (e) {
     const anyE = e as any;
     const status = typeof anyE?.status === "number" ? anyE.status : 500;
@@ -45,4 +45,3 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ ok: false, error: message }, { status, headers: JSONH });
   }
 }
-

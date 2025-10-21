@@ -27,7 +27,7 @@ export async function GET() {
         { ok: false, error: error.message },
         { status: 400, headers: JSONH },
       );
-    return NextResponse.json({ ok: true, data: data ?? [] }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: data ?? [] }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNAUTHORIZED";
     return NextResponse.json({ ok: false, error: msg }, { status: 401, headers: JSONH });
@@ -84,17 +84,17 @@ export async function POST(req: Request) {
         .eq("customer_id", peer_id)
         .eq("pro_id", user.id)
         .maybeSingle();
-      if (q.data) return NextResponse.json({ ok: true, data: q.data }, { headers: JSONH });
+      if (q.data) return NextResponse.json({ ok: true, data: q.data }, { status: 200, headers: JSONH });
     }
     if (error) {
       const alt = await tryUpsert(peer_id, user.id);
-      if (alt.data) return NextResponse.json({ ok: true, data: alt.data }, { headers: JSONH });
+      if (alt.data) return NextResponse.json({ ok: true, data: alt.data }, { status: 200, headers: JSONH });
       return NextResponse.json(
         { ok: false, error: alt.error?.message || error.message },
         { status: 400, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNAUTHORIZED";
     return NextResponse.json({ ok: false, error: msg }, { status: 401, headers: JSONH });

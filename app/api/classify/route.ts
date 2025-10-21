@@ -356,7 +356,7 @@ export async function POST(req: Request) {
     }
     const best = suggestions[0] ?? null;
 
-    return NextResponse.json({ ok: true, best, suggestions }, { headers: JSONH });
+    return NextResponse.json({ ok: true, best, suggestions }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       .single();
 
     if (!up.error && up.data) {
-      return NextResponse.json({ ok: true, data: up.data }, { headers: JSONH });
+      return NextResponse.json({ ok: true, data: up.data }, { status: 200, headers: JSONH });
     }
     const detail = up.error?.message || "CONVERSATION_UPSERT_FAILED";
     return NextResponse.json({ ok: false, error: detail }, { status: 400, headers: JSONH });

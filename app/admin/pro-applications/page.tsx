@@ -94,7 +94,7 @@ export default async function AdminProApplicationsPage({
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="Buscar por nombre, correo, telÃ©fono o user id"
+          placeholder="Buscar por nombre, correo, teléfono o user id"
           className="w-64 rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <select
@@ -103,7 +103,7 @@ export default async function AdminProApplicationsPage({
           className="rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Todas</option>
-          <option value="pending">En revisiÃ³n</option>
+          <option value="pending">En revisión</option>
           <option value="accepted">Aceptadas</option>
           <option value="rejected">Rechazadas</option>
         </select>
@@ -131,7 +131,7 @@ export default async function AdminProApplicationsPage({
               <th className="px-3 py-2">ID</th>
               <th className="px-3 py-2">Nombre</th>
               <th className="px-3 py-2">Correo</th>
-              <th className="px-3 py-2">TelÃ©fono</th>
+              <th className="px-3 py-2">Teléfono</th>
               <th className="px-3 py-2">Empresa</th>
               <th className="px-3 py-2">Estado</th>
               <th className="px-3 py-2">Creada</th>
@@ -163,7 +163,7 @@ export default async function AdminProApplicationsPage({
 
       <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
         <div>
-          PÃ¡gina {page} de {pages} Â· {total} resultados
+          Página {page} de {pages} · {total} resultados
         </div>
         <div className="flex items-center gap-2">
           {page > 1 ? (
@@ -199,7 +199,7 @@ function labelStatus(s: string | null) {
     case "rejected":
       return "Rechazada";
     default:
-      return "En revisiÃ³n";
+      return "En revisión";
   }
 }
 
@@ -213,7 +213,7 @@ function qs(obj: Record<string, string>) {
 
 function unauth() {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12">Debes iniciar sesiÃ³n.</main>
+    <main className="mx-auto max-w-3xl px-4 py-12">Debes iniciar sesión.</main>
   );
 }
 function forbidden() {
@@ -224,5 +224,3 @@ function forbidden() {
 function problem(msg: string) {
   return <main className="mx-auto max-w-3xl px-4 py-12">Error: {msg}</main>;
 }
-
-

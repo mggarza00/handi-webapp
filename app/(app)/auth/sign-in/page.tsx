@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -29,7 +29,7 @@ export default function SignInPage() {
     const status = sp?.get("status");
     if (err) {
       if (code === "over_request_rate_limit" || status === "429" || /rate limit/i.test(err)) {
-        setError("Demasiados intentos al iniciar sesiÃ³n. Espera 1â€“2 minutos e intÃ©ntalo de nuevo, o usa el enlace por correo.");
+        setError("Demasiados intentos al iniciar sesión. Espera 1–2 minutos e inténtalo de nuevo, o usa el enlace por correo.");
       } else {
         setError(err);
       }
@@ -134,7 +134,7 @@ const handleFacebook = async () => {
           ? err.message
           : typeof err === "string"
           ? err
-          : "Error al iniciar sesion",
+          : "Error al iniciar sesión",
       );
     } finally {
       setSending(false);
@@ -144,9 +144,9 @@ const handleFacebook = async () => {
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl shadow p-6 border bg-white dark:bg-neutral-900">
-        <h1 className="text-2xl font-semibold mb-2">Iniciar sesion</h1>
+        <h1 className="text-2xl font-semibold mb-2">Iniciar sesión</h1>
         <p className="text-sm text-neutral-500 mb-6">
-          Entra con Google o Facebook, o recibe un enlace magico por correo.
+          Entra con Google o Facebook, o recibe un enlace mágico por correo.
         </p>
 
         <Button
@@ -202,7 +202,7 @@ const handleFacebook = async () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contrasena (opcional)"
+              placeholder="Contraseña (opcional)"
               className="w-full rounded-xl border px-4 py-2"
               autoComplete="current-password"
             />
@@ -218,7 +218,7 @@ const handleFacebook = async () => {
                   <span>Enviando</span>
                 </>
               ) : password.trim().length > 0 ? (
-                "Iniciar sesion"
+                "Iniciar sesión"
               ) : (
                 "Enviar enlace"
               )}

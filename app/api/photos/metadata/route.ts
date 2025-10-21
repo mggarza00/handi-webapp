@@ -14,6 +14,8 @@ const BodySchema = z.object({
   height: z.number().int().positive().optional(),
 });
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json().catch(() => ({}));
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
     if (!body.success) {
       return NextResponse.json(
         { error: body.error.flatten() },
-        { status: 400 },
+        { status: 400, headers: JSONH },
       );
     }
 
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user)
-      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
     const insertPayload: Database["public"]["Tables"]["request_photos"]["Insert"] = {
       request_id,
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: 400, headers: JSONH });
 
     const expiresIn = 3600;
     const signed: { url?: string; thumbUrl?: string } = {};
@@ -65,9 +67,9 @@ export async function POST(req: NextRequest) {
       if (!thumbErr) signed.thumbUrl = thumbSigned?.signedUrl;
     }
 
-    return NextResponse.json({ ok: true, data: { row, ...signed, expiresIn } });
+    return NextResponse.json({ ok: true, data: { row, ...signed, expiresIn } }, { status: 200, headers: JSONH });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: JSONH });
   }
 }

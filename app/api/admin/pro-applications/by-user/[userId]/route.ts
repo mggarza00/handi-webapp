@@ -22,7 +22,7 @@ export async function GET(
       .limit(1)
       .maybeSingle();
     if (error) throw error;
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

@@ -41,7 +41,7 @@ export async function GET(req: Request) {
   if (!hasEnv) {
     const url = new URL(req.url);
     const _limit = Math.max(1, Math.min(50, Number(url.searchParams.get("limit") || 20)));
-    return NextResponse.json({ ok: true, items: [] }, { headers: JSONH });
+    return NextResponse.json({ ok: true, items: [] }, { status: 200, headers: JSONH });
   }
 
   const { client, userId } = await getClientAndUser(req);
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
     if (onlyUnread) q = q.is("read_at", null);
     const { data, error } = await q;
     if (error) throw error;
-    return NextResponse.json({ ok: true, items: data ?? [] }, { headers: JSONH });
+    return NextResponse.json({ ok: true, items: data ?? [] }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });

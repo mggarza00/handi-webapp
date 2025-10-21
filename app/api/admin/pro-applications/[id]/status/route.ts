@@ -198,7 +198,7 @@ export async function POST(
     } catch {
       // ignore email errors
     }
-    return NextResponse.json({ ok: true, data: upd.data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: upd.data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(
