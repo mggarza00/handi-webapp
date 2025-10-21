@@ -11,10 +11,12 @@ const comfortaaBold = localFont({
   variable: "--font-comfortaa-bold",
 });
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
 export default function Page() {
+  const router = useRouter();
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
   const [categories, setCategories] = useState<string[]>([]);
   type Subcat = { name: string; icon: string | null };
@@ -130,7 +132,7 @@ export default function Page() {
     (async () => {
       try {
         const v = document.createElement("video");
-        v.src = "/video/Homaid-video.mp4";
+        v.src = "/video/Handi_Video_Demo.mp4";
         v.preload = "auto";
         await new Promise<void>((resolve, reject) => {
           const onLoaded = () => resolve();
@@ -295,8 +297,8 @@ export default function Page() {
             <h1 className="rubik font-medium mb-6 text-2xl sm:text-3xl md:text-4xl leading-tight tracking-wide text-center whitespace-nowrap text-[#11304a]">
               Bienvenido a {" "}
               <span className="inline-flex items-baseline gap-0">
-                <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Han</span>
-                <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>di</span>
+                <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Hand</span>
+                <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>i</span>
               </span>
             </h1>
             <p className="mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance">
@@ -312,6 +314,24 @@ export default function Page() {
             <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:flex-wrap sm:gap-x-2 sm:gap-y-3">
               <Link
                 href="/requests/new"
+                onClick={async (e) => {
+                  try {
+                    e.preventDefault();
+                  } catch {}
+                  try {
+                    const sb = createClientComponentClient();
+                    const { data } = await sb.auth.getSession();
+                    const next = "/requests/new";
+                    if (data?.session) {
+                      router.push(next);
+                    } else {
+                      router.push(`/auth/sign-in?next=${encodeURIComponent(next)}&toast=new-request`);
+                    }
+                  } catch {
+                    // Fallback: navega directo; /requests/new hará el gating
+                    router.push("/requests/new");
+                  }
+                }}
                 className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#009377] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#0a7f6a] sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
               >
                 <MagnifierIcon className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -319,6 +339,23 @@ export default function Page() {
               </Link>
               <Link
                 href="/pro-apply"
+                onClick={async (e) => {
+                  try {
+                    e.preventDefault();
+                  } catch {}
+                  try {
+                    const sb = createClientComponentClient();
+                    const { data } = await sb.auth.getSession();
+                    const next = "/pro-apply";
+                    if (data?.session) {
+                      router.push(next);
+                    } else {
+                      router.push(`/auth/sign-in?next=${encodeURIComponent(next)}&toast=pro-apply`);
+                    }
+                  } catch {
+                    router.push("/pro-apply");
+                  }
+                }}
                 className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0B3949] px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-[#082634] sm:gap-2 sm:px-4 sm:py-3 sm:text-sm whitespace-nowrap"
               >
                 <IdCardIcon className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -337,7 +374,7 @@ export default function Page() {
               <video
                 ref={videoRef}
                 className="h-full w-full object-cover"
-                src="/video/Homaid-video.mp4"
+                src="/video/Handi_Video_Demo.mp4"
                 title="Video Bienvenida Handi"
                 controls={showControls}
                 poster={posterUrl ?? "/images/poster.png"}

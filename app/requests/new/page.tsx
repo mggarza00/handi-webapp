@@ -37,6 +37,8 @@ import {
   setReturnTo,
   getReturnTo,
   clearGatingFlags,
+  draftsEnabled,
+  purgeAllDrafts,
 } from "@/lib/drafts";
 import { useDebounced } from "./hooks/useClassify";
 import { Popover, PopoverContent } from "@/components/ui/popover";
@@ -119,6 +121,15 @@ export default function NewRequestPage() {
   const [address, setAddress] = useState<string>("");
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [addrResolveBusy, setAddrResolveBusy] = useState(false);
+
+  // In production (handi.mx), disable drafts and purge any previous keys on mount
+  useEffect(() => {
+    try {
+      if (!draftsEnabled()) {
+        purgeAllDrafts();
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   // On mount, try to prefill coords/address softly using device geolocation
   
@@ -308,7 +319,7 @@ export default function NewRequestPage() {
     };
   }, []);
 
-  // Auto-open sign-in modal if unauthenticated on entry
+  // Redirect to sign-in if unauthenticated on entry (no embedded modal)
   useEffect(() => {
     if (!authChecked) return;
     if (!me) {
@@ -317,9 +328,14 @@ export default function NewRequestPage() {
       } catch {
         /* noop */
       }
-      setShowLoginModal(true);
+      try {
+        const ret = typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}`
+          : '/requests/new';
+        router.replace(`/auth/sign-in?next=${encodeURIComponent(ret)}&toast=new-request`);
+      } catch {/* noop */}
     }
-  }, [authChecked, me]);
+  }, [authChecked, me, router]);
 
   // Close modal and refresh page after login so user context is loaded
   useEffect(() => {
@@ -1556,17 +1572,7 @@ export default function NewRequestPage() {
             setOpenMap(false);
           }}
         />
-        {showLoginModal ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div role="dialog" aria-modal="true" className="w-[96vw] max-w-lg overflow-hidden rounded-xl border bg-white shadow-lg">
-              <iframe
-                title="Inicia sesión para crear una solicitud"
-                src={`/auth/sign-in?next=${encodeURIComponent(getReturnTo() || (typeof window !== 'undefined' ? window.location.pathname : '/requests/new'))}`}
-                className="h-[80vh] w-full"
-              />
-            </div>
-          </div>
-        ) : null}
+        {/* Modal de login eliminado: el flujo ahora redirige a /auth/sign-in */}
       </div>
     </main>
   );

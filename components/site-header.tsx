@@ -1,4 +1,4 @@
-/* eslint-disable import/order */
+﻿/* eslint-disable import/order */
 import Image from "next/image";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
@@ -7,8 +7,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import MobileMenu from "@/components/mobile-menu";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { normalizeAvatarUrl } from "@/lib/avatar";
+// Avatar visuals handled by AvatarDropdown for both desktop and mobile
 import HeaderMenu from "@/components/header-menu.client";
 import ProMobileTabbar from "@/components/pro-mobile-tabbar.client";
 import AvatarDropdown from "@/components/AvatarDropdown.client";
@@ -41,7 +40,7 @@ async function getSessionInfo() {
     .maybeSingle();
 
   if (!profileRaw) {
-    // Autoaprovisionar perfil mínimo en primer login
+    // Autoaprovisionar perfil mÃ­nimo en primer login
     try {
       await supabase.from("profiles").insert({
         id: user.id,
@@ -102,8 +101,8 @@ async function getSessionInfo() {
 
 async function getSessionInfoSafe() {
   try {
-    // Mock de rol para dev/CI: si existe cookie 'handi_role' (o legacy 'handee_role'), simula sesión
-    // Válido sólo fuera de producción o con CI=true
+    // Mock de rol para dev/CI: si existe cookie 'handi_role' (o legacy 'handee_role'), simula sesiÃ³n
+    // VÃ¡lido sÃ³lo fuera de producciÃ³n o con CI=true
     try {
       const allowMock =
         process.env.NODE_ENV !== "production" || process.env.CI === "true";
@@ -173,7 +172,7 @@ export default async function SiteHeader() {
     cookieStore.get("handi_pro_apply")?.value === "1" ||
     cookieStore.get("handee_pro_apply")?.value === "1";
 
-  // El logo siempre debe redirigir a la página de inicio
+  // El logo siempre debe redirigir a la pÃ¡gina de inicio
   const leftHref = "/";
 
   let rightLinks: {
@@ -184,7 +183,7 @@ export default async function SiteHeader() {
     className?: string;
     testId?: string;
   }[] = [];
-  // Eliminado botón "Biblioteca" del header/menú
+  // Eliminado botÃ³n "Biblioteca" del header/menÃº
   if (!isAuth) {
     rightLinks.push({
       href: "/auth/sign-in",
@@ -277,7 +276,7 @@ export default async function SiteHeader() {
     );
   }
 
-  // Asegurar que "Mis solicitudes" esté visible solo para clientes (o rol aún no asignado) y administradores
+  // Asegurar que "Mis solicitudes" estÃ© visible solo para clientes (o rol aÃºn no asignado) y administradores
   if (
     !proApply &&
     isAuth &&
@@ -305,16 +304,22 @@ export default async function SiteHeader() {
     );
   }
 
-  // Enlaces para el menú móvil (excluye iniciar sesión; apariencia idéntica al header)
+  // Enlaces para el menÃº mÃ³vil (excluye iniciar sesiÃ³n; apariencia idÃ©ntica al header)
   const mobileLinks = (() => {
     const base = rightLinks.filter((x) => x.href !== "/auth/sign-in");
-    // Para profesionales, ocultar en el menú móvil los botones que ya están en el tab bar
+    // Para profesionales, ocultar en el menÃº mÃ³vil los botones que ya estÃ¡n en el tab bar
     if (role === "pro") {
       return base.filter(
         (l) =>
           l.href !== "/requests/explore" &&
           l.href !== "/applied" &&
           l.href !== "/pro/calendar",
+      );
+    }
+    // Para clientes, ocultar "Nueva solicitud" y "Mis solicitudes" en el menú lateral móvil
+    if (role === "client") {
+      return base.filter(
+        (l) => l.href !== "/requests/new" && l.href !== "/requests?mine=1" && l.label !== "Mis solicitudes",
       );
     }
     return base;
@@ -326,7 +331,7 @@ export default async function SiteHeader() {
     {!isAuth ? <HeaderAuthRefresh enabled={!isAuth} /> : null}
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
       <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-        {/* Lado izquierdo: botón menú móvil (solo autenticado) */}
+        {/* Lado izquierdo: botÃ³n menÃº mÃ³vil (solo autenticado) */}
         {isAuth ? (
           <div className="md:hidden">
             <MobileMenu
@@ -342,7 +347,7 @@ export default async function SiteHeader() {
           <div className="md:hidden" />
         )}
 
-        {/* Logo: centrado en móvil, alineado a la izquierda en desktop */}
+        {/* Logo: centrado en mÃ³vil, alineado a la izquierda en desktop */}
         <Link
           href={leftHref}
           className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
@@ -463,7 +468,7 @@ export default async function SiteHeader() {
           </div>
         ) : null}
 
-        {/* Navegación derecha - desktop */}
+        {/* NavegaciÃ³n derecha - desktop */}
   <nav className="hidden md:flex items-center gap-2">
           {rightLinks
             // Evitar duplicar los botones centrados del cliente y profesional
@@ -496,7 +501,7 @@ export default async function SiteHeader() {
                   ]
                     .filter(Boolean)
                     .join(" ");
-              // Si es el botón de login, renderiza normal y ocúltalo en cliente si ya hay sesión
+              // Si es el botÃ³n de login, renderiza normal y ocÃºltalo en cliente si ya hay sesiÃ³n
               const wrapLogin = (node: React.ReactNode) =>
                 l.testId === "btn-login" ? <ClientNoSessionOnly key={l.href}>{node}</ClientNoSessionOnly> : node;
               return (
@@ -540,7 +545,7 @@ export default async function SiteHeader() {
           {isAuth ? (
             <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} isClientPro={is_client_pro} />
           ) : null}
-          {/* Botón de menú a la derecha del avatar; solo autenticado */}
+          {/* BotÃ³n de menÃº a la derecha del avatar; solo autenticado */}
           {isAuth ? (
             <div className="ml-4">
               <HeaderMenu />
@@ -548,7 +553,7 @@ export default async function SiteHeader() {
           ) : null}
         </nav>
 
-        {/* Lado derecho - móvil y CTA secundarios (sin botón de menú) */}
+        {/* Lado derecho - mÃ³vil y CTA secundarios (sin botÃ³n de menÃº) */}
         <div className="md:hidden flex items-center gap-2">
           {!isAuth ? (
             <ClientNoSessionOnly>
@@ -557,23 +562,7 @@ export default async function SiteHeader() {
               </Button>
             </ClientNoSessionOnly>
           ) : (
-            <Link href="/me" className="inline-flex items-center">
-              <Avatar className="h-8 w-8">
-                {normalizeAvatarUrl(avatar_url) ? (
-                  <AvatarImage src={normalizeAvatarUrl(avatar_url)!} alt={full_name ?? "Usuario"} />
-                ) : null}
-                <AvatarFallback>
-                  {(
-                    full_name
-                      ?.trim()
-                      ?.split(/\s+/)
-                      ?.map((p) => p[0])
-                      ?.slice(0, 2)
-                      ?.join("") || "U"
-                  ).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Link>
+            <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} isClientPro={is_client_pro} />
           )}
         </div>
       </div>

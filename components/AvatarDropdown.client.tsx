@@ -57,7 +57,7 @@ export default function AvatarDropdown({
   const avatarSrc = normalizeAvatarUrl(avatarUrl);
   const setupLabel = role === "pro" || isClientPro ? "Configura tu perfil de profesional" : "Configura tu perfil";
   return (
-    <details ref={detailsRef} className="relative">
+    <details ref={detailsRef} className="group relative">
       <summary
         className="list-none inline-flex items-center rounded-full focus-visible:ring-[3px] focus-visible:ring-ring/50 outline-none cursor-pointer"
         data-testid="avatar"
@@ -67,7 +67,12 @@ export default function AvatarDropdown({
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </summary>
-      <div className="absolute right-0 mt-2 w-56 rounded-md border bg-white shadow-md p-1 z-50">
+      <div
+        className="absolute right-0 mt-2 w-56 rounded-md border bg-white shadow-md p-1 z-50
+                   transition duration-150 ease-out
+                   opacity-0 -translate-y-1 pointer-events-none
+                   group-open:opacity-100 group-open:translate-y-0 group-open:pointer-events-auto"
+      >
         <div className="px-2 py-1.5 text-sm font-semibold">{fullName ?? "Cuenta"}</div>
         {/* Tipo de usuario y switch */}
         <UserTypeInfo currentRole={role} />

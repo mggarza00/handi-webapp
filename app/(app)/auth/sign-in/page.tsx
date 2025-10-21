@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -7,6 +7,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { toast } from "sonner";
 
 export default function SignInPage() {
   const supabase = createClientComponentClient();
@@ -18,6 +19,8 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [facebookLoading, setFacebookLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const sp = useSearchParams();
   // Surface OAuth errors (e.g., over_request_rate_limit) from /auth/callback redirect
   useEffect(() => {
@@ -26,13 +29,22 @@ export default function SignInPage() {
     const status = sp?.get("status");
     if (err) {
       if (code === "over_request_rate_limit" || status === "429" || /rate limit/i.test(err)) {
-        setError("Demasiados intentos al iniciar sesión. Espera 1–2 minutos e inténtalo de nuevo, o usa el enlace por correo.");
+        setError("Demasiados intentos al iniciar sesiÃ³n. Espera 1â€“2 minutos e intÃ©ntalo de nuevo, o usa el enlace por correo.");
       } else {
         setError(err);
       }
     }
   }, [sp]);
-  const next = useMemo(() => {
+  // Optional toast guidance for flows arriving from CTA (only when not authenticated)
+  useEffect(() => {
+  if (!sessionChecked || hasSession) return;
+  const t = sp?.get("toast");
+  if (t === "new-request") {
+    toast.info("Inicia sesión para crear una solicitud de servicio");
+  } else if (t === "pro-apply") {
+    toast.info("Inicia sesión para postularte como profesional");
+  }
+}, [sp, sessionChecked, hasSession]);  const next = useMemo(() => {
     const n = sp?.get("next");
     if (n && n.startsWith("/")) return n;
     if (typeof window !== "undefined") {
@@ -48,10 +60,27 @@ export default function SignInPage() {
 
   const resolveBaseUrl = () => window.location.origin.replace(/\/$/, "");
 
-  const handleGoogle = async () => {
+  // If already authenticated, skip this page and go to `next`
+    // If already authenticated, skip this page and go to `next`; mark session state
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const authed = !!data?.session;
+        setHasSession(authed);
+        setSessionChecked(true);
+        if (authed) {
+          router.replace(next);
+          router.refresh();
+        }
+      } catch {
+        setSessionChecked(true);
+      }
+    })();
+  }, [next, router, supabase]);  const handleGoogle = async () => {
     setError(null);
     setGoogleLoading(true);
-    const base = resolveBaseUrl();
+    const base = window.location.origin.replace(/\/$/, "");
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -59,8 +88,7 @@ export default function SignInPage() {
       },
     });
   };
-
-  const handleFacebook = async () => {
+const handleFacebook = async () => {
     setError(null);
     setFacebookLoading(true);
     const base = resolveBaseUrl();
@@ -210,3 +238,9 @@ export default function SignInPage() {
     </div>
   );
 }
+
+
+
+
+
+
