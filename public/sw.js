@@ -105,6 +105,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       if (!cur) return;
       await fetch('/api/push/subscribe', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ subscription: cur }),
       });

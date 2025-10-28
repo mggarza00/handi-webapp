@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import createClient from '@/utils/supabase/server';
 import type { Database } from '@/types/supabase';
 
 const JSONH = { 'Content-Type': 'application/json; charset=utf-8' } as const;
@@ -10,7 +9,7 @@ type Subscription = { endpoint: string; expirationTime?: number | null; keys: Ke
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) {
@@ -41,4 +40,3 @@ export async function POST(req: NextRequest) {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-

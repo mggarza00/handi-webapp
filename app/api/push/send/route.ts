@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import createClient from '@/utils/supabase/server';
 import type { Database } from '@/types/supabase';
 
 const JSONH = { 'Content-Type': 'application/json; charset=utf-8' } as const;
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'missing VAPID keys' }, { status: 500, headers: JSONH });
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'auth' }, { status: 401, headers: JSONH });
 
