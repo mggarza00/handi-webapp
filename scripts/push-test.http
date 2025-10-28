@@ -1,0 +1,11 @@
+### Send test push (adjust cookies if requires auth)
+POST http://localhost:3000/api/push/send
+Content-Type: application/json; charset=utf-8
+# Cookie: sb-access-token=YOUR_ACCESS_TOKEN; sb-refresh-token=YOUR_REFRESH_TOKEN
+
+{
+  "title": "Hola",
+  "body": "Notificación de prueba",
+  "url": "/"
+}
+
