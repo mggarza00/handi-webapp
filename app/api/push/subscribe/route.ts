@@ -27,7 +27,18 @@ export async function POST(req: NextRequest) {
     const supaAny = supabase as any;
     const { error } = await supaAny
       .from('web_push_subscriptions')
-      .upsert({ user_id: user.id, endpoint: sub.endpoint, keys: sub.keys }, { onConflict: 'endpoint' });
+      .upsert(
+        {
+          user_id: user.id,
+          endpoint: sub.endpoint,
+          // Keep legacy columns populated to satisfy NOT NULL constraints in older snapshots
+          p256dh: sub.keys.p256dh,
+          auth: sub.keys.auth,
+          // New canonical jsonb column
+          keys: sub.keys,
+        },
+        { onConflict: 'endpoint' }
+      );
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers: JSONH });
     }
