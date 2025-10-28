@@ -4,6 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import ensurePushSubscription from "@/lib/push";
 
+function isIOS(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  try {
+    const ua = navigator.userAgent || navigator.vendor || "";
+    const iOSUA = /iPad|iPhone|iPod/i.test(ua);
+    const iPadOS = navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1;
+    return iOSUA || iPadOS;
+  } catch {
+    return false;
+  }
+}
+
 type Props = {
   publicKey: string;
   className?: string;
@@ -20,6 +32,7 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
   const [perm, setPerm] = useState<NotificationPermission | null>(null);
 
   const supported = useMemo(() => typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window, []);
+  const isiOS = useMemo(() => isIOS(), []);
 
   useEffect(() => {
     if (!supported) return;
@@ -60,12 +73,21 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
     }
   }
 
-  if (!supported) return null;
+  if (!supported) {
+    // Mostrar tip en iOS cuando no hay soporte (otras plataformas: ocultar)
+    return isiOS ? (
+      <p className="text-xs text-neutral-600">
+        Tu navegador en iOS no soporta notificaciones push. Usa iOS 16.4+ con Safari y habilítalas desde el candado de la barra de direcciones.
+      </p>
+    ) : null;
+  }
 
   if (perm === 'denied') {
     return (
       <p className="text-xs text-neutral-600">
-        Notificaciones bloqueadas por el navegador. Habilítalas desde el candado de la barra de direcciones.
+        {isiOS
+          ? 'Notificaciones bloqueadas en iOS. Habilítalas desde el candado junto a la barra de direcciones o en Ajustes > Safari > Notificaciones.'
+          : 'Notificaciones bloqueadas por el navegador. Habilítalas desde el candado de la barra de direcciones.'}
       </p>
     );
   }
