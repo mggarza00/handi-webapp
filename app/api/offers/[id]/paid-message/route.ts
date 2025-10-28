@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/supabase";
@@ -57,6 +58,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const payload: Record<string, unknown> = { offer_id: offerId, status: "paid" };
     if (receiptUrl) payload.receipt_url = receiptUrl;
     await db.from("messages").insert({ conversation_id: convId, sender_id: offer.client_id, body: "Pago realizado. Servicio agendado.", message_type: "system", payload });
+    // Aviso por email (no bloqueante)
+    try { void notifyChatMessageByConversation({ conversationId: convId, senderId: offer.client_id, text: "Pago realizado. Servicio agendado." }); } catch {}
 
     return NextResponse.json({ ok: true, created: true, receiptUrl }, { status: 200, headers: JSONH });
   } catch (err) {

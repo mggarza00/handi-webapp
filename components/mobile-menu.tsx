@@ -5,7 +5,7 @@ import { Menu, Bell, MessageSquare, Heart, Settings, HelpCircle, FileText, Share
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -74,11 +74,20 @@ function MenuLinks({ items, className }: { items: NavLink[]; className?: string 
   );
 }
 
-function OpenButton() {
+function OpenButton({ hasBadge }: { hasBadge?: boolean }) {
   const { setOpen } = useSidebar();
   return (
-    <Button variant="outline" size="icon" aria-label="Abrir menú" onClick={() => setOpen(true)}>
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label="Abrir menú"
+      onClick={() => setOpen(true)}
+      className="relative"
+    >
       <Menu className="h-5 w-5" />
+      {hasBadge ? (
+        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+      ) : null}
     </Button>
   );
 }
@@ -113,7 +122,7 @@ function MobileMenuDrawer({
   const [hasNewMsgs, setHasNewMsgs] = React.useState(false);
   const [notifItems, setNotifItems] = React.useState<Notif[]>([]);
   const [notifLoading, setNotifLoading] = React.useState(false);
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [me, setMe] = React.useState<string | null>(null);
   const [unreadMsgCount, setUnreadMsgCount] = React.useState<number>(0);
 
@@ -349,7 +358,17 @@ function MobileMenuDrawer({
               type="button"
               variant="ghost"
               className="w-full justify-start text-base"
-              onClick={() => setNotifOpen((v) => !v)}
+              onClick={() => {
+                setNotifOpen((v) => !v);
+                // Clear notif badge immediately
+                setHasNotifs(false);
+                try {
+                  localStorage.setItem("handi_has_notifications", "0");
+                  localStorage.setItem("handee_has_notifications", "0");
+                } catch { /* ignore */ }
+                // Best-effort: mark all as read in background
+                void onMarkAllRead();
+              }}
             >
               <span className="inline-flex items-center gap-2">
                 <Bell className="h-8 w-8" />
@@ -400,7 +419,18 @@ function MobileMenuDrawer({
                 )}
               </div>
             ) : null}
-            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => setOpen(false)}>
+            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => {
+              // Clear messages badge immediately
+              setUnreadMsgCount(0);
+              setHasNewMsgs(false);
+              try {
+                localStorage.setItem("handi_unread_messages_count", "0");
+                localStorage.setItem("handee_unread_messages_count", "0");
+                localStorage.setItem("handi_has_new_messages", "0");
+                localStorage.setItem("handee_has_new_messages", "0");
+              } catch { /* ignore */ }
+              setOpen(false);
+            }}>
               <Link href="/favorites" className="inline-flex items-center gap-2">
                 <Heart className="h-8 w-8" />
                 <span>Favoritos</span>

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getDevUserFromHeader, getUserFromRequestOrThrow } from "@/lib/auth-route";
 import { createServerClient } from "@/lib/supabase";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
       message_type: "system",
       payload: { type: "onsite_quote_start" } as any,
     } as any);
+    try { void notifyChatMessageByConversation({ conversationId: conversation_id, senderId: user.id, text: "Este profesional requiere cotizar en sitio el servicio." }); } catch {}
 
     return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
@@ -49,4 +51,3 @@ export async function POST(req: Request) {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

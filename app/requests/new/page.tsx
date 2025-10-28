@@ -177,8 +177,8 @@ export default function NewRequestPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (address) return;
-      if (!("geolocation" in navigator)) return;
+      if (addrTouched) return; if (address) return;
+      if (!("geolocation" in navigator)) return; geoAskedRef.current = true;
       try {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           const id = setTimeout(() => reject(new Error("GEO_TIMEOUT")), 5000);
@@ -197,10 +197,7 @@ export default function NewRequestPage() {
           const r = await fetch(`/api/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}`, { cache: "no-store", headers: { Accept: "application/json; charset=utf-8", "Content-Type": "application/json; charset=utf-8" } });
           const j = await r.json().catch(() => ({}));
           if (!cancelled && j && j.ok) {
-            if (typeof j.address === 'string') {
-              setAddress(j.address);
-              try { setValue('address_line', j.address, { shouldDirty: true, shouldValidate: true }); } catch {}
-            }
+            // No autocompletar el texto de dirección; solo sugerir ciudad si aplica
             if (typeof j.city === 'string') suggestCityUpdate(j.city);
           }
         } catch { /* ignore */ }
@@ -373,20 +370,6 @@ export default function NewRequestPage() {
         const items = j?.ok && Array.isArray(j.items) ? (j.items as AddressItem[]) : [];
         if (!cancelled) {
           setRecentAddrs(items);
-          if (!addressLine && items.length > 0) {
-            const first = items[0];
-            setAddressLine(first.address);
-            setAddressLat(typeof first.lat === "number" ? first.lat : null);
-            setAddressLng(typeof first.lon === "number" ? first.lon : null);
-            if (typeof first.city === "string" && first.city) selectCityIfExists(first.city, { source: "prefill.recent" });
-            try {
-              setValue("address_line", first.address, { shouldDirty: true, shouldValidate: true });
-              setValue("address_lat", typeof first.lat === "number" ? first.lat : null, { shouldDirty: true });
-              setValue("address_lng", typeof first.lon === "number" ? first.lon : null, { shouldDirty: true });
-            } catch {
-              /* ignore */
-            }
-          }
         }
       } catch {
         /* ignore */
@@ -440,6 +423,7 @@ export default function NewRequestPage() {
 
   function pickAddress(item: AddressItem) {
     setAddressLine(item.address || "");
+    setAddress(item.address || "");
     const lat = typeof item.lat === "number" ? item.lat : null;
     const lng = typeof item.lon === "number" ? item.lon : null;
     setAddressLat(lat);
@@ -1390,6 +1374,7 @@ export default function NewRequestPage() {
               <Input
                 value={address}
                 onChange={(e) => {
+                  setAddrTouched(true);
                   const v = e.target.value;
                   setAddress(v);
                   setAddressLine(v);
@@ -1400,10 +1385,33 @@ export default function NewRequestPage() {
                   setAddressLat(null);
                   setAddressLng(null);
                   try { setValue('address_lat', null, { shouldDirty: true }); setValue('address_lng', null, { shouldDirty: true }); } catch {}
+                  const q = v.trim();
+                  if (q.length >= 3) {
+                    setAddrOpen(true);
+                    debouncedFetchAddr(v);
+                  } else if (q.length === 0 && recentAddrs.length > 0) {
+                    setAddrSuggestions(recentAddrs);
+                    setAddrOpen(true);
+                  } else {
+                    setAddrSuggestions([]);
+                    setAddrOpen(false);
+                  }
                 }}
                 placeholder="Calle y número, colonia, CP"
                 aria-label="Dirección"
                 className="flex-1"
+                onFocus={() => {
+                  setAddrTouched(true);
+                  const q = (address || '').trim();
+                  if (q.length === 0 && recentAddrs.length > 0) {
+                    setAddrSuggestions(recentAddrs);
+                    setAddrOpen(true);
+                  } else if (q.length >= 3) {
+                    setAddrOpen(true);
+                    debouncedFetchAddr(address || '');
+                  }
+                }}
+                onBlur={() => { setTimeout(() => setAddrOpen(false), 120); }}
               />
               <Button type="button" variant="outline" onClick={() => setOpenMap(true)} aria-label="Abrir mapa">
                 <MapPin size={18} />
@@ -1445,6 +1453,47 @@ export default function NewRequestPage() {
                 {addrResolveBusy ? 'Usando…' : 'Usar esta dirección'}
               </Button>
             </div>
+            {addrOpen && (((address || '').trim().length >= 3 && addrSuggestions.length > 0) || ((address || '').trim().length === 0 && recentAddrs.length > 0)) ? (
+              <div className="mt-2 w-full max-h-60 overflow-auto rounded-md border bg-white shadow-sm">
+                {(((address || '').trim().length >= 3 ? addrSuggestions : recentAddrs) || []).map((it, idx) => {
+                  const isSaved = Boolean(it.id);
+                  const meta = [it.postal_code, it.city].filter(Boolean).join(', ');
+                  return (
+                    <div key={(it.id || it.address) + String(idx)} className="flex items-center gap-2 px-2 py-2 hover:bg-slate-50">
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); pickAddress(it); }}
+                        className="flex-1 text-left truncate"
+                        title={it.address}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate">{it.address}</div>
+                          {meta ? <div className="text-xs text-slate-500 truncate">{meta}</div> : null}
+                        </div>
+                      </button>
+                      {isSaved ? (
+                        <button
+                          type="button"
+                          className="ml-auto text-xs text-red-600 hover:underline px-1 py-1"
+                          onMouseDown={async (e) => {
+                            e.preventDefault();
+                            try {
+                              if (!it.id) return;
+                              const del = await fetch(`/api/addresses/book/${encodeURIComponent(String(it.id))}`, { method: 'DELETE', credentials: 'include' });
+                              if (del.ok) {
+                                setAddrSuggestions((prev) => prev.filter((x) => x.id !== it.id));
+                                setRecentAddrs((prev) => prev.filter((x) => x.id !== it.id));
+                              }
+                            } catch { /* ignore */ }
+                          }}
+                          title="Eliminar"
+                        >Eliminar</button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
             <p className="text-xs text-slate-500">Puedes escribir la dirección o elegirla en el mapa.</p>
             {!address && coords ? (
               <p className="text-xs text-slate-500">Se usará tu ubicación actual si no cambias la dirección.</p>

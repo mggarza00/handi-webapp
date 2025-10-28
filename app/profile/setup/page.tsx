@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import SetupForm from "./setup.client";
 import { createChangeRequest } from "./actions";
@@ -15,7 +15,7 @@ import type { Database } from "@/types/supabase";
 export const dynamic = "force-dynamic";
 
 export default async function ProfileSetupPage() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -30,14 +30,14 @@ export default async function ProfileSetupPage() {
       "full_name, avatar_url, headline, bio, years_experience, city, categories, subcategories, role, is_client_pro",
     )
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<any>();
 
   // Load professional extra fields (cities) if present
   const { data: pro } = await supabase
     .from("professionals")
     .select("cities, city, headline, years_experience, bio, avatar_url")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<any>();
 
   const isPro = (profile?.role === "pro") || (profile as any)?.is_client_pro === true;
 
@@ -51,7 +51,7 @@ export default async function ProfileSetupPage() {
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .maybeSingle<any>();
     pendingAt = (req?.created_at as string | null) ?? null;
   } catch {
     pendingAt = null;

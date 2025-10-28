@@ -1,27 +1,19 @@
-// Email helper: server-side only. Uses MAIL_PROVIDER_KEY for Resend-compatible API.
-// If no key is configured, functions resolve without sending (no-op).
+// Email helper centralizado sobre Resend.
+// No envía si falta configuración; regresa un hint útil.
 
-type EmailAttachment = { filename: string; content: string; mime?: string };
+import { resendSendEmail } from "@/lib/email/resend";
+
+type EmailAttachment = { filename: string; content: string | Uint8Array; mime?: string };
 
 type EmailPayload = {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   from?: string;
+  replyTo?: string | string[];
   text?: string;
   attachments?: EmailAttachment[];
 };
-
-function getMailKey(): string | null {
-  return process.env.MAIL_PROVIDER_KEY || null;
-}
-
-function getDefaultFrom(): string {
-  const from =
-    process.env.MAIL_FROM || process.env.NEXT_PUBLIC_SITE_NAME || "Handi";
-  const email = process.env.MAIL_FROM_ADDRESS || "no-reply@homaid.local";
-  return /</.test(from) ? from : `${from} <${email}>`;
-}
 
 function htmlToText(html: string): string {
   try {
@@ -42,30 +34,10 @@ function htmlToText(html: string): string {
   }
 }
 
-export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; id?: string }> {
-  const key = getMailKey();
-  if (!key) return { ok: true };
-
-  const { to, subject, html, from, text, attachments } = payload;
-  const sender = from || getDefaultFrom();
+export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; id?: string; error?: string; hint?: string; details?: unknown }> {
+  const { to, subject, html, from, text, replyTo, attachments } = payload;
   const plain = text && text.length > 0 ? text : htmlToText(html);
-
-  // Resend-like REST API
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
-    body: JSON.stringify({ from: sender, to, subject, html, text: plain, attachments }),
-  }).catch(() => null);
-
-  if (!res) return { ok: false };
-  if (!res.ok) return { ok: false };
-  try {
-    const data = (await res.json()) as { id?: string };
-    return { ok: true, id: data?.id };
-  } catch {
-    return { ok: true };
-  }
+  const mappedAtt = (attachments || []).map((a) => ({ filename: a.filename, content: a.content }));
+  const res = await resendSendEmail({ to, subject, html, text: plain, from: from ?? null, replyTo: replyTo ?? null, attachments: mappedAtt } as any);
+  return { ok: (res as any).ok, id: (res as any).id, error: (res as any).error, hint: (res as any).hint, details: (res as any).details };
 }

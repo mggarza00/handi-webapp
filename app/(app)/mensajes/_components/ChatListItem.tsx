@@ -1,6 +1,6 @@
 /* eslint-disable import/order */
 import Link from "next/link";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { normalizeAvatarUrl, parseSupabaseStoragePath } from "@/lib/avatar";
 import * as React from "react";
 import { Loader2, Mail } from "lucide-react";
@@ -64,7 +64,7 @@ function ChatListItem({
   const unreadLabel = `${unreadCount} ${unreadCount === 1 ? "mensaje no leído" : "mensajes no leídos"}`;
 
   // Resolve avatar URL: sign Supabase storage paths; allow external URLs and proxy paths
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() => normalizeAvatarUrl(avatarUrl || null));
   React.useEffect(() => {
     const url = avatarUrl || null;

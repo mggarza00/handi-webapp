@@ -1,7 +1,7 @@
 "use client";
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
     }
     if (didRunForCycle.current) return;
     didRunForCycle.current = true;
-    const supabase = createClientComponentClient();
+    const supabase = createSupabaseBrowser();
     (async () => {
       try {
         const [{ data: userData }, { data: sessData }] = await Promise.all([

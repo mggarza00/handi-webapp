@@ -91,7 +91,18 @@ export async function fetchExploreRequests(
   if (allowedCategories.length > 0) q = q.in("category", allowedCategories);
   if (cCity) q = q.eq("city", cCity);
   if (cCategory) q = q.eq("category", cCategory);
-  if (cSub) q = q.eq("subcategory", cSub);
+  if (cSub) {
+    // Match either legacy single text column or JSON array (strings or {name})
+    const eqVal = String(cSub).replace(/"/g, '\\"');
+    const jsonArr = JSON.stringify([cSub]); // ["Subcat"]
+    const jsonObjArr = JSON.stringify([{ name: cSub }]); // [{"name":"Subcat"}]
+    const orFilter = [
+      `subcategory.eq."${eqVal}"`,
+      `subcategories.cs.${jsonArr}`,
+      `subcategories.cs.${jsonObjArr}`,
+    ].join(",");
+    q = q.or(orFilter);
+  }
 
   // Ordenar por fecha requerida (más próximas primero)
   q = q.order("required_at", { ascending: true, nullsFirst: false });

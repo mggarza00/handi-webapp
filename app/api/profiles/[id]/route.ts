@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
@@ -13,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!targetId)
       return NextResponse.json({ ok: false, error: "MISSING_ID" }, { status: 400, headers: JSONH });
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const me = auth?.user?.id || null;
     if (!me)

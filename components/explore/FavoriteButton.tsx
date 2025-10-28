@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useTransition } from "react";
-import { Plus, Check } from "lucide-react";
+import { Plus, Star } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
@@ -60,12 +60,12 @@ export default function FavoriteButton({ proId, requestId, initial, onToggled }:
             aria-label={fav ? "Favorito" : "Agregar a favoritos"}
             className={[
               "rounded-full w-9 h-9 p-0 border",
-              fav ? "bg-blue-600 text-white border-blue-600" : "text-slate-500 border-slate-300",
+              fav ? "bg-yellow-50 text-yellow-600 border-yellow-500" : "text-slate-500 border-slate-300",
             ].join(" ")}
             onClick={handleToggle}
             disabled={isPending}
           >
-            {fav ? <Check className="size-5" /> : <Plus className="size-5" />}
+            {fav ? <Star className="size-5" /> : <Plus className="size-5" />}
           </Button>
         </TooltipTrigger>
         <TooltipContent>{fav ? "Favorito" : "Agregar a favoritos"}</TooltipContent>

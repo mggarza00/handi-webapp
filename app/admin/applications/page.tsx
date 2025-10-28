@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import AdminActionsClient from "./AdminActionsClient";
 
@@ -21,7 +21,7 @@ type Search = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminApplicationsPage({ searchParams }: Search) {
-  const supa = createServerComponentClient<Database>({ cookies });
+  const supa = createClient();
   const { data: auth } = await supa.auth.getUser();
   if (!auth?.user) return unauth();
 
@@ -32,8 +32,8 @@ export default async function AdminApplicationsPage({ searchParams }: Search) {
     .maybeSingle();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
-    prof?.is_admin === true ||
-    prof?.role === "admin" ||
+    (prof as any)?.is_admin === true ||
+    (prof as any)?.role === "admin" ||
     (allowEmail && auth.user.email?.toLowerCase() === allowEmail.toLowerCase());
   if (!isAdmin) return forbidden();
 

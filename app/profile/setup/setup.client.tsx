@@ -168,7 +168,13 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
 
       <div>
         <label className="block text-sm mb-1" htmlFor="full_name">Nombre completo</label>
-        <Input id="full_name" placeholder="Tu nombre" {...register("full_name")} readOnly disabled />
+        <Input
+          id="full_name"
+          value={fixMojibake(initial?.full_name) || ""}
+          readOnly
+          disabled
+        />
+        <input type="hidden" value={fixMojibake(initial?.full_name) || ""} {...register("full_name")} />
         {errors.full_name && <p className="mt-1 text-xs text-red-600">{String(errors.full_name.message)}</p>}
       </div>
 
@@ -203,7 +209,6 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           min={0}
           max={80}
           step={1}
-          placeholder="5"
           {...register("years_experience" as const, { valueAsNumber: true })}
         />
         {errors.years_experience && <p className="mt-1 text-xs text-red-600">{String(errors.years_experience.message)}</p>}

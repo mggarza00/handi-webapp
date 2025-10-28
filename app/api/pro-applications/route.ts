@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
 import type { Database } from "@/types/supabase";
@@ -93,7 +92,7 @@ export async function POST(req: Request) {
     const body: unknown = await req.json().catch(() => null);
 
     // Obtener usuario actual para permitir default de full_name desde profiles
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user) {
       return NextResponse.json(
@@ -105,7 +104,7 @@ export async function POST(req: Request) {
     // Si no viene full_name en el payload, intentar tomarlo del perfil
     let defaultFullName: string | null = null;
     try {
-      const { data: prof } = await supabase
+      const { data: prof } = await (supabase as any)
         .from("profiles")
         .select("full_name")
         .eq("id", auth.user.id)

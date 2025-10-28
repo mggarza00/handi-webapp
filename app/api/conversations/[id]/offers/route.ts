@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import type { Database } from "@/types/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
 import { validateOfferFields } from "@/lib/safety/offer-guard";
-import type { Database } from "@/types/supabase";
+import { getDevUserFromHeader, getUserFromRequestOrThrow, getDbClientForRequest } from "@/lib/auth-route";
+import { createServerClient as createServiceClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -25,12 +27,13 @@ type BodyInput = z.infer<typeof BodySchema>;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+    // Resolve user via cookies/Bearer or dev header fallback
+    let usedDevFallback = false;
+    let { user } = (await getDevUserFromHeader(req)) ?? { user: null as any };
+    if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
+    // Use service role when in dev-fallback, otherwise a DB client bound to the request/session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase: any = usedDevFallback ? createServiceClient() : await getDbClientForRequest(req);
 
     const rate = await assertRateLimit("offer.create", 60, 5);
     if (!rate.ok)

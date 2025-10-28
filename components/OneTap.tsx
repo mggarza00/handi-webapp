@@ -110,6 +110,7 @@ export default function OneTap() {
           const { error } = await supabase.auth.signInWithIdToken({
             provider: "google",
             token,
+            nonce,
           });
           if (!error) {
             try {

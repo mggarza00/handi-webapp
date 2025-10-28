@@ -30,8 +30,15 @@ export default function FiltersBar({ cityOptions, categoryOptions, subcategoryOp
   const onChange = (patch: Partial<{ city: string; category: string; subcategory: string }>) => {
     const base = sp?.toString() ?? "";
     const next = new URLSearchParams(base);
+    const currentCategory = next.get("category") || ALL;
     if (patch.city != null) next.set("city", patch.city || ALL);
-    if (patch.category != null) next.set("category", patch.category || ALL);
+    if (patch.category != null) {
+      next.set("category", patch.category || ALL);
+      // If category changed, reset subcategory to 'Todas'
+      if ((patch.category || ALL) !== currentCategory) {
+        next.set("subcategory", ALL);
+      }
+    }
     if (patch.subcategory != null) next.set("subcategory", patch.subcategory || ALL);
     // Reset page to 1 on filter change
     next.set("page", "1");
@@ -92,4 +99,3 @@ export default function FiltersBar({ cityOptions, categoryOptions, subcategoryOp
     </div>
   );
 }
-

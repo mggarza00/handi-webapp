@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
 import type { Database } from "@/types/supabase";
@@ -10,7 +9,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 type CtxP = { params: { id: string } };
 
 export async function GET(_req: Request, { params }: CtxP) {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient();
 
   try {
     await getUserOrThrow(supabase);

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
 
@@ -27,8 +26,8 @@ export async function POST(req: Request, ctx: { params: { id: string } }) {
     // ignore
   }
 
-  const supa = createRouteHandlerClient<Database>({ cookies });
-  const { error } = await supa
+  const supa = createClient() as any;
+  const { error } = await (supa as any)
     .from("profile_change_requests")
     .update({ status: "rejected", reviewer_id: reviewerId, reviewed_at: new Date().toISOString(), review_notes: notes ?? undefined })
     .eq("id", id);

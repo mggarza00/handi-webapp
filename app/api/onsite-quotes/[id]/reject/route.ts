@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getDevUserFromHeader, getUserFromRequestOrThrow } from "@/lib/auth-route";
 import { createServerClient } from "@/lib/supabase";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -35,6 +36,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       message_type: "system",
       payload: { onsite_request_id: id, status: "rejected", reason: payload.reason, description: payload.description ?? null } as any,
     } as any);
+    try {
+      const text = payload.description ? `Cotización en sitio rechazada: ${payload.reason} — ${payload.description}` : `Cotización en sitio rechazada: ${payload.reason}`;
+      void notifyChatMessageByConversation({ conversationId: (row as any).conversation_id, senderId: user.id, text });
+    } catch {}
     return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
@@ -44,4 +49,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 // import { z } from "zod";
 import { getUserOrThrow } from "@/lib/_supabase-server";
@@ -24,7 +23,7 @@ export async function GET(req: Request) {
     const offset = (page - 1) * limit;
 
     // Público: no requerir sesión para explorar profesionales
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     // Trae profesionales activos con campos necesarios; city se filtra en BD por ciudad exacta
     const query = supabase
       .from("professionals_with_profile")
@@ -266,7 +265,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { user } = await getUserOrThrow(supabase);
     const parsed = ProfileUpsertSchema.safeParse(await req.json());
     if (!parsed.success) {

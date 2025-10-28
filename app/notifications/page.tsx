@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {
-  const supa = createServerComponentClient<Database>({ cookies });
+  const supa = createClient();
   const { data: auth } = await supa.auth.getUser();
   const user = auth?.user;
   if (!user) return unauth();
@@ -23,7 +23,7 @@ export default async function NotificationsPage() {
     <main className="mx-auto max-w-3xl px-4 py-6">
       <h1 className="mb-4 text-xl font-semibold">Notificaciones</h1>
       <ul className="space-y-2">
-        {(data || []).map((n) => (
+        {((data as any[]) || []).map((n) => (
           <li key={n.id} className={`rounded border p-3 ${!n.read_at ? "bg-orange-50" : "bg-white"}`}>
             <div className="font-medium">{n.title}</div>
             {n.body ? <div className="text-slate-700">{n.body}</div> : null}

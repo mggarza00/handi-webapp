@@ -12,7 +12,7 @@ const comfortaaBold = localFont({
 });
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
 export default function Page() {
@@ -64,7 +64,7 @@ export default function Page() {
 
         // 2) Fallback directo con cliente público (si RLS lo permite)
         try {
-          const sb = createClientComponentClient(); const { data, error } = await sb
+          const sb = createSupabaseBrowser(); const { data, error } = await sb
             .from("categories_subcategories")
             .select('"Categoría","Subcategoría","Activa","Ícono"');
           if (error) throw error;
@@ -319,7 +319,7 @@ export default function Page() {
                     e.preventDefault();
                   } catch {}
                   try {
-                    const sb = createClientComponentClient();
+                    const sb = createSupabaseBrowser();
                     const { data } = await sb.auth.getSession();
                     const next = "/requests/new";
                     if (data?.session) {
@@ -344,7 +344,7 @@ export default function Page() {
                     e.preventDefault();
                   } catch {}
                   try {
-                    const sb = createClientComponentClient();
+                    const sb = createSupabaseBrowser();
                     const { data } = await sb.auth.getSession();
                     const next = "/pro-apply";
                     if (data?.session) {

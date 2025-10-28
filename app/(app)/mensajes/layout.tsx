@@ -5,9 +5,9 @@ import MessagesShell from "./_components/MessagesShell.client";
 import RealtimeProvider from "@/components/messages/RealtimeProvider";
 import type { ChatSummary } from "./_components/types";
 import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseJs } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
       !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
       !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!hasEnv) return [];
-    const supabase = createServerComponentClient<Database>({ cookies });
+    const supabase = createClient() as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth.user;
     if (!user) {
@@ -31,7 +31,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
         if (!email || !url || !key) return [];
-        const admin = createClient<Database>(url, key, {
+        const admin = createSupabaseJs<Database>(url, key, {
           auth: { persistSession: false, autoRefreshToken: false },
         });
         // Find user id by email (paginate best-effort)

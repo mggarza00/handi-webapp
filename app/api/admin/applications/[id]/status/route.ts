@@ -1,7 +1,6 @@
 /* eslint-disable import/order */
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
 import type { Database } from "@/types/supabase";
@@ -16,7 +15,7 @@ const Schema = z.object({
 async function assertIsAdmin(): Promise<
   { ok: true; userId: string } | { ok: false; res: NextResponse }
 > {
-  const supa = createRouteHandlerClient<Database>({ cookies });
+  const supa = createClient();
   const { data: auth } = await supa.auth.getUser();
   if (!auth?.user) {
     return {
@@ -34,7 +33,7 @@ async function assertIsAdmin(): Promise<
     .maybeSingle();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
-    prof?.role === "admin" ||
+    (prof as any)?.role === "admin" ||
     (allowEmail && auth.user.email?.toLowerCase() === allowEmail.toLowerCase());
   if (!isAdmin) {
     return {

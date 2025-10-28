@@ -4,6 +4,7 @@ import { getReceipt } from '@/lib/receipts';
 import { sendEmail } from '@/lib/email';
 import { getConversationIdForRequest } from '@/app/(app)/mensajes/_lib/getConversationForRequest';
 import { getAdminSupabase } from '@/lib/supabase/admin';
+import { notifyChatMessageByConversation } from '@/lib/chat-notifier';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -47,7 +48,15 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
   } catch { pdfBase64 = null; }
   const attachments = pdfBase64 ? [{ filename: `handi-recibo-${params.receiptId}.pdf`, content: pdfBase64, mime: 'application/pdf' }] : undefined;
   const res = await sendEmail({ to: recipient, subject, html, attachments });
-  if (!res.ok) return NextResponse.json({ ok: false, error: 'SEND_FAILED' }, { status: 500, headers: JSONH });
+  if (!res.ok) {
+    const errorStr = (res.error || '').toLowerCase();
+    const isSandbox = errorStr.includes('validation_error') || errorStr.includes('you can only send testing emails');
+    const serialized = res.details || (res.error ? { message: res.error } : { message: 'SEND_FAILED' });
+    const body = isSandbox
+      ? { ok: false, code: 'RESEND_SANDBOX_ERROR', hint: 'Tu dominio de envío debe estar verificado y el from debe usar ese dominio (p.ej. notificaciones@mg.handi.mx).', error: serialized }
+      : { ok: false, error: serialized };
+    return NextResponse.json(body, { status: 400, headers: JSONH });
+  }
   // Also attach into chat (best-effort)
   if (pdfBase64 && data.service.requestId) {
     try {
@@ -68,6 +77,7 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
             .select('id')
             .single();
           const messageId = (msgIns.data as any)?.id as string | undefined;
+          try { void notifyChatMessageByConversation({ conversationId: convId, senderId, text: 'Recibo de pago adjunto' }); } catch {}
           if (messageId) {
             const buffer = Buffer.from(pdfBase64, 'base64');
             const filePath = `conversation/${convId}/${messageId}/handi-recibo-${params.receiptId}.pdf`;

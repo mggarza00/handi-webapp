@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
 
@@ -135,7 +134,7 @@ export async function handleServiceCompletion(
       );
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth?.user) {
       return NextResponse.json(
@@ -144,7 +143,7 @@ export async function handleServiceCompletion(
       );
     }
 
-    const { data: agreement, error: agreementError } = await supabase
+    const { data: agreement, error: agreementError } = await (supabase as any)
       .from("agreements")
       .select(
         "id, request_id, professional_id, amount, status, completed_by_pro, completed_by_client, completed_at, created_at, updated_at",
@@ -191,7 +190,7 @@ export async function handleServiceCompletion(
         );
       }
 
-      const { data: request, error: requestError } = await supabase
+      const { data: request, error: requestError } = await (supabase as any)
         .from("requests")
         .select("id, created_by")
         .eq("id", agreement.request_id)
@@ -248,7 +247,7 @@ export async function handleServiceCompletion(
     let updatedAgreement = agreement;
 
     if (Object.keys(update).length > 0) {
-      const { data: updated, error: updateError } = await supabase
+      const { data: updated, error: updateError } = await (supabase as any)
         .from("agreements")
         .update(update)
         .eq("id", agreement.id)

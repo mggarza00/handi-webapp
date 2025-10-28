@@ -20,6 +20,16 @@ export default function AvatarWithSkeleton({ src, alt = "", className = "", size
     setError(false);
   }, [src]);
 
+  // Safety: if the image never fires onLoad/onError (e.g., CORS/network oddities), fallback after timeout
+  React.useEffect(() => {
+    if (!showImg || loaded || error) return;
+    const t = window.setTimeout(() => {
+      setError(true);
+      setLoaded(true);
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, [showImg, loaded, error]);
+
   return (
     <div className={`relative ${sizeClass} shrink-0`} aria-busy={!loaded && showImg}>
       {!loaded && (
@@ -40,9 +50,25 @@ export default function AvatarWithSkeleton({ src, alt = "", className = "", size
         />
       ) : (
         <div className={`${common} flex items-center justify-center bg-neutral-200 text-neutral-600 ${className}`}>
-          {(alt || " ").trim().charAt(0).toUpperCase()}
+          {getInitials(alt)}
         </div>
       )}
     </div>
   );
+}
+
+function getInitials(text?: string): string {
+  const t = (text || '').trim();
+  if (!t) return '?';
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts[0][0] || '';
+    const last = parts[parts.length - 1][0] || '';
+    return (first + last).toUpperCase();
+  }
+  // Single word: take first two letters
+  const w = parts[0];
+  const a = (w?.[0] || '').toUpperCase();
+  const b = (w?.[1] || '').toUpperCase();
+  return (a + b) || (a || '?');
 }

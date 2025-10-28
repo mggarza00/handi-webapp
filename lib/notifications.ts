@@ -35,9 +35,10 @@ export async function notifyProApplicationDecision(params: {
     params.status === "accepted"
       ? "¡Bienvenido a Handi como profesional"
       : "Resultado de tu solicitud en Handi";
+  const imageUrl = `${base}/images/imagen_correo_sol_aceptada.png`;
   const html =
     params.status === "accepted"
-      ? proApplicationAcceptedHtml({ linkUrl })
+      ? proApplicationAcceptedHtml({ linkUrl, imageUrl })
       : proApplicationRejectedHtml({ linkUrl });
   await sendEmail({ to: email, subject, html });
 }

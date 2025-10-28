@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { env } from "@/lib/env";
@@ -15,8 +15,29 @@ export async function GET(req: Request) {
   const tokenHash = url.searchParams.get("token_hash");
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
   const next = url.searchParams.get("next") || "/";
-
-  const supabase = createRouteHandlerClient<Database, "public">({ cookies });
+  // Preparar una respuesta donde se apliquen cookies (mirroring en redirect)
+  const cookieStore = cookies();
+  const resCookiesCarrier = NextResponse.next();
+  const supabase = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              resCookiesCarrier.cookies.set(name, value, { ...(options as CookieOptions), path: "/" });
+            });
+          } catch {
+            // ignore write errors
+          }
+        },
+      },
+    }
+  );
 
   try {
     if (code) {
@@ -46,10 +67,14 @@ export async function GET(req: Request) {
     if (status) redirectUrl.searchParams.set("status", String(status));
     if (code) redirectUrl.searchParams.set("code", code);
     redirectUrl.searchParams.set("error", message);
-    return NextResponse.redirect(redirectUrl, { status: 302 });
+    const redirect = NextResponse.redirect(redirectUrl, { status: 302 });
+    resCookiesCarrier.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
 
-  return NextResponse.redirect(new URL(next, env.appUrl), { status: 302 });
+  const successRedirect = NextResponse.redirect(new URL(next, env.appUrl), { status: 302 });
+  resCookiesCarrier.cookies.getAll().forEach((c) => successRedirect.cookies.set(c));
+  return successRedirect;
 }
 
 async function ensureProfile(supabase: SupabaseClient<Database, "public">) {

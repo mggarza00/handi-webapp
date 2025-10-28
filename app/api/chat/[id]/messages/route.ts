@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader } from "@/lib/auth-route";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -188,6 +189,13 @@ export async function POST(req: Request, { params }: Ctx) {
     }
 
     await db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", id);
+
+    // Fire-and-forget: email al otro participante con el contenido y link al chat
+    try {
+      const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
+      // No bloquear respuesta HTTP
+      void notifyChatMessageByConversation({ conversationId: id, senderId: user.id, text: content || "", attachments: attachLite });
+    } catch { /* ignore notify errors */ }
     return NextResponse.json({ ok: true, data: ins.data }, { status: 201, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";

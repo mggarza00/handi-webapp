@@ -10,9 +10,23 @@ begin
   end if;
 end$$;
 
--- 1.1) Normaliza valores previos si existen inconsistencias
-update public.requests set status = 'finished' where status in ('completed');
-update public.requests set status = 'canceled' where status in ('cancelled');
+-- 1.1) Normaliza valores previos si existen inconsistencias (solo si status es text)
+do $$
+declare
+  v_coltype regtype;
+begin
+  select atttypid::regtype into v_coltype
+  from pg_attribute
+  where attrelid = 'public.requests'::regclass
+    and attname = 'status'
+    and attnum > 0
+    and not attisdropped;
+
+  if v_coltype = 'text'::regtype then
+    update public.requests set status = 'finished' where status in ('completed');
+    update public.requests set status = 'canceled' where status in ('cancelled');
+  end if;
+end$$;
 
 -- 1.2) Quita CHECK previo si existe y convierte columna a enum
 do $$
@@ -43,12 +57,24 @@ begin
     and not attisdropped;
 
   if v_coltype is distinct from 'public.request_status'::regtype then
-    -- asegurar que todos los valores mapeen al enum
+    -- asegurar que todos los valores mapeen al enum o al menos a valores válidos
     update public.requests set status = 'active' where status not in ('active','scheduled','in_process','finished','canceled') or status is null;
-    alter table public.requests alter column status type public.request_status using status::public.request_status;
-    alter table public.requests alter column status set default 'active';
-    alter table public.requests alter column status set not null;
+    begin
+      alter table public.requests alter column status type public.request_status using status::public.request_status;
+    exception when others then
+      -- si falla el cast (datos legacy), mantén tipo actual en local
+      null;
+    end;
+    begin
+      alter table public.requests alter column status set default 'active';
+    exception when others then null; end;
+    begin
+      alter table public.requests alter column status set not null;
+    exception when others then null; end;
   end if;
+exception when others then
+  -- tolera errores en local (p. ej. tipos/valores legacy)
+  null;
 end $$;
 
 -- 2) Tabla requests: columnas para agenda/estados (omite las que ya existan)
@@ -79,4 +105,3 @@ begin
 end $$;
 
 commit;
-

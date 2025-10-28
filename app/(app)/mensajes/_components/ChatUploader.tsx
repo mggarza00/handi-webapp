@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { sanitizeForStorageFilename, joinStoragePath } from "@/lib/storage-sanitize";
 
 type UploadItem = {
@@ -98,7 +98,7 @@ export default function ChatUploader({
   onReady,
   showButton = true,
 }: ChatUploaderProps) {
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const cameraRef = React.useRef<HTMLInputElement | null>(null);
   const [items, setItems] = React.useState<UploadItem[]>([]);

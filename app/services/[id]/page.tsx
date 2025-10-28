@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
 // ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
@@ -127,7 +126,7 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 export default async function ServiceDetailPage({ params }: Params) {
-  const client = createServerComponentClient<Database>({ cookies });
+  const client = createClient();
   const { supabase, user } = await getUserOrThrow(client).catch(() => {
     redirect(`/login?next=/services/${params.id}`);
   });
@@ -319,4 +318,3 @@ export default async function ServiceDetailPage({ params }: Params) {
     </main>
 );
 }
-

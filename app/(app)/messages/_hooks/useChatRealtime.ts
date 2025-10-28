@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type RealtimeMessage = {
   id: string;
@@ -42,7 +42,7 @@ export type Handlers = {
   export function useChatRealtime(conversationId: string, h: Handlers) {
   React.useEffect(() => {
     if (!conversationId) return;
-    const sb = createClientComponentClient();
+    const sb = createSupabaseBrowser();
     const channel = sb
       .channel(`chat:${conversationId}:rt`)
       .on(

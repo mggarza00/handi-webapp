@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { CirclePlus, CheckCircle2 } from "lucide-react";
+import { CirclePlus, Star } from "lucide-react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -131,12 +131,12 @@ export default function ExploreList({ items }: { items: ExploreItem[] }) {
                         className={[
                           "inline-flex items-center justify-center rounded-full border size-8",
                           isFav
-                            ? "text-blue-600 border-blue-500 bg-blue-50"
+                            ? "text-yellow-600 border-yellow-500 bg-yellow-50"
                             : "text-slate-500 border-slate-300 hover:bg-slate-100",
                         ].join(" ")}
                       >
                         {isFav ? (
-                          <CheckCircle2 className="size-5" />
+                          <Star className="size-5" />
                         ) : (
                           <CirclePlus className="size-5" />
                         )}
@@ -153,4 +153,3 @@ export default function ExploreList({ items }: { items: ExploreItem[] }) {
     </ul>
   );
 }
-

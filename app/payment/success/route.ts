@@ -74,11 +74,24 @@ export async function GET(req: Request) {
     }
   }
 
-  // 2) Marcar la request como 'scheduled' (idempotente). Si no hay env SRK, omite silenciosamente.
+  // 1.5) Si hay acuerdo en metadata, marcarlo como 'paid' (fallback cuando el webhook no está disponible)
+  try {
+    if (stripe && sessionId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      const s = await stripe.checkout.sessions.retrieve(sessionId);
+      const agreementId = ((s?.metadata || {}) as Record<string, string | undefined>)["agreement_id"] || "";
+      const agrId = (agreementId || "").trim();
+      if (agrId) {
+        const admin = supaAdmin();
+        try { await (admin as any).from('agreements').update({ status: 'paid' } as any).eq('id', agrId); } catch { /* ignore */ }
+      }
+    }
+  } catch { /* ignore */ }
+
+  // 2) Marcar la request como 'in_process' (idempotente). Si no hay env SRK, omite silenciosamente.
   try {
     if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
       const admin = supaAdmin();
-      // If we have requestId, mark scheduled and set accepted pro/date/time; else try via offerId->conversation
+      // If we have requestId, mark in_process and set accepted pro/date/time; else try via offerId->conversation
       if (!requestId && offerId) {
         try {
           const { data: off } = await admin.from('offers').select('conversation_id').eq('id', offerId).maybeSingle();
@@ -90,7 +103,7 @@ export async function GET(req: Request) {
         } catch { /* ignore */ }
       }
       if (requestId) {
-        const patch: Record<string, unknown> = { status: 'scheduled' };
+        const patch: Record<string, unknown> = { status: 'in_process' };
         if (proIdMeta) {
           (patch as any).professional_id = proIdMeta;
           (patch as any).accepted_professional_id = proIdMeta;
@@ -104,7 +117,7 @@ export async function GET(req: Request) {
         if (scheduled_date) (patch as any).scheduled_date = scheduled_date;
         if (scheduled_time) (patch as any).scheduled_time = scheduled_time as any;
         try {
-          if ((patch as any).status === 'scheduled' && !(patch as any).scheduled_date) {
+          if (!(patch as any).scheduled_date) {
             try {
               const { data: r0 } = await admin
                 .from('requests')
@@ -175,6 +188,10 @@ export async function GET(req: Request) {
             if (senderId) {
               const payload: Record<string, unknown> = { offer_id: offerId, status: 'paid' };
               await admin.from('messages').insert({ conversation_id: conversationId, sender_id: senderId, body: 'Pago realizado. Servicio agendado.', message_type: 'system', payload } as any);
+              try {
+                const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+                void notifyChatMessageByConversation({ conversationId, senderId, text: 'Pago realizado. Servicio agendado.' });
+              } catch {}
             }
           }
         } catch { /* ignore */ }

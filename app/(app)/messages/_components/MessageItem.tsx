@@ -3,7 +3,7 @@
 import * as React from "react";
 // Prefer plain <img> to avoid remote domain config for Next/Image
 // eslint-disable-next-line @next/next/no-img-element
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type Attachment = {
   id?: string;
@@ -29,7 +29,7 @@ type MessageItemProps = {
 };
 
 export default function MessageItem({ body, attachments = [], createdAt, isMine = false }: MessageItemProps) {
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [urls, setUrls] = React.useState<Array<{ key: string; url: string; att: Attachment }>>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
 

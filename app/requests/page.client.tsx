@@ -12,13 +12,7 @@ import type { RequestDetail as RequestDetailType } from "./[id]/RequestDetailCli
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import StatusMultiSelect from "@/components/filters/StatusMultiSelect";
 
 const RequestDetailClient = dynamic(() => import("./[id]/RequestDetailClient"), {
   ssr: false,
@@ -40,7 +34,6 @@ type RequestItem = {
 const DEFAULT_REQUEST_IMAGE = "/images/default-requests-image.png";
 
 const STATUS_OPTIONS = [
-  { value: "all", label: "Todas" },
   { value: "active", label: "Activas" },
   { value: "in_process", label: "En proceso" },
   { value: "completed", label: "Completadas" },
@@ -49,10 +42,13 @@ const STATUS_OPTIONS = [
 
 function statusLabel(status?: string | null) {
   const key = (status ?? "").toLowerCase();
+  // Compat mapeos
+  if (key === "canceled") return "Canceladas";
+  if (key === "finished") return "Completadas";
   const option = STATUS_OPTIONS.find((opt) => opt.value === key);
   if (option) return option.label;
   if (!key) return "Sin estatus";
-  return key.replace(/_/g, " " );
+  return key.replace(/_/g, " ");
 }
 
 function formatDate(value?: string | null) {
@@ -111,7 +107,8 @@ export default function RequestsClientPage() {
     setError(null);
     try {
       const qs = new URLSearchParams();
-      if (status && status !== "all") qs.set("status", status);
+      const effectiveStatus = status || (isMy ? "active,in_process" : undefined);
+      if (effectiveStatus) qs.set("status", effectiveStatus);
       if (city) qs.set("city", city);
       if (isMy) qs.set("mine", "1");
       const res = await fetch(`/api/requests${qs.toString() ? `?${qs.toString()}` : ""}`, {
@@ -132,6 +129,17 @@ export default function RequestsClientPage() {
   React.useEffect(() => {
     void fetchList();
   }, [fetchList]);
+
+  // Default statuses for "Mis solicitudes": Activas + En proceso
+  React.useEffect(() => {
+    if (!isMy) return;
+    const hasStatus = typeof status === "string" && status.trim().length > 0;
+    if (!hasStatus) {
+      const defaults = "active,in_process";
+      updateSearch({ status: defaults, mine: "1" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMy]);
 
   const loadDetail = React.useCallback(
     async (id: string) => {
@@ -156,13 +164,18 @@ export default function RequestsClientPage() {
 
   const visibleItems = React.useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return items;
-    return items.filter((item) => {
-      const title = (item.title ?? "").toLowerCase();
-      const cityValue = (item.city ?? "").toLowerCase();
-      const statusValue = (item.status ?? "").toLowerCase();
-      return title.includes(term) || cityValue.includes(term) || statusValue.includes(term);
-    });
+    const base = !term
+      ? items
+      : items.filter((item) => {
+        const title = (item.title ?? "").toLowerCase();
+        const cityValue = (item.city ?? "").toLowerCase();
+        const statusValue = (item.status ?? "").toLowerCase();
+        return title.includes(term) || cityValue.includes(term) || statusValue.includes(term);
+      });
+    // Priorizar 'in_process' al inicio manteniendo orden relativo
+    const inProc = base.filter((it) => (it.status ?? "").toLowerCase() === "in_process");
+    const rest = base.filter((it) => (it.status ?? "").toLowerCase() !== "in_process");
+    return [...inProc, ...rest];
   }, [items, query]);
 
   function updateSearch(next: Record<string, string | undefined>) {
@@ -208,24 +221,13 @@ export default function RequestsClientPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[180px_auto] md:items-end">
+      <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_auto] md:items-end">
         <div className="space-y-1.5">
           <Label>Status</Label>
-          <Select
-            value={status ?? "all"}
-            onValueChange={(value) => updateSearch({ status: value === "all" ? undefined : value })}
-          >
-            <SelectTrigger className="rounded-lg">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <StatusMultiSelect
+            value={status ?? (isMy ? "active,in_process" : "")}
+            onChange={(csv) => updateSearch({ status: csv || undefined })}
+          />
         </div>
         {!isMy ? (
           <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:justify-end md:gap-3">
@@ -275,7 +277,10 @@ export default function RequestsClientPage() {
               return (
                 <div
                   key={item.id}
-                  className="rounded-3xl border bg-white shadow-sm transition hover:shadow-md"
+                  className={[
+                    "rounded-3xl border shadow-sm transition hover:shadow-md",
+                    (item.status ?? "").toLowerCase() === "in_process" ? "bg-blue-50" : "bg-white",
+                  ].join(" ")}
                 >
                   <div
                     className="flex items-center gap-4 p-4"

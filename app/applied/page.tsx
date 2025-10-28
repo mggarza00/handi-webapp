@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import Breadcrumbs from "@/components/breadcrumbs";
@@ -20,7 +20,7 @@ export default async function AppliedPage({
 }: {
   searchParams: Search;
 }) {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
 
@@ -86,7 +86,8 @@ export default async function AppliedPage({
     Pick<ReqRow, "id" | "title" | "city" | "status">
   >();
   if (reqIds.length) {
-    const { data: reqs } = await supabase
+    const supaAny = supabase as any;
+    const { data: reqs } = await supaAny
       .from("requests")
       .select("id, title, city, status")
       .in("id", reqIds);

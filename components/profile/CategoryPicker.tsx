@@ -2,6 +2,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { createPortal } from "react-dom";
 import { Badge } from "@/components/ui/badge";
 import { Check, ChevronsUpDown, Plus, Minus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,7 +16,7 @@ const TAXONOMY_FALLBACK: Array<{ name: string; subcategories: string[] }> = [
 ] as const;
 
 type Pick = { category: string; subcategory?: string | null };
-type Opt = { category: string; subcategory: string | null };
+type Opt = { category: string; subcategory: string | null; icon?: string | null };
 
 function uniq<T>(arr: T[], by: (t: T) => string): T[] {
   const out: T[] = [];
@@ -36,17 +37,26 @@ function DefaultCategoryPicker({
   initialCategories,
   initialSubcategories,
   overrideTaxonomy,
+  single = false,
+  showChips = true,
+  triggerTestId,
+  centered = false,
 }: {
   value: Pick[];
   onChange: (next: Pick[]) => void;
   initialCategories?: string[];
   initialSubcategories?: string[];
   overrideTaxonomy?: Tax[];
+  single?: boolean;
+  showChips?: boolean;
+  triggerTestId?: string;
+  centered?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [options, setOptions] = React.useState<Opt[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const catRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
 
   React.useEffect(() => {
     let cancelled = false;
@@ -71,11 +81,17 @@ function DefaultCategoryPicker({
           // seed initial picks from provided initial values
           if (!cancelled && (initialCategories?.length || initialSubcategories?.length)) {
             const picks: Pick[] = [];
-            for (const c of initialCategories || []) if (c && c.trim()) picks.push({ category: c });
+            // Expand initial categories into their subcategories only (no whole-category picks)
+            for (const c of initialCategories || []) {
+              if (!c || !c.trim()) continue;
+              for (const o of arr) {
+                if (o.category === c && o.subcategory) picks.push({ category: c, subcategory: o.subcategory });
+              }
+            }
             for (const s of initialSubcategories || []) {
               if (!s || !s.trim()) continue;
               const match = arr.find((o) => (o.subcategory || "") === s) || null;
-              picks.push({ category: match?.category || "", subcategory: s });
+              if (match?.category) picks.push({ category: match.category, subcategory: s });
             }
             onChange(uniq(picks, (p) => `${p.category}::${p.subcategory || ""}`));
           }
@@ -85,22 +101,23 @@ function DefaultCategoryPicker({
         const r = await fetch("/api/catalog/categories", { headers: { "Content-Type": "application/json; charset=utf-8" } });
         const j = await r.json().catch(() => null);
         const arr: Opt[] = Array.isArray(j?.data)
-          ? j.data.map((x: any) => ({ category: String(x.category || ""), subcategory: x.subcategory || null }))
+          ? j.data.map((x: any) => ({ category: String(x.category || ""), subcategory: x.subcategory || null, icon: x.icon || null }))
           : [];
         if (!cancelled && arr.length) {
           setOptions(arr);
         } else {
           // Fallback to bundled taxonomy JSON
           const fallback: Opt[] = [];
-          const raw: Array<{ name?: string; subcategories?: Array<{ name?: string }> }>
-            = (RAW_TAXONOMY as any) as Array<{ name?: string; subcategories?: Array<{ name?: string }> }>;
+          const raw: Array<{ name?: string; subcategories?: Array<{ name?: string; icon?: string }> }>
+            = (RAW_TAXONOMY as any) as Array<{ name?: string; subcategories?: Array<{ name?: string; icon?: string }> }>;
           for (const c of raw) {
             const cat = String(c?.name || "").trim();
             if (!cat) continue;
             if (Array.isArray(c.subcategories) && c.subcategories.length) {
               for (const s of c.subcategories) {
                 const sub = String(s?.name || "").trim() || null;
-                fallback.push({ category: cat, subcategory: sub });
+                const icon = (s?.icon ? String(s.icon) : "").trim() || null;
+                fallback.push({ category: cat, subcategory: sub, icon });
               }
             } else {
               fallback.push({ category: cat, subcategory: null });
@@ -117,11 +134,19 @@ function DefaultCategoryPicker({
         // Seed selections from initial values
         if (!cancelled && (initialCategories?.length || initialSubcategories?.length)) {
           const picks: Pick[] = [];
-          for (const c of initialCategories || []) if (c && c.trim()) picks.push({ category: c });
+          // Expand initial categories into their subcategories only (no whole-category picks)
+          for (const c of initialCategories || []) {
+            if (!c || !c.trim()) continue;
+            const pool = (options.length ? options : arr);
+            for (const o of pool) {
+              if (o.category === c && o.subcategory) picks.push({ category: c, subcategory: o.subcategory });
+            }
+          }
           for (const s of initialSubcategories || []) {
             if (!s || !s.trim()) continue;
-            const match = (options.length ? options : arr).find((o) => (o.subcategory || "") === s) || null;
-            picks.push({ category: match?.category || "", subcategory: s });
+            const pool = (options.length ? options : arr);
+            const match = pool.find((o) => (o.subcategory || "") === s) || null;
+            if (match?.category) picks.push({ category: match.category, subcategory: s });
           }
           onChange(uniq(picks, (p) => `${p.category}::${p.subcategory || ""}`));
         }
@@ -153,23 +178,45 @@ function DefaultCategoryPicker({
   const selectedSubsSet = (cat: string) => new Set(value.filter((p) => p.category === cat && p.subcategory).map((p) => String(p.subcategory)));
   const hasCatPick = (cat: string) => hasPick({ category: cat });
   const allSubs = (cat: string) => byCat.get(cat) || [];
-  const isCatFullySelected = (cat: string) => hasCatPick(cat) || (allSubs(cat).length > 0 && allSubs(cat).every((s) => selectedSubsSet(cat).has(s)));
+  const isCatFullySelected = (cat: string) => (allSubs(cat).length > 0 && allSubs(cat).every((s) => selectedSubsSet(cat).has(s)));
 
   const addPicks = (...p: Pick[]) => onChange(uniq([...value, ...p], key));
   const removePicksWhere = (pred: (p: Pick) => boolean) => onChange(value.filter((p) => !pred(p)));
 
+  // Category rows expand/collapse. When opening, ensure it scrolls into view within the dropdown.
   const toggleCategory = (cat: string) => {
-    if (isCatFullySelected(cat)) {
-      removePicksWhere((p) => p.category === cat);
-    } else {
-      const subs = allSubs(cat);
-      const toAdd: Pick[] = [{ category: cat }];
-      for (const s of subs) toAdd.push({ category: cat, subcategory: s });
-      addPicks(...toAdd);
+    const nextOpen = !(expanded[cat] === true);
+    setExpanded((e) => {
+      if (nextOpen) {
+        // close others, open only this one
+        return { [cat]: true } as Record<string, boolean>;
+      }
+      // closing this one
+      const copy = { ...e } as Record<string, boolean>;
+      delete copy[cat];
+      return copy;
+    });
+    if (nextOpen) {
+      try {
+        requestAnimationFrame(() => {
+          const el = catRefs.current[cat];
+          if (el) el.scrollIntoView({ block: "nearest" });
+        });
+      } catch {
+        /* ignore */
+      }
     }
   };
 
   const toggleSub = (cat: string, sub: string) => {
+    if (single) {
+      const p = { category: cat, subcategory: sub } as Pick;
+      const isSelected = hasPick(p);
+      const next = isSelected ? [] : [p];
+      onChange(next);
+      setOpen(false);
+      return;
+    }
     if (hasCatPick(cat)) {
       // Expand category selection to explicit subcats, then remove the toggled one
       const subs = allSubs(cat);
@@ -184,78 +231,240 @@ function DefaultCategoryPicker({
     else addPicks(p);
   };
 
-  const label = value.length ? `${value.length} seleccionada(s)` : "Selecciona categorías…";
+  const label = React.useMemo(() => {
+    if (single) {
+      if (value.length === 1) {
+        const v = value[0];
+        return v.subcategory ? `${v.category} - ${v.subcategory}` : v.category;
+      }
+      return "Selecciona subcategoría…";
+    }
+    return value.length ? `${value.length} seleccionada(s)` : "Selecciona subcategorías…";
+  }, [single, value]);
+
+  // No auto-expand on open: keep categories closed until user interacts.
+
+  // Rich label node: when single selection and we know the icon, show "Categoría - (icon) Subcategoría"
+  const labelNode = React.useMemo(() => {
+    if (single && value.length === 1) {
+      const v = value[0];
+      const opt = options.find((o) => o.category === v.category && o.subcategory === (v.subcategory || null));
+      const icon = opt?.icon || null;
+      const isImg = !!(icon && (/^https?:\/\//.test(icon) || icon.startsWith("/") || /\.(png|jpe?g|gif|svg)$/i.test(icon)));
+      return (
+        <span className="inline-flex items-center gap-1 truncate">
+          <span className="truncate">{v.category}</span>
+          <span className="opacity-50">-</span>
+          {icon ? (
+            isImg ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={icon} alt="" className="h-4 w-4 object-contain" />
+            ) : (
+              <span aria-hidden className="text-base leading-none">{icon}</span>
+            )
+          ) : null}
+          {v.subcategory ? <span className="truncate">{v.subcategory}</span> : null}
+        </span>
+      );
+    }
+    return label;
+  }, [single, value, options, label]);
+
+  const renderList = () => (
+    loading ? (
+      <div className="py-6 text-center text-sm">Cargando…</div>
+    ) : (
+      <div className="max-h-[70vh] overflow-y-auto">
+        {Array.from(byCat.keys()).map((cat) => {
+          const subs = allSubs(cat);
+          const openCat = expanded[cat] === true;
+          const full = isCatFullySelected(cat);
+          const count = selectedSubsSet(cat).size;
+          return (
+            <div key={cat} ref={(el) => { catRefs.current[cat] = el; }} className="border-b last:border-b-0 py-1">
+              <div
+                className="flex items-center gap-2 cursor-pointer"
+                role="button"
+                aria-expanded={openCat}
+                onClick={() => toggleCategory(cat)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    toggleCategory(cat);
+                  }
+                }}
+                tabIndex={0}
+              >
+                <div className="flex items-center gap-2 text-left">
+                  <Check className={cn("h-4 w-4", full ? "opacity-100" : "opacity-0")} />
+                  <span className="text-sm">{cat}</span>
+                  {count > 0 && !full ? (
+                    <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{count}</span>
+                  ) : null}
+                </div>
+                <div className="ml-auto">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      setExpanded((e) => {
+                        if (!openCat) return { [cat]: true } as Record<string, boolean>;
+                        const copy = { ...e } as Record<string, boolean>;
+                        delete copy[cat];
+                        return copy;
+                      });
+                    }}
+                    aria-label={openCat ? "Ocultar" : "Mostrar"}
+                  >
+                    {openCat ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              {openCat && subs.length > 0 && (
+                <div className="mt-1 space-y-1 pl-6">
+                  {subs.map((s) => {
+                    const checked = full || selectedSubsSet(cat).has(s);
+                    const opt = options.find((o) => o.category === cat && o.subcategory === s);
+                    const icon = opt?.icon || null;
+                    const isImg = !!(icon && (/^https?:\/\//.test(icon) || icon.startsWith("/") || /\.(png|jpe?g|gif|svg)$/i.test(icon)));
+                    return (
+                      <label key={`${cat}::${s}`} className="flex items-center gap-2 text-sm" role="option">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          checked={checked}
+                          onChange={() => toggleSub(cat, s)}
+                        />
+                        {icon ? (
+                          isImg ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={icon} alt="" className="h-4 w-4 object-contain" />
+                          ) : (
+                            <span aria-hidden className="text-base leading-none">{icon}</span>
+                          )
+                        ) : null}
+                        <span>{s}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )
+  );
+
+  // For centered floating panel (non-modal), manage outside clicks and ESC
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  React.useEffect(() => {
+    if (!centered || !open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (panelRef.current && panelRef.current.contains(t)) return;
+      if (triggerRef.current && triggerRef.current.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [centered, open]);
 
   return (
     <div>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-            <span className={cn("truncate", !value.length && "text-slate-500")}>{label}</span>
+      {centered ? (
+        <>
+          <Button
+            ref={triggerRef}
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between"
+            data-testid={triggerTestId}
+            onClick={() => setOpen((o) => !o)}
+            type="button"
+          >
+            <span className={cn("truncate inline-flex items-center gap-1", !value.length && "text-slate-500")}>{labelNode}</span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-2">
-          {loading ? (
-            <div className="py-6 text-center text-sm">Cargando…</div>
-          ) : (
-            <div className="max-h-64 overflow-y-auto">
-              {Array.from(byCat.keys()).map((cat) => {
-                const subs = allSubs(cat);
-                const openCat = expanded[cat] === true;
-                const full = isCatFullySelected(cat);
-                const count = selectedSubsSet(cat).size;
-                return (
-                  <div key={cat} className="border-b last:border-b-0 py-1">
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => toggleCategory(cat)} className="flex items-center gap-2 text-left">
-                        <Check className={cn("h-4 w-4", full ? "opacity-100" : "opacity-0")} />
-                        <span className="text-sm">{cat}</span>
-                        {count > 0 && !full ? (
-                          <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{count}</span>
-                        ) : null}
-                      </button>
-                      <div className="ml-auto">
-                        <Button variant="ghost" size="sm" onClick={() => setExpanded((e) => ({ ...e, [cat]: !openCat }))} aria-label={openCat ? "Ocultar" : "Mostrar"}>
-                          {openCat ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                        </Button>
-                      </div>
-                    </div>
-                    {openCat && subs.length > 0 && (
-                      <div className="mt-1 space-y-1 pl-6">
-                        {subs.map((s) => {
-                          const checked = full || selectedSubsSet(cat).has(s);
-                          return (
-                            <label key={`${cat}::${s}`} className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-slate-300"
-                                checked={checked}
-                                onChange={() => toggleSub(cat, s)}
-                              />
-                              <span>{s}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          {mounted && open && createPortal(
+            <div
+              ref={panelRef}
+              className="fixed left-1/2 top-1/2 z-[80] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-2 shadow-lg sm:w-[36rem]"
+              role="dialog"
+              aria-modal={false}
+            >
+              {renderList()}
+            </div>,
+            document.body,
           )}
-        </PopoverContent>
-      </Popover>
-      {value.length > 0 && (
+        </>
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between" data-testid={triggerTestId} type="button">
+              <span className={cn("truncate inline-flex items-center gap-1", !value.length && "text-slate-500")}>{labelNode}</span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[--radix-popover-trigger-width] p-2 sm:w-[36rem]">
+            {renderList()}
+          </PopoverContent>
+        </Popover>
+      )}
+      {showChips && value.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {value.map((p) => (
-            <Badge key={`${p.category}::${p.subcategory || ""}`} variant="secondary" className="flex items-center gap-1">
-              {p.subcategory ? `${p.category} — ${p.subcategory}` : p.category}
-              <button type="button" onClick={() => onChange(value.filter((v) => v !== p))} aria-label="Quitar" className="ml-1 inline-flex">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
+          {value.map((p) => {
+            const opt = options.find((o) => o.category === p.category && o.subcategory === (p.subcategory || null));
+            const icon = opt?.icon || null;
+            const isImg = !!(icon && (/^https?:\/\//.test(icon) || icon.startsWith("/") || /\.(png|jpe?g|gif|svg)$/i.test(icon)));
+            return (
+              <Badge
+                key={`${p.category}::${p.subcategory || ""}`}
+                variant="secondary"
+                className="flex flex-col sm:flex-row items-start sm:items-center gap-0.5 sm:gap-1.5 text-left max-w-full"
+              >
+                {icon ? (
+                  isImg ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={icon} alt="" className="mt-0.5 h-3.5 w-3.5 object-contain" />
+                  ) : (
+                    <span aria-hidden className="text-sm leading-none">{icon}</span>
+                  )
+                ) : null}
+                {p.subcategory ? (
+                  <>
+                    <span className="hidden sm:inline">{p.category} — {p.subcategory}</span>
+                    <span className="sm:hidden block">{p.category}</span>
+                    <span className="sm:hidden block">{p.subcategory}</span>
+                  </>
+                ) : (
+                  <span>{p.category}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onChange(value.filter((v) => v !== p))}
+                  aria-label="Quitar"
+                  className="ml-1 inline-flex sm:self-auto self-center"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            );
+          })}
         </div>
       )}
     </div>

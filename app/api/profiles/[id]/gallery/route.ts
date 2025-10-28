@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient as createSupabaseJs } from "@supabase/supabase-js";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -30,7 +29,7 @@ export async function GET(_req: Request, { params }: CtxP) {
       { status: 500, headers: JSONH },
     );
 
-  const admin = createClient<Database>(url, serviceRole);
+  const admin = createSupabaseJs<Database>(url, serviceRole);
   const prefix = `${parsed.data}/`;
   const { data, error } = await admin.storage
     .from("profiles-gallery")
@@ -93,7 +92,7 @@ export async function DELETE(req: Request, { params }: CtxP) {
       { status: 403, headers: JSONH },
     );
 
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id ?? null;
   if (!uid || uid !== parsed.data)
@@ -111,7 +110,7 @@ export async function DELETE(req: Request, { params }: CtxP) {
       { ok: false, error: "SERVER_MISCONFIGURED" },
       { status: 500, headers: JSONH },
     );
-  const admin = createClient<Database>(url, serviceRole);
+  const admin = createSupabaseJs<Database>(url, serviceRole);
   const { error } = await admin.storage.from("profiles-gallery").remove([path]);
   if (error)
     return NextResponse.json(

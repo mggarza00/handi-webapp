@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function HiddenIfClientHasSession({ children }: { children: React.ReactNode }) {
   const [hasSession, setHasSession] = React.useState<boolean | null>(null);
@@ -8,7 +8,7 @@ export default function HiddenIfClientHasSession({ children }: { children: React
     let active = true;
     (async () => {
       try {
-        const supabase = createClientComponentClient();
+        const supabase = createSupabaseBrowser();
         const { data } = await supabase.auth.getSession();
         if (!active) return;
         setHasSession(!!data?.session);
@@ -24,4 +24,3 @@ export default function HiddenIfClientHasSession({ children }: { children: React
   if (hasSession) return null;
   return <>{children}</>;
 }
-

@@ -24,7 +24,7 @@ select
           + coalesce(r.commission_amount_cents,li.commission_amount,0)
           + coalesce(r.iva_amount_cents,       li.iva_amount,       0)))::bigint        as total_amount,
   u_client.full_name                            as client_name,
-  u_client.email                                as client_email,
+  (u_client_u.email)::text                      as client_email,
   u_pro.full_name                               as professional_name,
   req.title                                     as service_title,
   nullif(req.description, '')                   as service_description,
@@ -33,6 +33,7 @@ from public.receipts r
 left join li                     on li.receipt_id = r.id
 left join public.requests req    on req.id = r.request_id
 left join public.profiles u_client on u_client.id = r.client_id
+left join auth.users u_client_u    on u_client_u.id = r.client_id
 left join public.profiles u_pro    on u_pro.id    = r.professional_id;
 
 -- Basic grants (adjust to your roles)

@@ -9,7 +9,7 @@ do $$ begin
   if not exists (
     select 1 from pg_indexes where schemaname = 'public' and indexname = 'idx_service_photos_prof_req_created'
   ) then
-    create index idx_service_photos_prof_req_created on public.service_photos (professional_id, request_id, coalesce(created_at, uploaded_at) desc, id);
+    create index idx_service_photos_prof_req_created on public.service_photos (professional_id, request_id, uploaded_at desc, id);
   end if;
 end $$;
 
@@ -17,4 +17,3 @@ end $$;
 create index if not exists idx_agreements_request_prof on public.agreements (request_id, professional_id);
 
 commit;
-

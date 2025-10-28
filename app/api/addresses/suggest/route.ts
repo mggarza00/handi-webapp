@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import { canonicalizeCityName } from "@/lib/cities";
@@ -46,7 +45,7 @@ export async function GET(req: NextRequest) {
   const limitParam = Math.max(1, Math.min(10, Number(url.searchParams.get("limit") || 5)));
 
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id || null;
     if (!userId) return NextResponse.json({ ok: true, items: [] }, { status: 200, headers: JSONH });

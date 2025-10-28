@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -12,7 +11,7 @@ export async function GET(_req: NextRequest) {
     if (!hasEnv) {
       return NextResponse.json({ ok: true, items: [] }, { status: 200, headers: JSONH });
     }
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth?.user?.id || null;
     if (!userId) return NextResponse.json({ ok: true, items: [] }, { status: 200, headers: JSONH });

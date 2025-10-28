@@ -1,5 +1,1 @@
-'use server';
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
-
-export const getServerSupabase = () => createServerComponentClient({ cookies });
+export { createClient as getServerSupabase } from "@/utils/supabase/server";

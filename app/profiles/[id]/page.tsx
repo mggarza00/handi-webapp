@@ -7,6 +7,7 @@ import Breadcrumbs from "@/components/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import PublicProfileHeader from "@/components/profiles/PublicProfileHeader";
+import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
 import MetricCard from "@/components/profiles/MetricCard";
 import CertChip from "@/components/profiles/CertChip";
 import PhotoMasonry from "@/components/profiles/PhotoMasonry";
@@ -227,6 +228,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
         yearsExperience={typeof (pro as any)?.years_experience === 'number' ? ((pro as any)?.years_experience as number) : undefined}
         jobsDone={typeof jobsDone === 'number' ? jobsDone : undefined}
         categories={(categories.length ? categories : subcategories).join(", ")}
+        actions={<FavoriteProButton proId={proId} />}
       />
 
       {/* Quick metrics */}

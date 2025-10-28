@@ -4,7 +4,7 @@
 "use client";
 import * as React from "react";
 import type { Session } from "@supabase/supabase-js";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { X } from "lucide-react";
 import MessageList from "@/components/chat/MessageList";
@@ -137,7 +137,7 @@ export default function ChatPanel({
   dataPrefix = "chat",
   hideClientCtas = false,
 }: ChatPanelProps): JSX.Element {
-  const supabaseAuth = createClientComponentClient();
+  const supabaseAuth = createSupabaseBrowser();
   const [open, setOpen] = React.useState(true);
   const [loading, setLoading] = React.useState(false);
   const [messagesState, rawSetMessages] = React.useState<Msg[]>([]);
@@ -168,6 +168,7 @@ export default function ChatPanel({
   const [offerTitle, setOfferTitle] = React.useState("");
   const [offerDescription, setOfferDescription] = React.useState("");
   const [offerAmount, setOfferAmount] = React.useState("");
+  const [offerAmountLocked, setOfferAmountLocked] = React.useState(false);
   const [offerCurrency, setOfferCurrency] = React.useState("MXN");
   const [offerServiceDate, setOfferServiceDate] = React.useState("");
   const [offerScheduleRange, setOfferScheduleRange] = React.useState<[number, number]>([9, 17]);
@@ -324,17 +325,14 @@ export default function ChatPanel({
       let session: Session | null = null;
       try {
         session = await ensureSession(options?.forceRefresh);
-      } catch (error) {
+      } catch {
+        // In dev, allow x-user-id fallback without failing
         if (meId && !isProd) {
           headers["x-user-id"] = meId;
         }
-        throw error instanceof Error ? error : new Error(String(error));
+        session = null;
       }
-      if (!session) {
-        if (!meId || isProd) {
-          throw new Error("AUTH_REQUIRED");
-        }
-      } else if (session.access_token) {
+      if (session && session.access_token) {
         headers.Authorization = `Bearer ${session.access_token}`;
         headers["x-access-token"] = session.access_token;
         if (session.refresh_token && lastSyncedTokenRef.current !== session.access_token && !syncInFlightRef.current) {
@@ -426,6 +424,12 @@ export default function ChatPanel({
   React.useEffect(() => {
     void load();
   }, [load]);
+  // When auth state (meId) becomes available, try to reload history without spinner
+  React.useEffect(() => {
+    if (conversationId && meId) {
+      void load(false);
+    }
+  }, [meId, conversationId, load]);
   React.useEffect(() => {
     if (typeof requestBudgetProp === "number" && Number.isFinite(requestBudgetProp)) {
       setBudget(requestBudgetProp);
@@ -1300,7 +1304,7 @@ export default function ChatPanel({
     return latest;
   }, [messagesState]);
 
-  // When paid is detected, best-effort update request status to 'scheduled'
+  // When paid is detected, best-effort update request status to 'in_process'
   React.useEffect(() => {
     if (!hasPaid) return;
     if (!requestId) return;
@@ -1311,7 +1315,7 @@ export default function ChatPanel({
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json; charset=utf-8' },
           credentials: 'include',
-          body: JSON.stringify({ nextStatus: 'scheduled' }),
+          body: JSON.stringify({ nextStatus: 'in_process' }),
         });
       } catch {
         // ignore
@@ -1390,6 +1394,7 @@ export default function ChatPanel({
             <Button
               onClick={() => {
                 if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
+                setOfferAmountLocked(false);
                 setOfferDialogOpen(true);
               }}
             >
@@ -1401,7 +1406,6 @@ export default function ChatPanel({
       {participants && meId === participants?.pro_id ? (
         <div className="p-3 flex items-center gap-2 border-t">
           <Button variant="outline" onClick={() => setQuoteOpen(true)}>Cotizar</Button>
-          <Button onClick={() => setOnsiteOpen(true)}>Cotizar en sitio</Button>
         </div>
       ) : null}
     </>
@@ -1455,7 +1459,10 @@ export default function ChatPanel({
       dataPrefix={dataPrefix}
       onOpenOfferDialog={(opts) => {
         if (requestTitle && requestTitle.trim().length) setOfferTitle(requestTitle);
-        if (typeof opts?.amount === 'number' && Number.isFinite(opts.amount)) setOfferAmount(String(opts.amount));
+        if (typeof opts?.amount === 'number' && Number.isFinite(opts.amount)) {
+          setOfferAmount(String(opts.amount));
+          setOfferAmountLocked(true); // opened from quote message → lock amount
+        }
         setOfferCurrency((opts?.currency && typeof opts.currency === 'string' && opts.currency.trim().length) ? opts.currency.toUpperCase() : 'MXN');
         setOfferDialogOpen(true);
       }}
@@ -1470,6 +1477,7 @@ export default function ChatPanel({
           setOfferTitle("");
           setOfferDescription("");
           setOfferAmount("");
+          setOfferAmountLocked(false);
           setOfferCurrency("MXN");
           setOfferServiceDate("");
           setOfferScheduleRange([9, 17]);
@@ -1499,11 +1507,13 @@ export default function ChatPanel({
               <label className="text-sm font-medium text-slate-700">Monto</label>
               <input
                 type="number"
-                className="w-full border rounded px-3 py-2 text-sm"
+                className={`w-full border rounded px-3 py-2 text-sm ${offerAmountLocked ? 'bg-neutral-100 text-neutral-700 cursor-not-allowed dark:bg-neutral-800 dark:text-neutral-300' : ''}`}
                 value={offerAmount}
                 onChange={(event) => setOfferAmount(event.target.value)}
                 min="0"
                 step="0.01"
+                readOnly={offerAmountLocked}
+                disabled={offerAmountLocked}
               />
             </div>
             <div className="space-y-1">
@@ -1835,15 +1845,17 @@ export default function ChatPanel({
             <div className={["border-b p-3 bg-[#fbfbfb]","transition-opacity","duration-200", (safetyClosing ? "opacity-0" : "opacity-100")].join(" ")}>
               <div className="flex items-center justify-between">
                 <div className="text-xs text-muted-foreground">Evita compartir datos personales</div>
-                <button
-                  type="button"
-                  aria-label="Cerrar aviso"
-                  onClick={() => { setSafetyClosing(true); setTimeout(() => { setShowSafetyTip(false); setSafetyClosing(false); }, 200); }}
-                  className="inline-flex items-center justify-center h-5 w-5 rounded-full border text-slate-500 hover:bg-neutral-100"
-                  title="Cerrar"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                {(mode as 'panel' | 'page') === 'page' ? (
+                  <button
+                    type="button"
+                    aria-label="Cerrar aviso"
+                    onClick={() => { setSafetyClosing(true); setTimeout(() => { setShowSafetyTip(false); setSafetyClosing(false); }, 200); }}
+                    className="inline-flex items-center justify-center h-5 w-5 rounded-full border text-slate-500 hover:bg-neutral-100"
+                    title="Cerrar"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}

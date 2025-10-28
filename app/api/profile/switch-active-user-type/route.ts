@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
         { status: 400, headers: JSONH },
       );
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user)
       return NextResponse.json(
@@ -33,7 +32,7 @@ export async function POST(req: Request) {
       );
 
     // Check the feature flag before switching
-    const { data: profile } = await supabase
+    const { data: profile } = await (supabase as any)
       .from("profiles")
       .select("id, is_client_pro")
       .eq("id", auth.user.id)
@@ -46,7 +45,7 @@ export async function POST(req: Request) {
     }
 
     const role = to === "cliente" ? "client" : "pro";
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("profiles")
       .update({ role } as Database["public"]["Tables"]["profiles"]["Update"])
       .eq("id", auth.user.id)

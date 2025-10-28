@@ -12,7 +12,7 @@ select
 
   -- Parties
   pc.full_name                                              as client_name,
-  pc.email                                                  as client_email,
+  (u.email)::text                                           as client_email,
   pp.full_name                                              as professional_name,
 
   -- Legacy numeric MXN fields (kept for compatibility)
@@ -32,7 +32,7 @@ from public.messages m
 join public.conversations c on c.id = m.conversation_id
 left join public.requests req on req.id = c.request_id
 left join public.profiles pc on pc.id = c.customer_id
+left join auth.users u on u.id = c.customer_id
 left join public.profiles pp on pp.id = c.pro_id
 left join public.offers off on off.conversation_id = c.id and off.status = 'paid'
 where m.message_type = 'system' and (m.payload->>'receipt_id') is not null;
-

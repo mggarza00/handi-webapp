@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } as const;
 
@@ -29,13 +28,14 @@ function isValidClabe(raw: string): boolean {
 
 export async function GET(_req: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
+    const db = supabase as any;
     const { data: userRes, error: authErr } = await supabase.auth.getUser();
     const user = userRes?.user ?? null;
     if (authErr || !user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
     // Prefer confirmed; fallback to latest
-    const confirmed = await supabase
+    const confirmed = await db
       .from("bank_accounts")
       .select("id, profile_id, account_holder_name, bank_name, rfc, clabe, status, verified_at, created_at, updated_at")
       .eq("profile_id", user.id)
@@ -45,7 +45,7 @@ export async function GET(_req: Request) {
       return NextResponse.json({ ok: true, account: confirmed.data, hasConfirmed: true }, { status: 200, headers: JSONH });
     }
 
-    const latest = await supabase
+    const latest = await db
       .from("bank_accounts")
       .select("id, profile_id, account_holder_name, bank_name, rfc, clabe, status, verified_at, created_at, updated_at")
       .eq("profile_id", user.id)
@@ -68,7 +68,8 @@ export async function POST(req: Request) {
     if (!ct.includes("application/json"))
       return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
+    const db = supabase as any;
     const { data: userRes, error: authErr } = await supabase.auth.getUser();
     const user = userRes?.user ?? null;
     if (authErr || !user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "INVALID_CLABE" }, { status: 422, headers: JSONH });
 
     // Upsert strategy: update latest non-archived non-confirmed; else insert pending
-    const existing = await supabase
+    const existing = await db
       .from("bank_accounts")
       .select("id, status")
       .eq("profile_id", user.id)
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
     // Upsert or insert pending row
     let targetId: string | null = null;
     if (existing?.data?.id) {
-      const upd = await supabase
+      const upd = await db
         .from("bank_accounts")
         .update({
           account_holder_name,
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: upd.error.message }, { status: 400, headers: JSONH });
       targetId = upd.data?.id ?? null;
     } else {
-      const ins = await supabase
+      const ins = await db
         .from("bank_accounts")
         .insert({
           profile_id: user.id,
@@ -135,14 +136,14 @@ export async function POST(req: Request) {
     if (!targetId) return NextResponse.json({ ok: false, error: "INSERT_FAILED" }, { status: 400, headers: JSONH });
 
     // Archive confirmed and promote this one to confirmed (enforce one confirmed per profile)
-    const { error: archErr } = await supabase
+    const { error: archErr } = await db
       .from("bank_accounts")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("profile_id", user.id)
       .eq("status", "confirmed");
     if (archErr) return NextResponse.json({ ok: false, error: archErr.message }, { status: 400, headers: JSONH });
 
-    const { data: confirmed, error: confErr } = await supabase
+    const { data: confirmed, error: confErr } = await db
       .from("bank_accounts")
       .update({ status: "confirmed", verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", targetId)

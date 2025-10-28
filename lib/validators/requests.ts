@@ -61,11 +61,34 @@ export const RequestCreateSchema = z.object({
 export type RequestCreateInput = z.infer<typeof RequestCreateSchema>;
 
 // GET /api/requests query params
+const ALLOWED_STATUSES = [
+  "active",
+  "in_process",
+  "completed",
+  "cancelled",
+  // Compat: sinónimos que puede devolver la base
+  "canceled",
+  "finished",
+] as const;
+
 export const RequestListQuerySchema = z.object({
   mine: z
     .enum(["1", "true", "0", "false"]) // aceptamos 1/true/0/false
     .optional(),
-  status: z.enum(["active", "in_process", "completed", "cancelled"]).optional(),
+  // Permite 1 o múltiples estatus en CSV (e.g., "active,in_process")
+  status: z
+    .string()
+    .optional()
+    .refine(
+      (s) =>
+        !s ||
+        s
+          .split(",")
+          .map((x) => x.trim().toLowerCase())
+          .filter(Boolean)
+          .every((x) => (ALLOWED_STATUSES as readonly string[]).includes(x)),
+      { message: "Invalid status" },
+    ),
   city: z.string().min(2).max(80).optional(),
   category: z.string().min(2).max(80).optional(),
   // Paginación simple: limit/offset

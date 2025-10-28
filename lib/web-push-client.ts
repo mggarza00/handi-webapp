@@ -23,9 +23,11 @@ export async function subscribePush(): Promise<PushSubscription> {
   if (existing) return existing;
   const vapid = getPublicVapidKey();
   if (!vapid) throw new Error('Missing public VAPID key');
+  const raw = urlBase64ToUint8Array(vapid);
+  const applicationServerKey = new Uint8Array(Array.from(raw));
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapid),
+    applicationServerKey,
   });
   return sub;
 }

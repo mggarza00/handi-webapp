@@ -1,9 +1,9 @@
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import Link from "next/link";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
-import FiltersBar from "@/components/explore/FiltersBar";
+import ExploreFilters from "@/app/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
@@ -50,7 +50,7 @@ export default async function ExploreRequestsPage({
 }: {
   searchParams?: { page?: string; city?: string; category?: string; subcategory?: string };
 }) {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -152,8 +152,31 @@ export default async function ExploreRequestsPage({
 
   // Opciones de selects (desde BD)
   const cityOptions = await getDistinct("requests", "city");
-  const categoryOptions = await getDistinct("requests", "category");
-  const subcategoryOptions = await getDistinct("requests", "subcategory");
+
+  // Catálogo oficial desde Supabase: categories_subcategories
+  const base = getBaseUrl();
+  // Forward raw cookies for SSR fetch
+  const ck = headers();
+  const cookie = ck.get("cookie");
+  let catalogPairs: Array<{ category: string; subcategory: string | null }> = [];
+  try {
+    const res = await fetch(`${base}/api/catalog/categories`, {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        ...(cookie ? { cookie } : {}),
+      },
+      cache: "no-store",
+    });
+    const j = await res.json().catch(() => null as any);
+    if (res.ok && j?.ok && Array.isArray(j.data)) {
+      catalogPairs = j.data.map((r: any) => ({
+        category: String(r.category || "").trim(),
+        subcategory: (r.subcategory ? String(r.subcategory) : "").trim() || null,
+      }));
+    }
+  } catch {
+    /* ignore */
+  }
 
   // Fetch results via util (DB-level paginate and favorites join)
   const { items, total, page: safePage, pageSize } = await fetchExploreRequests(user.id, {
@@ -173,7 +196,17 @@ export default async function ExploreRequestsPage({
         </p>
       </div>
 
-      <FiltersBar cityOptions={cityOptions} categoryOptions={categoryOptions} subcategoryOptions={subcategoryOptions} />
+      <ExploreFilters
+        cities={cityOptions}
+        categories={Array.from(new Set(catalogPairs.map((p) => p.category))).sort()}
+        pairs={catalogPairs}
+        selected={{
+          city: paramCity,
+          category: paramCategory,
+          subcategory: paramSubcategory,
+          page: String(page),
+        }}
+      />
 
       <RequestsList proId={user.id} initialItems={items} />
 

@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useProspects } from "@/lib/hooks/useProspects";
 import ChatPanel from "@/components/chat/ChatPanel";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = { requestId: string };
 
@@ -24,7 +24,7 @@ export default function ProspectsClient({ requestId }: Props) {
   const [amountEdits, setAmountEdits] = React.useState<Record<string, string>>(
     {},
   );
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseBrowser();
 
   React.useEffect(() => {
     let cancelled = false;

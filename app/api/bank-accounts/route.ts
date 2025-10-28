@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } as const;
 
@@ -17,12 +16,13 @@ function isValidClabe(clabe: string): boolean {
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
+    const db = supabase as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
-    const { data: profile } = await supabase
+    const { data: profile } = await db
       .from("profiles")
       .select("role, is_client_pro, full_name")
       .eq("id", user.id)
@@ -30,7 +30,7 @@ export async function GET() {
     const isPro = (profile?.role as unknown as string) === "professional" || Boolean((profile as unknown as { is_client_pro?: boolean })?.is_client_pro);
     if (!isPro) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
-    const { data: rows, error: listErr } = await supabase
+    const { data: rows, error: listErr } = await db
       .from("bank_accounts")
       .select("id, bank_name, clabe, status, created_at, verified_at")
       .eq("profile_id", user.id)
@@ -69,13 +69,14 @@ export async function PUT(req: Request) {
     if (!ct.includes("application/json"))
       return NextResponse.json({ error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
+    const db = supabase as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
     // Optional gating by role
-    const { data: profile } = await supabase
+    const { data: profile } = await db
       .from("profiles")
       .select("role, is_client_pro, full_name")
       .eq("id", user.id)
@@ -93,7 +94,7 @@ export async function PUT(req: Request) {
     if (!/^\d{18}$/.test(clabe) || !isValidClabe(clabe)) return NextResponse.json({ error: "INVALID_CLABE" }, { status: 422, headers: JSONH });
 
     // Upsert editable row: pending/rejected else insert; then promote to confirmed and archive previous confirmed
-    const existing = await supabase
+    const existing = await db
       .from("bank_accounts")
       .select("id, status")
       .eq("profile_id", user.id)
@@ -104,7 +105,7 @@ export async function PUT(req: Request) {
 
     let targetId: string | null = null;
     if (existing?.data?.id) {
-      const upd = await supabase
+      const upd = await db
         .from("bank_accounts")
         .update({
           account_holder_name: fullName,
@@ -119,7 +120,7 @@ export async function PUT(req: Request) {
       if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 400, headers: JSONH });
       targetId = upd.data?.id ?? null;
     } else {
-      const ins = await supabase
+      const ins = await db
         .from("bank_accounts")
         .insert({
           profile_id: user.id,
@@ -137,7 +138,7 @@ export async function PUT(req: Request) {
     if (!targetId) return NextResponse.json({ error: "UPSERT_FAILED" }, { status: 400, headers: JSONH });
 
     // Archive existing confirmed
-    const { error: archErr } = await supabase
+    const { error: archErr } = await db
       .from("bank_accounts")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("profile_id", user.id)
@@ -145,7 +146,7 @@ export async function PUT(req: Request) {
     if (archErr) return NextResponse.json({ error: archErr.message }, { status: 400, headers: JSONH });
 
     // Promote to confirmed
-    const { error: confErr } = await supabase
+    const { error: confErr } = await db
       .from("bank_accounts")
       .update({ status: "confirmed", verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", targetId);

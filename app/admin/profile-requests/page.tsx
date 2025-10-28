@@ -1,13 +1,8 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import createClient from "@/utils/supabase/server";
 
 export default async function AdminProfileRequestsPage() {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (n: string) => cookies().get(n)?.value } }
-  );
+  const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/auth/sign-in");
@@ -31,8 +26,13 @@ export default async function AdminProfileRequestsPage() {
     .eq("status", "pending")
     .order("created_at", { ascending: false });
 
+  type ChangePayload = { profiles?: Record<string, unknown>; professionals?: Record<string, unknown> } | null;
   const list = (requests || []) as Array<{
-    id: string; user_id: string; status: string; payload: any; created_at: string | null
+    id: string;
+    user_id: string;
+    status: string;
+    payload: ChangePayload;
+    created_at: string | null;
   }>;
 
   return (
@@ -43,8 +43,8 @@ export default async function AdminProfileRequestsPage() {
       ) : (
         <ul className="space-y-4">
           {list.map((r) => {
-            const prof = Object.keys(r.payload?.profiles || {});
-            const pro = Object.keys(r.payload?.professionals || {});
+            const prof = Object.keys((r.payload?.profiles as Record<string, unknown> | undefined) || {});
+            const pro = Object.keys((r.payload?.professionals as Record<string, unknown> | undefined) || {});
             const summary = [...prof.map((k) => `profiles.${k}`), ...pro.map((k) => `professionals.${k}`)];
             return (
               <li key={r.id} className="rounded-2xl border p-4">
@@ -72,4 +72,3 @@ export default async function AdminProfileRequestsPage() {
     </main>
   );
 }
-

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import PageContainer from "@/components/page-container";
@@ -52,7 +52,7 @@ async function getScheduledFromApi(cookieHeader: string | null): Promise<Schedul
 }
 
 export default async function Page() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
 
@@ -62,7 +62,7 @@ export default async function Page() {
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<any>();
   const role = (profile?.role ?? null) as null | "client" | "pro" | "admin";
   if (role !== "pro") redirect("/");
 

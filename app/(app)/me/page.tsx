@@ -1,6 +1,5 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 
 export default async function MePage() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   if (!user) redirect("/auth/sign-in");
@@ -20,7 +19,7 @@ export default async function MePage() {
       "full_name, avatar_url, role, city, bio, categories, subcategories, is_client_pro",
     )
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<any>();
 
   const { data: pro } = await supabase
     .from("professionals")
@@ -28,7 +27,7 @@ export default async function MePage() {
       "headline, years_experience, city, categories, subcategories, avatar_url, bio",
     )
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<any>();
 
   const fullName =
     profile?.full_name ?? user.user_metadata?.full_name ?? "Usuario";

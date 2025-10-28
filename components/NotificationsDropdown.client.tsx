@@ -2,11 +2,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function NotificationsDropdown() {
   const [open, setOpen] = React.useState(false);
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [me, setMe] = React.useState<string | null>(null);
   const [items, setItems] = React.useState<Array<{
     id: string;

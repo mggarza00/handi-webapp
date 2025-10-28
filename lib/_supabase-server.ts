@@ -1,6 +1,5 @@
 // lib/_supabase-server.ts
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/supabase";
@@ -25,7 +24,7 @@ export class ApiError extends Error {
 }
 
 export function getSupabaseServer(): DBClient {
-  return createRouteHandlerClient<Database>({ cookies });
+  return createSupabaseServerClient();
 }
 
 export const supabaseServer = getSupabaseServer;

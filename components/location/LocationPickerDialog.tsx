@@ -39,6 +39,30 @@ function CenterSetter({ center }: { center: LatLngExpression }) {
   return null;
 }
 
+function InvalidateOnOpen({ open }: { open: boolean }) {
+  const map = useMap();
+  React.useEffect(() => {
+    if (!open) return;
+    // Invalidar varias veces tras abrir para corregir desplazamientos
+    let raf = 0;
+    let frames = 0;
+    const tick = () => {
+      try { map.invalidateSize(); } catch {}
+      frames++;
+      if (frames < 6) raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    const t1 = window.setTimeout(() => { try { map.invalidateSize(); } catch {} }, 150);
+    const t2 = window.setTimeout(() => { try { map.invalidateSize(); map.panTo(map.getCenter()); } catch {} }, 350);
+    return () => {
+      try { window.cancelAnimationFrame(raf); } catch {}
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [open, map]);
+  return null;
+}
+
 const defaultCenter: Coords = { lat: 25.6866, lon: -100.3161 };
 
 // Lightweight div-based pin to avoid asset imports
@@ -132,13 +156,15 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl" aria-label="Selector de ubicación">
-        <DialogHeader>
-          <DialogTitle>Seleccionar ubicación</DialogTitle>
-        </DialogHeader>
+      <DialogContent className="max-w-3xl w-[min(96vw,900px)] overflow-hidden p-0 md:p-4" aria-label="Selector de ubicación">
+        <div className="p-4 pb-2 md:pt-0">
+          <DialogHeader>
+            <DialogTitle>Seleccionar ubicación</DialogTitle>
+          </DialogHeader>
+        </div>
 
         {/* Search row */}
-        <div className="flex items-center gap-2">
+        <div className="px-4 md:px-4 flex items-center gap-2">
           <Input
             placeholder="Escribe una dirección..."
             value={query}
@@ -187,7 +213,7 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
           </Button>
         </div>
         {/* Suggestions list */}
-        <div id="location-suggestions" role="listbox" aria-label="Sugerencias de direcciones" className="max-h-48 overflow-auto rounded border bg-white shadow-sm" hidden={suggestions.length === 0}>
+        <div id="location-suggestions" role="listbox" aria-label="Sugerencias de direcciones" className="mx-4 mt-2 max-h-48 overflow-auto rounded border bg-white shadow-sm" hidden={suggestions.length === 0}>
           {suggestions.map((s, idx) => {
             const sub = (() => {
               const a = s.address || {};
@@ -214,13 +240,14 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
         </div>
 
         {/* Map */}
-        <div className="relative h-[55vh] min-h-[320px] md:min-h-[520px] rounded overflow-hidden border">
-          <MapContainer center={center} zoom={15} style={{ height: "100%", width: "100%" }} aria-label="Mapa de selección de ubicación">
+        <div className="relative m-4 mt-3 h-[50vh] max-h-[60vh] min-h-[320px] rounded overflow-hidden border">
+          <MapContainer center={center} zoom={15} style={{ height: "100%", width: "100%" }} className="w-full h-full block" aria-label="Mapa de selección de ubicación">
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
             <CenterSetter center={center} />
+            <InvalidateOnOpen open={open} />
             <Marker
               position={[coords.lat, coords.lon] as any}
               draggable
@@ -242,7 +269,7 @@ export default function LocationPickerDialog({ open, onOpenChange, initialCoords
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="px-4 pb-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 text-sm text-slate-700">
             <MapPin size={16} className="shrink-0 text-slate-500" />
             <span className="truncate" title={address}>{address}</span>

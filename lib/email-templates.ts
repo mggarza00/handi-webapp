@@ -123,10 +123,11 @@ export function messageReceivedHtml(opts: {
   });
 }
 
-export function proApplicationAcceptedHtml(opts: { linkUrl?: string }) {
+export function proApplicationAcceptedHtml(opts: { linkUrl?: string; imageUrl?: string }) {
   const title = "¡Has sido aceptado como profesional!";
   const body = `
     <h1>${title}</h1>
+    ${opts.imageUrl ? `<p style="margin:12px 0 16px;"><img src="${opts.imageUrl}" alt="Solicitud aceptada" style="max-width:100%; border-radius:12px; display:block;" /></p>` : ""}
     <p>Tu solicitud para unirte como profesional en Handi fue <strong>aceptada</strong>.</p>
     <p>Ya puedes completar tu perfil y comenzar a recibir oportunidades.</p>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ir a mi perfil</a></p>` : ""}

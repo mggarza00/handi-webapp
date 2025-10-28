@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import createClient from "@/utils/supabase/server";
 import { getAdminSupabase } from '@/lib/supabase/admin';
 import type { Database } from '@/types/supabase';
 import { revalidatePath, revalidateTag } from 'next/cache';
@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400, headers: JSONH });
     const next = parsed.data.nextStatus;
 
-    const userClient = createRouteHandlerClient<Database>({ cookies });
+    const userClient = createClient();
     const { data: auth } = await userClient.auth.getUser();
     const me = auth?.user?.id ?? null;
     if (!me) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401, headers: JSONH });

@@ -10,7 +10,7 @@ export default function ProMobileTabbar() {
   const isCalendar = pathname.startsWith("/pro/calendar");
 
   const base =
-    "inline-flex flex-col items-center gap-1 px-3 py-1 rounded-md text-sm text-[#11314B] hover:bg-neutral-200 dark:hover:bg-neutral-800";
+    "inline-flex flex-col items-center gap-1 px-3 py-1 rounded-md text-sm text-[#11314B] hover:bg-neutral-200 dark:hover:bg-neutral-800 text-center";
   const active = "bg-neutral-200 dark:bg-neutral-800";
 
   return (

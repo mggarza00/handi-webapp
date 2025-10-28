@@ -6,6 +6,7 @@ import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader 
 import { createServerClient as createServiceClient } from "@/lib/supabase";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import webpush from "web-push";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -230,6 +231,12 @@ export async function POST(req: Request) {
     } catch {
       // ignore push errors
     }
+
+    // Email al otro participante con el contenido del mensaje y link al chat (no bloqueante)
+    try {
+      const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
+      void notifyChatMessageByConversation({ conversationId, senderId: user.id, text: body || "", attachments: attachLite });
+    } catch { /* ignore email notify errors */ }
 
     return NextResponse.json(
       { ok: true, data: ins.data },

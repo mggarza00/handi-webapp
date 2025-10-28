@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import createClient from "@/utils/supabase/server";
 
 import type { Application } from "@/types/homaid";
 import { jsonOk, jsonFail } from "@/lib/errors";
@@ -11,21 +10,7 @@ import { jsonOk, jsonFail } from "@/lib/errors";
  */
 export async function GET() {
   try {
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          // En route handlers, Next maneja el set/remove; no-op aquí.
-          set() {},
-          remove() {},
-        },
-      },
-    );
+    const supabase = createClient();
 
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth?.user) {

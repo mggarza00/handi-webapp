@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 // import Image from "next/image";
-import { createClient } from "@supabase/supabase-js";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient as createSupabaseJs } from "@supabase/supabase-js";
+import createClient from "@/utils/supabase/server";
 
 import RequestDetailClient from "./RequestDetailClient";
 import RequestHeaderActions from "./RequestHeaderActions.client";
@@ -73,7 +73,7 @@ export default async function RequestDetailPage({ params }: Params) {
 
   // Owner-only guard: only the creator can view this client detail page
   try {
-    const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -113,7 +113,7 @@ export default async function RequestDetailPage({ params }: Params) {
         | undefined;
       if (!href && typeof f.path === "string" && url && serviceRole) {
         try {
-          const admin = createClient(url, serviceRole);
+          const admin = createSupabaseJs(url, serviceRole);
           const s = await admin.storage
             .from("requests")
             .createSignedUrl(f.path as string, 60 * 60);

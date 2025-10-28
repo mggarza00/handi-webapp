@@ -1,10 +1,9 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 export default async function TopBar() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

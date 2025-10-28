@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } as const;
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
+    const db = supabase as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
-    const { data: profile } = await supabase
+    const { data: profile } = await db
       .from("profiles")
       .select("role, is_client_pro")
       .eq("id", user.id)
@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!body?.is_default) return NextResponse.json({ error: "NOOP" }, { status: 400, headers: JSONH });
 
     // Demote any existing confirmed
-    const { error: archErr } = await supabase
+    const { error: archErr } = await db
       .from("bank_accounts")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("profile_id", user.id)
@@ -33,7 +33,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (archErr) return NextResponse.json({ error: archErr.message }, { status: 400, headers: JSONH });
 
     // Promote selected to confirmed
-    const { error: confErr } = await supabase
+    const { error: confErr } = await db
       .from("bank_accounts")
       .update({ status: "confirmed", verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", id)

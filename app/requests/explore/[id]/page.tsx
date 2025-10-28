@@ -4,8 +4,8 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 // import Image from "next/image"; // replaced by Avatar
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { createClient } from "@supabase/supabase-js";
+import createClient from "@/utils/supabase/server";
+import { createClient as createSupabaseJs } from "@supabase/supabase-js";
 // Internal SSR helpers and client components
 import { getRequestWithClient } from "../_lib/getRequestWithClient";
 import ChatStartPro from "./chat-start-pro.client";
@@ -61,7 +61,7 @@ function getBaseUrl() {
 export const dynamic = "force-dynamic";
 
 export default async function ProRequestDetailPage({ params }: Params) {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -70,7 +70,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   }
 
   // Require professional role
-  const { data: prof } = await supabase
+  const { data: prof } = await (supabase as any)
     .from("profiles")
     .select("role")
     .eq("id", user!.id)
@@ -130,7 +130,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
       let href = (typeof f.url === "string" ? f.url : undefined) as string | undefined;
       if (!href && typeof f.path === "string" && url && serviceRole) {
         try {
-          const admin = createClient(url, serviceRole);
+          const admin = createSupabaseJs(url, serviceRole);
           const s = await admin.storage
             .from("requests")
             .createSignedUrl(f.path as string, 60 * 60);
@@ -161,16 +161,16 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const clientId = clientFromAdmin?.id ?? ((d as { created_by?: string }).created_by ?? null);
 
   // Cargar perfil básico del cliente
-  const supabaseS = createServerComponentClient<Database>({ cookies });
+  const supabaseS = createClient();
   let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null; rating: number | null } | null = clientFromAdmin
     ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url, rating: (clientFromAdmin as { rating?: number | null }).rating ?? null }
     : null;
   if (!clientProfile && clientId) {
-    const { data: cp } = await supabaseS
+    const { data: cp } = await (supabaseS as any)
       .from("profiles")
       .select("id, full_name, avatar_url, rating")
       .eq("id", clientId)
-      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null; rating: number | null }>();
+      .maybeSingle();
     clientProfile = cp ?? null;
   }
   // Log temporal para QA

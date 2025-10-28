@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Menu, Settings as SettingsIcon } from "lucide-react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 import { buttonVariants } from "@/components/ui/button";
 
@@ -125,7 +125,7 @@ export default function HeaderMenu() {
     created_at: string | null;
     read_at: string | null;
   };
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [me, setMe] = React.useState<string | null>(null);
 
   const [notifItems, setNotifItems] = React.useState<Notif[]>([]);
@@ -416,7 +416,20 @@ export default function HeaderMenu() {
   {/* Notificaciones */}
         <button
           type="button"
-          onClick={() => setNotifOpen((v) => !v)}
+          onClick={async () => {
+            setNotifOpen((v) => !v);
+            // Clear notif badge immediately
+            setHasNotifs(false);
+            try {
+              localStorage.setItem("handi_has_notifications", "0");
+              localStorage.setItem("handee_has_notifications", "0");
+            } catch { /* ignore */ }
+            // Best-effort: mark all as read in background
+            try {
+              const headers = await buildAuthHeaders();
+              await fetch("/api/me/notifications/mark-read", { method: 'POST', credentials: 'include', headers });
+            } catch { /* ignore */ }
+          }}
           className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 relative"
         >
           <BellIcon />
@@ -471,7 +484,18 @@ export default function HeaderMenu() {
           href="/messages"
           className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 relative"
           data-testid="open-messages-link"
-          onClick={closeMenu}
+          onClick={() => {
+            // Clear messages badge immediately
+            setUnreadMsgCount(0);
+            setHasNewMsgs(false);
+            try {
+              localStorage.setItem("handi_unread_messages_count", "0");
+              localStorage.setItem("handee_unread_messages_count", "0");
+              localStorage.setItem("handi_has_new_messages", "0");
+              localStorage.setItem("handee_has_new_messages", "0");
+            } catch { /* ignore */ }
+            closeMenu();
+          }}
         >
           <span className="relative inline-flex items-center justify-center">
             <MessageIcon />

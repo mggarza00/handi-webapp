@@ -32,6 +32,11 @@ export default function ExploreResults({
   const [items, setItems] = React.useState<ExploreResultItem[]>
     (Array.isArray(initialItems) ? initialItems.slice().sort(sortItems) : []);
 
+  // Keep items in sync with new server results (URL filters/pages)
+  React.useEffect(() => {
+    setItems(Array.isArray(initialItems) ? initialItems.slice().sort(sortItems) : []);
+  }, [initialItems]);
+
   function handleToggled(id: string, fav: boolean) {
     setItems((prev) => {
       const next = prev.map((it) => (it.id === id ? { ...it, is_favorite: fav } : it));
@@ -63,4 +68,3 @@ export default function ExploreResults({
     </ul>
   );
 }
-

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import { RequestCreateSchema, RequestListQuerySchema } from "@/lib/validators/requests";
 import { getAdminSupabase } from "@/lib/supabase/admin";
@@ -11,7 +11,7 @@ import type { Database } from "@/types/supabase";
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 function getSupabase() {
-  return createRouteHandlerClient<Database>({ cookies });
+  return createClient();
 }
 
 // GET /api/requests?mine=1&status=active&city=Monterrey
@@ -77,8 +77,32 @@ export async function GET(req: Request) {
     .order("created_at", { ascending: false });
 
   if (mine && userId) query = query.eq("created_by", userId);
-  if (status) query = query.eq("status", status);
-  else if (!mine) query = query.eq("status", "active"); // default: solo activas si no se piden propias
+  if (status) {
+    // Permite CSV de estatus (p. ej. "active,in_process") y compat con sinónimos
+    const raw = String(status)
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+    const set = new Set<string>();
+    for (const s of raw) {
+      if (s === "cancelled" || s === "canceled") {
+        set.add("cancelled");
+        set.add("canceled");
+      } else if (s === "completed" || s === "finished") {
+        set.add("completed");
+        set.add("finished");
+      } else {
+        set.add(s);
+      }
+    }
+    const values = Array.from(set);
+    if (values.length === 1) {
+      query = query.eq("status", values[0]);
+    } else if (values.length > 1) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query = (query as any).in("status", values);
+    }
+  } else if (!mine) query = query.eq("status", "active"); // default: solo activas si no se piden propias
   if (city) query = query.eq("city", city);
   if (category) query = query.eq("category", category);
 
@@ -352,7 +376,7 @@ export async function POST(req: Request) {
   } else {
     const resIns = await supabase
       .from("requests")
-      .insert(attemptInsert)
+      .insert(attemptInsert as any)
       .select("*")
       .single();
     data = resIns.data;
@@ -400,7 +424,7 @@ export async function POST(req: Request) {
     const lng = typeof d.address_lng === "number" ? d.address_lng : null;
     if (actingUserId && (address_line || address_place_id)) {
       // Use cookie-auth client so auth.uid() inside the function resolves correctly
-      const rpc = getSupabase();
+      const rpc = getSupabase() as any;
       await rpc.rpc("upsert_user_address", {
         address_line: address_line ?? "",
         address_place_id: address_place_id ?? null,

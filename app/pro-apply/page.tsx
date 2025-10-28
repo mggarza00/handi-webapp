@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import ProApplyForm from "./pro-apply-form.client";
@@ -54,7 +54,7 @@ async function getProfileDefaults(
 }
 
 export default async function ProApplyPage() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();

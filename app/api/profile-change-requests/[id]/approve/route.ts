@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
 
@@ -13,7 +12,7 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
   const id = ctx.params?.id;
   if (!id) return NextResponse.json({ ok: false, error: "MISSING_ID" }, { status: 400, headers: JSONH });
 
-  const supa = createRouteHandlerClient<Database>({ cookies });
+  const supa = createClient() as any;
   // Fetch the change request
   const { data: req, error } = await supa
     .from("profile_change_requests")
@@ -35,21 +34,21 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
 
   // Apply changes (best-effort; PostgREST lacks multi-statement transactions)
   if (payload.profiles && Object.keys(payload.profiles).length > 0) {
-    const { error: up1 } = await supa
+    const { error: up1 } = await (supa as any)
       .from("profiles")
-      .update(payload.profiles as Database["public"]["Tables"]["profiles"]["Update"])
+      .update(payload.profiles as any)
       .eq("id", userId);
     if (up1) return NextResponse.json({ ok: false, error: "PROFILE_UPDATE_FAILED" }, { status: 400, headers: JSONH });
   }
   if (payload.professionals && Object.keys(payload.professionals).length > 0) {
-    const { error: up2 } = await supa
+    const { error: up2 } = await (supa as any)
       .from("professionals")
-      .update(payload.professionals as Database["public"]["Tables"]["professionals"]["Update"])
+      .update(payload.professionals as any)
       .eq("id", userId);
     if (up2) return NextResponse.json({ ok: false, error: "PRO_UPDATE_FAILED" }, { status: 400, headers: JSONH });
   }
 
-  const { error: upReq } = await supa
+  const { error: upReq } = await (supa as any)
     .from("profile_change_requests")
     .update({ status: "approved", reviewer_id: reviewerId, reviewed_at: new Date().toISOString() })
     .eq("id", id);
@@ -57,4 +56,3 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
 
   return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
 }
-

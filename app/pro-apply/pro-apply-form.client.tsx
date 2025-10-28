@@ -1080,7 +1080,6 @@ export default function ProApplyForm({
               value={years}
               onChange={(e) => setYears(e.target.value)}
               inputMode="numeric"
-              placeholder="5"
             />
           </div>
         </div>

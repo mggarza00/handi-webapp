@@ -227,6 +227,12 @@ export async function POST(req: Request) {
                     .insert({ conversation_id: convIdAttach, sender_id: senderIdAttach, body: 'Recibo de pago adjunto', message_type: 'system', payload } as any)
                     .select('id')
                     .single();
+                  try {
+                    const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+                    if (senderIdAttach && convIdAttach) {
+                      void notifyChatMessageByConversation({ conversationId: convIdAttach, senderId: senderIdAttach, text: 'Recibo de pago adjunto' });
+                    }
+                  } catch { /* ignore */ }
                   messageId = (insMsg.data as any)?.id as string | undefined;
                 }
                 // Generate PDF (render interno usando la vista can�nica)
@@ -381,8 +387,8 @@ export async function POST(req: Request) {
                   const requestId = (conv as any)?.request_id as string | undefined;
                   if (requestId) {
                     requestIdTouched = requestId;
-                    // Actualiza estado a scheduled, pro asignado y fecha/hora
-                    let patch: Record<string, unknown> = { status: "scheduled", is_explorable: false, visible_in_explore: false } as any;
+                    // Actualiza estado a in_process, pro asignado y fecha/hora
+                    let patch: Record<string, unknown> = { status: "in_process", is_explorable: false, visible_in_explore: false } as any;
                     if (proId) {
                       try { (patch as any).professional_id = proId; } catch {}
                       try { (patch as any).accepted_professional_id = proId; } catch {}
@@ -400,7 +406,7 @@ export async function POST(req: Request) {
                       } catch { /* ignore parse */ }
                     }
                     try {
-                      if ((patch as any).status === 'scheduled' && !(patch as any).scheduled_date) {
+                      if (!(patch as any).scheduled_date) {
                         try {
                           const { data: r0 } = await admin
                             .from('requests')
@@ -470,6 +476,12 @@ export async function POST(req: Request) {
                     await admin
                       .from("messages")
                       .insert({ conversation_id: convId, sender_id: clientId, body: body || "Detalles de servicio", message_type: "system", payload: payload2 });
+                    try {
+                      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+                      if (convId && clientId) {
+                        void notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: body || 'Detalles de servicio' });
+                      }
+                    } catch { /* ignore */ }
                     try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }
                   }
                 } catch {}
@@ -490,8 +502,8 @@ export async function POST(req: Request) {
               try {
                 await admin
                   .from("requests")
-                  // Idempotente: marca como scheduled
-                  .update({ status: "scheduled" as any, is_explorable: false as any, visible_in_explore: false as any })
+                  // Idempotente: marca como in_process
+                  .update({ status: "in_process" as any, is_explorable: false as any, visible_in_explore: false as any })
                   .eq("id", agr.request_id);
               } catch { /* ignore */ }
               // Enviar mensaje con dirección si existe conversación
@@ -578,7 +590,7 @@ export async function POST(req: Request) {
           if (!offerId && requestIdFromMeta) {
             try {
               requestIdTouched = requestIdFromMeta;
-              const patchReq: Record<string, unknown> = { status: "scheduled" as any, is_explorable: false as any, visible_in_explore: false as any };
+              const patchReq: Record<string, unknown> = { status: "in_process" as any, is_explorable: false as any, visible_in_explore: false as any };
               if (proIdFromMeta) {
                 (patchReq as any).professional_id = proIdFromMeta;
                 (patchReq as any).accepted_professional_id = proIdFromMeta;
@@ -656,6 +668,12 @@ export async function POST(req: Request) {
                 try {
                   const paidBody = whenStr ? `Pago confirmado. Servicio agendado para ${whenStr}` : 'Pago realizado. Servicio agendado.';
                   await admin.from('messages').insert({ conversation_id: convId, sender_id: clientId, body: paidBody, message_type: 'system', payload: { request_id: requestIdFromMeta, status: 'paid' } } as any);
+                  try {
+                    const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+                    if (convId && clientId) {
+                      void notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: paidBody });
+                    }
+                  } catch { /* ignore */ }
                 } catch { /* ignore */ }
                 const body = [
                   address_line ? `Dirección: ${address_line}` : null,
@@ -674,6 +692,12 @@ export async function POST(req: Request) {
                 await admin
                   .from("messages")
                   .insert({ conversation_id: convId, sender_id: clientId, body: body || "Detalles de servicio", message_type: "system", payload: payload2 });
+                try {
+                  const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+                  if (convId && clientId) {
+                    void notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: body || 'Detalles de servicio' });
+                  }
+                } catch { /* ignore */ }
                 try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }
               }
             } catch {}

@@ -3,7 +3,7 @@
 import { NextResponse } from "next/server";
 
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { createPublicClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     const c = cookies();
     const all = c.getAll();
     const cookieNames = all.map((x) => x.name);
-    const route = createRouteHandlerClient({ cookies });
+    const route = createClient();
     const { data: rUser } = await route.auth.getUser();
 
     const authH = (req.headers.get("authorization") || req.headers.get("Authorization") || "").trim();
@@ -47,4 +47,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
   }
 }
-

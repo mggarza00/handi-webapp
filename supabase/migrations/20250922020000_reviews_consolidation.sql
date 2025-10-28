@@ -11,6 +11,9 @@ do $$ begin
   end if;
 end $$;
 
+-- Drop dependent views to allow replacing reviews view with a table
+drop view if exists public.v_professional_reviews;
+
 -- Drop legacy view if it exists; we'll create a real table
 drop view if exists public.reviews;
 
@@ -67,5 +70,21 @@ begin
   end if;
 end $$;
 
-commit;
+-- Recreate dependent view now that reviews is a table
+create or replace view public.v_professional_reviews as
+select
+  r.id,
+  r.professional_id,
+  r.request_id,
+  r.client_id,
+  r.rating,
+  r.comment,
+  r.created_at,
+  p.full_name as client_name,
+  p.avatar_url as client_avatar
+from public.reviews r
+join public.profiles p on p.id = r.client_id;
 
+grant select on public.v_professional_reviews to anon, authenticated;
+
+commit;

@@ -50,3 +50,10 @@ Puertos por defecto: 54321, 54322, 8000; ajusta en supabase/config.toml.
 ---
 
 Con eso, ya puedes usar:
+```bash
+npm run supa:install    instala/doctor
+npm run supa:start      levanta todo
+npm run supa:status     URLs & puertos
+npm run supa:lint       advisor/linter
+npm run supa:push       sube migraciones
+```

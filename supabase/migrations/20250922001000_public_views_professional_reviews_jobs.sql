@@ -23,8 +23,8 @@ select
   req.id as request_id,
   req.title as request_title,
   coalesce(sp.professional_id, null) as professional_id,
-  array_agg(coalesce(sp.url, sp.image_url) order by coalesce(sp.created_at, sp.uploaded_at) asc)
-    filter (where coalesce(sp.url, sp.image_url) is not null) as photos
+  array_agg(sp.image_url order by sp.uploaded_at asc)
+    filter (where sp.image_url is not null) as photos
 from public.requests req
 left join public.service_photos sp on sp.request_id = req.id
 where req.status = 'completed'

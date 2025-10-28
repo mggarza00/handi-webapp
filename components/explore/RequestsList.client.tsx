@@ -33,6 +33,11 @@ export default function RequestsList({
     Array.isArray(initialItems) ? initialItems.slice().sort(sortItems) : [],
   );
 
+  // Sync local state when server-provided items change (filter/page updates)
+  React.useEffect(() => {
+    setItems(Array.isArray(initialItems) ? initialItems.slice().sort(sortItems) : []);
+  }, [initialItems]);
+
   function handleToggled(id: string, fav: boolean) {
     setItems((prev) => {
       const next = prev.map((it) => (it.id === id ? { ...it, is_favorite: fav } : it));

@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -8,14 +7,14 @@ type RateLimitResult =
   | { ok: false; status: number; message: string };
 
 export async function assertRateLimit(action: string, windowSec: number, maxCount: number): Promise<RateLimitResult> {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient() as any;
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("UNAUTHENTICATED");
 
   const sinceIso = new Date(Date.now() - windowSec * 1000).toISOString();
-  const { count, error } = await supabase
+  const { count, error } = await (supabase as any)
     .from("api_events")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
@@ -32,6 +31,6 @@ export async function assertRateLimit(action: string, windowSec: number, maxCoun
     };
   }
 
-  await supabase.from("api_events").insert({ user_id: user.id, action });
+  await (supabase as any).from("api_events").insert({ user_id: user.id, action });
   return { ok: true };
 }

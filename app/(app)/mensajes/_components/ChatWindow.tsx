@@ -158,7 +158,17 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
         {/* Avatar con skeleton mientras carga */}
         <AvatarWithSkeleton src={normalizeAvatarUrl(other?.avatar_url) || "/images/Favicon-v1-jpeg.jpg"} alt={other?.full_name || "Avatar"} sizeClass="size-10" />
         <div className="min-w-0 flex-1">
-          <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
+            {requestId && viewerRole === 'pro' ? (
+              <a
+                href={`/requests/explore/${requestId}`}
+                className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-slate-50 shrink-0"
+              >
+                Ir a solicitud
+              </a>
+            ) : null}
+          </div>
           {(() => {
             const st = (requestStatus || "").toLowerCase();
             const isScheduled = st === "scheduled";
@@ -179,11 +189,13 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
                 <div className="text-xs text-muted-foreground truncate">
                   {requestTitle || (loading ? "Cargando…" : formatPresence(other?.last_active_at ?? null))}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="hidden sm:inline text-xs text-muted-foreground">Estatus:</span>
-                  <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
-                    {statusLabel}
-                  </span>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span className="hidden sm:inline text-xs text-muted-foreground">Estatus:</span>
+                    <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
+                      {statusLabel}
+                    </span>
+                  </div>
                 </div>
               </div>
             );

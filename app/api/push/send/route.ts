@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Fetch subscriptions for current user
-    const { data: subs, error } = await supabase
+    const { data: subs, error } = await (supabase as any)
       .from('web_push_subscriptions')
       .select('id, endpoint, keys, p256dh, auth')
       .eq('user_id', user.id);

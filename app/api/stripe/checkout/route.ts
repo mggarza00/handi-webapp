@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { getStripe } from "@/lib/stripe";
 import { z } from "zod";
 
@@ -25,7 +24,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { user } = await getUserOrThrow(supabase);
 
     const DEFAULT_FEE = Number(
@@ -64,7 +63,7 @@ export async function POST(req: Request) {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-      success_url: `${origin}/payments/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/payment/success?session_id={CHECKOUT_SESSION_ID}&rid=${encodeURIComponent(body.request_id)}`,
       cancel_url: `${origin}/payments/cancel`,
       line_items: [
         {

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,7 @@ function isValidClabe(input: string): boolean {
 }
 
 export default function BankAccountGateModal({ open, onOpenChange, onAcceptOffer }: Props) {
-  const supabaseAuth = createClientComponentClient();
+  const supabaseAuth = createSupabaseBrowser();
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = { "Content-Type": "application/json; charset=utf-8" };
     try {
