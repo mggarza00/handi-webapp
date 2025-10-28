@@ -166,11 +166,13 @@ export async function POST(req: Request) {
       const proId = (conv.data as any)?.pro_id as string | undefined;
       const recipientId = senderId === customerId ? proId : customerId;
       if (recipientId && typeof recipientId === 'string') {
-        const fnBase = process.env.SUPABASE_URL;
+        const fnUrlDirect = process.env.SUPABASE_FUNCTIONS_URL;
+        const supaUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const fnBase = fnUrlDirect || (supaUrl ? `${supaUrl.replace(/\/$/, '')}/functions/v1` : null);
         const srk = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (fnBase && srk) {
           const urlPath = `/mensajes/${conversationId}`;
-          const fnUrl = `${fnBase.replace(/\/$/, '')}/functions/v1/push-notify`;
+          const fnUrl = `${fnBase.replace(/\/$/, '')}/push-notify`;
           const previewText = (body || '').trim().slice(0, 140) || 'Tienes un mensaje nuevo en Handi';
           await fetch(fnUrl, {
             method: 'POST',
