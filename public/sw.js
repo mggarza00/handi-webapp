@@ -41,8 +41,13 @@ self.addEventListener('push', (event) => {
     const icon = payload.icon || '/icons/icon-192.png';
     const badge = payload.badge || '/icons/badge-72.png';
     const url = payload.url || '/';
-    const tag = payload.tag || 'handi-notification';
-    const data = { url, tag, ts: Date.now(), ...payload.data };
+    // Stable tag for coalescing (thread or conversation)
+    let tag = 'handi-notification';
+    if (payload.tag) tag = payload.tag;
+    else if (payload.threadId) tag = `thread:${payload.threadId}`;
+    else if (payload.conversationId) tag = `thread:${payload.conversationId}`;
+    else if (typeof url === 'string' && url) tag = `url:${url}`;
+    const data = { url, tag, ts: Date.now(), threadId: payload.threadId, conversationId: payload.conversationId, ...payload.data };
 
     event.waitUntil(
       // @ts-ignore
@@ -52,9 +57,12 @@ self.addEventListener('push', (event) => {
         badge,
         tag,
         data,
+        renotify: true,
         requireInteraction: !!payload.requireInteraction,
         vibrate: payload.vibrate || [100, 50, 100],
-        actions: payload.actions || [],
+        actions: Array.isArray(payload.actions) && payload.actions.length
+          ? payload.actions
+          : [{ action: 'open', title: 'Abrir', icon: icon }],
       })
     );
   } catch (err) {
@@ -65,6 +73,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   const n = event.notification;
   const dest = (n && n.data && n.data.url) ? n.data.url : '/';
+  const action = event.action || 'open';
   event.notification.close();
   event.waitUntil((async () => {
     // @ts-ignore
@@ -80,7 +89,9 @@ self.addEventListener('notificationclick', (event) => {
       } catch (_) { /* ignore */ }
     }
     // @ts-ignore
-    await self.clients.openWindow(dest);
+    if (action === 'open') {
+      await self.clients.openWindow(dest);
+    }
   })());
 });
 
@@ -92,7 +103,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       const reg = await self.registration;
       const cur = await reg.pushManager.getSubscription();
       if (!cur) return;
-      await fetch('/api/web-push/subscribe', {
+      await fetch('/api/push/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ subscription: cur }),
@@ -102,4 +113,3 @@ self.addEventListener('pushsubscriptionchange', (event) => {
     }
   })());
 });
-
