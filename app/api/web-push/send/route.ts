@@ -7,7 +7,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 function getVapid() {
   const pub = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
   const priv = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
-  const subject = process.env.WEB_PUSH_VAPID_SUBJECT || "mailto:soportehandi.mx";
+  const subject = process.env.WEB_PUSH_VAPID_SUBJECT || "mailto:soporte@handi.mx";
   if (!pub || !priv) throw new Error("Missing VAPID keys");
   webpush.setVapidDetails(subject, pub, priv);
 }

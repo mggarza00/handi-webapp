@@ -23,7 +23,7 @@ type Payload = {
 const JSONH = { 'Content-Type': 'application/json; charset=utf-8' } as const;
 
 function setVapid() {
-  const subject = Deno.env.get('WEB_PUSH_VAPID_SUBJECT') || 'mailto:soportehandi.mx';
+  const subject = Deno.env.get('WEB_PUSH_VAPID_SUBJECT') || 'mailto:soporte@handi.mx';
   const pub = Deno.env.get('WEB_PUSH_VAPID_PUBLIC_KEY');
   const priv = Deno.env.get('WEB_PUSH_VAPID_PRIVATE_KEY');
   if (!pub || !priv) throw new Error('Missing WEB_PUSH_VAPID_PUBLIC_KEY/WEB_PUSH_VAPID_PRIVATE_KEY');

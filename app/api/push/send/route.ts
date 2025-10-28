@@ -7,7 +7,7 @@ import type { Database } from '@/types/supabase';
 const JSONH = { 'Content-Type': 'application/json; charset=utf-8' } as const;
 
 // Configure VAPID
-const VAPID_SUBJECT = process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:soportehandi.mx';
+const VAPID_SUBJECT = process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:soporte@handi.mx';
 const VAPID_PUBLIC = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
 const VAPID_PRIVATE = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
@@ -78,4 +78,3 @@ export async function POST(req: NextRequest) {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
