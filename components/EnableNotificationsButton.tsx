@@ -26,6 +26,7 @@ type Props = {
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export default function EnableNotificationsButton({ publicKey, className, labelEnable = "Activar notificaciones", labelEnabled = "Notificaciones activas" }: Props) {
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
   const isiOS = useMemo(() => isIOS(), []);
 
   useEffect(() => {
+    setMounted(true);
     if (!supported) return;
     try {
       setPerm(Notification.permission);
@@ -72,6 +74,8 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
       setLoading(false);
     }
   }
+
+  if (!mounted) return null;
 
   if (!supported) {
     // Mostrar tip en iOS cuando no hay soporte (otras plataformas: ocultar)
