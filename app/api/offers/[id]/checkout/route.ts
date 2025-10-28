@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -52,13 +52,11 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
     }
 
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    const stripeConfigured = Boolean(STRIPE_SECRET_KEY);
-    if (!stripeConfigured) {
+    const stripe = await getStripe();
+    if (!stripe) {
       // Stripe no configurado: retorna sin URL, no es error
       return NextResponse.json({ ok: true, checkoutUrl: null }, { status: 200, headers: JSONH });
     }
-    const stripe = new Stripe(STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
 
     const amount = Number(row.amount ?? NaN);
     if (!Number.isFinite(amount) || amount <= 0) {

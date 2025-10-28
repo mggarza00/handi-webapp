@@ -21,6 +21,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint:css": "stylelint \"**/*.css\"",
     "lint": "next lint && npm run lint:css",
+    "lint:admin": "eslint app/admin/layout.tsx app/admin/page.tsx app/admin/offers/**/*.tsx app/admin/requests/**/*.tsx app/admin/professionals/**/*.tsx app/admin/clients/**/*.tsx app/admin/payments/**/*.tsx app/admin/settings/**/*.tsx app/admin/system/**/*.tsx app/admin/[...stub]/page.tsx app/api/admin/metrics/**/*.ts app/api/admin/requests/**/*.ts app/api/admin/professionals/**/*.ts app/api/admin/clients/**/*.ts app/api/admin/payments/**/*.ts app/api/admin/webhooks/**/*.ts app/api/admin/audit/**/*.ts app/api/admin/settings/**/*.ts app/api/admin/offers/**/*.ts components/admin/**/*.tsx components/RoleGate.tsx components/ui/table.tsx hooks/use-admin-auth.ts --max-warnings=0",
+    "check:admin": "tsc -p tsconfig.json --noEmit && npm run lint:admin",
     "review:ui": "node scripts/ui-review.mjs",
     "check": "npm run typecheck && npm run lint",
     "smoke": "node scripts/smoke.mjs",
@@ -42,13 +44,34 @@
     "db:migrate": "supabase db push",
     "db:reset": "supabase db reset --force",
     "db:studio": "supabase studio",
+    "db:seed:admin": "supabase db execute --file supabase/seed_admin.sql",
+    "db:seed": "supabase db execute --file db/seed/seed.sql",
+    "db:seed:large": "supabase db execute --file supabase/seed_admin_large.sql",
+    "db:setup:admin": "npm run db:migrate && npm run db:seed:admin",
+    "dev:seed": "tsx scripts/dev-seed.ts",
+    "test": "npm run test:e2e",
     "test:unit": "vitest --config vitest.config.ts run --reporter=verbose",
     "e2e": "playwright test -c playwright.local.config.ts",
     "e2e:ui": "playwright test --ui -c playwright.local.config.ts",
     "db:push:direct": "bash scripts/db_push_direct.sh",
     "db:receipt:psql": "bash scripts/psql_apply_receipt_pooler.sh",
     "db:push:ipv6": "bash scripts/db_push_ipv6.sh",
-    "db:receipt:cli": "supabase migration up --linked"
+    "db:receipt:cli": "supabase migration up --linked",
+    "supabase:doctor": "bash scripts/supabase/install-and-doctor.sh",
+    "supabase:up": "bash scripts/supabase/dev-up.sh",
+    "supabase:down": "bash scripts/supabase/dev-down.sh",
+    "supabase:reset": "bash scripts/supabase/dev-reset.sh",
+    "supabase:link-update": "bash scripts/supabase/link-update.sh",
+    "supa:install": "bash scripts/supabase/install-and-doctor.sh",
+    "supa:start": "bash scripts/supabase/dev-up.sh",
+    "supa:stop": "bash scripts/supabase/dev-down.sh",
+    "supa:reset": "bash scripts/supabase/dev-reset.sh",
+    "supa:link": "bash scripts/supabase/link-update.sh",
+    "supa:lint": "supabase db lint",
+    "supa:push": "supabase db push",
+    "supa:status": "supabase status",
+    "supa:studio": "supabase studio",
+    "preview:email:accepted": "tsx scripts/preview-accepted-email.ts"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -69,6 +92,7 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.57.4",
+    "@tanstack/react-table": "^8.21.3",
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -90,12 +114,15 @@
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.64.0",
     "react-leaflet": "^4.2.1",
+    "recharts": "^3.3.0",
     "resend": "^6.0.1",
     "satori": "^0.18.3",
     "sonner": "^2.0.7",
     "stripe": "^18.4.0",
     "tailwind-merge": "^3.3.1",
-    "zod": "^3.25.76"
+    "web-push": "^3.6.7",
+    "zod": "^3.25.76",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@lhci/cli": "^0.15.1",
@@ -140,5 +167,10 @@
       "autoprefixer": {}
     }
   },
-  "overrides": {}
+  "overrides": {},
+  "browserslist": [
+    "defaults",
+    "ios_saf >= 10",
+    "safari >= 10"
+  ]
 }

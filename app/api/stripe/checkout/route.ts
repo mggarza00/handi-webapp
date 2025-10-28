@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { z } from "zod";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
@@ -28,11 +28,11 @@ export async function POST(req: Request) {
     const supabase = createRouteHandlerClient<Database>({ cookies });
     const { user } = await getUserOrThrow(supabase);
 
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
     const DEFAULT_FEE = Number(
       process.env.NEXT_PUBLIC_STRIPE_PRICE_FEE_MXN ?? "0",
     );
-    if (!STRIPE_SECRET_KEY) {
+    const stripe = await getStripe();
+    if (!stripe) {
       return new NextResponse(
         JSON.stringify({
           ok: false,
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
     const body = BodySchema.parse(await req.json());
     const amount = (body.amount_mxn ?? DEFAULT_FEE) * 100;
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY);
+    // stripe loaded above
     const origin =
       req.headers.get("origin") ||
       process.env.NEXT_PUBLIC_APP_URL ||

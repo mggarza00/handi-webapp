@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
+import type Stripe from "stripe";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 import { createBearerClient, createServerClient } from "@/lib/supabase";
@@ -15,11 +16,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   let stripeSession: Stripe.Checkout.Session | null = null;
   try {
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    const stripeConfigured = Boolean(STRIPE_SECRET_KEY);
-    const stripe = stripeConfigured
-      ? new Stripe(STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] })
-      : null;
+    const stripe = await getStripe();
 
     // Resolve acting user (prefer bearer token, fallback cookie, finally x-user-id for dev)
     const supabase = createRouteHandlerClient<Database>({ cookies });

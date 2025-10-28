@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { Database } from "@/types/supabase";
@@ -44,10 +44,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     let receiptUrl: string | null = null;
     try {
-      const key = process.env.STRIPE_SECRET_KEY;
       const piId = (offer as any)?.payment_intent_id as string | null;
-      if (key && piId) {
-        const stripe = new Stripe(key, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
+      const stripe = await getStripe();
+      if (stripe && piId) {
         const pi = await stripe.paymentIntents.retrieve(piId, { expand: ["latest_charge"] });
         const anyCharge: any = (pi as any)?.latest_charge || null;
         const rec = typeof anyCharge?.receipt_url === "string" ? anyCharge.receipt_url : null;
@@ -68,4 +67,3 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

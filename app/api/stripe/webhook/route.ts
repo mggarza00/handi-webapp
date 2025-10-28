@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
+import type Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
 import React from 'react';
@@ -9,17 +10,21 @@ import { getReceiptForPdf } from '@/lib/receipts';
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function POST(req: Request) {
-  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
   const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!STRIPE_SECRET_KEY || !STRIPE_WEBHOOK_SECRET) {
+  if (!STRIPE_WEBHOOK_SECRET) {
     return new NextResponse(
       JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:STRIPE_KEYS" }),
       { status: 500, headers: JSONH },
     );
   }
-
-  const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
+  const stripe = await getStripe();
+  if (!stripe) {
+    return new NextResponse(
+      JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY" }),
+      { status: 500, headers: JSONH },
+    );
+  }
 
   const sig = req.headers.get("stripe-signature");
   if (!sig) {

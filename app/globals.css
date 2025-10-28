@@ -56,6 +56,80 @@
   --gutter-x: var(--site-gutter);
 }
 
+/*
+  Legacy color fallback for browsers without OKLCH support (e.g., older iOS Safari).
+  We override the base tokens with broadly equivalent HEX values so that downstream
+  usages like `background-color: var(--color-background)` resolve to supported colors.
+*/
+@supports not (color: oklch(1 0 0)) {
+  :root {
+    --background: #ffffff;
+    --foreground: #111111;
+    --card: #ffffff;
+    --card-foreground: #111111;
+    --popover: #ffffff;
+    --popover-foreground: #111111;
+    --primary: #11304a;
+    --primary-foreground: #ffffff;
+    --secondary: #f9e7c9;
+    --secondary-foreground: #11304a;
+    --muted: #f5f5f5;
+    --muted-foreground: #666666;
+    --accent: #f5f5f5;
+    --accent-foreground: #333333;
+    --destructive: #c0392b;
+    --border: #e5e5e5;
+    --input: #e5e5e5;
+    --ring: #c7c7c7;
+    --chart-1: #8b5cf6;
+    --chart-2: #0ea5e9;
+    --chart-3: #2563eb;
+    --chart-4: #22c55e;
+    --chart-5: #f59e0b;
+    --sidebar: #fafafa;
+    --sidebar-foreground: #111111;
+    --sidebar-primary: #333333;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f5f5f5;
+    --sidebar-accent-foreground: #333333;
+    --sidebar-border: #e5e5e5;
+    --sidebar-ring: #c7c7c7;
+  }
+  .dark {
+    --background: #111111;
+    --foreground: #f7f7f7;
+    --card: #1f1f1f;
+    --card-foreground: #f7f7f7;
+    --popover: #1f1f1f;
+    --popover-foreground: #f7f7f7;
+    --primary: #11304a;
+    --primary-foreground: #2b2b2b;
+    --secondary: #f9e7c9;
+    --secondary-foreground: #11304a;
+    --muted: #2a2a2a;
+    --muted-foreground: #c2c2c2;
+    --accent: #2a2a2a;
+    --accent-foreground: #f7f7f7;
+    --destructive: #b91c1c;
+    --border: rgba(255, 255, 255, 0.1);
+    --input: rgba(255, 255, 255, 0.15);
+    --ring: #8c8c8c;
+    --chart-1: #7c3aed;
+    --chart-2: #0ea5e9;
+    --chart-3: #f59e0b;
+    --chart-4: #e11d48;
+    --chart-5: #22c55e;
+    --sidebar: #1f1f1f;
+    --sidebar-foreground: #f7f7f7;
+    --sidebar-primary: #7c3aed;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #2a2a2a;
+    --sidebar-accent-foreground: #f7f7f7;
+    --sidebar-border: rgba(255, 255, 255, 0.1);
+    --sidebar-ring: #8c8c8c;
+  }
+}
+
 html,
 body,
 :root {
@@ -71,11 +145,13 @@ body {
 }
 
 .text-brand {
-  color: #11304a; /* color de marca primario */
+  color: #11304a;            /* fallback */
+  color: var(--primary);     /* moderno */
 }
 
 .bg-brand {
-  background-color: #11304a;
+  background-color: #11304a; /* fallback */
+  background-color: var(--primary); /* moderno */
 }
 
 @theme inline {
@@ -151,12 +227,46 @@ body {
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+  /* Baseline fallbacks: propiedad duplicada (HEX luego var/oklch) */
+  *, *::before, *::after {
+    border-color: #e5e5e5;          /* fallback */
+    border-color: var(--color-border); /* moderno */
   }
+
+  :root {
+    background-color: #ffffff;      /* fallback */
+    color: #111111;                 /* fallback */
+    background-color: var(--background); /* moderno */
+    color: var(--foreground);            /* moderno */
+  }
+
   body {
+    background-color: #fff;         /* fallback */
+    background-color: var(--color-background); /* moderno */
+    color: #111;                    /* fallback */
+    color: var(--color-foreground); /* moderno */
     @apply bg-background text-foreground;
   }
+
+  .dark body {
+    background-color: #111111;      /* fallback */
+    background-color: var(--color-background); /* moderno (toma tokens dark) */
+    color: #f7f7f7;                 /* fallback */
+    color: var(--color-foreground); /* moderno */
+  }
+
+  /* Enlaces: color de marca con fallback */
+  a {
+    color: #11304a;               /* fallback */
+    color: var(--color-primary);  /* moderno */
+  }
+  a:hover {
+    color: #0f2a44;               /* fallback aprox */
+    color: var(--color-primary);  /* moderno (sistema aplica variantes) */
+  }
+
+  /* Modern baseline util */
+  * { @apply border-border outline-ring/50; }
   
   /* Ajuste sutil de márgenes en desktop (versión web)
      Ensancha levemente contenedores comunes y reduce padding horizontal estándar */
@@ -178,6 +288,7 @@ body {
     }
   }
 }
+
 
 @layer utilities {
   .text-balance {
@@ -289,6 +400,39 @@ body {
   }
 }
 
+@layer components {
+  /* Primary button with legacy-safe fallbacks (propiedad duplicada) */
+  .btn-primary {
+    background-color: #11304a;                 /* fallback */
+    background-color: var(--color-primary);     /* moderno */
+    color: #f7f7f7;                             /* fallback */
+    color: var(--color-primary-foreground);     /* moderno */
+    border-color: #11304a;                      /* fallback */
+    border-color: var(--color-primary);         /* moderno */
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border;
+    @apply bg-primary text-primary-foreground border-primary;
+  }
+
+  .btn-primary:hover {
+    background-color: #0f2a44;                  /* fallback */
+    background-color: var(--color-primary);     /* moderno (matiz se aplica por util /90) */
+    border-color: #0f2a44;                      /* fallback */
+    border-color: var(--color-primary);         /* moderno */
+    @apply hover:bg-primary/90;
+  }
+
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled="true"] {
+    background-color: #9aa7b2;                  /* fallback */
+    background-color: var(--color-muted);       /* moderno aprox */
+    border-color: #9aa7b2;                      /* fallback */
+    border-color: var(--color-muted);           /* moderno */
+    color: #f1f5f9;                              /* fallback */
+    color: var(--color-foreground);             /* moderno aprox */
+    @apply opacity-60 cursor-not-allowed;
+  }
+}
+
 /* Respeta preferencias de movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
   .animate-bounce-subtle {
@@ -300,3 +444,5 @@ body {
     transform: none !important;
   }
 }
+
+/* (Conservar) Fallback de tokens cuando no hay OKLCH: ya definido arriba para :root/.dark */

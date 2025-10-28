@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -48,12 +48,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
     }
 
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    const stripeConfigured = Boolean(STRIPE_SECRET_KEY);
-    if (!stripeConfigured) {
+    const stripe = await getStripe();
+    if (!stripe) {
       return NextResponse.json({ ok: true, checkoutUrl: null }, { status: 200, headers: JSONH });
     }
-    const stripe = new Stripe(STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
 
     const baseAmountMx = Number(row.deposit_amount ?? 200);
     const unitAmount = Math.max(200, Math.round(Math.abs(baseAmountMx) * 100));
@@ -96,4 +94,3 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

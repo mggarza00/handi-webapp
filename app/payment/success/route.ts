@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from 'next/cache';
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/supabase";
@@ -29,10 +29,9 @@ export async function GET(req: Request) {
   let scheduled_time: string | null = null;
 
   // 1) Verificar sesión de Stripe (best-effort). Si falla, continuamos sin bloquear.
-  const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY as string | undefined;
-  if (STRIPE_SECRET_KEY && sessionId) {
+  const stripe = await getStripe();
+  if (stripe && sessionId) {
     try {
-      const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
       const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["payment_intent"] });
       const meta = (session.metadata || {}) as Record<string, string | undefined>;
       conversationId = conversationId || (meta["conversation_id"] || null);

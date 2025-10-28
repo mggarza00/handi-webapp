@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { createServerClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -10,9 +10,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const id = (params?.id || "").trim();
     if (!id) return NextResponse.json({ error: "MISSING_ID" }, { status: 400, headers: JSONH });
 
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    if (!STRIPE_SECRET_KEY) return NextResponse.json({ error: "SERVER_MISCONFIGURED:STRIPE" }, { status: 500, headers: JSONH });
-    const stripe = new Stripe(STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
+    const stripe = await getStripe();
+    if (!stripe) return NextResponse.json({ error: "SERVER_MISCONFIGURED:STRIPE" }, { status: 500, headers: JSONH });
     const admin = createServerClient();
     const { data: row } = await admin
       .from("onsite_quote_requests")
@@ -54,4 +53,3 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

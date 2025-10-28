@@ -8,6 +8,29 @@ const nextConfig = {
       '@resvg/resvg-js',
     ],
   },
+  async headers() {
+    return [
+      // Ensure proper negotiation and caching for CSS assets
+      {
+        source: "/:path*.css",
+        headers: [
+          { key: "Vary", value: "Accept-Encoding" },
+          { key: "Content-Type", value: "text/css; charset=utf-8" },
+          // Explicitly prevent sniffing issues on older Safari proxies
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+      },
+      {
+        source: "/_next/static/css/:path*",
+        headers: [
+          { key: "Vary", value: "Accept-Encoding" },
+          { key: "Content-Type", value: "text/css; charset=utf-8" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       // Migración: redirige rutas antiguas de /messages a /mensajes

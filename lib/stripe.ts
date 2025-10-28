@@ -1,12 +1,12 @@
-import Stripe from "stripe";
+import type Stripe from 'stripe';
 
-let _stripe: Stripe | null = null;
-
-export function getStripe() {
-  if (_stripe) return _stripe;
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error("Falta STRIPE_SECRET_KEY");
-  // Usar apiVersion por defecto del SDK en runtime
-  _stripe = new Stripe(key);
-  return _stripe;
+// Lazy Stripe loader to avoid build-time ESM/CJS evaluation in API routes
+export async function getStripe(): Promise<Stripe | null> {
+  const key = process.env.STRIPE_SECRET_KEY as string | undefined;
+  if (!key) return null;
+  const mod = await import('stripe');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const apiVersion = '2024-06-20' as any;
+  return new mod.default(key, { apiVersion });
 }
+

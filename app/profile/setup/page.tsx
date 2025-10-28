@@ -85,6 +85,7 @@ export default async function ProfileSetupPage() {
           <Card className="p-4 space-y-2">
             <h2 className="text-sm font-medium">Consejos</h2>
             <ul className="text-sm text-slate-600 list-disc pl-4">
+              <li>Las ciudades, categorías y subcategorías son los campos que utilizamos para mostrar los servicios que te pueden interesar, revisa que estos campos estén correctos.</li>
               <li>Usa una foto clara y profesional.</li>
               <li>Cuéntanos tu experiencia con ejemplos concretos.</li>
               <li>Agrega categorías y subcategorías relevantes.</li>

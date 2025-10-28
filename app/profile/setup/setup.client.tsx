@@ -168,7 +168,7 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
 
       <div>
         <label className="block text-sm mb-1" htmlFor="full_name">Nombre completo</label>
-        <Input id="full_name" placeholder="Tu nombre" {...register("full_name")} />
+        <Input id="full_name" placeholder="Tu nombre" {...register("full_name")} readOnly disabled />
         {errors.full_name && <p className="mt-1 text-xs text-red-600">{String(errors.full_name.message)}</p>}
       </div>
 
@@ -190,8 +190,22 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       </div>
 
       <div>
+        <label className="block text-sm mb-1" htmlFor="bio">Bio</label>
+        <Textarea id="bio" rows={4} placeholder="Cuéntanos sobre tu experiencia y servicios." {...register("bio")} />
+        {errors.bio && <p className="mt-1 text-xs text-red-600">{String(errors.bio.message)}</p>}
+      </div>
+
+      <div>
         <label className="block text-sm mb-1" htmlFor="years_experience">Años de experiencia</label>
-        <Input id="years_experience" placeholder="5" inputMode="numeric" {...register("years_experience" as const)} />
+        <Input
+          id="years_experience"
+          type="number"
+          min={0}
+          max={80}
+          step={1}
+          placeholder="5"
+          {...register("years_experience" as const, { valueAsNumber: true })}
+        />
         {errors.years_experience && <p className="mt-1 text-xs text-red-600">{String(errors.years_experience.message)}</p>}
       </div>
 
@@ -205,12 +219,6 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
         />
         <p className="mt-1 text-xs text-slate-500">Usa (+) para ver y elegir subcategorías.</p>
         {errors.categories && <p className="mt-1 text-xs text-red-600">{String(errors.categories.message)}</p>}
-      </div>
-
-      <div>
-        <label className="block text-sm mb-1" htmlFor="bio">Bio</label>
-        <Textarea id="bio" rows={4} placeholder="Cuéntanos sobre tu experiencia y servicios." {...register("bio")} />
-        {errors.bio && <p className="mt-1 text-xs text-red-600">{String(errors.bio.message)}</p>}
       </div>
 
       
