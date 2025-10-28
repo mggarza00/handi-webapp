@@ -2,8 +2,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
+import createClient from "@/utils/supabase/server";
 import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
 import MobileMenu from "@/components/mobile-menu";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import HeaderMenu from "@/components/header-menu.client";
 import ProMobileTabbar from "@/components/pro-mobile-tabbar.client";
 import AvatarDropdown from "@/components/AvatarDropdown.client";
 import HeaderAuthRefresh from "@/components/HeaderAuthRefresh.client";
+import EnableNotificationsButton from "@/components/EnableNotificationsButton";
 import type { Database } from "@/types/supabase";
 import ClientNoSessionOnly from "@/components/ClientNoSessionOnly.client";
 
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 async function getSessionInfo() {
   noStore();
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   if (!user)
@@ -42,11 +43,14 @@ async function getSessionInfo() {
   if (!profileRaw) {
     // Autoaprovisionar perfil mÃ­nimo en primer login
     try {
-      await supabase.from("profiles").insert({
+      const profTable = supabase.from("profiles");
+      type Insert = Database["public"]["Tables"]["profiles"]["Insert"];
+      const insert = profTable.insert as unknown as (values: Insert) => ReturnType<typeof profTable.insert>;
+      await insert({
         id: user.id,
         full_name: user.user_metadata?.full_name ?? null,
         avatar_url: user.user_metadata?.avatar_url ?? null,
-      } satisfies Database["public"]["Tables"]["profiles"]["Insert"]);
+      } as Insert);
     } catch (err) {
       void err; // ignore insert errors (profile may already exist)
     }
@@ -74,7 +78,7 @@ async function getSessionInfo() {
       .select("avatar_url, full_name")
       .eq("id", user.id)
       .maybeSingle();
-    proProfile = proRaw ?? null;
+    proProfile = (proRaw as unknown as { avatar_url: string | null; full_name: string | null } | null) ?? null;
   }
   const role = (profile?.role ?? null) as Role | null;
   type UserMeta = { avatar_url?: string | null; full_name?: string | null };
@@ -542,6 +546,8 @@ export default async function SiteHeader() {
               );
             })}
           
+          {/* Notificaciones se administran en /settings; se removió del header */}
+
           {isAuth ? (
             <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} isClientPro={is_client_pro} />
           ) : null}
