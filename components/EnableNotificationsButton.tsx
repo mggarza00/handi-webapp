@@ -25,7 +25,7 @@ type Props = {
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-export default function EnableNotificationsButton({ publicKey, className, labelEnable = "Activar notificaciones", labelEnabled = "Notificaciones activadas" }: Props) {
+export default function EnableNotificationsButton({ publicKey, className, labelEnable = "Activar notificaciones", labelEnabled = "Notificaciones activas" }: Props) {
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
