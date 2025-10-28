@@ -16,8 +16,9 @@ export interface Tables {
       id: string;
       user_id: string;
       endpoint: string;
-      p256dh: string;
-      auth: string;
+      p256dh?: string; // legacy
+      auth?: string;   // legacy
+      keys?: Json | null; // jsonb keys { p256dh, auth }
       user_agent: string | null;
       app_version: string | null;
       created_at: string | null;
@@ -26,8 +27,9 @@ export interface Tables {
     Insert: {
       user_id: string;
       endpoint: string;
-      p256dh: string;
-      auth: string;
+      p256dh?: string;
+      auth?: string;
+      keys?: Json | null;
       user_agent?: string | null;
       app_version?: string | null;
       created_at?: string | null;
