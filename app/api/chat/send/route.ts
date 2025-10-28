@@ -159,6 +159,43 @@ export async function POST(req: Request) {
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", conversationId);
 
+    // Enviar push al otro participante (no bloqueante; ignora errores)
+    try {
+      const senderId = user.id as string;
+      const customerId = (conv.data as any)?.customer_id as string | undefined;
+      const proId = (conv.data as any)?.pro_id as string | undefined;
+      const recipientId = senderId === customerId ? proId : customerId;
+      if (recipientId && typeof recipientId === 'string') {
+        const fnBase = process.env.SUPABASE_URL;
+        const srk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (fnBase && srk) {
+          const urlPath = `/mensajes/${conversationId}`;
+          const fnUrl = `${fnBase.replace(/\/$/, '')}/functions/v1/push-notify`;
+          const previewText = (body || '').trim().slice(0, 140) || 'Tienes un mensaje nuevo en Handi';
+          await fetch(fnUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              Authorization: `Bearer ${srk}`,
+            },
+            body: JSON.stringify({
+              toUserId: recipientId,
+              payload: {
+                title: 'Nuevo mensaje',
+                body: previewText,
+                url: urlPath,
+                tag: `thread:${conversationId}`,
+                icon: '/icons/icon-192.png',
+                badge: '/icons/badge-72.png',
+              },
+            }),
+          }).catch(() => undefined);
+        }
+      }
+    } catch {
+      // ignore push errors
+    }
+
     return NextResponse.json(
       { ok: true, data: ins.data },
       { status: 201, headers: JSONH },
