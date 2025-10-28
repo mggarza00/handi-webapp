@@ -9,6 +9,7 @@ import ConditionalFooter from "@/components/ConditionalFooter.client";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import { concertOne, nunito, varelaRound } from "@/lib/fonts";
 import LeafletCSS from "@/components/LeafletCSS.client";
+import OneTapMount from "@/components/OneTapMount";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,6 +85,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
+        {/* Google One Tap (solo cliente; no renderiza UI propia) */}
+        <OneTapMount />
         <SiteHeader />
         <main className="pt-16 pb-16 md:pb-0">{children}</main>
         <ClientToaster />
