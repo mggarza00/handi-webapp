@@ -11,6 +11,30 @@ export type Json =
   | Json[];
 
 export interface Tables {
+  web_push_subscriptions: {
+    Row: {
+      id: string;
+      user_id: string;
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      user_agent: string | null;
+      app_version: string | null;
+      created_at: string | null;
+      updated_at: string | null;
+    };
+    Insert: {
+      user_id: string;
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      user_agent?: string | null;
+      app_version?: string | null;
+      created_at?: string | null;
+      updated_at?: string | null;
+    };
+    Update: Partial<Tables["web_push_subscriptions"]["Row"]>;
+  };
   profiles: {
     Row: {
       id: string;
@@ -185,6 +209,22 @@ export interface Tables {
     Update: Partial<{
       pro_id: string;
       request_id: string;
+      created_at: string | null;
+    }>;
+  };
+  client_favorites: {
+    Row: {
+      client_id: string;
+      pro_id: string;
+      created_at: string | null; // timestamptz ISO
+    };
+    Insert: {
+      client_id: string;
+      pro_id: string;
+    };
+    Update: Partial<{
+      client_id: string;
+      pro_id: string;
       created_at: string | null;
     }>;
   };

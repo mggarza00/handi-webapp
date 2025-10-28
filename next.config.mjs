@@ -2,6 +2,10 @@ import path from 'node:path';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    // Expose VAPID public key to the client
+    NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: process.env.WEB_PUSH_VAPID_PUBLIC_KEY,
+  },
   experimental: {
     // Permite usar paquetes nativos en el servidor sin que Webpack intente empacarlos
     serverComponentsExternalPackages: [
