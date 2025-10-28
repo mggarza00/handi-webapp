@@ -33,25 +33,56 @@ create trigger trg_web_push_subscriptions_updated_at
 before update on public.web_push_subscriptions
 for each row execute function public.set_updated_at();
 
--- RLS Policies: Owner-only CRUD
-create policy if not exists "select_own_web_push_subscriptions"
-  on public.web_push_subscriptions
-  for select
-  using ( auth.uid() = user_id );
+-- RLS Policies: Owner-only CRUD (guarded creation)
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'web_push_subscriptions' and policyname = 'select_own_web_push_subscriptions'
+  ) then
+    create policy "select_own_web_push_subscriptions"
+      on public.web_push_subscriptions
+      for select
+      using ( auth.uid() = user_id );
+  end if;
+end $$;
 
-create policy if not exists "insert_own_web_push_subscriptions"
-  on public.web_push_subscriptions
-  for insert
-  with check ( auth.uid() = user_id );
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'web_push_subscriptions' and policyname = 'insert_own_web_push_subscriptions'
+  ) then
+    create policy "insert_own_web_push_subscriptions"
+      on public.web_push_subscriptions
+      for insert
+      with check ( auth.uid() = user_id );
+  end if;
+end $$;
 
-create policy if not exists "update_own_web_push_subscriptions"
-  on public.web_push_subscriptions
-  for update
-  using ( auth.uid() = user_id )
-  with check ( auth.uid() = user_id );
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'web_push_subscriptions' and policyname = 'update_own_web_push_subscriptions'
+  ) then
+    create policy "update_own_web_push_subscriptions"
+      on public.web_push_subscriptions
+      for update
+      using ( auth.uid() = user_id )
+      with check ( auth.uid() = user_id );
+  end if;
+end $$;
 
-create policy if not exists "delete_own_web_push_subscriptions"
-  on public.web_push_subscriptions
-  for delete
-  using ( auth.uid() = user_id );
-
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'web_push_subscriptions' and policyname = 'delete_own_web_push_subscriptions'
+  ) then
+    create policy "delete_own_web_push_subscriptions"
+      on public.web_push_subscriptions
+      for delete
+      using ( auth.uid() = user_id );
+  end if;
+end $$;
