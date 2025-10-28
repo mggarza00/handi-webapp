@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
       endpoint: body.subscription.endpoint,
       p256dh: body.subscription.keys.p256dh,
       auth: body.subscription.keys.auth,
+      keys: { p256dh: body.subscription.keys.p256dh, auth: body.subscription.keys.auth },
       user_agent: body.userAgent || null,
       app_version: body.appVersion || null,
       // updated_at handled by trigger if present, else overwritten here
@@ -50,4 +51,3 @@ export async function POST(req: NextRequest) {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-

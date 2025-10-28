@@ -43,15 +43,17 @@ export async function POST(req: NextRequest) {
     const supaAny = supabase as any;
     const { data: subs, error } = await supaAny
       .from("web_push_subscriptions")
-      .select("id, endpoint, p256dh, auth")
+      .select("id, endpoint, keys, p256dh, auth")
       .eq("user_id", userId);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers: JSONH });
 
     const results: Array<{ id: string; ok: boolean; status?: number; error?: string }> = [];
     for (const s of subs || []) {
+      const rawKeys = (s as any).keys || { p256dh: (s as any).p256dh, auth: (s as any).auth };
+      if (!rawKeys?.p256dh || !rawKeys?.auth) continue;
       const subscription = {
         endpoint: s.endpoint,
-        keys: { p256dh: s.p256dh, auth: s.auth },
+        keys: { p256dh: rawKeys.p256dh, auth: rawKeys.auth },
       } as any;
       try {
         const res = await webpush.sendNotification(subscription, JSON.stringify(finalPayload));
@@ -75,4 +77,3 @@ export async function POST(req: NextRequest) {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
