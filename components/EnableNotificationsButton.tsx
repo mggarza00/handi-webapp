@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { getPublicVapidKey, subscribePush } from "@/lib/web-push-client";
+import ensurePushSubscription from "@/lib/push";
 
 type Props = {
+  publicKey: string;
   className?: string;
   labelEnable?: string;
   labelEnabled?: string;
@@ -12,35 +13,39 @@ type Props = {
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-export function EnableNotificationsButton({ className, labelEnable = "Activar notificaciones", labelEnabled = "Notificaciones activadas" }: Props) {
+export default function EnableNotificationsButton({ publicKey, className, labelEnable = "Activar notificaciones", labelEnabled = "Notificaciones activadas" }: Props) {
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [perm, setPerm] = useState<NotificationPermission | null>(null);
 
-  const supported = useMemo(() => typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator, []);
-  const publicKey = getPublicVapidKey();
+  const supported = useMemo(() => typeof window !== 'undefined' && 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window, []);
 
-  const onClick = useCallback(async () => {
+  useEffect(() => {
+    if (!supported) return;
+    try {
+      setPerm(Notification.permission);
+    } catch {
+      setPerm(null);
+    }
+  }, [supported]);
+
+  async function onClick() {
     setError(null);
     setLoading(true);
     try {
       if (!supported) throw new Error('Este navegador no soporta notificaciones push');
-      if (!publicKey) throw new Error('Falta la clave pública VAPID (NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY)');
+      if (!publicKey) throw new Error('Falta la clave pública VAPID');
 
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') {
-        throw new Error('Permiso de notificaciones denegado');
-      }
-
-      const subscription = await subscribePush();
+      const sub = await ensurePushSubscription(publicKey);
+      const payload = (sub as any)?.toJSON?.() ?? JSON.parse(JSON.stringify(sub));
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
-      // Prefer using app version from env or package, but allow override via props later
       const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
 
       const res = await fetch('/api/web-push/subscribe', {
         method: 'POST',
         headers: JSONH,
-        body: JSON.stringify({ subscription, userAgent, appVersion }),
+        body: JSON.stringify({ subscription: payload, userAgent, appVersion }),
       });
       if (!res.ok) {
         const txt = await res.text();
@@ -53,13 +58,21 @@ export function EnableNotificationsButton({ className, labelEnable = "Activar no
     } finally {
       setLoading(false);
     }
-  }, [supported, publicKey]);
+  }
 
   if (!supported) return null;
 
+  if (perm === 'denied') {
+    return (
+      <p className="text-xs text-neutral-600">
+        Notificaciones bloqueadas por el navegador. Habilítalas desde el candado de la barra de direcciones.
+      </p>
+    );
+  }
+
   return (
     <div className={className}>
-      <Button onClick={onClick} disabled={loading || enabled || !publicKey}>
+      <Button onClick={onClick} disabled={loading || enabled}>
         {enabled ? labelEnabled : labelEnable}
       </Button>
       {error ? (
@@ -68,6 +81,3 @@ export function EnableNotificationsButton({ className, labelEnable = "Activar no
     </div>
   );
 }
-
-export default EnableNotificationsButton;
-
