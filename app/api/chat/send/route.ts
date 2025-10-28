@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader } from "@/lib/auth-route";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
+import { getAdminSupabase } from "@/lib/supabase/admin";
+import webpush from "web-push";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -174,7 +176,7 @@ export async function POST(req: Request) {
           const urlPath = `/mensajes/${conversationId}`;
           const fnUrl = `${fnBase.replace(/\/$/, '')}/push-notify`;
           const previewText = (body || '').trim().slice(0, 140) || 'Tienes un mensaje nuevo en Handi';
-          await fetch(fnUrl, {
+          const fnRes = await fetch(fnUrl, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json; charset=utf-8',
@@ -191,7 +193,38 @@ export async function POST(req: Request) {
                 badge: '/icons/badge-72.png',
               },
             }),
-          }).catch(() => undefined);
+          }).catch(() => undefined as unknown as Response);
+
+          // Fallback: if Edge fails or returns non-2xx, send directly from Node using web-push
+          if (!fnRes || !fnRes.ok) {
+            const VAPID_PUBLIC = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+            const VAPID_PRIVATE = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+            const VAPID_SUBJECT = process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:soporte@handi.mx';
+            if (VAPID_PUBLIC && VAPID_PRIVATE) {
+              try {
+                webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+                const admin = getAdminSupabase();
+                const { data: subs } = await admin
+                  .from('web_push_subscriptions')
+                  .select('id, endpoint, keys, p256dh, auth')
+                  .eq('user_id', recipientId);
+                const payload = JSON.stringify({
+                  title: 'Nuevo mensaje',
+                  body: previewText,
+                  url: urlPath,
+                  tag: `thread:${conversationId}`,
+                  icon: '/icons/icon-192.png',
+                  badge: '/icons/badge-72.png',
+                });
+                for (const s of subs || []) {
+                  const rawKeys: any = (s as any).keys ?? { p256dh: (s as any).p256dh, auth: (s as any).auth };
+                  if (!rawKeys?.p256dh || !rawKeys?.auth) continue;
+                  const subscription = { endpoint: (s as any).endpoint, keys: { p256dh: rawKeys.p256dh, auth: rawKeys.auth } } as any;
+                  try { await webpush.sendNotification(subscription, payload); } catch { /* ignore per sub */ }
+                }
+              } catch { /* ignore fallback errors */ }
+            }
+          }
         }
       }
     } catch {
