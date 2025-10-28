@@ -45,6 +45,22 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
     }
   }, [supported]);
 
+  // Persist enabled state across reloads by checking existing subscription
+  useEffect(() => {
+    if (!mounted || !supported) return;
+    (async () => {
+      try {
+        const existingReg = await navigator.serviceWorker.getRegistration('/sw.js');
+        const reg = existingReg || (await navigator.serviceWorker.ready);
+        if (!reg) return;
+        const sub = await reg.pushManager.getSubscription();
+        setEnabled(!!sub);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [mounted, supported]);
+
   async function onClick() {
     setError(null);
     setLoading(true);
@@ -57,8 +73,9 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
       const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
 
-      const res = await fetch('/api/web-push/subscribe', {
+      const res = await fetch('/api/push/subscribe', {
         method: 'POST',
+        credentials: 'include',
         headers: JSONH,
         body: JSON.stringify({ subscription: payload, userAgent, appVersion }),
       });
