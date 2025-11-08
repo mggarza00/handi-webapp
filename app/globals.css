@@ -529,6 +529,22 @@ body {
     background: rgba(0, 0, 0, 0.10);
   }
 
+  /* Optional: subtle frost noise overlay. Apply on a relative container. */
+  .glass-noise::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image:
+      radial-gradient(rgba(255, 255, 255, 0.07) 0.8px, transparent 0.9px),
+      radial-gradient(rgba(0, 0, 0, 0.06) 0.8px, transparent 0.9px);
+    background-position: 0 0, 3px 3px;
+    background-size: 6px 6px, 6px 6px;
+  }
+
   /* Primary button with legacy-safe fallbacks (propiedad duplicada) */
   .btn-primary {
     background-color: #11304a;                 /* fallback */

@@ -162,7 +162,7 @@ export default function NearbyCarousel() {
               />
               {typeof p.rating === "number" && Number.isFinite(p.rating) && p.rating > 0 ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-slate-700">
+                  <span className="text-xs font-medium text-white/90">
                     {Number.isInteger(p.rating) ? p.rating : Number(p.rating).toFixed(1)}
                   </span>
                   <RatingStars value={p.rating} className="text-[12px]" />
@@ -184,7 +184,7 @@ export default function NearbyCarousel() {
               <div className="text-[11px] text-white/80">Sin descripción</div>
             )}
             {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
-              <div className="mt-1 text-[10px] text-slate-600 line-clamp-2">
+              <div className="mt-1 text-[10px] text-white/80 line-clamp-2">
                 {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(", ")}
               </div>
             )}
