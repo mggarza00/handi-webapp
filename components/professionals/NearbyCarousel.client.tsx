@@ -169,22 +169,22 @@ export default function NearbyCarousel() {
                 </div>
               ) : null}
             </div>
-            <div className="mt-1 text-sm font-semibold text-white/95 truncate">
+            <div className="mt-1 text-sm font-semibold tracking-tight text-white/95 truncate">
               {p.full_name ?? "Profesional"}
             </div>
             {p.headline ? (
-              <div className="text-[11px] text-white/80 line-clamp-2">
+              <div className="text-sm text-white/85 line-clamp-2">
                 {p.headline}
               </div>
             ) : p.bio ? (
-              <div className="text-[11px] text-white/80 line-clamp-2">
+              <div className="text-sm text-white/85 line-clamp-2">
                 {p.bio}
               </div>
             ) : (
-              <div className="text-[11px] text-white/80">Sin descripción</div>
+              <div className="text-sm text-white/85">Sin descripción</div>
             )}
             {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
-              <div className="mt-1 text-[10px] text-white/80 line-clamp-2">
+              <div className="mt-1 text-sm text-white/70 line-clamp-2">
                 {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(", ")}
               </div>
             )}
