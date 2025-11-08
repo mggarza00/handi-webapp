@@ -524,6 +524,11 @@ body {
     pointer-events: none;
   }
 
+  /* Darker glass background variant for cards */
+  .glass-card--dark {
+    background: rgba(0, 0, 0, 0.10);
+  }
+
   /* Primary button with legacy-safe fallbacks (propiedad duplicada) */
   .btn-primary {
     background-color: #11304a;                 /* fallback */
