@@ -125,7 +125,7 @@ export default function NearbyCarousel() {
 
   const shown = items.slice(0, visibleCount);
   return (
-    <div className="mt-12 rounded-xl border border-slate-200 px-3 py-4 md:px-4 md:py-6 shadow-2xl">
+    <div className="mt-12 rounded-xl px-3 py-4 md:px-4 md:py-6">
       <div className="mb-3 text-center">
         <h3 className="text-lg font-semibold tracking-tight text-black">Profesionales cerca de ti</h3>
       </div>
