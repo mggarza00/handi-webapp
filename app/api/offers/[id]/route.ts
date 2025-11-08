@@ -10,11 +10,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!offerId) return NextResponse.json({ ok: false, error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
 
     const db = getRouteClient();
-    const { data, error } = await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sel: any = await (db as any)
       .from("offers")
       .select("id, conversation_id, status")
       .eq("id", offerId)
       .single();
+    const data = sel?.data as unknown as { id?: string; conversation_id?: string; status?: string } | null;
+    const error = sel?.error || null;
     if (error || !data) return NextResponse.json({ ok: false, error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
 
     return NextResponse.json({ ok: true, id: data.id, status: data.status, conversationId: data.conversation_id }, { status: 200, headers: JSONH });

@@ -27,11 +27,13 @@ export async function POST(req: Request) {
       .select("id, customer_id, pro_id")
       .eq("id", conversation_id)
       .maybeSingle();
-    if (!conv) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
-    if (String(conv.pro_id) !== user.id)
+    const convRow = conv as unknown as { pro_id?: string } | null;
+    if (!convRow) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
+    if (String(convRow.pro_id) !== user.id)
       return NextResponse.json({ ok: false, error: "ONLY_PRO_CAN_START" }, { status: 403, headers: JSONH });
 
-    await admin.from("conversations").update({ onsite_quote_required: true }).eq("id", conversation_id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("conversations").update({ onsite_quote_required: true }).eq("id", conversation_id);
     // Post chat message
     await admin.from("messages").insert({
       conversation_id,

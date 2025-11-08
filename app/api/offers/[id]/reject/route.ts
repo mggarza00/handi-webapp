@@ -38,11 +38,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       );
     const reason = payload.data.reason?.trim() || null;
 
-    const { data: offer, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sel: any = await (supabase as any)
       .from("offers")
       .select("*")
       .eq("id", offerId)
       .single();
+    const offer = sel?.data as unknown as { professional_id?: string; status?: string; id?: string } | null;
+    const error = sel?.error || null;
 
     if (error || !offer)
       return NextResponse.json({ ok: false, error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
@@ -56,7 +59,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Use the exact current enum value to avoid casting issues when 'pending' is not part of the enum in some envs
     const currentEnum = (offer as any).status as string;
-    const { data: updated, error: upErr } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const upd: any = await (supabase as any)
       .from("offers")
       .update({ status: "rejected", reject_reason: reason })
       .eq("id", offer.id)
@@ -65,8 +69,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .select("*")
       .single();
 
+    const upErr = upd?.error || null;
+    const updated = upd?.data || null;
     if (upErr || !updated)
-      return NextResponse.json({ ok: false, error: upErr?.message || "OFFER_UPDATE_FAILED" }, { status: 400, headers: JSONH });
+      return NextResponse.json({ ok: false, error: String(upErr?.message || "OFFER_UPDATE_FAILED") }, { status: 400, headers: JSONH });
 
     return NextResponse.json({ ok: true, offer: updated }, { status: 200, headers: JSONH });
   } catch (err) {

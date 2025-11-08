@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import createClient from "@/utils/supabase/server";
+import getServerClient from "@/lib/supabase/server-client";
 
 import ExploreFilters from "@/app/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
@@ -48,7 +48,7 @@ export default async function ExploreRequestsPage({
 }: {
   searchParams?: { page?: string; city?: string; category?: string; subcategory?: string };
 }) {
-  const supabase = createClient();
+  const supabase = getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -153,7 +153,7 @@ export default async function ExploreRequestsPage({
   // Forward raw cookies for SSR fetch
   const ck = headers();
   const cookie = ck.get("cookie");
-  let catalogPairs: Array<{ category: string; subcategory: string | null }> = [];
+  let catalogPairs: Array<{ category: string; subcategory: string | null; icon?: string | null }> = [];
   try {
     const res = await fetch(`${base}/api/catalog/categories`, {
       headers: {
@@ -167,6 +167,7 @@ export default async function ExploreRequestsPage({
       catalogPairs = j.data.map((r: any) => ({
         category: String(r.category || "").trim(),
         subcategory: (r.subcategory ? String(r.subcategory) : "").trim() || null,
+        icon: (r.icon ? String(r.icon) : "").trim() || null,
       }));
     }
   } catch {
@@ -192,13 +193,17 @@ export default async function ExploreRequestsPage({
     pageSize: PER_PAGE,
   });
 
+  // Build subcategory -> icon map for cards (lowercased key)
+  const subcategoryIconMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter((p) => typeof p.subcategory === "string" && !!p.subcategory && typeof p.icon === "string" && !!p.icon)
+      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)])
+  );
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 space-y-4">
       <div className="mb-1">
         <h1 className="text-2xl font-semibold">Trabajos disponibles</h1>
-        <p className="text-xs text-slate-600 mt-1">
-          {allCities.join(", ")} · Categorías: {categoryNames.join(", ")}
-        </p>
       </div>
 
       <ExploreFilters
@@ -216,7 +221,7 @@ export default async function ExploreRequestsPage({
         }}
       />
 
-      <RequestsList proId={user.id} initialItems={items} />
+      <RequestsList proId={user.id} initialItems={items} subcategoryIconMap={subcategoryIconMap} />
 
       <Pagination page={safePage} pageSize={pageSize} total={total} />
     </div>

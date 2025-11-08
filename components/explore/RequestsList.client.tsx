@@ -8,6 +8,7 @@ export type RequestsListItem = {
   id: string;
   title: string;
   city: string | null;
+  subcategory?: string | null;
   required_at?: string | null;
   estimated_budget?: number | null;
   budget?: number | null;
@@ -25,9 +26,11 @@ function sortItems(a: RequestsListItem, b: RequestsListItem) {
 export default function RequestsList({
   proId,
   initialItems,
+  subcategoryIconMap = {},
 }: {
   proId: string;
   initialItems: RequestsListItem[];
+  subcategoryIconMap?: Record<string, string>;
 }) {
   const [items, setItems] = React.useState<RequestsListItem[]>(
     Array.isArray(initialItems) ? initialItems.slice().sort(sortItems) : [],
@@ -63,7 +66,12 @@ export default function RequestsList({
     <ul className="space-y-3 mt-3">
       {items.map((request) => (
         <li key={request.id}>
-          <RequestCard proId={proId} request={request} onFavoriteToggled={handleToggled} />
+          <RequestCard
+            proId={proId}
+            request={request}
+            onFavoriteToggled={handleToggled}
+            subcategoryIconMap={subcategoryIconMap}
+          />
         </li>
       ))}
     </ul>

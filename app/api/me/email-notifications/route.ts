@@ -40,7 +40,9 @@ export async function PATCH(req: Request) {
     if (!userId) return NextResponse.json({ ok: false, error: 'UNAUTHORIZED' }, { status: 401, headers: JSONH });
     const body = await req.json().catch(() => ({}));
     const enabled = Boolean((body as any)?.enabled !== false);
-    await supa.from('profiles').update({ email_chat_notifications_enabled: enabled as any }).eq('id', userId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db: any = supa as any;
+    await db.from('profiles').update({ email_chat_notifications_enabled: enabled as any }).eq('id', userId);
     return NextResponse.json({ ok: true, enabled }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'UNKNOWN';

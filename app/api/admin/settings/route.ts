@@ -36,13 +36,16 @@ export async function POST(req: Request) {
   }
   const supabase = getRouteClient();
   const { commission_percent, vat_percent } = parsed.data;
-  const { error: upErr } = await supabase
+  // Tipos de tablas admin no están en el stub; castear a any para Insert seguro
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db: any = supabase as any;
+  const { error: upErr } = await db
     .from("admin_settings")
     .upsert({ id: 1, commission_percent, vat_percent, updated_by: gate.userId, updated_at: new Date().toISOString() }, { onConflict: "id" });
   if (upErr) return NextResponse.json({ ok: false, error: upErr.message }, { status: 500, headers: JSONH });
 
   // Audit log
-  await supabase
+  await db
     .from("audit_log")
     .insert({
       action: "SETTINGS_UPDATE",

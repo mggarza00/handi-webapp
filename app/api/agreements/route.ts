@@ -31,7 +31,9 @@ export async function POST(req: Request) {
     }
     const { request_id, professional_id, amount, status } = parsed.data;
     const supa = createServerClient();
-    const ins = await supa
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const q: any = supa as any;
+    const ins = await q
       .from("agreements")
       .insert([
         {
@@ -60,4 +62,3 @@ export async function POST(req: Request) {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

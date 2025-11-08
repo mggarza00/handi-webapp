@@ -97,7 +97,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (!(normalized === "pending" || normalized === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
         // Lock
         const lockTime = new Date().toISOString();
-        const { data: locked, error: lockErr } = await admin
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const lockRes: any = await (admin as any)
           .from("offers")
           .update({ accepting_at: lockTime })
           .eq("id", row.id)
@@ -105,15 +106,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           .in("status", ["pending", "sent"]) // allow legacy
           .select("*")
           .single();
+        const lockErr = lockRes?.error || null;
+        const locked = lockRes?.data || null;
         if (lockErr || !locked) {
           // Check if lock is stale or status changed
-          const { data: current } = await admin
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const curRes: any = await (admin as any)
             .from("offers")
             .select("id,status,accepting_at,currency,amount,title,description,conversation_id,professional_id")
             .eq("id", row.id)
             .maybeSingle();
+          const current = curRes?.data as unknown as { status?: string } | null;
           if (!current) return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
-          if (!(current.status === "pending" || current.status === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
+          const st = String(current.status || "").toLowerCase();
+          if (!(st === "pending" || st === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
           // En entornos sin columna 'accepting_at', evitamos lock y procedemos directo a actualizar estado más abajo
         }
         // Stripe session
@@ -148,12 +154,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           }
         }
         // Update status to accepted
-        const { data: updatedRows, error: upErr } = await admin
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const upd2: any = await (admin as any)
           .from("offers")
           .update({ status: "accepted", checkout_url: stripeSession?.url ?? null })
           .eq("id", row.id)
           .select("*");
-        if (upErr) return NextResponse.json({ error: upErr.message || "UPDATE_FAILED" }, { status: 409, headers: JSONH });
+        const upErr = upd2?.error || null;
+        const updatedRows = upd2?.data || null;
+        if (upErr) return NextResponse.json({ error: String(upErr.message || "UPDATE_FAILED") }, { status: 409, headers: JSONH });
         const updated = (Array.isArray(updatedRows) ? updatedRows[0] : (updatedRows as OfferRow | null)) ?? null;
         if (!updated) return NextResponse.json({ error: "UPDATE_NO_ROWS" }, { status: 409, headers: JSONH });
         // Notify

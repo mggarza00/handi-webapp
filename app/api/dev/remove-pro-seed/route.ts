@@ -36,8 +36,10 @@ export async function POST() {
   // Fallback by profile name
   try {
     const { data } = await supa.from("profiles").select("id, full_name").ilike("full_name", "Pro Seed");
-    for (const r of data || []) {
-      if (r?.id && !ids.includes(r.id)) ids.push(r.id);
+    const rows = (data || []) as Array<{ id?: string | null; full_name?: string | null }>;
+    for (const r of rows) {
+      const rid = typeof r?.id === 'string' ? r.id : null;
+      if (rid && !ids.includes(rid)) ids.push(rid);
     }
   } catch {
     // ignore
@@ -71,4 +73,3 @@ export async function POST() {
 
   return NextResponse.json({ ok: true, removed: removed.length }, { headers: JSONH });
 }
-

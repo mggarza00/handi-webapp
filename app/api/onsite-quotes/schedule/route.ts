@@ -33,20 +33,24 @@ export async function POST(req: Request) {
       .select("id, customer_id, pro_id")
       .eq("id", conversation_id)
       .maybeSingle();
-    if (!conv) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
-    if (String(conv.customer_id) !== user.id)
+    const convRow = (conv as unknown as { customer_id?: string; pro_id?: string } | null);
+    if (!convRow) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
+    if (String(convRow.customer_id) !== user.id)
       return NextResponse.json({ ok: false, error: "ONLY_CLIENT_CAN_SCHEDULE" }, { status: 403, headers: JSONH });
 
     // Upsert onsite_quote_requests by conversation
-    const { data: existing } = await admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sel: any = await (admin as any)
       .from("onsite_quote_requests")
       .select("id,status")
       .eq("conversation_id", conversation_id)
       .order("created_at", { ascending: false })
       .limit(1);
+    const existing = sel?.data as unknown as Array<{ id?: string }>|null;
     const existingRow = Array.isArray(existing) && existing.length ? (existing[0] as any) : null;
     if (existingRow) {
-      await admin
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any)
         .from("onsite_quote_requests")
         .update({
           status: "scheduled",
@@ -57,13 +61,14 @@ export async function POST(req: Request) {
         })
         .eq("id", existingRow.id);
     } else {
-      await admin
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any)
         .from("onsite_quote_requests")
         .insert({
           conversation_id,
           request_id: null,
-          professional_id: conv.pro_id,
-          client_id: conv.customer_id,
+          professional_id: convRow.pro_id,
+          client_id: convRow.customer_id,
           status: "scheduled",
           schedule_date: date,
           schedule_time_start: time_start,
@@ -83,4 +88,3 @@ export async function POST(req: Request) {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

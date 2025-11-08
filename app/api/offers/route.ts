@@ -43,7 +43,8 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (reqErr || !reqRow)
       return NextResponse.json({ ok: false, error: "REQUEST_NOT_FOUND" }, { status: 404, headers: JSONH });
-    if (reqRow.created_by !== auth.user.id)
+    const reqOwner = (reqRow as unknown as { created_by?: string }).created_by || null;
+    if (reqOwner !== auth.user.id)
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
     const professionalId = (body.professional_id || body.to_user_id) as string | undefined;
@@ -51,7 +52,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "MISSING_PROFESSIONAL" }, { status: 400, headers: JSONH });
 
     // Ensure conversation exists between customer and professional for this request
-    const up = await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const up = await (db as any)
       .from("conversations")
       .upsert(
         [
@@ -86,7 +88,8 @@ export async function POST(req: Request) {
       serviceDateIso = d.toISOString();
     }
 
-    const { data: offer, error } = await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: offer, error } = await (db as any)
       .from("offers")
       .insert({
         conversation_id: conversationId,

@@ -479,6 +479,51 @@ body {
 }
 
 @layer components {
+  /* Reusable glassmorphism card (spec exacta solicitada) */
+  .glass-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.5rem;            /* rounded-3xl */
+    background: rgba(255, 255, 255, 0.05);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);      /* frosted */
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.05));
+    pointer-events: none;
+    opacity: 0.5; /* halo/borde suave */
+  }
+
+  .glass-card::after {
+    content: "";
+    position: absolute;
+    left: -2.5rem;
+    top: -2.5rem;
+    width: 10rem;
+    height: 10rem;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.10);
+    filter: blur(30px);
+    opacity: 0.5; /* luz superior */
+    pointer-events: none;
+  }
+
+  /* Optional warm tint overlay helper */
+  .glass-tint-warm {
+    position: absolute;
+    inset: 0;
+    border-radius: 1.5rem; /* rounded-3xl to match glass-card */
+    background: rgba(121, 85, 72, 0.06);
+    pointer-events: none;
+  }
+
   /* Primary button with legacy-safe fallbacks (propiedad duplicada) */
   .btn-primary {
     background-color: #11304a;                 /* fallback */

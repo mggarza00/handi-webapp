@@ -90,7 +90,8 @@ export async function POST(req: Request) {
     } as Database["public"]["Tables"]["applications"]["Insert"];
 
     const admin = createServerClient();
-    const client = preferAdmin ? admin : routeClient;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client: any = (preferAdmin ? admin : routeClient) as any;
 
     // Try insert; handle duplicate (23505)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -40,7 +40,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       metadata: { type: "onsite_deposit", onsite_quote_request_id: id, conversation_id: (row as any).conversation_id || "" },
     });
     const url = session.url || null;
-    await admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any)
       .from("onsite_quote_requests")
       .update({ deposit_checkout_url: url })
       .eq("id", id);

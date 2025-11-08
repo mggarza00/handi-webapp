@@ -43,9 +43,10 @@ export async function POST(req: NextRequest) {
       height: height ?? null,
     };
 
-    const { data: row, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: row, error } = await (supabase as any)
       .from("request_photos")
-      .insert(insertPayload)
+      .insert(insertPayload as any)
       .select("*")
       .single();
 

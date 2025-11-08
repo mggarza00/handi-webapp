@@ -27,7 +27,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .maybeSingle();
     if (!row) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404, headers: JSONH });
     if (String((row as any).professional_id) !== user.id) return NextResponse.json({ ok: false, error: "ONLY_PRO" }, { status: 403, headers: JSONH });
-    await admin.from("onsite_quote_requests").update({ status: "rejected" }).eq("id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("onsite_quote_requests").update({ status: "rejected" }).eq("id", id);
     // Post a reasoned message (trigger posts generic one)
     await admin.from("messages").insert({
       conversation_id: (row as any).conversation_id,

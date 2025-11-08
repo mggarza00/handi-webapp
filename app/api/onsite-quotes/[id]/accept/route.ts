@@ -18,7 +18,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .maybeSingle();
     if (!row) return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404, headers: JSONH });
     if (String((row as any).professional_id) !== user.id) return NextResponse.json({ ok: false, error: "ONLY_PRO" }, { status: 403, headers: JSONH });
-    await admin.from("onsite_quote_requests").update({ status: "accepted" }).eq("id", id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (admin as any).from("onsite_quote_requests").update({ status: "accepted" }).eq("id", id);
     // trigger posts message
     return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
@@ -29,4 +30,3 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

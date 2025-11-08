@@ -39,7 +39,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "UNAUTHENTICATED" }, { status: 401, headers: JSONH });
   }
   try {
-    const { error } = await client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const q: any = client as any;
+    const { error } = await q
       .from("user_notifications")
       .update({ read_at: new Date().toISOString() })
       .eq("user_id", userId)

@@ -10,6 +10,7 @@ type Request = {
   id: string;
   title: string;
   city: string | null;
+  subcategory?: string | null;
   required_at?: string | null;
   estimated_budget?: number | null;
   budget?: number | null;
@@ -43,10 +44,12 @@ export default function RequestCard({
   proId,
   request,
   onFavoriteToggled,
+  subcategoryIconMap = {},
 }: {
   proId: string;
   request: Request;
   onFavoriteToggled?: (id: string, fav: boolean) => void;
+  subcategoryIconMap?: Record<string, string>;
 }) {
   const thumb = extractThumb(request.attachments) || DEFAULT_REQUEST_IMAGE;
   const amount =
@@ -82,6 +85,21 @@ export default function RequestCard({
         <div className="flex-1 min-w-0">
           <Link href={`/requests/explore/${request.id}`} className="block">
             <p className="font-medium truncate text-slate-900">{request.title}</p>
+            {/* Mobile: subcategory below title */}
+            {request.subcategory && (
+              <div className="text-xs text-slate-700 md:hidden">
+                {(() => {
+                  const key = String(request.subcategory).toLowerCase();
+                  const icon = subcategoryIconMap[key] || "";
+                  return (
+                    <span>
+                      {icon ? <span className="mr-1">{icon}</span> : null}
+                      <span>{request.subcategory}</span>
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
             <div className="text-xs text-muted-foreground">
               {[
                 request.city ?? "—",
@@ -93,7 +111,24 @@ export default function RequestCard({
             </div>
           </Link>
         </div>
-        <div className="ml-auto shrink-0">
+        {/* Desktop: subcategory to the left of Favorite button */}
+        <div className="ml-auto shrink-0 flex items-center gap-2">
+          {request.subcategory && (
+            <div className="hidden md:flex items-center text-xs text-slate-700">
+              {(() => {
+                const key = String(request.subcategory).toLowerCase();
+                const icon = subcategoryIconMap[key] || "";
+                return (
+                  <span className="inline-flex items-center gap-1">
+                    {icon ? <span>{icon}</span> : null}
+                    <span className="truncate max-w-[140px]" title={request.subcategory || undefined}>
+                      {request.subcategory}
+                    </span>
+                  </span>
+                );
+              })()}
+            </div>
+          )}
           <FavoriteButton
             proId={proId}
             requestId={request.id}

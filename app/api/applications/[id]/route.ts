@@ -29,7 +29,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     const { status } = parsed.data;
     const supa = createServerClient();
-    const up = await supa
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const q: any = supa as any;
+    const up = await q
       .from("applications")
       .update({ status })
       .eq("id", parsedId.data)

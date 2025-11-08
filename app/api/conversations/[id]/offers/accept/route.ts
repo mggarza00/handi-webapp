@@ -97,9 +97,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           }
           if (oid && !seen.has(oid)) {
             seen.add(oid);
-            const { data: row } = await admin.from("offers").select("*").eq("id", oid).maybeSingle();
-            if (row && row.status === "pending") {
-              target = row as OfferRow;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sel: any = await (admin as any).from("offers").select("*").eq("id", oid).maybeSingle();
+            const row = (sel?.data ?? null) as unknown as { status?: string } | null;
+            if (row && String(row.status || "").toLowerCase() === "pending") {
+              target = (sel.data as unknown) as OfferRow;
               break;
             }
           }
@@ -132,7 +134,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
                 const sdRaw = payloadObj["service_date"] as unknown;
                 const service_date = typeof sdRaw === "string" && sdRaw.trim().length ? new Date(sdRaw).toISOString() : null;
                 if (Number.isFinite(amount) && amount > 0) {
-                  const { data: created } = await admin
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const ins: any = await (admin as any)
                     .from("offers")
                     .insert({
                       conversation_id: conversationId,
@@ -148,8 +151,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
                     })
                     .select("*")
                     .single();
-                  if (created) {
-                    target = created as OfferRow;
+                  if (ins?.data) {
+                    target = ins.data as OfferRow;
                   }
                 }
               }
@@ -202,13 +205,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
     }
 
-    const { data: updatedRows, error: upErr } = await admin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const upd: any = await (admin as any)
       .from("offers")
       .update({ status: "accepted", checkout_url: stripeSession?.url ?? null })
       .eq("id", target.id)
       .select("*");
-
-    if (upErr) return NextResponse.json({ error: upErr.message || "UPDATE_FAILED" }, { status: 409, headers: JSONH });
+    const upErr = upd?.error || null;
+    const updatedRows = upd?.data || null;
+    if (upErr) return NextResponse.json({ error: String(upErr.message || "UPDATE_FAILED") }, { status: 409, headers: JSONH });
     const updated = (Array.isArray(updatedRows) ? updatedRows[0] : (updatedRows as OfferRow | null)) ?? null;
     if (!updated)
       return NextResponse.json({ error: "UPDATE_NO_ROWS" }, { status: 409, headers: JSONH });
