@@ -141,7 +141,7 @@ export default function NearbyCarousel() {
           <Link
             key={p.id}
             href={`/profiles/${p.id}`}
-            className="min-w-[180px] max-w-[180px] flex-shrink-0 relative overflow-hidden rounded-3xl p-4 md:p-6 bg-white/12 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-8px_rgba(0,0,0,.4)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-white/25 before:to-white/5 before:opacity-60 after:content-[''] after:absolute after:-top-10 after:-left-10 after:h-48 after:w-48 after:rounded-full after:bg-[rgba(255,205,170,0.16)] after:blur-3xl after:opacity-80 transition-all text-white/90 hover:-translate-y-[2px] hover:shadow-[0_16px_50px_-8px_rgba(0,0,0,.45)]"
+            className="min-w-[180px] max-w-[180px] flex-shrink-0 relative overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-white/10 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_18px_60px_-12px_rgba(0,0,0,.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-white/25 before:to-white/5 before:opacity-60 after:content-[''] after:absolute after:-top-10 after:-left-10 after:h-48 after:w-48 after:rounded-full after:bg-[rgba(255,205,170,0.16)] after:blur-3xl after:opacity-80 transition-all text-white/90 hover:-translate-y-[2px] hover:shadow-[0_16px_50px_-8px_rgba(0,0,0,.45)]"
           >
             <span className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/10 z-10" />
             <div className="flex items-center gap-2">
