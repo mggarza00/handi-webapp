@@ -190,7 +190,7 @@ export async function GET(req: Request) {
               await admin.from('messages').insert({ conversation_id: conversationId, sender_id: senderId, body: 'Pago realizado. Servicio agendado.', message_type: 'system', payload } as any);
               try {
                 const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
-                void notifyChatMessageByConversation({ conversationId, senderId, text: 'Pago realizado. Servicio agendado.' });
+                await notifyChatMessageByConversation({ conversationId, senderId, text: 'Pago realizado. Servicio agendado.' });
               } catch {}
             }
           }

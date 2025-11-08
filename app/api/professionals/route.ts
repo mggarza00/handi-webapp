@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const wantDebug = searchParams.get("debug") === "1";
     const includeIncomplete = searchParams.get("include_incomplete") === "1";
     const page = Math.max(1, Number(searchParams.get("page") || "1"));
-    const limit = 20;
+    const limit = 60;
     const offset = (page - 1) * limit;
 
     // Público: no requerir sesión para explorar profesionales
@@ -132,6 +132,13 @@ export async function GET(req: Request) {
         const r = row as Record<string, unknown>;
         if (r.active === false) return false;
 
+        // Excluir usuarios de seed/demos conocidos por nombre
+        try {
+          const name = typeof r.full_name === "string" ? r.full_name : "";
+          const n = toNorm(name);
+          if (n === "pro seed" || n === "seed pro") return false;
+        } catch {}
+
         // Ocultar perfiles incompletos (sin nombre) salvo que se pida explícitamente
         if (!includeIncomplete) {
           const name = typeof r.full_name === "string" ? r.full_name.trim() : "";
@@ -210,18 +217,26 @@ export async function GET(req: Request) {
       return pass;
     })();
 
+    const totalCount = relaxed.length;
     const pageItems = relaxed.slice(offset, offset + limit);
     // Mapea solo campos necesarios al cliente
-    const mapped = pageItems.map((r) => {
+    let mapped = pageItems.map((r) => {
       const x = r as Record<string, unknown>;
+      const rawRating = x.rating as unknown;
+      let rating: number | null = null;
+      if (typeof rawRating === 'number') {
+        rating = rawRating;
+      } else if (typeof rawRating === 'string') {
+        const n = Number(rawRating);
+        rating = Number.isFinite(n) ? n : null;
+      }
       return {
         id: String(x.id ?? ""),
         full_name: (x.full_name as string | null) ?? null,
         avatar_url: (x.avatar_url as string | null) ?? null,
         headline: (x.headline as string | null) ?? null,
         bio: (x.bio as string | null) ?? null,
-        rating:
-          typeof x.rating === "number" ? (x.rating as number) : null,
+        rating,
         // Extra fields useful for client cards
         categories: toNames(x.categories),
         subcategories: toNames(x.subcategories),
@@ -229,13 +244,63 @@ export async function GET(req: Request) {
       } as const;
     });
 
+    // Fallback: if rating is null, compute average from public.ratings
+    try {
+      const missingIds = mapped.filter((m) => m.rating === null).map((m) => m.id);
+      if (missingIds.length) {
+        // Prefer public client (RLS allows select) to avoid depending on SERVICE_ROLE
+        let agg: Array<{ to_user_id: string; avg: unknown }> | null = null;
+        try {
+          const pub = createClient() as any;
+          const r = await pub
+            .from('ratings')
+            .select('to_user_id, avg:avg(stars)')
+            .in('to_user_id', missingIds)
+            .group('to_user_id');
+          if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
+        } catch {
+          // fall back to service role below
+        }
+        if (!agg) {
+          try {
+            const admin = createServiceClient() as any;
+            const r = await admin
+              .from('ratings')
+              .select('to_user_id, avg:avg(stars)')
+              .in('to_user_id', missingIds)
+              .group('to_user_id');
+            if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
+          } catch {
+            // ignore
+          }
+        }
+        if (agg && agg.length) {
+          const map = new Map<string, number>();
+          for (const row of agg) {
+            const n = Number((row as any).avg);
+            if (Number.isFinite(n)) map.set(String((row as any).to_user_id), n);
+          }
+          mapped = mapped.map((m) => (m.rating === null && map.has(m.id) ? { ...m, rating: map.get(m.id)! } : m));
+        }
+      }
+    } catch {
+      // ignore fallback errors; keep mapped as-is
+    }
+
+    const metaCommon = {
+      total: totalCount,
+      page,
+      limit,
+    } as const;
+
     const payload = wantDebug
       ? {
           ok: true,
           data: mapped,
           meta: {
+            ...metaCommon,
             source,
-            total: list.length,
+            totalAll: list.length,
             strict: filtered.length,
             returned: pageItems.length,
             city,
@@ -243,7 +308,7 @@ export async function GET(req: Request) {
             subcategory,
           },
         }
-      : { ok: true, data: mapped };
+      : { ok: true, data: mapped, meta: metaCommon };
     return NextResponse.json(payload, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";

@@ -17,14 +17,12 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
   const [items, setItems] = React.useState<ReviewDTO[]>(initial);
   const [cursor, setCursor] = React.useState<string | null>(nextCursor);
   const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
 
   const load = async () => {
     if (!cursor || loading) return;
     setLoading(true);
-    setError(null);
     try {
-      const res = await fetch(`/api/professionals/${professionalId}/reviews?limit=10&cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`/api/professionals/${professionalId}/reviews?limit=5&cursor=${encodeURIComponent(cursor)}`);
       const j = await res.json().catch(() => null);
       if (res.ok && j?.ok) {
         const more: ReviewDTO[] = (j.data as any[]).map((r) => ({
@@ -38,7 +36,7 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
         setItems((prev) => [...prev, ...more]);
         setCursor((j.nextCursor as string | null) ?? null);
       } else {
-        setError("No se pudo cargar más reseñas.");
+        // Silenciar error como solicitado; no mostrar mensaje
       }
     } finally {
       setLoading(false);
@@ -52,7 +50,7 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
       {items.map((r) => (
         <ReviewItem key={r.id} stars={r.stars} comment={r.comment} createdAt={r.createdAt} clientName={r.clientName} clientAvatarUrl={r.clientAvatarUrl} />
       ))}
-      {(cursor || items.length < total) && (
+      {(total > 5 && items.length < total) && (
         <div className="pt-1">
           <button
             type="button"
@@ -61,10 +59,8 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
           >
             {loading ? "Cargando…" : "Ver más reseñas"}
           </button>
-          {error ? <p className="text-xs text-red-600">{error}</p> : null}
         </div>
       )}
     </div>
   );
 }
-

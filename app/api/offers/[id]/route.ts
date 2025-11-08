@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -10,7 +9,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const offerId = (params?.id || "").trim();
     if (!offerId) return NextResponse.json({ ok: false, error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
 
-    const db = createRouteHandlerClient<Database>({ cookies });
+    const db = getRouteClient();
     const { data, error } = await db
       .from("offers")
       .select("id, conversation_id, status")
@@ -27,4 +26,3 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

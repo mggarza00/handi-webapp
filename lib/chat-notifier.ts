@@ -57,6 +57,17 @@ export async function notifyChatMessageByConversation(opts: {
     const recipientId = senderId === customerId ? proId : customerId;
     if (!recipientId) return;
 
+    // Respetar preferencia de notificaciones por correo (por defecto: activas)
+    try {
+      const { data: pref } = await admin
+        .from('profiles')
+        .select('email_chat_notifications_enabled')
+        .eq('id', recipientId)
+        .maybeSingle();
+      const enabled = (pref as any)?.email_chat_notifications_enabled !== false;
+      if (!enabled) return;
+    } catch { /* ignore and assume enabled */ }
+
     // Email del destinatario
     const { data: userRes } = await admin.auth.admin.getUserById(recipientId);
     const to = (userRes?.user?.email || "").trim();
@@ -64,6 +75,7 @@ export async function notifyChatMessageByConversation(opts: {
 
     // Título de la request (si aplica)
     let requestTitle: string | undefined;
+    let senderName: string | null = null;
     if (requestId) {
       try {
         const { data: req } = await admin
@@ -76,6 +88,15 @@ export async function notifyChatMessageByConversation(opts: {
         // ignore
       }
     }
+    // Nombre del remitente
+    try {
+      const { data: sender } = await admin
+        .from("profiles")
+        .select("full_name")
+        .eq("id", senderId)
+        .maybeSingle<{ full_name?: string | null }>();
+      senderName = (sender as any)?.full_name ?? null;
+    } catch { /* ignore */ }
 
     // Link directo al chat
     const base =
@@ -86,11 +107,10 @@ export async function notifyChatMessageByConversation(opts: {
 
     const subject = requestTitle ? `Nuevo mensaje: ${requestTitle}` : "Nuevo mensaje en Handi";
     const preview = buildPreview(opts.text, opts.attachments);
-    const html = messageReceivedHtml({ requestTitle, preview, linkUrl });
+    const html = messageReceivedHtml({ requestTitle, senderName, preview, linkUrl });
 
     await sendEmail({ to, subject, html }).catch(() => null);
   } catch {
     // no-op on failures
   }
 }
-

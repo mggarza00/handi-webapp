@@ -1,5 +1,5 @@
 // lib/_supabase-server.ts
-import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
+import getServerClient from "@/lib/supabase/server-client";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/supabase";
@@ -24,7 +24,7 @@ export class ApiError extends Error {
 }
 
 export function getSupabaseServer(): DBClient {
-  return createSupabaseServerClient();
+  return getServerClient() as unknown as DBClient;
 }
 
 export const supabaseServer = getSupabaseServer;

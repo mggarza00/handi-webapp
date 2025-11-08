@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import DataTable from "@/components/admin/data-table";
 import StateBadge from "@/components/admin/state-badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 //
 
 type Pro = {
@@ -34,12 +35,35 @@ export default function AdminProfessionalsPage() {
     setLoading(false);
   }
 
+  async function setStatus(id: string, status: 'approved'|'rejected'|'needs_info') {
+    try {
+      const res = await fetch(`/api/admin/professionals/${id}/kyc`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      let dev = false;
+      try {
+        const jj: unknown = await res.clone().json();
+        if (typeof jj === 'object' && jj !== null && 'dev' in (jj as Record<string, unknown>)) {
+          dev = Boolean((jj as Record<string, unknown>)["dev"]);
+        }
+      } catch { /* ignore */ }
+      if (!res.ok) throw new Error('request_failed');
+      setItems((prev) => prev.map((p) => p.id === id ? { ...p, kyc_status: (status === 'needs_info' ? 'pending' : status) } : p));
+      toast('Estado actualizado', { description: dev ? 'Simulado en entorno de desarrollo' : undefined });
+    } catch (e) {
+      toast('No se pudo actualizar', { description: e instanceof Error ? e.message : 'Error inesperado' });
+    }
+  }
+
   async function bulk(status: 'approved'|'rejected'|'needs_info') {
     const ids = Object.entries(selected).filter(([_, v]) => v).map(([id]) => id);
-    for (const id of ids) {
-      await fetch(`/api/admin/professionals/${id}/kyc`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+    for (const id of ids) { // secuencial para evitar saturar servidor
+      // eslint-disable-next-line no-await-in-loop
+      await setStatus(id, status);
     }
-    await fetchData();
+    setSelected({});
   }
 
   /* eslint-disable react-hooks/exhaustive-deps */
@@ -56,9 +80,9 @@ export default function AdminProfessionalsPage() {
     { accessorKey: 'created_at', header: 'Registro', cell: (ctx: { getValue: () => unknown }) => new Date(ctx.getValue() as string).toLocaleDateString() },
     { header: 'Acciones', cell: ({ row }: { row: { original: Pro } }) => (
       <div className="flex gap-2 text-sm">
-        <button className="text-primary" onClick={() => void fetch(`/api/admin/professionals/${row.original.id}/kyc`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) }).then(fetchData)}>Aprobar</button>
-        <button className="text-destructive" onClick={() => void fetch(`/api/admin/professionals/${row.original.id}/kyc`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }) }).then(fetchData)}>Rechazar</button>
-        <button onClick={() => void fetch(`/api/admin/professionals/${row.original.id}/kyc`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'needs_info' }) }).then(fetchData)}>Pedir info</button>
+        <button className="text-primary" onClick={() => void setStatus(row.original.id, 'approved')}>Aprobar</button>
+        <button className="text-destructive" onClick={() => void setStatus(row.original.id, 'rejected')}>Rechazar</button>
+        <button onClick={() => void setStatus(row.original.id, 'needs_info')}>Pedir info</button>
       </div>
     ) },
   ], [items, selected]);

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import getRouteClient from '@/lib/supabase/route-client';
 import type { Database } from '@/types/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +9,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function GET(_req: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401, headers: JSONH });

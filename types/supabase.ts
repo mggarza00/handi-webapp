@@ -58,6 +58,8 @@ export interface Tables {
       /** banderas auxiliares que existen en algunas migraciones */
       is_client_pro?: boolean | null;
       is_admin?: boolean | null;
+      /** preferencia: correos del chat */
+      email_chat_notifications_enabled?: boolean | null;
       /** columnas varias que pueden existir por migraciones previas */
       created_at: string | null; // timestamptz ISO
     };

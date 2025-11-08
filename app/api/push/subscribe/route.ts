@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import createClient from '@/utils/supabase/server';
+import getRouteClient from '@/lib/supabase/route-client';
 import type { Database } from '@/types/supabase';
 
 const JSONH = { 'Content-Type': 'application/json; charset=utf-8' } as const;
@@ -9,7 +9,7 @@ type Subscription = { endpoint: string; expirationTime?: number | null; keys: Ke
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = getRouteClient();
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user;
     if (!user) {

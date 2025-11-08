@@ -2,9 +2,9 @@
 
 Este proyecto usa Resend como proveedor de correo en producción.
 
-- Variables requeridas (en Vercel/producción y staging):
+ - Variables requeridas (en Vercel/producción y staging):
   - `RESEND_API_KEY`
-  - `RESEND_FROM` (ej. `Equipo Handi <notificaciones@mg.handi.mx>`) — debe ser del dominio verificado (mg.handi.mx)
+  - `RESEND_FROM` (ej. `Equipo Handi <notificaciones@handi.mx>`) — debe ser del dominio verificado (handi.mx)
   - `RESEND_REPLY_TO` (ej. `soporte@handi.mx`)
 
 - Cliente central: `lib/email/resend.ts` expone `resend`, `RESEND_FROM`, `RESEND_REPLY_TO` y helpers.
@@ -29,4 +29,3 @@ curl -X POST https://handi.mx/api/email/test \
 - Éxito: `{ ok: true, id }`
 - Sandbox/validación: `400 { ok: false, code: "RESEND_SANDBOX_ERROR", hint, error }`
 - Otros errores: `400 { ok: false, error }`
-

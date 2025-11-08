@@ -16,16 +16,19 @@ export async function POST(req: Request) {
     const { data: got } = await admin.storage
       .getBucket(bucket)
       .catch(() => ({ data: null }) as { data: null });
-    if (!got) {
+  if (!got) {
+      const isProVerifications = bucket === "pro-verifications";
       const { error: createErr } = await admin.storage.createBucket(bucket, {
         public: true,
-        fileSizeLimit: "5242880", // 5MB
-        allowedMimeTypes: [
-          "image/*",
-          "application/pdf",
-          "application/msword",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ],
+        fileSizeLimit: isProVerifications ? "10485760" : "5242880",
+        allowedMimeTypes: isProVerifications
+          ? [
+              "image/*",
+              "application/pdf",
+              "application/msword",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ]
+          : ["image/*"],
       });
       if (createErr) {
         return NextResponse.json(

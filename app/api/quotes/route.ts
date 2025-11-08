@@ -145,6 +145,11 @@ export async function POST(req: Request) {
       return null;
     }
     const messageId = await resolveMessageId();
+    // Notificar por correo al cliente: "Cotización enviada"
+    try {
+      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+      await notifyChatMessageByConversation({ conversationId, senderId: user.id, text: 'Cotización enviada' });
+    } catch { /* ignore notify errors */ }
 
     // Build key under chat-attachments path convention so participants can read via RLS
     const folioForFile = (folio && folio.trim().length ? folio : shortId).replace(/[^A-Z0-9_-]+/gi, "-");

@@ -35,7 +35,7 @@ export default async function ProfileSetupPage() {
   // Load professional extra fields (cities) if present
   const { data: pro } = await supabase
     .from("professionals")
-    .select("cities, city, headline, years_experience, bio, avatar_url")
+    .select("full_name, cities, city, headline, years_experience, bio, avatar_url, categories, subcategories")
     .eq("id", user.id)
     .maybeSingle<any>();
 
@@ -57,6 +57,32 @@ export default async function ProfileSetupPage() {
     pendingAt = null;
   }
 
+  // Compute robust fallbacks for name and avatar (from professionals or auth metadata)
+  const fullNameFallback =
+    (profile as any)?.full_name ??
+    (pro as any)?.full_name ??
+    (user?.user_metadata as any)?.full_name ??
+    (user?.user_metadata as any)?.name ??
+    (user?.user_metadata as any)?.user_name ??
+    (user?.user_metadata as any)?.preferred_username ??
+    user?.email ??
+    null;
+
+  const avatarUrlFallback =
+    (pro as any)?.avatar_url ??
+    (profile as any)?.avatar_url ??
+    (user?.user_metadata as any)?.avatar_url ??
+    (user?.user_metadata as any)?.picture ??
+    null;
+
+  const normalizeNamed = (raw: unknown): any => {
+    if (Array.isArray(raw)) {
+      return raw.map((x: any) => (typeof x === "string" ? { name: x } : x));
+    }
+    if (typeof raw === "string") return raw; // CSV supported downstream
+    return null;
+  };
+
   return (
     <PageContainer>
       <div className="space-y-6">
@@ -74,12 +100,18 @@ export default async function ProfileSetupPage() {
           <Card className="p-4 lg:col-span-2">
             <SetupForm initial={{
               ...(profile ?? {}),
+              // Strong defaults for name and avatar
+              full_name: fullNameFallback,
+              avatar_url: avatarUrlFallback,
               // prefer professionals' richer fields if available
               bio: (pro?.bio as any) ?? profile?.bio ?? null,
               headline: (pro?.headline as any) ?? profile?.headline ?? null,
               years_experience: (pro?.years_experience as any) ?? profile?.years_experience ?? null,
               city: (pro?.city as any) ?? profile?.city ?? null,
               cities: (Array.isArray((pro as any)?.cities) ? ((pro as any)?.cities as unknown as string[]) : null),
+              // categories/subcategories from pro if present, else from profile
+              categories: normalizeNamed((pro as any)?.categories ?? (profile as any)?.categories ?? null),
+              subcategories: normalizeNamed((pro as any)?.subcategories ?? (profile as any)?.subcategories ?? null),
             } as any} onRequestChanges={createChangeRequest} />
           </Card>
           <Card className="p-4 space-y-2">

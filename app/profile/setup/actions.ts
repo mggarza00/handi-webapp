@@ -1,6 +1,5 @@
 "use server";
-import { cookies } from "next/headers";
-import { createServerActionClient } from "@supabase/auth-helpers-nextjs";
+import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
 import { sendEmail } from "@/lib/email";
 
@@ -47,7 +46,7 @@ function listAdmins(): string[] {
 
 export async function createChangeRequest(formData: FormData): Promise<{ ok: boolean; error?: string }>
 {
-  const supabase = createServerActionClient<Database>({ cookies });
+  const supabase = getServerClient();
   const { data: auth } = await supabase.auth.getUser();
   const user = auth.user;
   if (!user) return { ok: false, error: "UNAUTHENTICATED" };
@@ -72,6 +71,19 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   })();
   const categories = parseCsvOrJson((formData.get("categories") as string | null) ?? null);
   const subcategories = parseCsvOrJson((formData.get("subcategories") as string | null) ?? null);
+  // Private gallery paths uploaded in setup (profiles-gallery). These require admin approval to publish.
+  let gallery_paths: string[] | undefined = undefined;
+  try {
+    const raw = (formData.get("gallery_paths") as string | null) ?? null;
+    if (raw && raw.trim()) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        gallery_paths = parsed.map((x) => String(x)).filter(Boolean);
+      }
+    }
+  } catch {
+    gallery_paths = undefined;
+  }
 
   // Current data
   const { data: prof } = await supabase
@@ -91,10 +103,8 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
 
   if (full_name != null && full_name !== (prof?.full_name ?? null)) profChanges.full_name = full_name;
   if (avatar_url != null && avatar_url !== (prof?.avatar_url ?? null)) profChanges.avatar_url = avatar_url;
-  if (city != null && city !== (prof?.city ?? null)) profChanges.city = city;
-  if (bio != null && bio !== (prof?.bio ?? null)) profChanges.bio = bio;
-  if (categories && !deepEqual(categories, (prof?.categories as unknown) ?? null)) profChanges.categories = categories;
-  if (subcategories && !deepEqual(subcategories, (prof?.subcategories as unknown) ?? null)) profChanges.subcategories = subcategories;
+  // city pertenece a professionals en este esquema
+  // Nota: bio/categorías/subcategorías solo se aplican en professionals
 
   if (headline != null && headline !== (pro?.headline ?? null)) proChanges.headline = headline;
   if (typeof years_experience === "number" && years_experience !== (pro?.years_experience ?? null)) proChanges.years_experience = years_experience;
@@ -108,31 +118,46 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   const hasChanges = Object.keys(profChanges).length > 0 || Object.keys(proChanges).length > 0;
   if (!hasChanges) return { ok: false, error: "NO_CHANGES" };
 
-  const payload = { profiles: profChanges, professionals: proChanges } as const;
+  const payload: Record<string, unknown> = { profiles: profChanges, professionals: proChanges } as const as any;
+  if (gallery_paths && gallery_paths.length) {
+    // Store under a dedicated key for the approver flow
+    (payload as any).gallery_add_paths = gallery_paths;
+  }
 
   const { error: insErr } = await supabase
     .from("profile_change_requests")
     .insert({ user_id: user.id, payload, status: "pending" });
-  if (insErr) return { ok: false, error: "INSERT_FAILED" };
+  if (insErr) return { ok: false, error: `INSERT_FAILED: ${insErr.message}` };
 
   // Notify admins
   const admins = listAdmins();
-  if (admins.length > 0) {
-    const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-    const subject = "HANDI · Solicitud de cambios de perfil";
-    const summary: string[] = [];
-    for (const k of Object.keys(profChanges)) summary.push(`profiles.${k}`);
-    for (const k of Object.keys(proChanges)) summary.push(`professionals.${k}`);
-    const link = `${base}/admin/profile-requests`;
-    const html = `
+  const recipients = Array.from(new Set([...(admins || []), "soporte@handi.mx"])).filter(Boolean);
+  const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const subject = "HANDI · Solicitud de cambios de perfil";
+  const summary: string[] = [];
+  for (const k of Object.keys(profChanges)) summary.push(`profiles.${k}`);
+  for (const k of Object.keys(proChanges)) summary.push(`professionals.${k}`);
+  const link = `${base}/admin/pro-changes`;
+  const html = `
       <h1>Nueva solicitud de cambios de perfil</h1>
       <p>Usuario: <code>${user.id}</code></p>
       <p>Campos: ${summary.join(", ") || "(sin resumen)"}</p>
       <p><a href="${link}">Abrir panel admin</a></p>
     `;
-    await Promise.all(
-      admins.map((to) => sendEmail({ to, subject, html })),
-    ).catch(() => undefined);
+  if (recipients.length > 0) {
+    await sendEmail({ to: recipients, subject, html }).catch(() => undefined);
+  }
+
+  // In-app notification to admins via RPC (SECURITY DEFINER)
+  try {
+    await (supabase as any).rpc("notify_admins", {
+      _type: "profile_change:requested",
+      _title: "Solicitud de cambios de perfil",
+      _body: (summary.join(", ") || "(sin resumen)"),
+      _link: link,
+    });
+  } catch {
+    // ignore notify errors
   }
 
   return { ok: true };

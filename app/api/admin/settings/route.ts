@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 import { z } from "zod";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
@@ -12,7 +11,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const gate = await assertAdminOrJson();
   if (!gate.ok) return gate.res;
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = getRouteClient();
   const { data, error } = await supabase
     .from("admin_settings")
     .select("id, commission_percent, vat_percent, updated_at, updated_by")
@@ -35,7 +34,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: "INVALID" }, { status: 400, headers: JSONH });
   }
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = getRouteClient();
   const { commission_percent, vat_percent } = parsed.data;
   const { error: upErr } = await supabase
     .from("admin_settings")

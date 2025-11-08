@@ -3,6 +3,9 @@
 /* Mapbox GL + Geocoder styles */
 @import url("https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css");
 @import url("https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css");
+/* Google fonts for spotlight heading */
+@import url('https://fonts.googleapis.com/css2?family=Momo+Trust+Display&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -11,6 +14,62 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ScrollStack globals */
+.scroll-stack-scroller {
+  position: relative;
+  height: 75vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-stack-inner {
+  position: relative;
+  padding: 0 16px;
+}
+.scroll-stack-card {
+  will-change: transform, filter;
+  transform-origin: top center;
+  backface-visibility: hidden;
+}
+.scroll-stack-end {
+  height: 60vh;
+}
+
+/* Custom font helpers */
+.font-momo-trust {
+  font-family: "Momo Trust Display", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+.font-caveat {
+  font-family: "Caveat", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+
+/* Spotlight card effect */
+.card-spotlight {
+  position: relative;
+  border-radius: var(--radius);
+  isolation: isolate;
+  overflow: hidden;
+}
+.card-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 0px) var(--mouse-y, 0px),
+    var(--spotlight-color, rgba(255, 255, 255, 0.25)),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 1;
+}
+.card-spotlight:hover::before,
+.card-spotlight:focus-visible::before {
+  opacity: 1;
+}
 
 :root {
   --radius: 0.625rem;
@@ -336,6 +395,12 @@ body {
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  .line-clamp-4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 
   /* Oculta el ícono nativo del date picker cuando usemos un botón personalizado */
   .hide-native-calendar::-webkit-calendar-picker-indicator {
@@ -367,6 +432,14 @@ body {
       transform: translateX(-50%);
     }
   }
+  @keyframes marquee-right {
+    0% {
+      transform: translateX(-50%);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
   .marquee {
     overflow: hidden;
     position: relative;
@@ -376,7 +449,12 @@ body {
     display: flex;
     width: max-content;
     will-change: transform;
+    gap: 0.5rem; /* ensure equal spacing at group seam */
     animation: marquee-left var(--marquee-duration, 60s) linear infinite;
+  }
+  /* Variante para sentido contrario (derecha) */
+  .marquee.marquee--right .marquee__inner {
+    animation: marquee-right var(--marquee-duration, 60s) linear infinite;
   }
   /* stylelint-disable-next-line selector-class-pattern */
   .marquee__group {

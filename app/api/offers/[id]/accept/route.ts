@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getStripe } from "@/lib/stripe";
 import type Stripe from "stripe";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient as createSSRClient } from "@/utils/supabase/server";
 
 import { createBearerClient, createServerClient } from "@/lib/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
@@ -19,7 +18,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const stripe = await getStripe();
 
     // Resolve acting user (prefer bearer token, fallback cookie, finally x-user-id for dev)
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createSSRClient();
     let actingUserId: string | null = null;
     const authHeader = (req.headers.get("authorization") || req.headers.get("Authorization") || "").trim();
     const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);

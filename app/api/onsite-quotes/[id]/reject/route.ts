@@ -38,7 +38,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     } as any);
     try {
       const text = payload.description ? `Cotización en sitio rechazada: ${payload.reason} — ${payload.description}` : `Cotización en sitio rechazada: ${payload.reason}`;
-      void notifyChatMessageByConversation({ conversationId: (row as any).conversation_id, senderId: user.id, text });
+      await notifyChatMessageByConversation({ conversationId: (row as any).conversation_id, senderId: user.id, text });
     } catch {}
     return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import type { Database } from "@/types/supabase";
 
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "ADDRESS_REQUIRED" }, { status: 422, headers: JSONH });
   }
 
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = getRouteClient();
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth?.user?.id || null;
   if (!userId) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });

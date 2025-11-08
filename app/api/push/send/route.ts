@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import webpush from 'web-push';
-import createClient from '@/utils/supabase/server';
+import getRouteClient from '@/lib/supabase/route-client';
 import type { Database } from '@/types/supabase';
 
 const JSONH = { 'Content-Type': 'application/json; charset=utf-8' } as const;
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'missing VAPID keys' }, { status: 500, headers: JSONH });
     }
 
-    const supabase = createClient();
+    const supabase = getRouteClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'auth' }, { status: 401, headers: JSONH });
 

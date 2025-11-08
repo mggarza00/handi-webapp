@@ -1,34 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function POST(req: Request) {
-  const cookieStore = cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anon = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)!;
-  if (!url || !anon) return NextResponse.json({ ok: false, error: "MISSING_ENV" }, { status: 500, headers: JSONH });
-
-  // Construye la respuesta primero para poder adjuntar cookies vía setAll
+  // Construye la respuesta de éxito por defecto
   const res = NextResponse.json({ ok: true }, { headers: JSONH });
   try {
-    const supabase = createServerClient<Database>(url, anon, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-              cookiesToSet.forEach(({ name, value, options }) => {
-              res.cookies.set(name, value, { ...(options as CookieOptions), path: "/" });
-            });
-          } catch { /* ignore */ }
-        },
-      },
-    });
+    const supabase = getRouteClient();
 
     const body = await req.json().catch(() => null) as
       | { access_token?: string; refresh_token?: string }

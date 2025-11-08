@@ -6,6 +6,7 @@ import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function NotificationsDropdown() {
   const [open, setOpen] = React.useState(false);
+  const detailsRef = React.useRef<HTMLDetailsElement | null>(null);
   const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [me, setMe] = React.useState<string | null>(null);
   const [items, setItems] = React.useState<Array<{
@@ -97,16 +98,53 @@ export default function NotificationsDropdown() {
         credentials: "include",
         headers,
       });
-      setItems((prev) => prev.map((x) => ({ ...x, read_at: new Date().toISOString() })));
-      setHasUnread(false);
-      try { localStorage.setItem("handee_has_notifications", "0"); } catch { /* ignore */ }
+      setItems((prev) => {
+        const next = prev.map((x) => ({ ...x, read_at: new Date().toISOString() }));
+        setHasUnread(false);
+        try { localStorage.setItem("handee_has_notifications", "0"); } catch { /* ignore */ }
+        return next;
+      });
     } catch {
       // ignore mark read failures in UI
     }
   }, [buildAuthHeaders]);
 
+  // When opening a single notification, mark it read locally and update badge state
+  const onOpenItem = React.useCallback((id: string) => {
+    setItems((prev) => {
+      const next = prev.map((x) => (x.id === id ? { ...x, read_at: new Date().toISOString() } : x));
+      const anyUnread = next.some((x) => !x.read_at);
+      setHasUnread(anyUnread);
+      return next;
+    });
+    setOpen(false);
+  }, []);
+
+  // Close on outside click while open
+  React.useEffect(() => {
+    if (!open) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      const el = detailsRef.current;
+      if (!el) return;
+      if (el.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown, true);
+  }, [open]);
+
+  // Close on Escape
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
-    <details className="relative" open={open} onToggle={(e) => {
+    <details ref={detailsRef} className="relative" open={open} onToggle={(e) => {
       const o = (e.target as HTMLDetailsElement).open;
       setOpen(o);
       if (o) load();
@@ -127,19 +165,49 @@ export default function NotificationsDropdown() {
         ) : items.length === 0 ? (
           <div className="p-2 text-sm text-slate-500">No hay notificaciones</div>
         ) : (
-          <ul className="max-h-80 overflow-auto">
-            {items.map((n) => (
-              <li key={n.id} className={`rounded px-2 py-1.5 text-sm hover:bg-neutral-50 ${!n.read_at ? "bg-orange-50" : ""}`}>
-                <div className="font-medium">{n.title}</div>
-                {n.body ? <div className="text-slate-600">{n.body}</div> : null}
-                <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
-                  <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ""}</span>
-                  {n.link ? (
-                    <Link href={n.link} className="text-blue-600 hover:underline">Abrir</Link>
-                  ) : null}
-                </div>
+              <ul className="max-h-80 overflow-auto">
+            {items.map((n) => {
+              const unread = !n.read_at;
+              return (
+              <li key={n.id}>
+                {n.link ? (
+                  <Link
+                    href={n.link}
+                    className={`block rounded px-2 py-1.5 text-sm hover:bg-neutral-50 ${unread ? "bg-orange-50" : ""}`}
+                    onClick={() => onOpenItem(n.id)}
+                  >
+                    <div className="font-medium flex items-center">
+                      <span>{n.title}</span>
+                      {unread ? (
+                        <span className="ml-2 inline-block h-2 w-2 rounded-full bg-red-500 align-middle" aria-label="Sin leer" />
+                      ) : null}
+                    </div>
+                    {n.body ? <div className="text-slate-600">{n.body}</div> : null}
+                    <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ""}</span>
+                    </div>
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    className={`w-full text-left rounded px-2 py-1.5 text-sm hover:bg-neutral-50 ${unread ? "bg-orange-50" : ""}`}
+                    onClick={() => onOpenItem(n.id)}
+                  >
+                    <div className="font-medium flex items-center">
+                      <span>{n.title}</span>
+                      {unread ? (
+                        <span className="ml-2 inline-block h-2 w-2 rounded-full bg-red-500 align-middle" aria-label="Sin leer" />
+                      ) : null}
+                    </div>
+                    {n.body ? <div className="text-slate-600">{n.body}</div> : null}
+                    <div className="mt-1 flex items-center justify-between text-xs text-slate-500">
+                      <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ""}</span>
+                    </div>
+                  </button>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

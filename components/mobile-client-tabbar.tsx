@@ -43,7 +43,7 @@ export default async function MobileClientTabBar() {
   return (
     <div
       id="mobile-client-tabbar"
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-white/90 dark:bg-neutral-900/70 backdrop-blur"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md"
     >
       <div className="mx-auto max-w-5xl px-4">
         <MobileClientTabbarButtons />

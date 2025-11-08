@@ -126,14 +126,10 @@ export default function NearbyCarousel() {
   const shown = items.slice(0, visibleCount);
   return (
     <div
-      className="mt-12 rounded-xl border-2 px-3 py-4 md:px-4 md:py-6 shadow-2xl"
-      style={{
-        backgroundColor: "rgba(255, 255, 255, 0.8)",
-        borderColor: "#009377",
-      }}
+      className="mt-12 rounded-xl border border-slate-200 px-3 py-4 md:px-4 md:py-6 shadow-2xl bg-white/70 backdrop-blur-md supports-[backdrop-filter]:bg-white/60"
     >
       <div className="mb-3 text-center">
-        <h3 className="text-lg font-semibold tracking-tight" style={{ color: "#009377" }}>Profesionales cerca de ti</h3>
+        <h3 className="text-lg font-semibold tracking-tight text-black">Profesionales cerca de ti</h3>
       </div>
       <div
         ref={gridRef}
@@ -149,12 +145,31 @@ export default function NearbyCarousel() {
             href={`/profiles/${p.id}`}
             className="min-w-[180px] max-w-[180px] flex-shrink-0 rounded-lg border border-slate-200 bg-white p-2 shadow-sm hover:bg-slate-50"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={p.avatar_url || "/images/handee_mascota.gif"}
-              alt={p.full_name || "Avatar"}
-              className="h-9 w-9 rounded-full object-cover border"
-            />
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={p.avatar_url || "/images/handee_mascota.gif"}
+                alt={p.full_name || "Avatar"}
+                className="h-9 w-9 rounded-full object-cover border"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  const t = e.currentTarget as HTMLImageElement & { dataset?: Record<string, string> };
+                  if (t && (!t.dataset || !t.dataset.fallbackApplied)) {
+                    t.src = "/images/handee_mascota.gif";
+                    if (t.dataset) t.dataset.fallbackApplied = "1";
+                  }
+                }}
+              />
+              {typeof p.rating === "number" && Number.isFinite(p.rating) && p.rating > 0 ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-medium text-slate-700">
+                    {Number.isInteger(p.rating) ? p.rating : Number(p.rating).toFixed(1)}
+                  </span>
+                  <RatingStars value={p.rating} className="text-[12px]" />
+                </div>
+              ) : null}
+            </div>
             <div className="mt-1 text-sm font-medium truncate">
               {p.full_name ?? "Profesional"}
             </div>
@@ -169,14 +184,6 @@ export default function NearbyCarousel() {
             ) : (
               <div className="text-[11px] text-slate-500">Sin descripción</div>
             )}
-            {typeof p.rating === "number" ? (
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-xs font-medium text-slate-700">
-                  {Number.isInteger(p.rating) ? p.rating : Number(p.rating).toFixed(1)}
-                </span>
-                <RatingStars value={p.rating} className="text-[12px]" />
-              </div>
-            ) : null}
             {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
               <div className="mt-1 text-[10px] text-slate-600 line-clamp-2">
                 {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(", ")}

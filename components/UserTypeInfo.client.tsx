@@ -5,8 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 
 export default function UserTypeInfo({
   currentRole,
+  onAction,
 }: {
   currentRole: "client" | "pro" | "admin" | null;
+  onAction?: () => void;
 }) {
   const [loading, setLoading] = React.useState(true);
   const [canSwitch, setCanSwitch] = React.useState(false);
@@ -56,6 +58,7 @@ export default function UserTypeInfo({
       : "—";
 
   async function onSwitch() {
+    try { onAction?.(); } catch { /* ignore */ }
     if (!other) {
       toast.error("No hay un tipo alternativo disponible");
       return;

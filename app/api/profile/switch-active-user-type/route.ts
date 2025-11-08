@@ -58,7 +58,20 @@ export async function POST(req: Request) {
         { status, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+    // Además, sincronizamos la cookie 'active_role' para que el middleware y SSR respeten la vista activa
+    const res = NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+    try {
+      res.cookies.set("active_role", role, {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 180,
+      });
+    } catch {
+      /* ignore cookie set errors */
+    }
+    return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

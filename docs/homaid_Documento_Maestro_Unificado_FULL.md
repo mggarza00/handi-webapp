@@ -64,7 +64,8 @@ Handi conecta **contratantes** con **profesionales** de oficios. El V1 integra:
 - **Buckets Storage:**
   - `requests` (imágenes de solicitudes)
   - `profiles-gallery` (galería profesional)
-- **Regla general:** máximo 5MB por imagen; JPG/PNG/WebP; no video en V1.
+- **Regla general:** máximo 5MB por imagen (solicitudes/galería); JPG/PNG/WebP; no video en V1.
+- **Postulación profesional (pro-apply):** documentos hasta 10MB por archivo (PDF, imágenes y DOC/DOCX) para validaciones/KYC.
 
 ---
 

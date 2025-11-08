@@ -16,7 +16,7 @@ Handi (la Plataforma) con domicilio en Monterrey, Nuevo León, México, es respo
 - **Verificación y seguridad:** documentos de identidad oficiales (cuando tú los proporciones para validar identidad), resultados de validaciones internas de referencias.
 - **Transaccionales (si aplica):** datos relacionados con cobros/ pagos que se realicen a través de proveedores externos (por ejemplo, Stripe); **no** almacenamos datos completos de tarjetas.
 - **Uso y dispositivos:** logs técnicos, IP, identificadores de sesión, eventos de navegación necesarios para seguridad y funcionamiento.
-- **Contenido en Storage:** imágenes o archivos que subas (máx. 5 MB por imagen; JPG/PNG/WebP, conforme a nuestras reglas).
+- **Contenido en Storage:** imágenes o archivos que subas (solicitudes y galería: máx. 5 MB por imagen; postulación profesional: hasta 10 MB por archivo). Los formatos permitidos se limitan conforme a nuestras reglas (imágenes comunes y, para postulación, PDF/DOC/DOCX e imágenes).
 
 > **Datos sensibles:** Handi no solicita datos sensibles (salud, religión, origen étnico, etc.). Si por cualquier motivo llegaran a enviarse, serán eliminados salvo obligación legal.
 

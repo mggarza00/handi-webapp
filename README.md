@@ -388,6 +388,15 @@ pnpm dlx shadcn-ui@latest init || true
 pnpm dev
 ```
 
+### Google One Tap (GIS)
+
+- Define `NEXT_PUBLIC_GOOGLE_CLIENT_ID` en tus variables de entorno (local y Vercel).
+- En Google Cloud Console:
+  - Coloca el estado de la pantalla de consentimiento en Producción o añade tu usuario como tester.
+  - En el cliente OAuth 2.0 (tipo Web) añade tus dominios en "Authorized JavaScript origins" (ej.: `http://localhost:3000`, `https://homaid.mx`). Los dominios de preview (`*.vercel.app`) no aceptan comodines; agrégalos explícitamente o deshabilita FedCM en previews.
+- En Supabase Auth → Providers → Google, agrega el Web Client ID en "Authorized client IDs" para permitir `signInWithIdToken`.
+- Debug opcional: `NEXT_PUBLIC_ONE_TAP_DEBUG=1` imprimirá razones de `prompt()` en consola. Puedes forzar/desactivar FedCM con `NEXT_PUBLIC_GSI_USE_FEDCM=true|false`.
+
 ## Configurar Supabase + Migraciones + Seed
 
 ```bash
@@ -431,3 +440,10 @@ pnpm db:seed:large
 - Código y rutas del MVP (/admin + APIs), componentes admin (sidebar/topbar/KPIs/tabla reutilizable).
 - Migraciones SQL en `supabase/migrations/` y seed en `supabase/seed_admin_large.sql` / `db/seed/seed.sql`.
 - README con instrucciones para correr local y validar el MVP.
+## Dev: limpiar cookies legacy de Supabase (temporal)
+
+Si notas sesiones inconsistentes tras la migración a cookies base64, ejecuta una vez en dev:
+
+1. Limpia datos del sitio en tu navegador (Chrome → Application → Storage → Clear site data).
+2. Crea temporalmente una Server Action que llame a `await expireLegacyAuthCookie()` de `lib/supabase/expire-legacy-auth-cookie.ts` y luego elimínala.
+3. Reinicia el servidor de Next.js.

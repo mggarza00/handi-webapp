@@ -4,6 +4,7 @@ import createClient from "@/utils/supabase/server";
 
 import BankAccountsCard from './components/BankAccountsCard';
 import EnableNotificationsButton from "@/components/EnableNotificationsButton";
+import EmailNotificationsToggle from "./components/EmailNotificationsToggle.client";
 
 import type { Database } from '@/types/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,8 @@ export default async function SettingsPage() {
             labelEnable="Activar notificaciones"
             labelEnabled="Notificaciones activas"
           />
+          <div className="my-4 h-px bg-border" />
+          <EmailNotificationsToggle />
         </CardContent>
       </Card>
 

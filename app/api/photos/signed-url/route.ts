@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import type { Database } from "@/types/supabase";
 
@@ -19,7 +18,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const { data, error } = await supabase.storage
       .from("requests-photos")
       .createSignedUrl(path, expires);

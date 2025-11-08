@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import type { Database } from "@/types/supabase";
 
 type CredentialResponse = { credential?: string };
@@ -65,6 +66,7 @@ export default function OneTap() {
 
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
     if (!clientId || typeof window === "undefined") return;
+    const debug = (process.env.NEXT_PUBLIC_ONE_TAP_DEBUG || "").trim() === "1";
 
     const loadGsiScript = () =>
       new Promise<void>((resolve) => {
@@ -126,13 +128,41 @@ export default function OneTap() {
               // Log and back off re-prompting
               // eslint-disable-next-line no-console
               console.error("OneTap signIn error", error);
+              toast.error(
+                "No se pudo iniciar sesión con Google One Tap. Intentando con Google.",
+              );
               setDismiss(60 * 60 * 1000);
+              // Fallback: intenta flujo OAuth clásico (redirige) si la config de One Tap falla
+              const base = window.location.origin.replace(/\/$/, "");
+              let nextPath = "/";
+              try {
+                const sp = new URLSearchParams(window.location.search);
+                const n = sp.get("next");
+                if (n && n.startsWith("/")) nextPath = n;
+                const rt = localStorage.getItem("returnTo");
+                if (rt && rt.startsWith("/")) nextPath = rt;
+              } catch {}
+              await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: { redirectTo: `${base}/auth/callback?next=${encodeURIComponent(nextPath)}` },
+              });
             } catch {}
           }
         };
 
         const parentId = containerRef.current?.id || "gsi-container";
         const nonce = randomString(32);
+        // Decide FedCM usage: allow env override; avoid on preview hosts where it's often not authorized
+        const fedcmEnv = (process.env.NEXT_PUBLIC_GSI_USE_FEDCM || "auto").toLowerCase();
+        let useFedcmForPrompt: boolean | undefined;
+        if (fedcmEnv === "true" || fedcmEnv === "1") useFedcmForPrompt = true;
+        else if (fedcmEnv === "false" || fedcmEnv === "0") useFedcmForPrompt = false;
+        else {
+          const host = window.location.hostname;
+          const isPreviewHost = /\.vercel\.app$/i.test(host) || /\.netlify\.app$/i.test(host) || /\.onrender\.com$/i.test(host);
+          // Disable FedCM by default on common preview hosts to avoid generic "Can't continue" errors
+          useFedcmForPrompt = !isPreviewHost;
+        }
 
         window.google.accounts.id.initialize({
           client_id: clientId,
@@ -143,8 +173,8 @@ export default function OneTap() {
           prompt_parent_id: parentId,
           context: "signin",
           nonce,
-          // Prefer FedCM if available; falls back to One Tap
-          use_fedcm_for_prompt: true,
+          // Prefer FedCM if available when enabled; otherwise use classic One Tap
+          use_fedcm_for_prompt: useFedcmForPrompt,
         });
 
         // Show the One Tap prompt unless user dismissed recently
@@ -152,6 +182,23 @@ export default function OneTap() {
           window.google.accounts.id.prompt((notification?: PromptMomentNotification) => {
             try {
               if (!notification) return;
+              if (debug) {
+                const nd = notification.getNotDisplayedReason?.();
+                const dd = notification.getDismissedReason?.();
+                const sd = notification.getSkippedReason?.();
+                // eslint-disable-next-line no-console
+                console.debug("[OneTap] prompt notification", {
+                  isDisplayed: notification.isDisplayed?.(),
+                  isNotDisplayed: notification.isNotDisplayed?.(),
+                  notDisplayedReason: nd,
+                  isDismissed: notification.isDismissedMoment?.(),
+                  dismissedReason: dd,
+                  isSkipped: notification.isSkippedMoment?.(),
+                  skippedReason: sd,
+                  fedcm: useFedcmForPrompt,
+                  host: typeof window !== "undefined" ? window.location.host : undefined,
+                });
+              }
               if (notification.isDismissedMoment?.() === true) {
                 setDismiss(DAY);
               } else if (notification.isNotDisplayed?.() === true) {

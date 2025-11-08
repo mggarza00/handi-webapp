@@ -49,6 +49,13 @@ export async function POST(req: Request) {
 
   const input = parsed.data;
 
+  // Comprobar si ya existe el profesional para no desactivar a aprobados
+  const { data: existing } = await (supabase as any)
+    .from("professionals")
+    .select("id, active")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const payload: Database["public"]["Tables"]["professionals"]["Insert"] = {
     id: user.id,
     full_name: input.full_name ?? null,
@@ -69,7 +76,8 @@ export async function POST(req: Request) {
       (input.subcategories as unknown as Database["public"]["Tables"]["professionals"]["Insert"]["subcategories"]) ??
       undefined,
     last_active_at: new Date().toISOString(),
-    active: true,
+    // Si NO existe fila previa, inicializar como inactivo; si ya existe, no tocar 'active'
+    ...(existing?.id ? {} : { active: false }),
   } as Database["public"]["Tables"]["professionals"]["Insert"];
 
   // Si el usuario está registrándose como profesional, eleva su rol a "pro"

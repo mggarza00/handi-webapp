@@ -44,7 +44,7 @@ export async function POST(req: Request) {
       const isSandbox = name === 'validation_error' || /you can only send testing emails/i.test(message);
       const serialized = sanitizeError(err);
       const body = isSandbox
-        ? { ok: false, code: 'RESEND_SANDBOX_ERROR', hint: 'Tu dominio de envío debe estar verificado y el from debe usar ese dominio (p.ej. notificaciones@mg.handi.mx).', error: serialized }
+        ? { ok: false, code: 'RESEND_SANDBOX_ERROR', hint: 'Tu dominio de envío debe estar verificado y el from debe usar ese dominio (p.ej. notificaciones@handi.mx).', error: serialized }
         : { ok: false, error: serialized };
       return NextResponse.json(body, { status: 400, headers: JSONH });
     }

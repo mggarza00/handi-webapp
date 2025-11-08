@@ -110,7 +110,7 @@ export default function MessageList({
 }: MessageListProps) {
   const bgStyle = React.useMemo<React.CSSProperties>(() => ({
     backgroundImage:
-      "linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), url(/images/Homaid-Tools-and-Hardware-Pattern.png)",
+      "linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), url(/images/homaid-tools-and-hardware-pattern.png)",
     backgroundRepeat: "repeat",
     backgroundPosition: "top left",
     backgroundSize: "400px",
@@ -263,7 +263,12 @@ export default function MessageList({
 
   if (!items.length)
     return (
-      <div ref={ref} className="flex-1 overflow-y-auto p-3" style={bgStyle}>
+      <div
+        ref={ref}
+        className="flex-1 overflow-y-auto overscroll-contain p-3"
+        style={bgStyle}
+        data-testid={`${dataPrefix}-list`}
+      >
         <div className="w-full max-w-xl mx-auto text-center py-10 space-y-4">
           {viewerRole === "customer" ? (
             <div className="space-y-2" data-testid={`${dataPrefix}-empty-state-customer`}>
@@ -564,7 +569,12 @@ export default function MessageList({
   }
 
   return (
-    <div ref={ref} className="flex-1 overflow-y-auto p-3" style={bgStyle}>
+    <div
+      ref={ref}
+      className="flex-1 overflow-y-auto overscroll-contain p-3"
+      style={bgStyle}
+      data-testid={`${dataPrefix}-list`}
+    >
       {viewerRole === "customer" ? (
         <div className="w-full max-w-xl mx-auto text-center py-4 space-y-2" data-testid={`${dataPrefix}-conversation-header-customer`}>
           <div className="flex items-center justify-center gap-2">

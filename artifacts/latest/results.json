@@ -65,11 +65,11 @@
     "shard": null,
     "updateSnapshots": "missing",
     "updateSourceMethod": "patch",
-    "version": "1.55.0",
+    "version": "1.56.1",
     "workers": 1,
     "webServer": {
-      "command": "cross-env PORT=3110 NEXT_PUBLIC_APP_URL=http://localhost:3110 next start -p 3110",
-      "url": "http://localhost:3110",
+      "command": "cross-env PORT=3101 NEXT_PUBLIC_APP_URL=http://localhost:3101 next start -p 3101",
+      "url": "http://localhost:3101",
       "timeout": 120000,
       "reuseExistingServer": false
     }
@@ -82,8 +82,8 @@
     }
   ],
   "stats": {
-    "startTime": "2025-10-17T19:52:20.224Z",
-    "duration": 120749.913,
+    "startTime": "2025-11-07T18:54:23.712Z",
+    "duration": 120999.031,
     "expected": 0,
     "skipped": 0,
     "unexpected": 0,

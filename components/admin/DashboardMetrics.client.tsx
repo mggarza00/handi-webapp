@@ -38,13 +38,42 @@ export default function DashboardMetrics() {
     params.set("range", String(range));
     if (from) params.set("from", from);
     if (to) params.set("to", to);
-    const r = await fetch(`/api/admin/metrics?${params.toString()}`, { cache: "no-store" });
-    const j = await r.json();
-    setKpis(j.kpis as Kpis);
-    setTrend(j.trend as Trend[]);
-    if (Array.isArray(j.series)) setSeries(j.series as Array<{ date: string; requests: number; payments: number }>);
-    setLoading(false);
+    try {
+      const r = await fetch(`/api/admin/metrics?${params.toString()}`, { cache: "no-store" });
+      if (!r.ok) {
+        // Sin permisos o error: dejar valores seguros por defecto
+        setKpis(null);
+        setTrend([]);
+        setSeries([]);
+        setLoading(false);
+        return;
+      }
+      const j: unknown = await r.json().catch(() => ({} as unknown));
+      const obj = (j && typeof j === "object" ? (j as Record<string, unknown>) : {});
+      const k = obj.kpis;
+      setKpis((k && typeof k === "object" ? (k as Kpis) : null));
+      const nextTrend = Array.isArray(obj.trend) ? (obj.trend as Trend[]) : [];
+      setTrend(nextTrend);
+      if (Array.isArray(obj.series)) {
+        setSeries(obj.series as Array<{ date: string; requests: number; payments: number }>);
+      } else {
+        setSeries([]);
+      }
+    } catch {
+      // Falla de red/parseo: usar defaults
+      setKpis(null);
+      setTrend([]);
+      setSeries([]);
+    } finally {
+      setLoading(false);
+    }
   }
+
+  const safeTrend: Trend[] = Array.isArray(trend) ? trend : [];
+  const linesData: Array<{ date: string; requests: number; payments: number }> =
+    Array.isArray(series) && series.length > 0
+      ? series
+      : safeTrend.map((t) => ({ ...t, payments: 0 }));
 
   return (
     <div className="space-y-6">
@@ -80,7 +109,7 @@ export default function DashboardMetrics() {
             </a>
           </div>
         </div>
-        <Lines data={series.length ? series : trend.map((t) => ({ ...t, payments: 0 }))} />
+        <Lines data={linesData} />
       </section>
     </div>
   );

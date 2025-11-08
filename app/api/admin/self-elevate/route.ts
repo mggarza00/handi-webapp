@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
@@ -17,7 +16,7 @@ export async function POST(req: Request) {
     // Permite override por query ?email=... si se desea explícitamente
     const emailOverride = url.searchParams.get("email") || undefined;
 
-    const supa = createRouteHandlerClient<Database>({ cookies });
+    const supa = getRouteClient();
     const { data: auth } = await supa.auth.getUser();
     const user = auth.user;
     if (!user)

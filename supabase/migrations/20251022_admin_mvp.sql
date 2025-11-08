@@ -28,8 +28,19 @@ create table if not exists public.admin_settings (
 );
 
 alter table public.admin_settings enable row level security;
-create policy admin_settings_read on public.admin_settings for select using (public.has_admin_access());
-create policy admin_settings_write on public.admin_settings for update using (public.has_admin_access());
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'admin_settings' and policyname = 'admin_settings_read'
+  ) then
+    create policy admin_settings_read on public.admin_settings for select using (public.has_admin_access());
+  end if;
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'admin_settings' and policyname = 'admin_settings_write'
+  ) then
+    create policy admin_settings_write on public.admin_settings for update using (public.has_admin_access());
+  end if;
+end $$;
 
 -- Audit log
 create table if not exists public.audit_log (
@@ -40,8 +51,19 @@ create table if not exists public.audit_log (
   created_at timestamptz not null default now()
 );
 alter table public.audit_log enable row level security;
-create policy audit_log_read on public.audit_log for select using (public.has_admin_access());
-create policy audit_log_write on public.audit_log for insert with check (public.has_admin_access());
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'audit_log' and policyname = 'audit_log_read'
+  ) then
+    create policy audit_log_read on public.audit_log for select using (public.has_admin_access());
+  end if;
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'audit_log' and policyname = 'audit_log_write'
+  ) then
+    create policy audit_log_write on public.audit_log for insert with check (public.has_admin_access());
+  end if;
+end $$;
 
 -- Webhooks monitor
 create table if not exists public.webhook_events (
@@ -53,11 +75,21 @@ create table if not exists public.webhook_events (
   created_at timestamptz not null default now()
 );
 alter table public.webhook_events enable row level security;
-create policy webhook_events_read on public.webhook_events for select using (public.has_admin_access());
-create policy webhook_events_write on public.webhook_events for insert with check (public.has_admin_access());
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'webhook_events' and policyname = 'webhook_events_read'
+  ) then
+    create policy webhook_events_read on public.webhook_events for select using (public.has_admin_access());
+  end if;
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'webhook_events' and policyname = 'webhook_events_write'
+  ) then
+    create policy webhook_events_write on public.webhook_events for insert with check (public.has_admin_access());
+  end if;
+end $$;
 
 -- Seed inicial settings si no existe
 insert into public.admin_settings (id, commission_percent, vat_percent)
   values (1, 10, 16)
 on conflict (id) do nothing;
-

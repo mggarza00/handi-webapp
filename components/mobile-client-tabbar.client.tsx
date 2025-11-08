@@ -13,46 +13,76 @@ export default function MobileClientTabbarButtons() {
   const label1Ref = React.useRef<HTMLSpanElement | null>(null);
   const label2Ref = React.useRef<HTMLSpanElement | null>(null);
   const [stack, setStack] = React.useState(false);
+  const prevStackRef = React.useRef(false);
+  const rafRef = React.useRef<number | null>(null);
+  const resizeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const measure = React.useCallback(() => {
-    const c = containerRef.current;
-    const l1 = link1Ref.current;
-    const l2 = link2Ref.current;
-    const i1 = icon1Ref.current;
-    const i2 = icon2Ref.current;
-    const t1 = label1Ref.current;
-    const t2 = label2Ref.current;
-    if (!c || !l1 || !l2 || !i1 || !i2 || !t1 || !t2) return;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      const l1 = link1Ref.current;
+      const l2 = link2Ref.current;
+      const i1 = icon1Ref.current;
+      const i2 = icon2Ref.current;
+      const t1 = label1Ref.current;
+      const t2 = label2Ref.current;
+      if (!l1 || !l2 || !i1 || !i2 || !t1 || !t2) return;
 
-    const needsStack = (link: HTMLElement, icon: HTMLElement, label: HTMLElement) => {
-      const cs = window.getComputedStyle(link);
-      const pl = parseFloat(cs.paddingLeft || "0") || 0;
-      const pr = parseFloat(cs.paddingRight || "0") || 0;
-      const gap = parseFloat((cs as any).columnGap || cs.gap || "0") || 0;
-      const avail = link.clientWidth - pl - pr - icon.clientWidth - gap;
-      const prevWs = (label.style as any).whiteSpace as string | undefined;
-      label.style.whiteSpace = "nowrap"; // measure natural single-line width regardless of current mode
-      const req = label.scrollWidth;
-      if (prevWs) label.style.whiteSpace = prevWs; else label.style.removeProperty("white-space");
-      return req > avail + 1; // 1px tolerance
-    };
+      const measureLink = (link: HTMLElement, icon: HTMLElement, label: HTMLElement) => {
+        const cs = window.getComputedStyle(link);
+        const pl = parseFloat(cs.paddingLeft || "0") || 0;
+        const pr = parseFloat(cs.paddingRight || "0") || 0;
+        const gap = parseFloat((cs as any).columnGap || (cs as any).gap || "0") || 0;
+        const avail = Math.round(link.clientWidth - pl - pr - icon.clientWidth - gap);
+        const prevWs = (label.style as any).whiteSpace as string | undefined;
+        label.style.whiteSpace = "nowrap";
+        const req = Math.round(label.scrollWidth);
+        if (prevWs) label.style.whiteSpace = prevWs; else label.style.removeProperty("white-space");
+        return { avail, req };
+      };
 
-    const s1 = needsStack(l1, i1, t1);
-    const s2 = needsStack(l2, i2, t2);
-    setStack(s1 || s2);
-  }, []);
+      const m1 = measureLink(l1, i1, t1);
+      const m2 = measureLink(l2, i2, t2);
+
+      const margin = 8; // hysteresis in px to avoid oscillation
+      const prev = prevStackRef.current;
+
+      // Decide with hysteresis: require stronger condition to toggle state
+      const wantsStack = (m1.req > m1.avail + margin) || (m2.req > m2.avail + margin);
+      const wantsUnstack = (m1.req <= m1.avail - margin) && (m2.req <= m2.avail - margin);
+
+      let next = prev;
+      if (!prev && wantsStack) next = true;
+      if (prev && wantsUnstack) next = false;
+
+      if (next !== prev) {
+        prevStackRef.current = next;
+        setStack(next);
+      } else {
+        // Ensure state and ref stay aligned
+        if (stack !== prev) setStack(prev);
+      }
+    });
+  }, [stack]);
 
   React.useEffect(() => {
-    const obs: ResizeObserver | null = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    const nodes = [containerRef.current, link1Ref.current, link2Ref.current].filter(Boolean) as Element[];
-    nodes.forEach((n) => obs?.observe(n));
-    const onResize = () => measure();
+    // Use window resize + orientation change with light debounce to avoid RO loops
+    const onResize = () => {
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(measure, 50);
+    };
     window.addEventListener("resize", onResize);
-    // Initial measure after mount
+    window.addEventListener("orientationchange", onResize);
+    // Initial measure after mount and after fonts load
     setTimeout(measure, 0);
+    if ((document as any).fonts?.ready) {
+      (document as any).fonts.ready.then(() => setTimeout(measure, 0)).catch(() => {});
+    }
     return () => {
-      try { obs?.disconnect(); } catch {}
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
     };
   }, [measure]);
 
@@ -62,8 +92,8 @@ export default function MobileClientTabbarButtons() {
   return (
     <div
       ref={containerRef}
-      className="flex items-stretch gap-2 h-14"
-      style={stack ? { height: "calc(3.5rem * 1.1)" } : undefined}
+      className="flex items-stretch gap-2 h-[72px]"
+      style={stack ? { height: "calc(72px * 1.1)" } : undefined}
     >
       <Button asChild variant="ghost" size="lg" className={linkBase + " hover:bg-[#E6F4FF] hover:text-[#11314B]"}>
         <Link href="/requests?mine=1" aria-label="Mis solicitudes" ref={link1Ref}>

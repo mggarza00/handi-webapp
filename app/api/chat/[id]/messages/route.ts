@@ -193,8 +193,7 @@ export async function POST(req: Request, { params }: Ctx) {
     // Fire-and-forget: email al otro participante con el contenido y link al chat
     try {
       const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
-      // No bloquear respuesta HTTP
-      void notifyChatMessageByConversation({ conversationId: id, senderId: user.id, text: content || "", attachments: attachLite });
+      await notifyChatMessageByConversation({ conversationId: id, senderId: user.id, text: content || "", attachments: attachLite });
     } catch { /* ignore notify errors */ }
     return NextResponse.json({ ok: true, data: ins.data }, { status: 201, headers: JSONH });
   } catch (e) {

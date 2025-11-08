@@ -1,5 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import getServerClient from '@/lib/supabase/server-client';
 
 import ProBankAccountsManager from './ProBankAccountsManager.client';
 
@@ -8,7 +7,7 @@ import type { Database } from '@/types/supabase';
 type Props = { userId: string; fullName: string };
 
 export default async function BankAccountsCard({ userId, fullName }: Props) {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = getServerClient();
   const { data: rows } = await supabase
     .from('bank_accounts')
     .select('id, bank_name, clabe, status, created_at')

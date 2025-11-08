@@ -53,7 +53,7 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
     const isSandbox = errorStr.includes('validation_error') || errorStr.includes('you can only send testing emails');
     const serialized = res.details || (res.error ? { message: res.error } : { message: 'SEND_FAILED' });
     const body = isSandbox
-      ? { ok: false, code: 'RESEND_SANDBOX_ERROR', hint: 'Tu dominio de envío debe estar verificado y el from debe usar ese dominio (p.ej. notificaciones@mg.handi.mx).', error: serialized }
+      ? { ok: false, code: 'RESEND_SANDBOX_ERROR', hint: 'Tu dominio de envío debe estar verificado y el from debe usar ese dominio (p.ej. notificaciones@handi.mx).', error: serialized }
       : { ok: false, error: serialized };
     return NextResponse.json(body, { status: 400, headers: JSONH });
   }
@@ -77,7 +77,7 @@ export async function POST(req: Request, { params }: { params: { receiptId: stri
             .select('id')
             .single();
           const messageId = (msgIns.data as any)?.id as string | undefined;
-          try { void notifyChatMessageByConversation({ conversationId: convId, senderId, text: 'Recibo de pago adjunto' }); } catch {}
+          try { await notifyChatMessageByConversation({ conversationId: convId, senderId, text: 'Recibo de pago adjunto' }); } catch {}
           if (messageId) {
             const buffer = Buffer.from(pdfBase64, 'base64');
             const filePath = `conversation/${convId}/${messageId}/handi-recibo-${params.receiptId}.pdf`;

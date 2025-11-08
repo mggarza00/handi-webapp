@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { getStripe } from "@/lib/stripe";
 import type Stripe from "stripe";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createClient as createSSRClient } from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import { createServerClient } from "@/lib/supabase";
@@ -25,7 +24,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const stripe = await getStripe();
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createSSRClient();
     const { data: auth } = await supabase.auth.getUser();
     const actingUserId = auth?.user?.id || null;
     if (!actingUserId)

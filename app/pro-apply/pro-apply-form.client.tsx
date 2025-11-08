@@ -92,6 +92,7 @@ export default function ProApplyForm({
   userEmail: string;
   defaultFullName?: string;
 }) {
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB (aligned with storage limit)
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
@@ -516,6 +517,9 @@ export default function ProApplyForm({
     path: string,
     bucket = "pro-verifications",
   ): Promise<{ url: string; path: string }> {
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error("El archivo es demasiado grande. Tamaño máximo: 10 MB.");
+    }
     const fd = new FormData();
     fd.append("file", file);
     fd.append("path", path);
@@ -524,10 +528,21 @@ export default function ProApplyForm({
       method: "POST",
       body: fd,
     });
-    const j = await res.json();
-    if (!res.ok || !j?.ok)
-      throw new Error(j?.error || "No se pudo subir archivo");
-    return { url: j.url as string, path: j.path as string };
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (!ctype.includes("application/json")) {
+      const text = await res.text().catch(() => "");
+      const isTooLarge = res.status === 413 || /request\s*entity\s*too\s*large/i.test(text);
+      if (isTooLarge) {
+        throw new Error("El archivo es demasiado grande. Tamaño máximo: 10 MB.");
+      }
+      throw new Error(text || "Error al subir archivo. Intenta nuevamente.");
+    }
+    const j = await res.json().catch(() => null);
+    if (!res.ok || !j?.ok) {
+      const detail = (j && (j.error || j.detail)) || "No se pudo subir archivo";
+      throw new Error(String(detail));
+    }
+    return { url: (j as any).url as string, path: (j as any).path as string };
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -593,23 +608,34 @@ export default function ProApplyForm({
       }
     }
 
-    const parsed = AppSchema.safeParse({
+    // Solo validar campos de empresa si el switch está activado
+    const baseForParse = {
       full_name: fullName,
       phone,
       email,
       rfc,
       empresa,
-      company_legal_name: companyLegalName,
-      company_industry: companyIndustry,
-      company_employees_count: companyEmployees ? Number(companyEmployees) : undefined,
-      company_website: companyWebsite,
       services_desc: servicesDesc,
       cities,
       categories: cat,
-  subcategories: selectedSubcategories,
+      subcategories: selectedSubcategories,
       years_experience: years ? Number(years) : NaN,
       privacy_accept: privacy,
       references: refsTrimmed,
+    } as const;
+    const companyForParse = !empresa
+      ? {}
+      : {
+          company_legal_name: companyLegalName || undefined,
+          company_industry: companyIndustry || undefined,
+          company_employees_count: companyEmployees
+            ? Number(companyEmployees)
+            : undefined,
+          company_website: companyWebsite || undefined,
+        };
+    const parsed = AppSchema.safeParse({
+      ...baseForParse,
+      ...companyForParse,
     });
     if (!parsed.success) {
       const issues = parsed.error.issues;
@@ -847,10 +873,16 @@ export default function ProApplyForm({
           email,
           rfc,
           empresa,
-          company_legal_name: companyLegalName || undefined,
-          company_industry: companyIndustry || undefined,
-          company_employees_count: companyEmployees ? Number(companyEmployees) : undefined,
-          company_website: companyWebsite || undefined,
+          ...(empresa
+            ? {
+                company_legal_name: companyLegalName || undefined,
+                company_industry: companyIndustry || undefined,
+                company_employees_count: companyEmployees
+                  ? Number(companyEmployees)
+                  : undefined,
+                company_website: companyWebsite || undefined,
+              }
+            : {}),
           services_desc: servicesDesc,
           cities,
           categories: cat,
@@ -863,20 +895,11 @@ export default function ProApplyForm({
       });
       if (!appRes.ok) {
         const j = await appRes.json().catch(() => null);
-        throw new Error(j?.error || "No se pudo enviar la postulación");
+        const msg = j?.detail || j?.error || "No se pudo enviar la postulación";
+        throw new Error(msg);
       }
 
       toast.success("¡Postulación enviada!");
-      // Mark role as professional (active user type) best-effort and clear draft
-      try {
-        await fetch("/api/profile/active-user-type", {
-          method: "POST",
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-          body: JSON.stringify({ to: "profesional" }),
-        });
-      } catch (_e) {
-        void _e;
-      }
       clearDraft("draft:apply-professional");
       clearGatingFlags();
       // Redirigir a página de confirmación

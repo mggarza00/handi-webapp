@@ -1,98 +1,135 @@
-/* eslint-disable no-restricted-globals */
+﻿/* eslint-disable no-restricted-globals */
 // Handi Web Push Service Worker
 // Listens for push events and displays notifications.
 
+// ---- ConfiguraciÃ³n offline y utilidades ----
+const DEBUG = false;
+function log(...args) { if (DEBUG) { try { console.log('SW', ...args); } catch (_) {} } }
+const CACHE_VERSION = 'handi-v1';
+const PRECACHE = [
+  '/',                 // start_url
+  '/offline.html',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable_icon.png',
+].filter(Boolean);
+
 self.addEventListener('install', (event) => {
-  // Activate immediately on install
+  // Precache mÃ­nimo: start_url, manifest e Ã­conos
+  log('install');
+  event.waitUntil(
+    caches.open(CACHE_VERSION).then((cache) => cache.addAll(PRECACHE)).catch(() => {})
+  );
   // @ts-ignore
-  self.skipWaiting();
+  self.skipWaiting?.();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    // Take control of uncontrolled clients
-    // @ts-ignore
-    await self.clients.claim();
+  // Limpia caches antiguos y toma control
+  log('activate');
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.map((k) => (k !== CACHE_VERSION ? caches.delete(k) : undefined)))
+      )
+      // @ts-ignore
+      .then(() => self.clients.claim())
+  );
+});
+
+// Estrategia: Network-first para GET same-origin; fallback a cachÃ© y a /offline.html si falla.
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  const url = new URL(req.url);
+  // Log bÃ¡sico en DEBUG para diagnÃ³sticos sin ruido
+  if (DEBUG && req.mode === 'navigate') log('fetch navigate', url.pathname);
+  // Only handle GET
+  if (req.method !== 'GET') return;
+  // Only same-origin
+  if (url.origin !== self.location.origin) return;
+  // Avoid API or special backends
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/supabase/')) return;
+
+  // Nota: se usa Accept para detectar HTML; no se requiere isNavigate
+
+  // Network first with fallback
+  event.respondWith((async () => {
+    try {
+      // Intento red
+      const netRes = await fetch(req);
+      // Cachea en segundo plano si es 200 y bÃ¡sico
+      if (netRes && netRes.status === 200 && netRes.type === 'basic' && PRECACHE.includes(url.pathname)) {
+        try {
+          const cache = await caches.open(CACHE_VERSION);
+          cache.put(req, netRes.clone()).catch(() => {});
+        } catch (_) {}
+      }
+      return netRes;
+    } catch (_) {
+      // Sin red: intenta cachÃ©; para navegaciones, responde offline
+      const cacheRes = await caches.match(req);
+      if (cacheRes) return cacheRes;
+      // Si pide HTML, sirve offline.html
+      if (req.headers.get('accept')?.includes('text/html')) {
+        const off = await caches.match('/offline.html');
+        if (off) return off;
+        return new Response('<!doctype html><title>Sin conexiÃ³n</title><h1>Sin conexiÃ³n</h1>', { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      }
+      // Ãšltimo recurso: a falta de todo, una respuesta vacÃ­a con 503
+      return new Response('', { status: 503, statusText: 'Offline' });
+    }
   })());
 });
 
-/**
- * Parse incoming push event data safely.
- */
-function parsePushData(data) {
-  if (!data) return {};
-  try {
-    const text = data.text ? data.text() : data;
-    if (typeof text === 'string') {
-      return JSON.parse(text);
-    }
-    if (data.json) return data.json();
-  } catch (_) {
-    // ignore
-  }
-  return {};
-}
+// (parsePushData eliminado: no se usa; usamos event.data?.json?.())
 
 self.addEventListener('push', (event) => {
   try {
-    const payload = parsePushData(event.data);
-    const title = payload.title || 'Handi';
-    const body = payload.body || 'Tienes una nueva notificación';
-    const icon = payload.icon || '/icons/icon-192.png';
-    const badge = payload.badge || '/icons/badge-72.png';
-    const url = payload.url || '/';
-    // Stable tag for coalescing (thread or conversation)
-    let tag = 'handi-notification';
-    if (payload.tag) tag = payload.tag;
-    else if (payload.threadId) tag = `thread:${payload.threadId}`;
-    else if (payload.conversationId) tag = `thread:${payload.conversationId}`;
-    else if (typeof url === 'string' && url) tag = `url:${url}`;
-    const data = { url, tag, ts: Date.now(), threadId: payload.threadId, conversationId: payload.conversationId, ...payload.data };
+    log('push');
+    let data = {};
+    try {
+      // eslint-disable-next-line no-unused-expressions
+      data = event.data?.json?.() ?? {};
+    } catch (_) {}
+    const title = data.title || 'Handi';
+    // Minimal options per spec
+    const options = {
+      body: (data && data.body) ? data.body : '',
+      icon: '/icons/favicon-handi.gif',
+      badge: '/icons/favicon-handi.gif',
+      data: data ? data.data : undefined,
+    };
 
-    event.waitUntil(
-      // @ts-ignore
-      self.registration.showNotification(title, {
-        body,
-        icon,
-        badge,
-        tag,
-        data,
-        renotify: true,
-        requireInteraction: !!payload.requireInteraction,
-        vibrate: payload.vibrate || [100, 50, 100],
-        actions: Array.isArray(payload.actions) && payload.actions.length
-          ? payload.actions
-          : [{ action: 'open', title: 'Abrir', icon: icon }],
-      })
-    );
+    // @ts-ignore
+    event.waitUntil(self.registration.showNotification(title, options));
   } catch (err) {
     // noop
   }
 });
 
 self.addEventListener('notificationclick', (event) => {
-  const n = event.notification;
-  const dest = (n && n.data && n.data.url) ? n.data.url : '/';
-  const action = event.action || 'open';
+  log('notificationclick');
   event.notification.close();
-  event.waitUntil((async () => {
+  const url = (event.notification && event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+  event.waitUntil(
     // @ts-ignore
-    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    for (const client of allClients) {
-      try {
-        const cUrl = client.url || '';
-        if (cUrl.includes(dest)) {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        try {
+          const cUrl = (client && client.url) ? client.url : '';
           // @ts-ignore
-          await client.focus();
-          return;
-        }
-      } catch (_) { /* ignore */ }
-    }
-    // @ts-ignore
-    if (action === 'open') {
-      await self.clients.openWindow(dest);
-    }
-  })());
+          if (cUrl === url && 'focus' in client && client.focus) {
+            // @ts-ignore
+            return client.focus();
+          }
+        } catch (_) { /* ignore */ }
+      }
+      // @ts-ignore
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
 });
 
 // Attempt to auto-resubscribe on key rotation
@@ -114,3 +151,16 @@ self.addEventListener('pushsubscriptionchange', (event) => {
     }
   })());
 });
+
+// ComunicaciÃ³n con la pÃ¡gina para coordinar actualizaciones
+self.addEventListener('message', (event) => {
+  // Permitir string directo o objeto { type }
+  const raw = event?.data;
+  const type = typeof raw === 'string' ? raw : (raw && raw.type);
+  if (type === 'SKIP_WAITING') {
+    log('SKIP_WAITING recibido');
+    // @ts-ignore
+    self.skipWaiting?.();
+  }
+});
+

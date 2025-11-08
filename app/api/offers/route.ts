@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import type { Database } from "@/types/supabase";
 
@@ -32,7 +31,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() }, { status: 422, headers: JSONH });
     const body = parsed.data;
 
-    const db = createRouteHandlerClient<Database>({ cookies });
+    const db = getRouteClient();
     const { data: auth } = await db.auth.getUser();
     if (!auth?.user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
@@ -105,6 +104,12 @@ export async function POST(req: Request) {
     if (error || !offer)
       return NextResponse.json({ ok: false, error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
 
+    // Notificar por correo al profesional: "Oferta enviada" (además del trigger de DB que crea el mensaje)
+    try {
+      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+      await notifyChatMessageByConversation({ conversationId, senderId: auth.user.id, text: 'Oferta enviada' });
+    } catch { /* ignore notify errors */ }
+
     return NextResponse.json({ ok: true, offer, conversationId }, { status: 201, headers: JSONH });
   } catch (e) {
     const message = e instanceof Error ? e.message : "UNKNOWN";
@@ -115,4 +120,3 @@ export async function POST(req: Request) {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

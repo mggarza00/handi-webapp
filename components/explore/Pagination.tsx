@@ -52,11 +52,11 @@ export default function Pagination({ page, pageSize, total }: Props) {
   const items = getPages(page, pages);
 
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-slate-700">
-      <div>
+    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-700">
+      <div className="min-w-0">
         Página {page} de {pages} · {total} resultados
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="outline" size="sm" onClick={() => go(page - 1)} disabled={page <= 1}>
           Anterior
         </Button>
@@ -83,4 +83,3 @@ export default function Pagination({ page, pageSize, total }: Props) {
     </div>
   );
 }
-

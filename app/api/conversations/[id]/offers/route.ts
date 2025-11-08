@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 import type { Database } from "@/types/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
 import { validateOfferFields } from "@/lib/safety/offer-guard";
@@ -131,7 +130,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 // GET /api/conversations/:id/offers?status=sent
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const conversationId = params.id;
     if (!conversationId)
       return NextResponse.json({ ok: false, error: "MISSING_CONVERSATION" }, { status: 400, headers: JSONH });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { createClient as createServerClientUtil } from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import { createServerClient } from "@/lib/supabase";
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     }
     const { request_id } = parsed.data;
 
-    const routeClient = createRouteHandlerClient<Database>({ cookies });
+    const routeClient = createServerClientUtil();
     const {
       data: { user },
     } = await routeClient.auth.getUser();

@@ -2,12 +2,10 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import createClient from "@/utils/supabase/server";
 
-import type { Database } from "@/types/supabase";
 import ExploreFilters from "@/app/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
-import getDistinct from "@/lib/db/get-distinct";
 
 type RequestRow = {
   id: string;
@@ -150,9 +148,6 @@ export default async function ExploreRequestsPage({
   const paramSubcategory = (searchParams?.subcategory ?? "Todas").trim();
   const page = Math.max(1, Number(searchParams?.page || "1"));
 
-  // Opciones de selects (desde BD)
-  const cityOptions = await getDistinct("requests", "city");
-
   // Catálogo oficial desde Supabase: categories_subcategories
   const base = getBaseUrl();
   // Forward raw cookies for SSR fetch
@@ -178,6 +173,16 @@ export default async function ExploreRequestsPage({
     /* ignore */
   }
 
+  // Filtrar catálogo a las categorías/subcategorías activas del profesional
+  const filteredPairs = catalogPairs.filter((p) => {
+    const inCategory = categoryNames.includes(p.category);
+    if (!inCategory) return false;
+    // Si el profesional no tiene subcategorías declaradas, no ofrecemos ninguna subcategoría
+    if (!subcategoryNames || subcategoryNames.length === 0) return false;
+    // Mantener sólo subcategorías activas para ese profesional
+    return !!p.subcategory && subcategoryNames.includes(p.subcategory);
+  });
+
   // Fetch results via util (DB-level paginate and favorites join)
   const { items, total, page: safePage, pageSize } = await fetchExploreRequests(user.id, {
     city: paramCity,
@@ -197,9 +202,12 @@ export default async function ExploreRequestsPage({
       </div>
 
       <ExploreFilters
-        cities={cityOptions}
-        categories={Array.from(new Set(catalogPairs.map((p) => p.category))).sort()}
-        pairs={catalogPairs}
+        // Ciudades: sólo las del profesional (incluyendo su ciudad principal)
+        cities={allCities}
+        // Categorías: sólo las activas del profesional
+        categories={categoryNames}
+        // Pairs restringidos a subcategorías activas del profesional
+        pairs={filteredPairs}
         selected={{
           city: paramCity,
           category: paramCategory,

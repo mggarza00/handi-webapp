@@ -10,18 +10,81 @@ const comfortaaBold = localFont({
   weight: "700",
   variable: "--font-comfortaa-bold",
 });
+const momoTrust = localFont({
+  src: "../public/fonts/MomoTrustDisplay-Regular.ttf",
+  display: "swap",
+  variable: "--font-momo-trust",
+});
 import { useEffect, useRef, useState } from "react";
+import SplitText from "@/components/SplitText";
+import MobileCarousel from "@/components/MobileCarousel";
+import SpotlightCard from "@/components/SpotlightCard";
+// import RotatingText from "@/components/RotatingText";
+// import ScrollStack, { ScrollStackItem } from "@/components/ScrollStack";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
 export default function Page() {
   const router = useRouter();
+  const titleRef = useRef<HTMLSpanElement | null>(null);
+  const [titleDoneSignal, setTitleDoneSignal] = useState(0);
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
   const [categories, setCategories] = useState<string[]>([]);
   type Subcat = { name: string; icon: string | null };
   const [subcategories, setSubcategories] = useState<Subcat[]>([]);
   const [_loadingCats, setLoadingCats] = useState(false);
+
+  // Rotating text and prefix slide removed
+
+  // Animate full title as chars (Bienvenido a Handi) in a single timeline
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!titleRef.current) return;
+        const root = titleRef.current as HTMLElement & { dataset: any };
+        if (root.dataset.splitApplied) return;
+
+        const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+          acceptNode: (n) => (n.textContent && n.textContent.length ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+        });
+        const nodes: Text[] = [];
+        while (walk.nextNode()) nodes.push(walk.currentNode as Text);
+        nodes.forEach((tn) => {
+          const frag = document.createDocumentFragment();
+          const txt = tn.textContent || "";
+          for (const ch of Array.from(txt)) {
+            const span = document.createElement("span");
+            span.textContent = ch === " " ? "\u00A0" : ch;
+            span.className = "split-char inline-block align-baseline";
+            frag.appendChild(span);
+          }
+          tn.parentNode?.replaceChild(frag, tn);
+        });
+        root.dataset.splitApplied = "1";
+
+        const { gsap } = await import("gsap");
+        const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+        gsap.registerPlugin(ScrollTrigger);
+        const chars = Array.from(root.querySelectorAll<HTMLElement>(".split-char"));
+        gsap.set(root, { visibility: "visible" });
+        gsap.set(chars, { opacity: 0, y: 40 });
+        gsap.to(chars, {
+          opacity: 1,
+          y: 0,
+          ease: "power3.out",
+          duration: 0.8,
+          stagger: 0.06,
+          scrollTrigger: {
+            trigger: root.closest('section') || root,
+            start: 'top 85%',
+            once: true,
+          },
+          onComplete: () => setTitleDoneSignal((v) => v + 1),
+        });
+      } catch {}
+    })();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,16 +358,26 @@ export default function Page() {
         <div className="relative mx-auto grid max-w-5xl grid-cols-1 items-center gap-10 px-4 py-10 md:grid-cols-2 md:py-16">
           <div>
             <h1 className="rubik font-medium mb-6 text-2xl sm:text-3xl md:text-4xl leading-tight tracking-wide text-center whitespace-nowrap text-[#11304a]">
-              Bienvenido a {" "}
-              <span className="inline-flex items-baseline gap-0">
-                <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Hand</span>
-                <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>i</span>
+              <span ref={titleRef} className="align-baseline invisible">
+                Bienvenido a{" "}
+                <span className="inline-flex items-baseline gap-0">
+                  <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Hand</span>
+                  <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>i</span>
+                </span>
               </span>
             </h1>
-            <p className="mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance">
-              La plataforma que te conecta con expertos de confianza para
-              trabajos de mantenimiento, limpieza, reparaciones y mucho más.
-            </p>
+            <SplitText
+              tag="p"
+              text="La plataforma que te conecta con expertos de confianza para trabajos de mantenimiento, limpieza, reparaciones y mucho más."
+              splitType="lines"
+              delay={60}
+              duration={2}
+              ease="power3.out"
+              manualStart
+              startSignal={titleDoneSignal}
+              textAlign="center"
+              className="invisible mb-6 mx-auto max-w-xl md:max-w-[60ch] lg:max-w-[56ch] text-center text-black text-xs sm:text-sm md:text-[clamp(14px,1.05vw,18px)] leading-snug md:leading-tight text-balance"
+            />
             <div className="mb-6 flex justify-center">
               <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 shadow-sm">
                 <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
@@ -404,6 +477,64 @@ export default function Page() {
         </div>
       </section>
 
+      {/* Features - moved above Quick ask */}
+      <section
+        className="border-b border-slate-200 bg-gradient-to-b from-white via-white to-[#e8e8e8]"
+        id="como-funciona"
+      >
+        <div className="mx-auto max-w-5xl px-4 py-12">
+          <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">
+            Como funciona
+          </h2>
+
+          {/* Mobile carousel effect */}
+          <div className="md:hidden -mx-4 overflow-x-hidden">
+            <MobileCarousel className="px-0 pt-6" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+              <StepCard
+                step="1"
+                title="Crea tu solicitud de servicio"
+                desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+                rightImageSrc="/images/nueva-solicitud-mockup-short.png"
+              />
+              <StepCard
+                step="2"
+                title="Compara profesionales"
+                desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+                rightImageSrc="/images/profesionals-list-mockup-short.png"
+              />
+              <StepCard
+                step="3"
+                title="Contrata con confianza"
+                desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+                rightImageSrc="/images/chat-mockup-short.png"
+              />
+            </MobileCarousel>
+          </div>
+
+          {/* Desktop grid */}
+          <div className="hidden md:grid grid-cols-1 gap-6 md:grid-cols-3">
+            <StepCard
+              step="1"
+              title="Crea tu solicitud de servicio"
+              desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+              rightImageSrc="/images/nueva-solicitud-mockup-short.png"
+            />
+            <StepCard
+              step="2"
+              title="Compara profesionales"
+              desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+              rightImageSrc="/images/profesionals-list-mockup-short.png"
+            />
+            <StepCard
+              step="3"
+              title="Contrata con confianza"
+              desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+              rightImageSrc="/images/chat-mockup-short.png"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* Quick ask */}
       <section
         className="relative bg-slate-50 bg-cover bg-center bg-no-repeat bg-fixed"
@@ -411,97 +542,45 @@ export default function Page() {
       >
         <div className="pointer-events-none absolute inset-0 z-0 bg-white/60" />
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-10">
-          <div className="mx-auto max-w-5xl">
-            <div className="md:hidden flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1 text-left">
-                <h2 className="mb-1 text-xl font-semibold tracking-tight">
-                  ¿Qué necesitas hoy?
-                </h2>
-                <p className="mb-4 text-sm text-slate-600">
-                  Elige una categoría para empezar rápido o explora todas.
-                </p>
-              </div>
-              <div className="relative h-16 w-16 shrink-0 max-[360px]:hidden">
-                <Image
-                  src="/images/handee_mascota.gif"
-                  alt="Handi mascota"
-                  fill
-                  className="object-contain"
-                  unoptimized
-                  priority
-                />
-              </div>
-            </div>
-            <div className="hidden md:block mx-auto max-w-2xl text-center">
-              <h2 className="mb-2 text-xl font-semibold tracking-tight">
-                ¿Qué necesitas hoy?
-              </h2>
-              <p className="mb-5 text-sm text-slate-600">
-                Elige una categoría para empezar rápido o explora todas.
-              </p>
-            </div>
-          </div>
+          <div className="mx-auto max-w-5xl" />
 
-          {/* Categorías + mascota: Mobile (chips envuelven a la mascota) */}
-          <div className="md:hidden">
-            <div className="flex flex-wrap items-start justify-start gap-2">
-              {categories.map((c) => (
-                <Link
-                  key={`m-${c}`}
-                  href={`/requests/new?category=${encodeURIComponent(c)}`}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
-                >
-                  {c}
-                </Link>
-              ))}
-              <Link
-                href="/categorias"
-                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-100"
-              >
-                Ver todas las categorías disponibles
-              </Link>
+          {/* Categories marquee (opposite direction to subcategories) */}
+          {categories.length > 0 && (
+            <div className="mt-2">
+              <div className="marquee marquee--right" style={{ ["--marquee-duration" as any]: "150s" }}>
+                <div className="marquee__inner">
+                  <div className="marquee__group">
+                    {categories.map((c) => (
+                      <Link
+                        key={`cat-a-${c}`}
+                        href={`/requests/new?category=${encodeURIComponent(c)}`}
+                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
+                      >
+                        {c}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="marquee__group" aria-hidden="true">
+                    {categories.map((c) => (
+                      <Link
+                        key={`cat-b-${c}`}
+                        href={`/requests/new?category=${encodeURIComponent(c)}`}
+                        className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
+                      >
+                        {c}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Categorías + mascota: Desktop (lado a lado) */}
-          <div className="hidden md:flex flex-row items-center justify-between gap-4">
-            <div className="min-w-0 md:flex-1">
-              <div id="categorias" className="flex flex-wrap gap-2">
-                {categories.map((c) => (
-                  <Link
-                    key={c}
-                    href={`/requests/new?category=${encodeURIComponent(c)}`}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-100"
-                  >
-                    {c}
-                  </Link>
-                ))}
-                <Link
-                  href="/categorias"
-                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm hover:bg-slate-100"
-                >
-                  Ver todas las categorías disponibles
-                </Link>
-              </div>
-            </div>
-            <div className="flex flex-shrink-0 justify-end">
-              <div className="relative h-28 w-28 lg:h-32 lg:w-32 md:animate-none">
-                <Image
-                  src="/images/handee_mascota.gif"
-                  alt="Handi mascota"
-                  fill
-                  className="object-contain"
-                  unoptimized
-                  priority
-                />
-              </div>
-            </div>
-          </div>
+          {/* Desktop rotating text removed */}
 
           {/* Subcategorías (carrusel) */}
           {subcategories.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 text-sm font-medium text-slate-700">Subcategorías</p>
               <div className="marquee" style={{ ["--marquee-duration" as any]: "150s" }}>
                 <div className="marquee__inner">
                   <div className="marquee__group">
@@ -558,20 +637,39 @@ export default function Page() {
 
           {/* Nearby professionals carousel */}
           <NearbyCarousel />
+
+          
         </div>
       </section>
 
-      {/* Features */}
-      <section
-        className="border-y border-slate-200 bg-white"
-        id="como-funciona"
-      >
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
-          <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">
-            Cómo funciona
-          </h2>
+      
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+      {/* Steps */}
+      <section className="bg-slate-50 mt-8 md:mt-16">
+        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
+          {/* Mobile carousel for features */}
+          <div className="md:hidden -mx-4 overflow-x-hidden">
+            <MobileCarousel className="px-0" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+              <FeatureCard
+                icon={<PinIcon className="h-5 w-5" />}
+                title="Encuentra cerca de ti"
+                desc="Publica tu servicio y encuentra profesionales cerca de ti."
+              />
+              <FeatureCard
+                icon={<ShieldIcon className="h-5 w-5" />}
+                title="Perfiles verificados"
+                desc="Revisamos referencias, documentos y desempeño de todos los profesionales."
+              />
+              <FeatureCard
+                icon={<StarIcon className="h-5 w-5" />}
+                title="Calificaciones reales"
+                desc="Retroalimentación de contratantes como tú."
+              />
+            </MobileCarousel>
+          </div>
+
+          {/* Desktop grid for features */}
+          <div className="hidden md:grid grid-cols-1 gap-5 md:grid-cols-3">
             <FeatureCard
               icon={<PinIcon className="h-5 w-5" />}
               title="Encuentra cerca de ti"
@@ -588,28 +686,33 @@ export default function Page() {
               desc="Retroalimentación de contratantes como tú."
             />
           </div>
-        </div>
-      </section>
-
-      {/* Steps */}
-      <section className="bg-slate-50">
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <StepCard
-              step="1"
-              title="Publica lo que necesitas"
-              desc="Describe el servicio que necesitas, presupuesto y fecha."
-            />
-            <StepCard
-              step="2"
-              title="Recibe postulaciones"
-              desc="Compara perfiles, reseñas y cotizaciones."
-            />
-            <StepCard
-              step="3"
-              title="Contrata con confianza"
-              desc="Acuerda condiciones y paga a través de la app."
-            />
+          <div className="mt-6">
+            <SpotlightCard
+              className="relative rounded-2xl border border-slate-200 p-6 shadow-sm"
+              style={{ backgroundColor: '#104008' }}
+            >
+              <div
+                className="pointer-events-none absolute inset-0 z-0 bg-center bg-cover opacity-70"
+                style={{ backgroundImage: 'url("/images/modern-background-of-green-abstract-gradient-wallpaper-vector.jpg")' }}
+              />
+              <div className="relative z-10 mx-auto w-fit max-w-full">
+                <div className="mb-1 inline-flex items-center gap-2">
+                  <Image
+                    src="/images/icono-pago-seguro.png"
+                    alt="Pagos 100% protegidos"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6"
+                  />
+                  <h3 className={`${momoTrust.className} font-normal uppercase text-white text-xl md:text-2xl`}>
+                    Pagos 100% protegidos
+                  </h3>
+                </div>
+                <p className="text-sm text-white">
+                  Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                </p>
+              </div>
+            </SpotlightCard>
           </div>
         </div>
       </section>
@@ -695,18 +798,75 @@ function StepCard({
   step,
   title,
   desc,
+  rightImageSrc,
 }: {
   step: string;
   title: string;
   desc: string;
+  rightImageSrc?: string;
 }) {
+  const withImage = Boolean(rightImageSrc);
+
   return (
-    <div className="relative rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="relative isolate overflow-visible rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="absolute -top-3 left-6 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600">
         Paso {step}
       </div>
-      <h3 className="mb-1 font-semibold text-slate-900">{title}</h3>
-      <p className="text-sm text-slate-600">{desc}</p>
+
+      {!withImage ? (
+        <div className="flex flex-col gap-2">
+          <h3 className="mb-2 font-semibold text-slate-900 line-clamp-2 text-balance">
+            {title}
+          </h3>
+          <p className="text-sm text-slate-600 line-clamp-4">{desc}</p>
+        </div>
+      ) : (
+        <div className="relative min-h-[196px] md:grid md:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] md:items-stretch">
+          {/* Texto a la izquierda */}
+          <div className="min-w-0 pr-40 md:pr-0">
+            <h3 className="mb-2 font-semibold text-slate-900 line-clamp-2 text-balance">
+              {title}
+            </h3>
+            <p className="text-sm text-slate-600 line-clamp-4">{desc}</p>
+          </div>
+
+          {/* Mockup en móvil: abajo a la derecha, alineado al fondo (ligeramente más a la derecha) */}
+          <div className="absolute -right-4 bottom-[-1.5rem] md:hidden">
+            <div
+              className="relative h-56"
+              style={{ width: "min(12rem, 44vw)" }}
+            >
+              <Image
+                src={rightImageSrc as string}
+                alt={title}
+                fill
+                className="object-contain object-bottom"
+                sizes="(max-width: 768px) 12rem, 12rem"
+                priority={false}
+              />
+            </div>
+          </div>
+
+          {/* Mockup a la derecha */}
+          <div className="hidden md:flex items-end justify-end">
+            <div
+              className="relative max-w-[15rem] mb-[-1.5rem]"
+              style={{ width: "min(15rem, 100%)", height: "calc(100% + 16px)" }}
+            >
+              <div className="relative h-full w-full">
+                <Image
+                  src={rightImageSrc as string}
+                  alt={title}
+                  fill
+                  className="object-contain object-bottom"
+                  sizes="(max-width: 1280px) 15rem, 18rem"
+                  priority={false}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

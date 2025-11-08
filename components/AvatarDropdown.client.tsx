@@ -55,6 +55,14 @@ export default function AvatarDropdown({
   ).toUpperCase();
 
   const avatarSrc = normalizeAvatarUrl(avatarUrl);
+  const closeDropdown = () => {
+    try {
+      const el = detailsRef.current;
+      if (el) el.open = false;
+    } catch {
+      // ignore
+    }
+  };
   const setupLabel = role === "pro" || isClientPro ? "Configura tu perfil de profesional" : "Configura tu perfil";
   return (
     <details ref={detailsRef} className="group relative">
@@ -75,21 +83,22 @@ export default function AvatarDropdown({
       >
         <div className="px-2 py-1.5 text-sm font-semibold">{fullName ?? "Cuenta"}</div>
         {/* Tipo de usuario y switch */}
-        <UserTypeInfo currentRole={role} />
+        <UserTypeInfo currentRole={role} onAction={closeDropdown} />
         <div className="my-1 h-px bg-neutral-200" />
-        <Link href="/me" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
+        <Link href="/me" onClick={closeDropdown} className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
           Mi perfil
         </Link>
-        <Link href="/profile/setup" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
+        <Link href="/profile/setup" onClick={closeDropdown} className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
           {setupLabel}
         </Link>
-        <Link href="/settings" className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
+        <Link href="/settings" onClick={closeDropdown} className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
           Configuración
         </Link>
         <div className="my-1 h-px bg-neutral-200" />
         <form action="/auth/sign-out" method="post">
           <button
             type="submit"
+            onClick={closeDropdown}
             className="w-full text-left block rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
           >
             Salir

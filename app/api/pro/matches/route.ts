@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
 import type { Database } from "@/types/supabase";
@@ -80,7 +79,7 @@ function parseStringList(input: unknown): string[] {
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient<Database, "public">({ cookies });
+    const supabase = getRouteClient();
     const { user: authUser } = await getUserOrThrow(supabase);
 
     const { data: profile, error: profileError } = await supabase

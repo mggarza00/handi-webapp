@@ -63,6 +63,8 @@ function DefaultCategoryPicker({
     (async () => {
       setLoading(true);
       try {
+        const norm = (s: string | null | undefined) =>
+          (s ?? "").toString().normalize?.("NFKC").toLowerCase().trim();
         // If a taxonomy override is provided, use it directly
         if (overrideTaxonomy && overrideTaxonomy.length) {
           const arr: Opt[] = [];
@@ -79,19 +81,21 @@ function DefaultCategoryPicker({
           }
           if (!cancelled) setOptions(arr);
           // seed initial picks from provided initial values
-          if (!cancelled && (initialCategories?.length || initialSubcategories?.length)) {
+          if (!cancelled && value.length === 0 && (initialCategories?.length || initialSubcategories?.length)) {
             const picks: Pick[] = [];
             // Expand initial categories into their subcategories only (no whole-category picks)
             for (const c of initialCategories || []) {
               if (!c || !c.trim()) continue;
+              const cN = norm(c);
               for (const o of arr) {
-                if (o.category === c && o.subcategory) picks.push({ category: c, subcategory: o.subcategory });
+                if (norm(o.category) === cN && o.subcategory) picks.push({ category: o.category, subcategory: o.subcategory });
               }
             }
             for (const s of initialSubcategories || []) {
               if (!s || !s.trim()) continue;
-              const match = arr.find((o) => (o.subcategory || "") === s) || null;
-              if (match?.category) picks.push({ category: match.category, subcategory: s });
+              const sN = norm(s);
+              const match = arr.find((o) => norm(o.subcategory) === sN) || null;
+              if (match?.category) picks.push({ category: match.category, subcategory: match.subcategory });
             }
             onChange(uniq(picks, (p) => `${p.category}::${p.subcategory || ""}`));
           }
@@ -103,7 +107,9 @@ function DefaultCategoryPicker({
         const arr: Opt[] = Array.isArray(j?.data)
           ? j.data.map((x: any) => ({ category: String(x.category || ""), subcategory: x.subcategory || null, icon: x.icon || null }))
           : [];
+        let loaded: Opt[] = [];
         if (!cancelled && arr.length) {
+          loaded = arr;
           setOptions(arr);
         } else {
           // Fallback to bundled taxonomy JSON
@@ -128,25 +134,24 @@ function DefaultCategoryPicker({
           if (!out.length) {
             out = TAXONOMY_FALLBACK.flatMap((g) => g.subcategories.map((s) => ({ category: g.name, subcategory: s })));
           }
+          loaded = out;
           if (!cancelled) setOptions(out);
         }
-
-        // Seed selections from initial values
-        if (!cancelled && (initialCategories?.length || initialSubcategories?.length)) {
+        // Seed selections from initial values using loaded options
+        if (!cancelled && value.length === 0 && (initialCategories?.length || initialSubcategories?.length)) {
           const picks: Pick[] = [];
-          // Expand initial categories into their subcategories only (no whole-category picks)
           for (const c of initialCategories || []) {
             if (!c || !c.trim()) continue;
-            const pool = (options.length ? options : arr);
-            for (const o of pool) {
-              if (o.category === c && o.subcategory) picks.push({ category: c, subcategory: o.subcategory });
+            const cN = norm(c);
+            for (const o of loaded) {
+              if (norm(o.category) === cN && o.subcategory) picks.push({ category: o.category, subcategory: o.subcategory });
             }
           }
           for (const s of initialSubcategories || []) {
             if (!s || !s.trim()) continue;
-            const pool = (options.length ? options : arr);
-            const match = pool.find((o) => (o.subcategory || "") === s) || null;
-            if (match?.category) picks.push({ category: match.category, subcategory: s });
+            const sN = norm(s);
+            const match = loaded.find((o) => norm(o.subcategory) === sN) || null;
+            if (match?.category) picks.push({ category: match.category, subcategory: match.subcategory });
           }
           onChange(uniq(picks, (p) => `${p.category}::${p.subcategory || ""}`));
         }

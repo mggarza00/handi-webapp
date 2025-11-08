@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,19 +8,28 @@ import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { supabaseBrowser } from "@/lib/supabase-browser";
 import CityMultiSelect from "@/components/profile/CityMultiSelect";
 import CategoryPicker from "@/components/profile/CategoryPicker";
 import { AvatarField } from "@/components/profile/AvatarField";
 import { fixMojibake } from "@/lib/text";
+import { toast } from "sonner";
 
 const Schema = z.object({
-  full_name: z.string().min(3),
-  headline: z.string().min(3),
+  full_name: z.string().min(3, "Nombre completo inválido"),
+  headline: z.string().min(3, "Escribe un titular de al menos 3 caracteres"),
   service_cities: z.array(z.string()).min(1, "Agrega al menos una ciudad"),
   categories: z.array(z.string()).min(1, "Selecciona al menos una categoría"),
   subcategories: z.array(z.string()).optional(),
-  years_experience: z.coerce.number().int().min(0).max(80),
+  years_experience: z.preprocess((v) => {
+    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+    if (typeof v === "string") {
+      const t = v.trim();
+      if (t === "") return 0;
+      const n = Number(t);
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  }, z.number().int().min(0, "Años inválidos").max(80, "Años inválidos")),
   bio: z.string().max(800).optional(),
   // Internal/compat fields (not user-entered directly)
   avatar_url: z.string().url().optional().or(z.literal("")),
@@ -39,6 +49,7 @@ type Profile = {
 } | null;
 
 export default function SetupForm({ initial, onRequestChanges }: { initial: Profile; onRequestChanges?: (fd: FormData) => Promise<{ ok: boolean; error?: string }> }) {
+  const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
@@ -105,13 +116,19 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
   // Build initial categories/subcategories arrays from possible CSV or arrays
   const initialCategoryNames = React.useMemo(() => {
     const raw = (initial as any)?.categories ?? null;
-    if (Array.isArray(raw)) return raw.map((x: any) => fixMojibake(String(x?.name || ""))).filter(Boolean);
+    if (Array.isArray(raw))
+      return raw
+        .map((x: any) => fixMojibake(String((typeof x === "string" ? x : x?.name) || "")))
+        .filter(Boolean);
     if (typeof raw === "string") return raw.split(",").map((s) => fixMojibake(s.trim())).filter(Boolean);
     return [] as string[];
   }, [initial]);
   const initialSubcategoryNames = React.useMemo(() => {
     const raw = (initial as any)?.subcategories ?? null;
-    if (Array.isArray(raw)) return raw.map((x: any) => fixMojibake(String(x?.name || ""))).filter(Boolean);
+    if (Array.isArray(raw))
+      return raw
+        .map((x: any) => fixMojibake(String((typeof x === "string" ? x : x?.name) || "")))
+        .filter(Boolean);
     if (typeof raw === "string") return raw.split(",").map((s) => fixMojibake(s.trim())).filter(Boolean);
     return [] as string[];
   }, [initial]);
@@ -136,8 +153,7 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
     const c = uniqueCategories.map((name) => ({ name }));
     const sc = subcats.map((name) => ({ name }));
     try {
-            if (onRequestChanges) {
-        const fd = new FormData();
+      const fd = new FormData();
         fd.set("full_name", fixMojibake(data.full_name) || "");
         fd.set("avatar_url", avatarUrl);
         fd.set("headline", fixMojibake(data.headline) || "");
@@ -148,21 +164,85 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
         fd.set("service_cities", JSON.stringify(data.service_cities || []));
         fd.set("categories", JSON.stringify(uniqueCategories));
         fd.set("subcategories", JSON.stringify(subcats));
-        const r = await onRequestChanges(fd);
-        if (!r?.ok) throw new Error(r?.error || "No se pudo enviar la solicitud");
-        setOk("Tu solicitud fue enviada a revisión.");
-      } else {
-        setOk("Guardado localmente.");
+        // Include current private gallery paths for admin approval
+        try {
+          const paths = (gallery || []).map((g) => g.path).filter(Boolean);
+          fd.set("gallery_paths", JSON.stringify(paths));
+        } catch {
+          /* ignore */
+        }
+      let ok = false;
+      // Prefer server action when available
+      if (onRequestChanges) {
+        try {
+          const r = await onRequestChanges(fd);
+          ok = !!r?.ok;
+        } catch {
+          ok = false;
+        }
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido");
-    } finally {
-      setLoading(false);
-    }
+      // Fallback to API route
+      if (!ok) {
+        const payload = {
+          full_name: fd.get("full_name") as string,
+          avatar_url: fd.get("avatar_url") as string,
+          headline: fd.get("headline") as string,
+          bio: fd.get("bio") as string,
+          years_experience: Number(fd.get("years_experience") || 0),
+          city: fd.get("city") as string,
+          service_cities: JSON.parse(String(fd.get("service_cities") || "[]")),
+          categories: JSON.parse(String(fd.get("categories") || "[]")),
+          subcategories: JSON.parse(String(fd.get("subcategories") || "[]")),
+          gallery_paths: JSON.parse(String(fd.get("gallery_paths") || "[]")),
+        };
+        const rr = await fetch("/api/profile/change-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify(payload),
+        });
+        if (!rr.ok) {
+          const j = await rr.json().catch(() => null);
+          throw new Error(j?.error || "No se pudo enviar la solicitud");
+        }
+      }
+        // Redirige a la pantalla de confirmación
+        try {
+          router.push("/profile/changes-requested");
+          // Fallback duro en caso de que el router falle silenciosamente
+          setTimeout(() => {
+            try { window.location.assign("/profile/changes-requested"); } catch { /* ignore */ }
+          }, 300);
+          return;
+        } catch {
+          // fallback: mostrar mensaje en esta página si la navegación falla
+          setOk("Tu solicitud fue enviada a revisión.");
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? (e.message || "Error desconocido") : "Error desconocido";
+        if (/NO_CHANGES/i.test(msg)) {
+          setError("No hay cambios por enviar. Realiza al menos una modificación antes de solicitar.");
+        } else {
+          setError(msg);
+        }
+      } finally {
+        setLoading(false);
+      }
+  }
+
+  function onInvalid() {
+    const e = form.formState.errors;
+    const messages: string[] = [];
+    if (e.headline?.message) messages.push(String(e.headline.message));
+    if (e.service_cities?.message) messages.push(String(e.service_cities.message));
+    if (e.categories?.message) messages.push(String(e.categories.message));
+    if (e.years_experience?.message) messages.push(String(e.years_experience.message));
+    if (e.full_name?.message) messages.push(String(e.full_name.message));
+    const msg = messages[0] || "Revisa la información faltante";
+    toast.error(msg);
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
       {ok && <p className="text-sm text-emerald-700">{ok}</p>}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -179,8 +259,13 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       </div>
 
       <div>
-        <label className="block text-sm mb-1" htmlFor="headline">Titular (headline)</label>
-        <Input id="headline" placeholder="Ej. Electricista residencial certificado" {...register("headline")} />
+        <label className="block text-sm mb-1" htmlFor="headline">Título</label>
+        <Input
+          id="headline"
+          placeholder="Ej. Electricista residencial certificado"
+          defaultValue={fixMojibake(initial?.headline) || ""}
+          {...register("headline")}
+        />
         {errors.headline && <p className="mt-1 text-xs text-red-600">{String(errors.headline.message)}</p>}
       </div>
 
@@ -196,8 +281,14 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       </div>
 
       <div>
-        <label className="block text-sm mb-1" htmlFor="bio">Bio</label>
-        <Textarea id="bio" rows={4} placeholder="Cuéntanos sobre tu experiencia y servicios." {...register("bio")} />
+        <label className="block text-sm mb-1" htmlFor="bio">Descripción de servicios</label>
+        <Textarea
+          id="bio"
+          rows={4}
+          placeholder="Cuéntanos sobre tu experiencia y servicios."
+          defaultValue={(fixMojibake(initial?.bio) || "").slice(0, 800)}
+          {...register("bio")}
+        />
         {errors.bio && <p className="mt-1 text-xs text-red-600">{String(errors.bio.message)}</p>}
       </div>
 
@@ -209,6 +300,11 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           min={0}
           max={80}
           step={1}
+          defaultValue={
+            (typeof initial?.years_experience === "number" && !Number.isNaN(initial.years_experience)
+              ? initial.years_experience
+              : 0) as any
+          }
           {...register("years_experience" as const, { valueAsNumber: true })}
         />
         {errors.years_experience && <p className="mt-1 text-xs text-red-600">{String(errors.years_experience.message)}</p>}
@@ -239,7 +335,8 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           accept="image/*"
           multiple
           onChange={async (e) => {
-            const list = Array.from(e.currentTarget.files ?? []);
+            const inputEl = e.currentTarget as HTMLInputElement;
+            const list = Array.from(inputEl.files ?? []);
             if (!meId || list.length === 0) return;
             setUploading(true);
             try {
@@ -249,11 +346,11 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
                   throw new Error(`El archivo ${f.name} excede 5MB`);
                 if (!/^image\//i.test(f.type))
                   throw new Error(`Tipo inválido para ${f.name}`);
-                const path = `${meId}/${Date.now()}-${encodeURIComponent(f.name)}`;
-                const up = await supabaseBrowser.storage
-                  .from("profiles-gallery")
-                  .upload(path, f, { contentType: f.type, upsert: false });
-                if (up.error) throw new Error(up.error.message);
+                const fd = new FormData();
+                fd.set("file", f);
+                const r = await fetch(`/api/profiles/${meId}/gallery`, { method: "POST", body: fd });
+                const j = await r.json().catch(() => null);
+                if (!r.ok) throw new Error(j?.detail || j?.error || "No se pudo subir imagen");
               }
               const g = await fetch(`/api/profiles/${meId}/gallery`, {
                 headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -266,7 +363,11 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
               );
             } finally {
               setUploading(false);
-              e.currentTarget.value = "";
+              try {
+                inputEl.value = "";
+              } catch {
+                /* ignore */
+              }
             }
           }}
         />
@@ -318,3 +419,5 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
     </form>
   );
 }
+
+

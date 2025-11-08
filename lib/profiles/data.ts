@@ -25,6 +25,7 @@ export type ProfileOverview = {
   jobsDone: number;
   categories: string[];
   subcategories: string[];
+  cities: string[];
 };
 
 export async function getProfessionalOverview(
@@ -45,12 +46,14 @@ export async function getProfessionalOverview(
       certifications,  -- TODO(schema): si no existe, omitir o mapear a la columna real
       main_categories, -- TODO(schema): si no existe, omitir
       verified,        -- TODO(schema): si no existe, derivar de is_featured
+      cities,
       profiles:profiles!inner(
         full_name,
         avatar_url,
         city,
         state,
-        country
+        country,
+        cities
       )
       `,
     )
@@ -63,7 +66,7 @@ export async function getProfessionalOverview(
     const alt = await supa
       .from("professionals_with_profile")
       .select(
-        "id, full_name, avatar_url, bio, years_experience, city, categories, subcategories, is_featured",
+        "id, full_name, avatar_url, bio, years_experience, city, cities, categories, subcategories, is_featured",
       )
       .eq("id", id)
       .maybeSingle();
@@ -82,6 +85,7 @@ export async function getProfessionalOverview(
           country: null,
         },
         main_categories: row.categories ?? row.subcategories ?? null,
+        cities: row.cities ?? null,
       } as any;
     }
   }
@@ -146,6 +150,7 @@ export async function getProfessionalOverview(
 
   const categories = toNames((pro as any)?.main_categories ?? (pro as any)?.categories);
   const subcategories = toNames((pro as any)?.subcategories);
+  const cities = toNames((pro as any)?.cities ?? (pro as any)?.profiles?.cities);
 
   return {
     pro,
@@ -154,6 +159,7 @@ export async function getProfessionalOverview(
     jobsDone,
     categories,
     subcategories,
+    cities,
   };
 }
 
@@ -164,6 +170,43 @@ export async function getPortfolio(
   id: string,
   limit = 18,
 ): Promise<PortfolioItem[]> {
+  // First, prefer approved public gallery stored in 'professionals-gallery'
+  try {
+    const prefix = `${id}/`;
+    const { data, error } = await (supa as any).storage
+      .from("professionals-gallery")
+      .list(prefix, { limit: Math.max(limit, 18), sortBy: { column: "updated_at", order: "desc" } });
+    if (!error && Array.isArray(data) && data.length) {
+      const items = await Promise.all(
+        data
+          .filter((x: any) => x && x.name)
+          .slice(0, limit)
+          .map(async (obj: any) => {
+            const path = `${prefix}${obj.name}`;
+            // Try signed URL first (works for private buckets). Fallback to public URL.
+            const signed = await (supa as any).storage
+              .from("professionals-gallery")
+              .createSignedUrl(path, 60 * 60, {
+                // Serve inline and pre-resized for faster loading
+                transform: { width: 800, quality: 80, resize: "contain" },
+              }) // 1 hour
+              .catch(() => ({ data: null, error: null }));
+            let url = (signed?.data?.signedUrl as string | undefined) || "";
+            if (!url) {
+              const pub = (supa as any).storage
+                .from("professionals-gallery")
+                .getPublicUrl(path, { transform: { width: 800, quality: 80, resize: "contain" } });
+              url = (pub?.data?.publicUrl as string | undefined) || "";
+            }
+            return { url, title: "", createdAt: (obj as any)?.updated_at || undefined } as PortfolioItem;
+          }),
+      );
+      const filtered = items.filter((x) => !!x.url);
+      if (filtered.length) return filtered;
+    }
+  } catch {
+    /* ignore and fallback to service_photos */
+  }
   try {
     // Intento con join directo a requests para traer el título
     // TODO: si service_photos no tiene professional_id, unir vía requests.professional_id
@@ -230,75 +273,33 @@ export async function getReviews(
   limit = 10,
   cursor?: string,
 ): Promise<{ items: ReviewItemDTO[]; nextCursor: string | null; count: number; average: number | null }> {
-  let items: ReviewItemDTO[] = [];
-  try {
-    // Prefer direct from ratings with join to client profile
-    // NOTE: Depending on schema, FK might be ratings_client_id_fkey; adjust alias accordingly.
-    const res: any = await (supa as any)
-      .from("ratings")
-      .select(
-        `
-        id, stars, comment, created_at,
-        client:profiles!ratings_client_id_fkey(full_name, avatar_url)
-        `,
-      )
-      .eq("professional_id", id) // TODO: si no existe, usar to_user_id
-      .order("created_at", { ascending: false })
-      .limit(limit);
-    if (res.error) throw res.error;
-    items = (res.data ?? []).map((r: any) => ({
-      id: String(r.id),
-      stars: Number(r.stars ?? 0),
-      comment: (r.comment as string | null) || undefined,
-      createdAt: (r.created_at as string | null) || "",
-      clientName: (r.client?.full_name as string | null) || undefined,
-      clientAvatarUrl: (r.client?.avatar_url as string | null) || undefined,
-    }));
-  } catch {
-    try {
-      // Fallback: to_user_id if professional_id no existe
-      const res: any = await (supa as any)
-        .from("ratings")
-        .select(
-          `
-          id, stars, comment, created_at,
-          client:profiles!ratings_from_user_id_fkey(full_name, avatar_url)
-          `,
-        )
-        .eq("to_user_id", id)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      if (res.error) throw res.error;
-      items = (res.data ?? []).map((r: any) => ({
-        id: String(r.id),
-        stars: Number(r.stars ?? 0),
-        comment: (r.comment as string | null) || undefined,
-        createdAt: (r.created_at as string | null) || "",
-        clientName: (r.client?.full_name as string | null) || undefined,
-        clientAvatarUrl: (r.client?.avatar_url as string | null) || undefined,
-      }));
-    } catch {
-      // Last resort: view-based
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let q: any = (supa as any)
-        .from("v_professional_reviews")
-        .select("id, rating, comment, created_at, client_name, client_avatar")
-        .eq("professional_id", id)
-        .order("created_at", { ascending: false })
-        .limit(limit);
-      const list = await q;
-      if (!list.error) {
-        items = (list.data ?? []).map((r: any) => ({
-          id: String(r.id),
-          stars: Number(r.rating ?? 0),
-          comment: (r.comment as string | null) || undefined,
-          createdAt: (r.created_at as string | null) || "",
-          clientName: (r.client_name as string | null) || undefined,
-          clientAvatarUrl: (r.client_avatar as string | null) || undefined,
-        }));
-      }
-    }
-  }
+  // Robust two-step approach: fetch ratings by to_user_id, then enrich with client profiles
+  const rsel = await supa
+    .from("ratings")
+    .select("id, from_user_id, stars, comment, created_at")
+    .eq("to_user_id", id)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  const rows = (rsel.data ?? []) as Array<{
+    id: string;
+    from_user_id: string;
+    stars: number | null;
+    comment: string | null;
+    created_at: string | null;
+  }>;
+  const authorIds = Array.from(new Set(rows.map((r) => r.from_user_id))).filter(Boolean) as string[];
+  const profs = authorIds.length
+    ? await supa.from("profiles").select("id, full_name, avatar_url").in("id", authorIds)
+    : { data: [] as Array<{ id: string; full_name: string | null; avatar_url: string | null }> };
+  const map = new Map((profs.data ?? []).map((a) => [a.id, a]));
+  const items: ReviewItemDTO[] = rows.map((r) => ({
+    id: String(r.id),
+    stars: Number(r.stars ?? 0),
+    comment: (r.comment as string | null) || undefined,
+    createdAt: (r.created_at as string | null) || "",
+    clientName: (map.get(r.from_user_id)?.full_name as string | null) || undefined,
+    clientAvatarUrl: (map.get(r.from_user_id)?.avatar_url as string | null) || undefined,
+  }));
 
   const nextCursor = items.length ? `${items[items.length - 1].createdAt}|${items[items.length - 1].id}` : null;
 
@@ -316,28 +317,4 @@ export async function getReviews(
     average = null;
   }
   return { items, nextCursor, count: count ?? 0, average };
-
-  /*
-  // Alternativa sin vista: ratings + perfiles del cliente (dos pasos)
-  const { data: ratings } = await supa
-    .from('ratings')
-    .select('id, request_id, from_user_id, stars, comment, created_at')
-    .eq('to_user_id', id)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  const rows = ratings ?? [];
-  const authorIds = Array.from(new Set(rows.map(r => r.from_user_id))).filter(Boolean) as string[];
-  const { data: authors } = authorIds.length
-    ? await supa.from('profiles').select('id, full_name, avatar_url').in('id', authorIds)
-    : { data: [] };
-  const map = new Map(authors?.map(a => [a.id, a]) ?? []);
-  const items = rows.map(r => ({
-    id: r.id,
-    stars: r.stars,
-    comment: r.comment ?? undefined,
-    createdAt: r.created_at ?? '',
-    clientName: map.get(r.from_user_id)?.full_name ?? undefined,
-    clientAvatarUrl: map.get(r.from_user_id)?.avatar_url ?? undefined,
-  }));
-  */
 }

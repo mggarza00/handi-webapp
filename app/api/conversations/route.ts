@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 import { z } from "zod";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
@@ -15,7 +14,7 @@ const CreateSchema = z.object({
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const { user } = await getUserOrThrow(supabase);
     const { data, error } = await supabase
       .from("conversations")
@@ -43,7 +42,7 @@ export async function POST(req: Request) {
         { status: 415, headers: JSONH },
       );
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const { user } = await getUserOrThrow(supabase);
     const parsed = CreateSchema.safeParse(await req.json());
     if (!parsed.success)

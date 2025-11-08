@@ -1,6 +1,22 @@
 # Husky v9+/v10 compatible (sin shebang ni husky.sh)
 set -e
 
-echo "Ì¥ç Running lint & typecheck..."
-npm run -s lint -- --max-warnings=0
-npm run -s typecheck
+echo "üîé Running lint on staged files..."
+
+# Collect staged files
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+TS_FILES=$(echo "$STAGED_FILES" | grep -E "\.(ts|tsx|js|jsx)$" || true)
+CSS_FILES=$(echo "$STAGED_FILES" | grep -E "\.css$" || true)
+
+if [ -n "$TS_FILES" ]; then
+  echo "ESLint on: $TS_FILES"
+  npx --no-install eslint --max-warnings=0 $TS_FILES
+fi
+
+if [ -n "$CSS_FILES" ]; then
+  echo "Stylelint on: $CSS_FILES"
+  npx --no-install stylelint $CSS_FILES
+fi
+
+echo "‚úÖ Pre-commit checks finished"

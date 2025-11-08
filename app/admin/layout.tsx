@@ -1,13 +1,17 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
-import createClient from "@/utils/supabase/server";
-import { BadgeDollarSign, Boxes, CreditCard, FileWarning, LayoutDashboard, Settings, ShieldCheck } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Boxes, CreditCard, FileWarning, LayoutDashboard, Settings, ShieldCheck, FileText } from "lucide-react";
 
-import { SidebarProvider, Sidebar, SidebarTrigger, SidebarHeader, SidebarContent, SidebarFooter } from "@/components/ui/sidebar";
+import createClient from "@/utils/supabase/server";
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarFooter } from "@/components/ui/sidebar";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import NavLink from "@/components/admin/NavLink.client";
 import AdminHeader from "@/components/admin/AdminHeader.client";
+import { canAccessAdmin } from "@/lib/rbac";
+import AdminCollapseToggle from "@/components/admin/AdminCollapseToggle.client";
+import AdminTopbar from "@/components/admin/AdminTopbar.client";
 
 export const dynamic = "force-dynamic";
 
@@ -16,16 +20,42 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { data: { user } } = await supabase.auth.getUser();
   let fullName: string | null = null;
   let avatarUrl: string | null = null;
-  if (user) {
-    type ProfRow = { full_name: string | null; avatar_url: string | null } | null;
+  let role: string | null = null;
+  let is_admin: boolean | null = null;
+  if (!user) {
+    redirect("/auth/sign-in");
+  } else {
+    type ProfRow = { full_name: string | null; avatar_url: string | null; role?: string | null; is_admin?: boolean | null } | null;
     const { data: prof } = await supabase
       .from("profiles")
-      .select("full_name, avatar_url")
+      .select("full_name, avatar_url, role, is_admin")
       .eq("id", user.id)
       .maybeSingle();
     const row = (prof as unknown as ProfRow) || null;
     fullName = row?.full_name ?? null;
     avatarUrl = row?.avatar_url ?? null;
+    role = (row?.role ?? null) as string | null;
+    is_admin = (row?.is_admin ?? null) as boolean | null;
+
+    // Bloquea de inmediato si no es admin (mensaje corto y neutro)
+    const seed = process.env.SEED_ADMIN_EMAIL?.toLowerCase();
+    const allowedByEmail = seed && user?.email && user.email.toLowerCase() === seed;
+    const allowed = canAccessAdmin(role, is_admin) || Boolean(allowedByEmail);
+    if (!allowed) {
+      return (
+        <main className="mx-auto max-w-2xl px-4 py-16">
+          <h1 className="text-2xl font-semibold">Acceso restringido</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Esta sección es exclusiva para el equipo de administradores de Handi.
+          </p>
+          <div className="mt-6">
+            <Link className={cn(buttonVariants({ variant: "default" }))} href="/" prefetch={false}>
+              Ir al inicio
+            </Link>
+          </div>
+        </main>
+      );
+    }
   }
 
   const nav = [
@@ -33,6 +63,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: "/admin/offers", label: "Ofertas", icon: CreditCard },
     { href: "/admin/requests", label: "Solicitudes", icon: Boxes },
     { href: "/admin/professionals", label: "Profesionales", icon: ShieldCheck },
+    { href: "/admin/pro-applications", label: "Postulaciones", icon: FileText },
+    { href: "/admin/pro-changes", label: "Cambios de perfil", icon: FileText },
     { href: "/admin/payments", label: "Pagos", icon: CreditCard },
     { href: "/admin/settings", label: "Configuración", icon: Settings },
     { href: "/admin/system", label: "Sistema", icon: FileWarning },
@@ -54,41 +86,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <SidebarProvider>
       {/* Topbar */}
-      <div className="sticky top-16 z-20 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-          <SidebarTrigger className="md:hidden" />
-          <div className="flex items-center gap-2 font-semibold">
-            <BadgeDollarSign className="h-5 w-5" />
-            <span>Homaid Admin</span>
-          </div>
-          <div className="ml-auto flex items-center gap-3">
-            <input
-              type="search"
-              placeholder="Buscar..."
-              className="h-9 w-48 rounded-md border bg-background px-3 text-sm md:w-64"
-            />
-            {user ? (
-              <>
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt={fullName || user.email || "usuario"} className="h-8 w-8 rounded-full object-cover" />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-muted" />
-                )}
-                <div className="hidden text-sm md:block opacity-70">{fullName || user.email}</div>
-                <Link className={cn(buttonVariants({ variant: "outline", size: "sm" }))} href="/auth/sign-out" prefetch={false}
-                >Salir</Link>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <AdminTopbar userEmail={user?.email ?? null} fullName={fullName} avatarUrl={avatarUrl} />
 
       {/* Mobile Sidebar */}
       <Sidebar width={300}>
         <SidebarHeader className="mb-3">Administración</SidebarHeader>
         <SidebarContent>
           {nav.map((item) => (
-            <NavLink key={item.href} href={item.href}>
+            <NavLink key={item.href} href={item.href} exact={item.href === "/admin"}>
               <item.icon className="h-4 w-4" />
               <span>{item.label}</span>
             </NavLink>
@@ -106,31 +111,53 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </Sidebar>
 
       {/* Desktop shell */}
-      <div className="mx-auto grid max-w-7xl grid-cols-1 md:grid-cols-[260px_1fr] gap-0 px-4">
-        <aside className="sticky top-[calc(4rem+1px)] hidden h-[calc(100dvh-4rem-1px)] shrink-0 border-r md:block">
-          <div className="flex h-full flex-col gap-3 p-3">
-            <div className="px-2 pt-1 text-sm font-semibold">Administración</div>
+      <div
+        id="admin-shell"
+        data-collapsed="false"
+        className="group grid grid-cols-1 md:grid-cols-[260px_1fr] data-[collapsed=true]:md:grid-cols-[72px_1fr] gap-x-3 md:gap-x-4"
+      >
+        <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] shrink-0 border-r md:block bg-background">
+          <div className="flex h-full flex-col gap-3 p-3 overflow-y-auto">
+            <div className="flex items-center px-2 pt-1 min-h-9">
+              <div className="text-sm font-semibold group-data-[collapsed=true]:hidden">Administración</div>
+              <div className="ml-auto">
+                <AdminCollapseToggle className="!inline-flex" />
+              </div>
+            </div>
             <nav className="flex flex-col gap-1">
               {nav.map((item) => (
-                <NavLink key={item.href} href={item.href}>
-                  <item.icon className="h-4 w-4" />
-                  <span>{item.label}</span>
+                <NavLink
+                  key={item.href}
+                  href={item.href}
+                  exact={item.href === "/admin"}
+                  title={item.label}
+                  className="group-data-[collapsed=true]:justify-center group-data-[collapsed=true]:px-2 group-data-[collapsed=true]:gap-0"
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate group-data-[collapsed=true]:hidden">{item.label}</span>
                 </NavLink>
               ))}
             </nav>
-            <div className="px-2 pt-3 text-xs uppercase tracking-wider text-muted-foreground">Más</div>
-            <nav className="flex flex-col gap-1">
+            <div className="px-2 pt-3 text-xs uppercase tracking-wider text-muted-foreground group-data-[collapsed=true]:hidden">Más</div>
+            <nav className="flex flex-col gap-1 group-data-[collapsed=true]:hidden">
               {stubs.map((item) => (
-                <NavLink key={item.href} href={item.href}>
-                  <span>{item.label}</span>
+                <NavLink
+                  key={item.href}
+                  href={item.href}
+                  title={item.label}
+                  className="group-data-[collapsed=true]:justify-center group-data-[collapsed=true]:px-2 group-data-[collapsed=true]:gap-0"
+                >
+                  <span className="truncate group-data-[collapsed=true]:hidden">{item.label}</span>
                 </NavLink>
               ))}
             </nav>
           </div>
         </aside>
         <section className="min-h-[70dvh] py-4 md:py-6">
-          <AdminHeader />
-          {children}
+          <div className="mx-auto max-w-7xl px-2 md:px-3">
+            <AdminHeader />
+            {children}
+          </div>
         </section>
       </div>
     </SidebarProvider>

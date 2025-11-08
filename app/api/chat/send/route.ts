@@ -235,7 +235,7 @@ export async function POST(req: Request) {
     // Email al otro participante con el contenido del mensaje y link al chat (no bloqueante)
     try {
       const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
-      void notifyChatMessageByConversation({ conversationId, senderId: user.id, text: body || "", attachments: attachLite });
+      await notifyChatMessageByConversation({ conversationId, senderId: user.id, text: body || "", attachments: attachLite });
     } catch { /* ignore email notify errors */ }
 
     return NextResponse.json(

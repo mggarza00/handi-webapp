@@ -1807,7 +1807,20 @@ export default function ChatPanel({
             }}
           />
         </div>
-        <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} onPickFiles={() => uploaderApiRef.current?.pickFiles()} onPickCamera={() => uploaderApiRef.current?.pickCamera()} />
+        <MessageInput
+          onSend={onSend}
+          onTyping={emitTyping}
+          disabled={loading}
+          dataPrefix={dataPrefix}
+          onPickFiles={() => uploaderApiRef.current?.pickFiles()}
+          onPickCamera={() => uploaderApiRef.current?.pickCamera()}
+          onFocus={() => {
+            try {
+              const el = document.querySelector(`[data-testid="${dataPrefix}-list"]`) as HTMLDivElement | null;
+              if (el) setTimeout(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }), 50);
+            } catch { /* ignore */ }
+          }}
+        />
         {acceptedForPay ? (
           <ClientFeeDialog
             open={feeOpen}
@@ -1836,7 +1849,12 @@ export default function ChatPanel({
         if (!value) onClose();
       }}
     >
-      <SheetContent side="right" className="sm:max-w-md p-0" data-testid={`${dataPrefix}-box`}>
+      <SheetContent
+        side="right"
+        className="sm:max-w-md p-0 h-[100dvh]"
+        data-testid={`${dataPrefix}-box`}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="sr-only">
           <SheetTitle>Chat</SheetTitle>
         </SheetHeader>
@@ -1913,7 +1931,20 @@ export default function ChatPanel({
               }}
             />
           </div>
-          <MessageInput onSend={onSend} onTyping={emitTyping} autoFocus disabled={loading} dataPrefix={dataPrefix} onPickFiles={() => uploaderApiRef.current?.pickFiles()} onPickCamera={() => uploaderApiRef.current?.pickCamera()} />
+          <MessageInput
+            onSend={onSend}
+            onTyping={emitTyping}
+            disabled={loading}
+            dataPrefix={dataPrefix}
+            onPickFiles={() => uploaderApiRef.current?.pickFiles()}
+            onPickCamera={() => uploaderApiRef.current?.pickCamera()}
+            onFocus={() => {
+              try {
+                const el = document.querySelector(`[data-testid="${dataPrefix}-list"]`) as HTMLDivElement | null;
+                if (el) setTimeout(() => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }), 50);
+              } catch { /* ignore */ }
+            }}
+          />
           {/* Fee dialog visible for customer to confirm breakdown before checkout */}
           {acceptedForPay ? (
             <ClientFeeDialog

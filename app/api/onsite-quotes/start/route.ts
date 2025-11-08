@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       message_type: "system",
       payload: { type: "onsite_quote_start" } as any,
     } as any);
-    try { void notifyChatMessageByConversation({ conversationId: conversation_id, senderId: user.id, text: "Este profesional requiere cotizar en sitio el servicio." }); } catch {}
+    try { await notifyChatMessageByConversation({ conversationId: conversation_id, senderId: user.id, text: "Este profesional requiere cotizar en sitio el servicio." }); } catch {}
 
     return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {

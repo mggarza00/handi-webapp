@@ -230,7 +230,7 @@ export async function POST(req: Request) {
                   try {
                     const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
                     if (senderIdAttach && convIdAttach) {
-                      void notifyChatMessageByConversation({ conversationId: convIdAttach, senderId: senderIdAttach, text: 'Recibo de pago adjunto' });
+                      await notifyChatMessageByConversation({ conversationId: convIdAttach, senderId: senderIdAttach, text: 'Recibo de pago adjunto' });
                     }
                   } catch { /* ignore */ }
                   messageId = (insMsg.data as any)?.id as string | undefined;
@@ -479,7 +479,7 @@ export async function POST(req: Request) {
                     try {
                       const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
                       if (convId && clientId) {
-                        void notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: body || 'Detalles de servicio' });
+                        await notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: body || 'Detalles de servicio' });
                       }
                     } catch { /* ignore */ }
                     try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }
@@ -671,7 +671,7 @@ export async function POST(req: Request) {
                   try {
                     const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
                     if (convId && clientId) {
-                      void notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: paidBody });
+                      await notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: paidBody });
                     }
                   } catch { /* ignore */ }
                 } catch { /* ignore */ }
@@ -695,7 +695,7 @@ export async function POST(req: Request) {
                 try {
                   const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
                   if (convId && clientId) {
-                    void notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: body || 'Detalles de servicio' });
+                    await notifyChatMessageByConversation({ conversationId: convId, senderId: clientId, text: body || 'Detalles de servicio' });
                   }
                 } catch { /* ignore */ }
                 try { revalidatePath('/pro/calendar'); revalidateTag('pro-calendar'); revalidatePath(`/mensajes/${convId}`); } catch { /* ignore */ }

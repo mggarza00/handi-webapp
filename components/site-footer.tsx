@@ -17,13 +17,18 @@ export default function SiteFooter() {
             <p className="mb-2 text-sm font-medium">Enlaces</p>
             <ul className="space-y-1 text-sm text-slate-600">
               <li>
-                <Link href="/search" className="hover:text-slate-900">
+                <Link href="/professionals" className="hover:text-slate-900">
                   Buscar profesionales
                 </Link>
               </li>
               <li>
                 <Link href="/pro-apply" className="hover:text-slate-900">
                   Ofrecer mis servicios
+                </Link>
+              </li>
+              <li>
+                <Link href="/categorias" className="hover:text-slate-900">
+                  Categorias y subcategorias
                 </Link>
               </li>
               <li>
@@ -49,8 +54,8 @@ export default function SiteFooter() {
               </li>
               <li>
                 Email:{" "}
-                <a href="mailto:hola@handi.mx" className="hover:text-slate-900">
-                  hola@handi.mx
+                <a href="mailto:soporte@handi.mx" className="hover:text-slate-900">
+                  soporte@handi.mx
                 </a>
               </li>
             </ul>

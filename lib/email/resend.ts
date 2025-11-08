@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Resend } from 'resend';
 
-export const RESEND_FROM = (process.env.RESEND_FROM || '').trim();
+// Prefer explicit RESEND_* vars, but support legacy MAIL_* for backwards compatibility
+const LEGACY_KEY = (process.env.MAIL_PROVIDER_KEY || '').trim();
+const LEGACY_FROM = (process.env.MAIL_FROM || '').trim();
+
+export const RESEND_FROM = ((process.env.RESEND_FROM || LEGACY_FROM) || '').trim();
 export const RESEND_REPLY_TO = (process.env.RESEND_REPLY_TO || '').trim();
 
 let singleton: Resend | null = null;
 
 export function getResendClient(): Resend {
-  const key = process.env.RESEND_API_KEY;
+  const key = process.env.RESEND_API_KEY || LEGACY_KEY;
   if (!key) {
     // Fail fast per producción: sin API key no hay envíos
     throw new Error('RESEND_API_KEY is not set');
@@ -17,7 +21,7 @@ export function getResendClient(): Resend {
 }
 
 export const resend = (() => {
-  const key = process.env.RESEND_API_KEY;
+  const key = process.env.RESEND_API_KEY || LEGACY_KEY;
   if (!key) {
     // Crear un proxy que lanza solo al usarlo, evitando romper import en build locales sin key
     return new Proxy({} as unknown as Resend, {
@@ -45,13 +49,13 @@ export type SendEmailInput = {
 export async function resendSendEmail(payload: SendEmailInput): Promise<{ ok: boolean; id?: string; error?: string; hint?: string }>
 {
   // Defaults desde env
-  const envFrom = (process.env.RESEND_FROM || '').trim();
+  const envFrom = ((process.env.RESEND_FROM || process.env.MAIL_FROM || '')).trim();
   const envReplyTo = (process.env.RESEND_REPLY_TO || '').trim();
   const from = (payload.from || envFrom || RESEND_FROM);
   const replyTo = (payload.replyTo || envReplyTo || undefined);
 
   if (!from) {
-    return { ok: false, error: 'MISSING_FROM', hint: 'Define RESEND_FROM con un remitente del dominio verificado (p.ej. notificaciones@mg.handi.mx).' };
+    return { ok: false, error: 'MISSING_FROM', hint: 'Define RESEND_FROM con un remitente del dominio verificado (p.ej. notificaciones@handi.mx).' };
   }
 
   try {
@@ -108,7 +112,7 @@ export default resend;
 function deriveResendHint(message: string): string | undefined {
   const m = message.toLowerCase();
   if (m.includes('sandbox') || m.includes('trial') || m.includes('not allowed to send') || m.includes('from address') || m.includes('domain')) {
-    return 'Verifica que RESEND_FROM pertenezca al dominio verificado (mg.handi.mx) y que DNS/SPF/DKIM estén activos. Asegura RESEND_API_KEY de producción.';
+    return 'Verifica que el remitente pertenezca al dominio verificado (handi.mx) y que DNS/SPF/DKIM estén activos. Usa la API key de producción (RESEND_API_KEY).';
   }
   if (m.includes('unauthorized') || m.includes('401') || m.includes('invalid api key')) {
     return 'RESEND_API_KEY inválida o ausente. Define la key de producción en Vercel.';

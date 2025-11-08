@@ -135,37 +135,95 @@ export async function POST(req: Request) {
     }
 
     const p = parsed.data;
-    // Persist registro (auditoría mínima)
-    try {
-      const admin = getAdminSupabase();
-      await admin.from("pro_applications").insert({
+    // Persist registro (auditoría) – asegurar inserción aunque no haya SERVICE_ROLE
+    const admin = (() => {
+      try {
+        return getAdminSupabase();
+      } catch {
+        return null;
+      }
+    })();
+    const record = {
+      user_id: auth.user.id,
+      full_name: p.full_name,
+      phone: p.phone,
+      email: p.email,
+      rfc: p.rfc,
+      empresa: p.empresa ?? false,
+      is_company: p.empresa ?? false,
+      company_legal_name: p.company_legal_name ?? null,
+      company_industry: p.company_industry ?? null,
+      company_employees_count: p.company_employees_count ?? null,
+      company_website: p.company_website ?? null,
+      company_doc_incorporation_url: (p.uploads as Record<string, unknown>).company_doc_incorporation_url ?? null,
+      company_csf_url: (p.uploads as Record<string, unknown>).company_csf_url ?? null,
+      company_rep_id_front_url: (p.uploads as Record<string, unknown>).company_rep_id_front_url ?? null,
+      company_rep_id_back_url: (p.uploads as Record<string, unknown>).company_rep_id_back_url ?? null,
+      services_desc: p.services_desc,
+      cities: p.cities,
+      categories: p.categories,
+      subcategories: p.subcategories ?? null,
+      years_experience: p.years_experience,
+      refs: p.references,
+      uploads: p.uploads,
+      status: "pending",
+    } as Record<string, unknown>;
+
+    let inserted = false;
+    let insertErr: unknown = null;
+    // Try full record (admin → user)
+    if (admin) {
+      const { error } = await (admin as any)
+        .from("pro_applications")
+        .insert([record]);
+      if (!error) inserted = true; else insertErr = error;
+    }
+    if (!inserted) {
+      const { error } = await (supabase as any)
+        .from("pro_applications")
+        .insert([record]);
+      if (!error) inserted = true; else insertErr = insertErr || error;
+    }
+    // If failed, try minimal backward-compatible payload (older schemas)
+    if (!inserted) {
+      const minimal = {
         user_id: auth.user.id,
         full_name: p.full_name,
         phone: p.phone,
         email: p.email,
-        rfc: p.rfc,
-        empresa: p.empresa ?? false,
-        is_company: p.empresa ?? false,
-        company_legal_name: p.company_legal_name ?? null,
-        company_industry: p.company_industry ?? null,
-        company_employees_count: p.company_employees_count ?? null,
-        company_website: p.company_website ?? null,
-        company_doc_incorporation_url: (p.uploads as Record<string, unknown>).company_doc_incorporation_url ?? null,
-        company_csf_url: (p.uploads as Record<string, unknown>).company_csf_url ?? null,
-        company_rep_id_front_url: (p.uploads as Record<string, unknown>).company_rep_id_front_url ?? null,
-        company_rep_id_back_url: (p.uploads as Record<string, unknown>).company_rep_id_back_url ?? null,
         services_desc: p.services_desc,
         cities: p.cities,
         categories: p.categories,
-  subcategories: p.subcategories ?? null,
         years_experience: p.years_experience,
-  refs: p.references,
+        refs: p.references,
         uploads: p.uploads,
         status: "pending",
-      } as never);
-      // In-app notifications for admins
+      } as Record<string, unknown>;
+      if (admin) {
+        const { error } = await (admin as any)
+          .from("pro_applications")
+          .insert([minimal]);
+        if (!error) inserted = true; else insertErr = insertErr || error;
+      }
+      if (!inserted) {
+        const { error } = await (supabase as any)
+          .from("pro_applications")
+          .insert([minimal]);
+        if (!error) inserted = true; else insertErr = insertErr || error;
+      }
+    }
+    if (!inserted) {
+      const detail = (insertErr as { message?: string } | null)?.message || "insert_failed";
+      try { console.error("pro_applications insert failed:", insertErr); } catch {}
+      return NextResponse.json(
+        { ok: false, error: "INSERT_FAILED", detail },
+        { status: 500, headers: JSONH },
+      );
+    }
+
+    // In-app notifications para admins (best-effort)
+    if (admin) {
       try {
-        // Find admin users by is_admin flag or legacy role
         type AdminProfile = { id: string; role: string | null; is_admin: boolean | null };
         const { data: admins } = await admin
           .from("profiles")
@@ -193,17 +251,14 @@ export async function POST(req: Request) {
       } catch {
         // ignore if notifications table is missing
       }
-      // Also mark the user in `profiles` with boolean flags for roles (is_client, is_professional)
+      // Marcar flags auxiliares en profiles (best-effort; ignorable en dev)
       try {
-        // Upsert minimal row to set boolean flags; this won't remove other profile fields
         await admin
           .from("profiles")
           .upsert({ id: auth.user.id, is_professional: true, is_client: true }, { onConflict: "id" });
       } catch {
-        // ignore if column/table missing or permission issues
+        /* ignore */
       }
-    } catch {
-      // no-op si aún no existe la tabla
     }
   const adminTo =
       process.env.HANDEE_ADMIN_EMAIL ||
@@ -258,8 +313,12 @@ export async function POST(req: Request) {
       <p><a href="${profileUrl}">Ver perfil</a></p>
     `;
 
-    await sendEmail({ to: adminTo, subject, html });
-    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
+    const mailRes = await sendEmail({ to: adminTo, subject, html });
+    if (!mailRes.ok) {
+      // Log para diagnóstico en Vercel sin interrumpir el flujo
+      console.warn('[email] pro-application notify failed', { error: mailRes.error, hint: mailRes.hint });
+    }
+    return NextResponse.json({ ok: true, emailOk: mailRes.ok }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

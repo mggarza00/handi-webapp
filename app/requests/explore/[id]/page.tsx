@@ -17,6 +17,7 @@ import type { Database } from "@/types/supabase";
 import { mapConditionToLabel } from "@/lib/conditions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import RatingStars from "@/components/ui/RatingStars";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 
 // Helpers para normalizar/mostrar fechas como dd-mm-aaaa
 function normalizeDateInput(input?: string | null): string {
@@ -239,6 +240,42 @@ export default async function ProRequestDetailPage({ params }: Params) {
               ))}
             </div>
           ) : null}
+          {/* Cliente: en mobile mostrar debajo del título */}
+          <Card className="p-4 md:hidden">
+            <h2 className="font-medium">Cliente</h2>
+            <div className="flex items-center gap-3 mt-3">
+              <Avatar className="h-12 w-12">
+                {clientProfile?.avatar_url ? (
+                  <AvatarImage src={normalizeAvatarUrl(clientProfile.avatar_url) || "/images/Favicon-v1-jpeg.jpg"} alt={nombre} />
+                ) : (
+                  <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
+                )}
+              </Avatar>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-medium leading-none truncate">{nombre}</div>
+                  {(clientProfile?.id ?? clientId) ? (
+                    <Link
+                      href={`/clients/${clientProfile?.id ?? clientId}`}
+                      className="text-xs underline hover:no-underline text-slate-600"
+                    >
+                      ver perfil y reseñas
+                    </Link>
+                  ) : null}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {typeof clientProfile?.rating === "number" ? (
+                    <RatingStars value={clientProfile.rating} className="text-[12px]" />
+                  ) : (
+                    <span>Calificación: —</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="pt-2">
+              <ChatStartPro requestId={String(d.id ?? params.id)} initialConversationId={initialConversationId} />
+            </div>
+          </Card>
           {/* Info en tarjetas (mismo diseño que /requests/[id]) */}
           <div className="space-y-4">
             <Card className="p-4">
@@ -283,13 +320,13 @@ export default async function ProRequestDetailPage({ params }: Params) {
         </div>
 
         <aside className="space-y-4">
-          <Card className="p-4 space-y-3">
+          <Card className="p-4 space-y-3 hidden md:block">
             <h2 className="font-medium">Cliente</h2>
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12">
                 {clientProfile?.avatar_url ? (
                   <AvatarImage
-                    src={clientProfile.avatar_url}
+                    src={normalizeAvatarUrl(clientProfile.avatar_url) || "/images/Favicon-v1-jpeg.jpg"}
                     alt={nombre}
                   />
                 ) : (
