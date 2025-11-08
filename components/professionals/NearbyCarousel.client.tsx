@@ -141,7 +141,7 @@ export default function NearbyCarousel() {
           <Link
             key={p.id}
             href={`/profiles/${p.id}`}
-            className="min-w-[180px] max-w-[180px] flex-shrink-0 relative overflow-hidden rounded-3xl border border-white/15 bg-white/5 backdrop-blur-[10px] shadow-[0_10px_40px_rgba(0,0,0,.25)] p-4 md:p-6"
+            className="min-w-[180px] max-w-[180px] flex-shrink-0 relative overflow-hidden rounded-3xl p-4 md:p-6 bg-white/8 backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-8px_rgba(0,0,0,.4)]"
           >
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
