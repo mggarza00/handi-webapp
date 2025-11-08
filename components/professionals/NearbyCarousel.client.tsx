@@ -149,7 +149,7 @@ export default function NearbyCarousel() {
               <img
                 src={p.avatar_url || "/images/handee_mascota.gif"}
                 alt={p.full_name || "Avatar"}
-                className="h-9 w-9 rounded-full object-cover border"
+                className="h-10 w-10 rounded-full object-cover ring-2 ring-white/40"
                 referrerPolicy="no-referrer"
                 crossOrigin="anonymous"
                 onError={(e) => {
