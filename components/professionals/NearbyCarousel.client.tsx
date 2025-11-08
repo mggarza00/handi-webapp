@@ -141,7 +141,7 @@ export default function NearbyCarousel() {
           <Link
             key={p.id}
             href={`/profiles/${p.id}`}
-            className="min-w-[180px] max-w-[180px] flex-shrink-0 glass-card glass-card--dark p-4 md:p-6"
+            className="min-w-[180px] max-w-[180px] flex-shrink-0 relative overflow-hidden rounded-3xl border border-white/15 bg-white/5 backdrop-blur-[10px] shadow-[0_10px_40px_rgba(0,0,0,.25)] p-4 md:p-6"
           >
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -168,19 +168,19 @@ export default function NearbyCarousel() {
                 </div>
               ) : null}
             </div>
-            <div className="mt-1 text-sm font-medium truncate">
+            <div className="mt-1 text-sm font-semibold text-white/95 truncate">
               {p.full_name ?? "Profesional"}
             </div>
             {p.headline ? (
-              <div className="text-[11px] text-slate-600 line-clamp-2">
+              <div className="text-[11px] text-white/80 line-clamp-2">
                 {p.headline}
               </div>
             ) : p.bio ? (
-              <div className="text-[11px] text-slate-600 line-clamp-2">
+              <div className="text-[11px] text-white/80 line-clamp-2">
                 {p.bio}
               </div>
             ) : (
-              <div className="text-[11px] text-slate-500">Sin descripción</div>
+              <div className="text-[11px] text-white/80">Sin descripción</div>
             )}
             {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
               <div className="mt-1 text-[10px] text-slate-600 line-clamp-2">
