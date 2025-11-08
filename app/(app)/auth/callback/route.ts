@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import getRouteClient from "@/lib/supabase/route-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
 
+import getRouteClient from "@/lib/supabase/route-client";
 import { env } from "@/lib/env";
 import type { Database } from "@/types/supabase";
 
@@ -35,12 +34,23 @@ export async function GET(req: Request) {
 
     await ensureProfile(supabase);
   } catch (err) {
-    const anyErr = err as unknown as { status?: number; code?: string; message?: string };
-    const status = typeof anyErr?.status === "number" ? anyErr.status : undefined;
+    const anyErr = err as unknown as {
+      status?: number;
+      code?: string;
+      message?: string;
+    };
+    const status =
+      typeof anyErr?.status === "number" ? anyErr.status : undefined;
     const code = typeof anyErr?.code === "string" ? anyErr.code : undefined;
-    const message = anyErr?.message || (err instanceof Error ? err.message : "oauth_exchange_failed");
+    const message =
+      anyErr?.message ||
+      (err instanceof Error ? err.message : "oauth_exchange_failed");
     // Log once on server
-    console.error("[auth/callback] OAuth exchange error:", { status, code, message });
+    console.error("[auth/callback] OAuth exchange error:", {
+      status,
+      code,
+      message,
+    });
     const redirectUrl = new URL("/auth/sign-in", env.appUrl);
     // Preserve details so UI can show a friendlier message
     if (status) redirectUrl.searchParams.set("status", String(status));
@@ -70,8 +80,10 @@ async function ensureProfile(supabase: SupabaseClient<Database, "public">) {
   const typedProfilesTable = profilesTable as unknown as LooseProfilesTable;
 
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const fullName = typeof metadata.full_name === "string" ? metadata.full_name : null;
-  const avatarUrl = typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
+  const fullName =
+    typeof metadata.full_name === "string" ? metadata.full_name : null;
+  const avatarUrl =
+    typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
 
   const { data: existing, error } = await typedProfilesTable
     .select("id, role")
@@ -103,7 +115,5 @@ async function ensureProfile(supabase: SupabaseClient<Database, "public">) {
     updatePayload.role = "client";
   }
 
-  await typedProfilesTable
-    .update(updatePayload)
-    .eq("id", user.id);
+  await typedProfilesTable.update(updatePayload).eq("id", user.id);
 }

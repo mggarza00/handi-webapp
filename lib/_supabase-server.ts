@@ -1,7 +1,7 @@
 // lib/_supabase-server.ts
-import getServerClient from "@/lib/supabase/server-client";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
+import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
 
 type DBClient = SupabaseClient<Database, "public", "public">;
