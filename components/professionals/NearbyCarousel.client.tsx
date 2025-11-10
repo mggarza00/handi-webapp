@@ -141,7 +141,7 @@ export default function NearbyCarousel() {
           <div key={p.id} className="min-w-[190px] max-w-[190px] flex-shrink-0 relative rounded-3xl overflow-hidden">
             <Link
               href={`/profiles/${p.id}`}
-              className="relative block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] text-white"
+              className="relative block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] text-white"
             >
             <div className="relative">
               <div className="flex items-center gap-2">
