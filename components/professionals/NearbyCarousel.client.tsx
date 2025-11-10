@@ -206,7 +206,7 @@ export default function NearbyCarousel() {
         ) : (
           <Link
             href="/professionals"
-            className="inline-flex h-9 items-center justify-center rounded-full border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 z-20"
+            className="relative isolate inline-flex h-9 items-center justify-center rounded-full px-4 text-sm font-medium text-slate-700 bg-[rgba(255,255,255,0.10)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-70 z-20"
           >
             Ver todos
           </Link>
