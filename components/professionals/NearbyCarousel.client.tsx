@@ -106,7 +106,7 @@ export default function NearbyCarousel() {
       if (!el) return;
       const styles = window.getComputedStyle(el);
       const gap = parseFloat(styles.columnGap || styles.gap || "0") || 0;
-      const cardW = 200; // coincide con grid-auto-columns y min/max de la tarjeta
+      const cardW = 190; // coincide con grid-auto-columns y min/max de la tarjeta (ajustado)
       const totalW = el.clientWidth;
       const cols = Math.floor((totalW + gap) / (cardW + gap));
       const rows = showSecondRow ? 2 : 1;
@@ -134,14 +134,14 @@ export default function NearbyCarousel() {
         className={
           "grid " +
           (showSecondRow ? "grid-rows-2 " : "grid-rows-1 ") +
-          "[grid-auto-flow:column] [grid-auto-columns:200px] gap-3 overflow-hidden justify-center justify-items-center"
+          "[grid-auto-flow:column] [grid-auto-columns:190px] gap-3 overflow-hidden justify-center justify-items-center"
         }
       >
         {shown.map((p) => (
-          <div key={p.id} className="min-w-[200px] max-w-[200px] flex-shrink-0 relative glass-noise rounded-3xl overflow-hidden">
+          <div key={p.id} className="min-w-[190px] max-w-[190px] flex-shrink-0 relative glass-noise rounded-3xl overflow-hidden">
             <Link
               href={`/profiles/${p.id}`}
-              className="relative z-10 overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.07)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.08)] before:opacity-80 after:content-[''] after:absolute after:-top-12 after:-left-10 after:h-52 after:w-52 after:rounded-full after:bg-[rgba(255,200,160,0.18)] after:blur-[70px] after:opacity-90 transition-all duration-300 text-white/[0.92] hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)]"
+              className="relative z-10 overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-white/12 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.08)] before:opacity-80 after:content-[''] after:absolute after:-top-12 after:-left-10 after:h-52 after:w-52 after:rounded-full after:bg-[rgba(255,200,160,0.18)] after:blur-[70px] after:opacity-90 transition-all duration-300 text-white/[0.92] hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)]"
             >
             <span className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/10 z-20" />
             <div className="flex items-center gap-2">
