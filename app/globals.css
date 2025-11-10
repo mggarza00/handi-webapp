@@ -501,19 +501,8 @@ body {
     opacity: 0.5; /* halo/borde suave */
   }
 
-  .glass-card::after {
-    content: "";
-    position: absolute;
-    left: -2.5rem;
-    top: -2.5rem;
-    width: 10rem;
-    height: 10rem;
-    border-radius: 9999px;
-    background: rgba(255, 255, 255, 0.10);
-    filter: blur(30px);
-    opacity: 0.5; /* luz superior */
-    pointer-events: none;
-  }
+  /* Remove radial halo from base glass card */
+  .glass-card::after { content: none; }
 
   /* Optional warm tint overlay helper */
   .glass-tint-warm {
@@ -527,6 +516,38 @@ body {
   /* Darker glass background variant for cards */
   .glass-card--dark {
     background: rgba(0, 0, 0, 0.10);
+  }
+
+  /* Neutral white glass variant without halo */
+  .glass-white {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.5rem;
+    background: rgba(255, 255, 255, 0.14);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  /* gradiente lineal */
+  .glass-white::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.60),
+      rgba(255, 255, 255, 0.15),
+      rgba(255, 255, 255, 0.10)
+    );
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  /* Variant: force-disable any ::after halo on white glass */
+  .glass-white--nohalo::after {
+    display: none !important;
   }
 
   /* Optional: subtle frost noise overlay. Apply on a relative container. */
