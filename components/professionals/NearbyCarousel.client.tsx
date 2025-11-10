@@ -193,7 +193,7 @@ export default function NearbyCarousel() {
           </div>
         ))}
       </div>
-      <div className="mt-4 flex justify-center z-0">
+      <div className="mt-4 flex justify-center z-0 relative overflow-visible">
         {!showSecondRow && visibleCount < Math.min(items.length, 12) ? (
           <button
             type="button"
