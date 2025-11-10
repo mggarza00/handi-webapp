@@ -143,8 +143,9 @@ export default function NearbyCarousel() {
               href={`/profiles/${p.id}`}
               className="relative z-10 block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-white/12 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.08)] before:opacity-80 before:pointer-events-none after:content-[''] after:absolute after:-top-12 after:-left-10 after:h-52 after:w-52 after:rounded-full after:bg-[rgba(255,200,160,0.18)] after:blur-[70px] after:opacity-90 after:pointer-events-none transition-all duration-300 text-white/[0.92] hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)]"
             >
-            <span className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/10 z-20" />
-            <div className="flex items-center gap-2">
+            <span className="pointer-events-none absolute inset-0 rounded-3xl ring-1 ring-white/10 z-30" />
+            <div className="relative z-20">
+              <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.avatar_url || "/images/handee_mascota.gif"}
@@ -168,11 +169,11 @@ export default function NearbyCarousel() {
                   <RatingStars value={p.rating} className="text-[12px]" />
                 </div>
               ) : null}
-            </div>
-            <div className="mt-1 text-sm font-semibold tracking-tight text-white/95 truncate">
+              </div>
+              <div className="mt-1 text-sm font-semibold tracking-tight text-white/95 truncate">
               {p.full_name ?? "Profesional"}
-            </div>
-            {p.headline ? (
+              </div>
+              {p.headline ? (
               <div className="text-sm text-white/85 line-clamp-2">
                 {p.headline}
               </div>
@@ -183,11 +184,12 @@ export default function NearbyCarousel() {
             ) : (
               <div className="text-sm text-white/85">Sin descripción</div>
             )}
-            {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
+              {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
               <div className="mt-1 text-sm text-white/70 line-clamp-2">
                 {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(", ")}
               </div>
-            )}
+              )}
+            </div>
             </Link>
           </div>
         ))}
