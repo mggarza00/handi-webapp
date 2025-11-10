@@ -206,7 +206,7 @@ export default function NearbyCarousel() {
         ) : (
           <Link
             href="/professionals"
-            className="relative isolate inline-flex h-9 items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/30 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none after:content-[''] after:absolute after:-top-12 after:-left-10 after:h-52 after:w-52 after:rounded-full after:bg-[rgba(255,255,255,0.25)] after:pointer-events-none transition-all duration-300 z-20"
+            className="relative isolate inline-flex h-9 items-center justify-center rounded-full px-5 py-2.5 text-sm font-medium text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/30 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] z-20"
           >
             Ver todos
           </Link>
