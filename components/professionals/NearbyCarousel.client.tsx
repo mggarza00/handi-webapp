@@ -141,7 +141,7 @@ export default function NearbyCarousel() {
           <div key={p.id} className="min-w-[206px] max-w-[206px] flex-shrink-0 relative rounded-3xl">
             <Link
               href={`/profiles/${p.id}`}
-              className="relative z-10 block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-80 after:content-[''] after:absolute after:-top-12 after:-left-10 after:h-52 after:w-52 after:rounded-full after:bg-[rgba(255,200,160,0.20)] after:blur-[70px] after:opacity-90 after:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] text-white/[0.92]"
+              className="relative z-10 block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-80 after:content-[''] after:absolute after:-top-12 after:-left-10 after:h-52 after:w-52 after:rounded-full after:bg-[rgba(255,200,160,0.20)] after:blur-[70px] after:opacity-90 after:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] text-slate-700"
             >
             <div className="relative z-10">
               <div className="flex items-center gap-2">
@@ -162,29 +162,29 @@ export default function NearbyCarousel() {
               />
               {typeof p.rating === "number" && Number.isFinite(p.rating) && p.rating > 0 ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-white/90">
+                  <span className="text-xs font-medium text-slate-700">
                     {Number.isInteger(p.rating) ? p.rating : Number(p.rating).toFixed(1)}
                   </span>
                   <RatingStars value={p.rating} className="text-[12px]" />
                 </div>
               ) : null}
               </div>
-              <div className="mt-1 text-sm font-semibold tracking-tight text-white/95 truncate">
+              <div className="mt-1 text-sm font-semibold tracking-tight text-slate-700 truncate">
               {p.full_name ?? "Profesional"}
               </div>
               {p.headline ? (
-              <div className="text-sm text-white/85 line-clamp-2">
+              <div className="text-sm text-slate-700 line-clamp-2">
                 {p.headline}
               </div>
             ) : p.bio ? (
-              <div className="text-sm text-white/85 line-clamp-2">
+              <div className="text-sm text-slate-700 line-clamp-2">
                 {p.bio}
               </div>
             ) : (
-              <div className="text-sm text-white/85">Sin descripción</div>
+              <div className="text-sm text-slate-700">Sin descripción</div>
             )}
               {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
-              <div className="mt-1 text-sm text-white/70 line-clamp-2">
+              <div className="mt-1 text-sm text-slate-700 line-clamp-2">
                 {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(", ")}
               </div>
               )}
