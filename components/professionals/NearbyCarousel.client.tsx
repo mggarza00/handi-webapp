@@ -134,7 +134,7 @@ export default function NearbyCarousel() {
         className={
           "grid " +
           (showSecondRow ? "grid-rows-2 " : "grid-rows-1 ") +
-          "[grid-auto-flow:column] [grid-auto-columns:206px] gap-4 relative overflow-visible justify-center justify-items-center"
+          "[grid-auto-flow:column] [grid-auto-columns:206px] gap-4 px-4 md:px-6 relative overflow-visible justify-center justify-items-center"
         }
       >
         {shown.map((p) => (
