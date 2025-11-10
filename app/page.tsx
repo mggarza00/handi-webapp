@@ -554,7 +554,7 @@ export default function Page() {
                       <Link
                         key={`cat-a-${c}`}
                         href={`/requests/new?category=${encodeURIComponent(c)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-700 bg-[rgba(255,255,255,0.10)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-70 data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-700 bg-[rgba(255,255,255,0.14)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {c}
                       </Link>
@@ -565,7 +565,7 @@ export default function Page() {
                       <Link
                         key={`cat-b-${c}`}
                         href={`/requests/new?category=${encodeURIComponent(c)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-700 bg-[rgba(255,255,255,0.10)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-70 data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-700 bg-[rgba(255,255,255,0.14)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.35)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {c}
                       </Link>
@@ -588,7 +588,7 @@ export default function Page() {
                       <Link
                         key={`subcat-a-${s.name}`}
                         href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-700 bg-[rgba(255,255,255,0.10)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_10px_32px_-12px_rgba(0,0,0,0.35)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-70 data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-700 bg-[rgba(255,255,255,0.14)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_10px_32px_-12px_rgba(0,0,0,0.35)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {s.icon ? (
                           isUrl(s.icon) ? (
@@ -612,7 +612,7 @@ export default function Page() {
                       <Link
                         key={`subcat-b-${s.name}`}
                         href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-700 bg-[rgba(255,255,255,0.10)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_10px_32px_-12px_rgba(0,0,0,0.35)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,245,230,0.35)] before:via-[rgba(255,255,255,0.12)] before:to-[rgba(120,90,60,0.10)] before:opacity-70 data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-700 bg-[rgba(255,255,255,0.14)] backdrop-blur-xl backdrop-saturate-150 ring-1 ring-white/20 shadow-[0_10px_32px_-12px_rgba(0,0,0,0.35)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {s.icon ? (
                           isUrl(s.icon) ? (
