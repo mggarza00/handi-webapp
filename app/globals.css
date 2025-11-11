@@ -364,8 +364,8 @@ body {
   }
   /* Respeta notch/barras laterales en móviles */
   .safe-px {
-    padding-left: max(var(--site-gutter), env(safe-area-inset-left, 0px));
-    padding-right: max(var(--site-gutter), env(safe-area-inset-right, 0px));
+    padding-left: max(env(safe-area-inset-left), 12px);
+    padding-right: max(env(safe-area-inset-right), 12px);
   }
   /* Oculta la barra de scroll horizontal pero mantiene el scroll */
   .hide-x-scrollbar {
