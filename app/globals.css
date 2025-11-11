@@ -353,6 +353,25 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  /* Lleva un bloque a lo ancho de la ventana, sin importar el contenedor */
+  .bleed-x {
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    width: 100vw;
+  }
+  /* Aplica padding horizontal seguro (usa el gutter del sitio) */
+  .safe-px {
+    padding-left: var(--site-gutter);
+    padding-right: var(--site-gutter);
+  }
+  /* Oculta la barra de scroll horizontal pero mantiene el scroll */
+  .hide-x-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .hide-x-scrollbar::-webkit-scrollbar { /* Chrome, Safari, Opera */
+    display: none;
+  }
   .chango-regular {
     font-family: Chango, sans-serif;
     font-weight: 400;

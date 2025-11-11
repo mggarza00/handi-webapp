@@ -546,91 +546,44 @@ export default function Page() {
 
           {/* Categories marquee (opposite direction to subcategories) */}
           {categories.length > 0 && (
-            <div className="mt-2">
-              <div className="marquee marquee--right" style={{ ["--marquee-duration" as any]: "150s" }}>
-                <div className="marquee__inner">
-                  <div className="marquee__group overflow-visible relative">
-                    {categories.map((c) => (
-                      <Link
-                        key={`cat-a-${c}`}
-                        href={`/requests/new?category=${encodeURIComponent(c)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
-                      >
-                        {c}
-                      </Link>
-                    ))}
-                  </div>
-                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
-                    {categories.map((c) => (
-                      <Link
-                        key={`cat-b-${c}`}
-                        href={`/requests/new?category=${encodeURIComponent(c)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
-                      >
-                        {c}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+            <div className="bleed-x safe-px sticky top-0 z-30 bg-transparent backdrop-blur-xl overflow-visible pt-3 pb-4">
+              <div className="flex flex-nowrap gap-3 overflow-x-auto hide-x-scrollbar snap-x snap-mandatory">
+                {categories.map((c) => (
+                  <Link
+                    key={`cat-${c}`}
+                    href={`/requests/new?category=${encodeURIComponent(c)}`}
+                    className="relative isolate inline-flex snap-start items-center gap-1 rounded-full -translate-y-[2px] px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                  >
+                    {c}
+                  </Link>
+                ))}
               </div>
             </div>
           )}
 
           {/* Desktop rotating text removed */}
 
-          {/* Subcategorías (carrusel) */}
+          {/* Subcategorías (rail) */}
           {subcategories.length > 0 && (
-            <div className="mt-6">
-              <div className="marquee" style={{ ["--marquee-duration" as any]: "150s" }}>
-                <div className="marquee__inner">
-                  <div className="marquee__group overflow-visible relative">
-                    {subcategories.map((s) => (
-                      <Link
-                        key={`subcat-a-${s.name}`}
-                        href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
-                      >
-                        {s.icon ? (
-                          isUrl(s.icon) ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={s.icon}
-                              alt=""
-                              className="h-3.5 w-3.5 object-contain"
-                            />
-                          ) : (
-                            <span className="text-sm leading-none">{s.icon}</span>
-                          )
-                        ) : null}
-                        <span>{s.name}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  {/* Duplicado para bucle continuo */}
-                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
-                    {subcategories.map((s) => (
-                      <Link
-                        key={`subcat-b-${s.name}`}
-                        href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
-                      >
-                        {s.icon ? (
-                          isUrl(s.icon) ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={s.icon}
-                              alt=""
-                              className="h-3.5 w-3.5 object-contain"
-                            />
-                          ) : (
-                            <span className="text-sm leading-none">{s.icon}</span>
-                          )
-                        ) : null}
-                        <span>{s.name}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
+            <div className="mt-6 bleed-x safe-px overflow-visible">
+              <div className="flex flex-nowrap gap-2 overflow-x-auto hide-x-scrollbar snap-x snap-mandatory mt-3">
+                {subcategories.map((s) => (
+                  <Link
+                    key={`subcat-${s.name}`}
+                    href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
+                    className="relative isolate inline-flex snap-start items-center gap-1 rounded-full -translate-y-[2px] px-3 py-1.5 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                  >
+                    {s.icon ? (
+                      isUrl(s.icon) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.icon} alt="" className="h-3.5 w-3.5 object-contain" />
+                      ) : (
+                        <span className="text-sm leading-none">{s.icon}</span>
+                      )
+                    ) : null}
+                    <span>{s.name}</span>
+                  </Link>
+                ))}
               </div>
             </div>
           )}
