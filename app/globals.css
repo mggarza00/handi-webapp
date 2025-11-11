@@ -355,8 +355,11 @@ body {
   }
   /* Lleva un bloque a lo ancho de la ventana, sin importar el contenedor */
   .bleed-x {
-    margin-left: calc(50% - 50vw);
-    margin-right: calc(50% - 50vw);
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
     width: 100vw;
   }
   /* Aplica padding horizontal seguro (usa el gutter del sitio) */
