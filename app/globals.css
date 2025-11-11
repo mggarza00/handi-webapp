@@ -362,10 +362,10 @@ body {
     margin-right: -50vw;
     width: 100vw;
   }
-  /* Aplica padding horizontal seguro (usa el gutter del sitio) */
+  /* Respeta notch/barras laterales en móviles */
   .safe-px {
-    padding-left: var(--site-gutter);
-    padding-right: var(--site-gutter);
+    padding-left: max(var(--site-gutter), env(safe-area-inset-left, 0px));
+    padding-right: max(var(--site-gutter), env(safe-area-inset-right, 0px));
   }
   /* Oculta la barra de scroll horizontal pero mantiene el scroll */
   .hide-x-scrollbar {
