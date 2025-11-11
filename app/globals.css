@@ -372,8 +372,9 @@ body {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
   }
+  /* Oculta scrollbar horizontal solo del rail (opcional) */
   .hide-x-scrollbar::-webkit-scrollbar { /* Chrome, Safari, Opera */
-    display: none;
+    height: 0;
   }
   .chango-regular {
     font-family: Chango, sans-serif;
