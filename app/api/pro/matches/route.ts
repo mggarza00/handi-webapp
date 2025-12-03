@@ -146,10 +146,23 @@ export async function GET() {
 
     if (requestsError) throw requestsError;
 
+    // Tipado explícito de las filas seleccionadas para evitar inferencia a `never`
+    type RequestLite = {
+      id: string;
+      title: string | null;
+      city: string | null;
+      category: string | null;
+      subcategories: unknown;
+      created_at: string | null;
+      status: "active" | "in_process" | "completed" | "cancelled" | null;
+      created_by: string;
+    };
+
     const now = Date.now();
     const matches: MatchItem[] = [];
 
-    for (const request of requests ?? []) {
+    const requestRows: RequestLite[] = (requests ?? []) as unknown as RequestLite[];
+    for (const request of requestRows) {
       if (!request) continue;
       let keep = true;
       const reasons: string[] = [];
@@ -219,12 +232,12 @@ export async function GET() {
     const payload: MatchesPayload = {
       matches: limited,
       profile: {
-        id: profile.id,
-        full_name: profile.full_name ?? null,
-        headline: profile.headline ?? null,
-        active: profile.active ?? null,
-        city: profile.city ?? null,
-        last_active_at: profile.last_active_at ?? null,
+        id: prof!.id,
+        full_name: prof!.full_name ?? null,
+        headline: prof!.headline ?? null,
+        active: prof!.active ?? null,
+        city: prof!.city ?? null,
+        last_active_at: prof!.last_active_at ?? null,
         filters: {
           cities: citySet.size,
           categories: categorySet.size,

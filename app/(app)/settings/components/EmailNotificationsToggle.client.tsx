@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
+
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function EmailNotificationsToggle() {
   const [enabled, setEnabled] = React.useState<boolean>(true);
@@ -76,4 +77,3 @@ export default function EmailNotificationsToggle() {
     </div>
   );
 }
-

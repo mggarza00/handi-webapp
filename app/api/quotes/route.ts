@@ -45,18 +45,20 @@ export async function POST(req: Request) {
       .select("id, customer_id, pro_id, request_id")
       .eq("id", conversationId)
       .maybeSingle();
-    if (!conv) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
-    if (String(conv.pro_id) !== user.id) return NextResponse.json({ ok: false, error: "ONLY_PRO_CAN_QUOTE" }, { status: 403, headers: JSONH });
+    type ConversationLite = { id: string; customer_id: string; pro_id: string; request_id: string };
+    const convLite = (conv ?? null) as unknown as ConversationLite | null;
+    if (!convLite) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
+    if (String(convLite.pro_id) !== user.id) return NextResponse.json({ ok: false, error: "ONLY_PRO_CAN_QUOTE" }, { status: 403, headers: JSONH });
 
     const total = body.items.reduce((acc, it) => acc + Number(it.amount || 0), 0);
 
     // Insert quote
-    const ins = await admin
-      .from("quotes")
+    const quotesQB = (admin.from("quotes") as unknown as any);
+    const ins = await quotesQB
       .insert({
         conversation_id: conversationId,
         professional_id: user.id,
-        client_id: conv.customer_id,
+        client_id: convLite.customer_id,
         currency: body.currency || "MXN",
         items: body.items,
         total,
@@ -76,7 +78,7 @@ export async function POST(req: Request) {
     // Load names for rendering
     const [proProfile, clientProfile] = await Promise.all([
       admin.from("profiles").select("full_name, email").eq("id", user.id).maybeSingle(),
-      admin.from("profiles").select("full_name, email").eq("id", conv.customer_id).maybeSingle(),
+      admin.from("profiles").select("full_name, email").eq("id", convLite.customer_id).maybeSingle(),
     ]);
 
     // Fetch request meta for service title and conditions
@@ -214,11 +216,10 @@ export async function POST(req: Request) {
 
     // Persist and attach if we managed to upload any format
     if (uploadedKey) {
-      await admin.from("quotes").update({ image_path: uploadedKey }).eq("id", quoteId);
+      await (admin.from("quotes") as any).update({ image_path: uploadedKey }).eq("id", quoteId);
       let mid = messageId;
       if (!mid) {
-        const insMsg = await admin
-          .from("messages")
+        const insMsg = await (admin.from("messages") as any)
           .insert({
             conversation_id: conversationId,
             sender_id: user.id,
@@ -239,7 +240,7 @@ export async function POST(req: Request) {
         mid = (insMsg.data as any)?.id as string | undefined ?? null;
       }
       if (mid) {
-        await admin.from("message_attachments").insert({
+        await (admin.from("message_attachments") as any).insert({
           message_id: mid,
           conversation_id: conversationId,
           uploader_id: user.id,

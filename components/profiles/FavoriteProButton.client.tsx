@@ -1,7 +1,15 @@
 "use client";
 import * as React from "react";
 import { Heart } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
+
+const logFavoriteError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[FavoriteProButton]", error);
+  }
+};
 
 export default function FavoriteProButton({ proId }: { proId: string }) {
   const [loading, setLoading] = React.useState(false);
@@ -16,8 +24,8 @@ export default function FavoriteProButton({ proId }: { proId: string }) {
         const res = await fetch(`/api/favorites/pros?proId=${encodeURIComponent(proId)}`, { cache: 'no-store', credentials: 'include' });
         const j = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && j && typeof j.is_favorite === 'boolean') setAdded(Boolean(j.is_favorite));
-      } catch {
-        // ignore
+      } catch (error) {
+        logFavoriteError(error);
       }
     })();
     return () => { cancelled = true; };

@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
-import { isStandalonePWA, isAndroid } from "@/lib/pwa/install-detect";
+import { isAndroid, isStandalonePWA } from "@/lib/pwa/install-detect";
 
 type UserChoiceOutcome = "accepted" | "dismissed";
 
@@ -13,6 +14,13 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const LS_KEY_DISMISSED = "handi:pwa:install:dismissed";
+
+const logAndroidPromptError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[AndroidInstallPrompt]", error);
+  }
+};
 
 export default function AndroidInstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
@@ -44,7 +52,11 @@ export default function AndroidInstallPrompt() {
 
   const onClose = useCallback(() => {
     setVisible(false);
-    try { localStorage.setItem(LS_KEY_DISMISSED, "1"); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(LS_KEY_DISMISSED, "1");
+    } catch (error) {
+      logAndroidPromptError(error);
+    }
   }, []);
 
   const onInstall = useCallback(async () => {
@@ -57,7 +69,8 @@ export default function AndroidInstallPrompt() {
       } else {
         onClose();
       }
-    } catch {
+    } catch (error) {
+      logAndroidPromptError(error);
       onClose();
     }
   }, [deferred, onClose]);
@@ -86,4 +99,3 @@ export default function AndroidInstallPrompt() {
     </div>
   );
 }
-

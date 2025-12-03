@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import getRouteClient from "@/lib/supabase/route-client";
 
+import getRouteClient from "@/lib/supabase/route-client";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -10,10 +10,9 @@ export async function POST(req: NextRequest) {
   if (!ct.includes("application/json")) {
     return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let body: any;
+  let body: Record<string, unknown>;
   try {
-    body = await req.json();
+    body = (await req.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ ok: false, error: "INVALID_JSON" }, { status: 400, headers: JSONH });
   }
@@ -35,19 +34,19 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
   // Use RPC for atomic upsert keyed by normalized address (unaccent/lower/md5)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const r: any = await (supabase as any).rpc("upsert_user_address_book", {
+  const args: Database["public"]["Functions"]["upsert_user_address_book"]["Args"] = {
     p_address: address,
     p_city: city ?? null,
     p_lat: lat ?? null,
     p_lon: lon ?? null,
     p_postal_code: postal_code ?? null,
     p_label: label ?? null,
-  });
-  if (r?.error) {
-    return NextResponse.json({ ok: false, error: r.error?.message || "UPSERT_FAILED" }, { status: 400, headers: JSONH });
+  };
+  const { data: upsertId, error } = await supabase.rpc("upsert_user_address_book", args);
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message || "UPSERT_FAILED" }, { status: 400, headers: JSONH });
   }
-  const id = r?.data ?? null;
+  const id = upsertId ?? null;
   if (!id) return NextResponse.json({ ok: false, error: "UPSERT_FAILED" }, { status: 400, headers: JSONH });
   return NextResponse.json({ ok: true, id }, { status: 200, headers: JSONH });
 }

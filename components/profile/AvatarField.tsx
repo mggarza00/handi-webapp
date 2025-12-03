@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
 import Image from "next/image";
+
+import { Button } from "@/components/ui/button";
 // no client-side Supabase update here; upload handled server-side
 
 export function AvatarField({ url, userId, onChangeUrl }: { url?: string; userId: string; onChangeUrl: (u: string) => void }) {

@@ -1,5 +1,6 @@
 "use client";
 import { usePathname } from "next/navigation";
+
 import SiteFooter from "@/components/site-footer";
 
 export default function ConditionalFooter() {
@@ -12,4 +13,3 @@ export default function ConditionalFooter() {
     </div>
   );
 }
-

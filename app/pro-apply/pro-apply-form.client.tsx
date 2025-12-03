@@ -1,11 +1,13 @@
 "use client";
 import * as React from "react";
+import Image from "next/image";
 import { z } from "zod";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -28,6 +30,19 @@ import {
 } from "@/lib/drafts";
 
 const RFC_REGEX = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
+
+// Bank helpers
+function onlyDigits(s: string) { return (s || "").replace(/\D+/g, ""); }
+function clabePretty(v: string) { return onlyDigits(v).slice(0, 18).replace(/(.)/g, '$1 ').trim(); }
+function isValidClabe(input: string): boolean {
+  const clabe = onlyDigits(input);
+  if (!/^\d{18}$/.test(clabe)) return false;
+  const weights = [3, 7, 1] as const;
+  let sum = 0;
+  for (let i = 0; i < 17; i++) sum += ((clabe.charCodeAt(i) - 48) * weights[i % 3]) % 10;
+  const dv = (10 - (sum % 10)) % 10;
+  return dv === (clabe.charCodeAt(17) - 48);
+}
 
 const AppSchema = z
   .object({
@@ -120,6 +135,14 @@ export default function ProApplyForm({
   const [loadingCats, setLoadingCats] = React.useState(false);
   const [years, setYears] = React.useState("");
   const [privacy, setPrivacy] = React.useState(false);
+  // Bank account (optional capture)
+  const [bankHolder, setBankHolder] = React.useState("");
+  const [bankName, setBankName] = React.useState("");
+  const [bankEdited, setBankEdited] = React.useState(false);
+  const [bankClabe, setBankClabe] = React.useState("");
+  const [bankCover, setBankCover] = React.useState<File | null>(null);
+  const [bankErrs, setBankErrs] = React.useState<{ holder: boolean; bank: boolean; clabe: boolean }>({ holder: false, bank: false, clabe: false });
+  const [accountType, setAccountType] = React.useState("");
   // Facturación (solo persona física)
   const [canInvoiceSelf, setCanInvoiceSelf] = React.useState(false);
   const [authorizeHandi, setAuthorizeHandi] = React.useState(false);
@@ -161,6 +184,8 @@ export default function ProApplyForm({
     repIdBack: boolean;
     // común
     sig: boolean;
+    // banco (opcional)
+    bankCover: boolean;
   }>({
     cv: false,
     letters: false,
@@ -171,6 +196,7 @@ export default function ProApplyForm({
     repIdFront: false,
     repIdBack: false,
     sig: false,
+    bankCover: false,
   });
 
   // Uploads
@@ -198,6 +224,7 @@ export default function ProApplyForm({
   const [sigDirty, setSigDirty] = React.useState(false);
   const [sigPreviewUrl, setSigPreviewUrl] = React.useState<string | null>(null);
   const [sigOpen, setSigOpen] = React.useState(false);
+  type UploadResponse = { ok: boolean; url: string; path: string; error?: string; detail?: string };
 
   // Load draft on mount
   React.useEffect(() => {
@@ -217,9 +244,15 @@ export default function ProApplyForm({
         categories?: string[];
         subcategories?: string[];
         years_experience?: string;
-        privacy_accept?: boolean;
-        references?: Reference[];
-      }>("draft:apply-professional");
+      privacy_accept?: boolean;
+      references?: Reference[];
+      billing_can_invoice_self?: boolean;
+      billing_authorize_handi?: boolean;
+      bank_holder?: string;
+      bank_name?: string;
+      bank_clabe?: string;
+      bank_account_type?: string;
+    }>("draft:apply-professional");
       if (d) {
         if (typeof d.full_name === "string") setFullName(d.full_name);
         if (typeof d.phone === "string") setPhone(d.phone);
@@ -243,15 +276,19 @@ export default function ProApplyForm({
         if (typeof d.years_experience === "string")
           setYears(d.years_experience);
         if (typeof d.privacy_accept === "boolean") setPrivacy(d.privacy_accept);
-        if (typeof (d as any).billing_can_invoice_self === "boolean")
-          setCanInvoiceSelf((d as any).billing_can_invoice_self as boolean);
-        if (typeof (d as any).billing_authorize_handi === "boolean")
-          setAuthorizeHandi((d as any).billing_authorize_handi as boolean);
+        if (typeof d.billing_can_invoice_self === "boolean")
+          setCanInvoiceSelf(d.billing_can_invoice_self);
+        if (typeof d.billing_authorize_handi === "boolean")
+          setAuthorizeHandi(d.billing_authorize_handi);
         if (Array.isArray(d.references) && d.references.length === 3)
           setRefs(d.references);
+        if (typeof d.bank_holder === "string") setBankHolder(d.bank_holder);
+        if (typeof d.bank_name === "string") setBankName(d.bank_name);
+        if (typeof d.bank_clabe === "string") setBankClabe(d.bank_clabe);
+        if (typeof d.bank_account_type === "string") setAccountType(d.bank_account_type);
       }
     } catch {
-      // ignore
+      /* ignore */
     }
   }, []);
 
@@ -276,6 +313,10 @@ export default function ProApplyForm({
       billing_can_invoice_self: canInvoiceSelf,
       billing_authorize_handi: authorizeHandi,
       references: refs,
+      bank_holder: bankHolder,
+      bank_name: bankName,
+      bank_clabe: bankClabe,
+      bank_account_type: accountType,
     });
   }, [
     fullName,
@@ -296,7 +337,73 @@ export default function ProApplyForm({
     canInvoiceSelf,
     authorizeHandi,
     refs,
+    bankHolder,
+    bankName,
+    bankClabe,
+    accountType,
   ]);
+
+  // Prefill bank account from existing record; fallback to full name
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/me/bank-account", { cache: "no-store", credentials: "include" });
+        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; account?: Record<string, unknown> | null };
+        if (res.ok && j?.account && !cancelled) {
+          const acc = j.account as Record<string, unknown>;
+          const holder = String(acc["account_holder_name"] ?? "").trim();
+          const bname = String(acc["bank_name"] ?? "").trim();
+          const clabe = String(acc["clabe"] ?? "").trim();
+          const atype = String(acc["account_type"] ?? "").trim();
+          if (holder) setBankHolder((prev) => (prev || holder));
+          if (bname) setBankName((prev) => (prev || bname));
+          if (clabe) setBankClabe((prev) => (prev || clabe));
+          if (atype) setAccountType((prev) => (prev || atype));
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) {
+          if (!bankHolder && fullName) setBankHolder(fullName);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mantener "Nombre del titular" sincronizado según el tipo:
+  // - Empresa: usar Razón social
+  // - Persona física: usar Nombre completo
+  React.useEffect(() => {
+    if (empresa) {
+      const legal = (companyLegalName || "").trim();
+      setBankHolder(legal);
+    } else {
+      setBankHolder((fullName || "").trim());
+    }
+  }, [empresa, companyLegalName, fullName]);
+
+  // Al cambiar a "Represento a una empresa", vaciar el campo de nombre comercial
+  React.useEffect(() => {
+    if (empresa) {
+      setFullName("");
+    }
+  }, [empresa]);
+
+  // Sugerir banco a partir del prefijo de CLABE (3 dígitos), si el usuario no lo ha escrito
+  React.useEffect(() => {
+    if (bankEdited) return;
+    const code = onlyDigits(bankClabe).slice(0, 3);
+    const map: Record<string, string> = {
+      '002': 'Citibanamex', '006': 'Banco del Bajío', '009': 'BBVA', '012': 'BBVA', '014': 'Santander', '019': 'BanRegio', '021': 'HSBC',
+      '030': 'Banco del Bajío', '032': 'IXE', '036': 'Inbursa', '044': 'Scotiabank', '058': 'Banamex (old)', '059': 'Invex', '062': 'Afirme',
+      '072': 'Banorte', '127': 'Azteca', '128': 'Banamex (wallet)', '136': 'Intercam', '137': 'BanCoppel', '138': 'BanCoppel',
+    };
+    const suggestion = map[code] || '';
+    if (suggestion && !bankName.trim()) setBankName(suggestion);
+  }, [bankClabe, bankEdited, bankName]);
 
   // Do not auto-submit this form after login because files/signature cannot be persisted
   React.useEffect(() => {
@@ -385,7 +492,11 @@ export default function ProApplyForm({
         return;
       }
       // Ensure touch-action none
-      try { (canvas.style as any).touchAction = "none"; } catch {}
+      try {
+        canvas.style.touchAction = "none";
+      } catch {
+        /* ignore */
+      }
       ctx = canvas.getContext("2d");
       if (!ctx) {
         rafSetup = requestAnimationFrame(setup);
@@ -443,7 +554,11 @@ export default function ProApplyForm({
       };
       const up = (e: PointerEvent) => {
         drawing = false;
-        try { canvas!.releasePointerCapture(e.pointerId); } catch {}
+        try {
+          canvas!.releasePointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
       };
 
       canvas!.addEventListener("pointerdown", down);
@@ -507,7 +622,7 @@ export default function ProApplyForm({
       const url = dest.toDataURL("image/png");
       setSigPreviewUrl(url);
     } catch {
-      // ignore
+      /* ignore */
     }
     setSigOpen(false);
   }
@@ -537,12 +652,12 @@ export default function ProApplyForm({
       }
       throw new Error(text || "Error al subir archivo. Intenta nuevamente.");
     }
-    const j = await res.json().catch(() => null);
+    const j = (await res.json().catch(() => null)) as UploadResponse | null;
     if (!res.ok || !j?.ok) {
       const detail = (j && (j.error || j.detail)) || "No se pudo subir archivo";
       throw new Error(String(detail));
     }
-    return { url: (j as any).url as string, path: (j as any).path as string };
+    return { url: j.url, path: j.path };
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -574,6 +689,7 @@ export default function ProApplyForm({
       repIdFront: false,
       repIdBack: false,
       sig: false,
+      bankCover: false,
     });
 
     const cities = selectedCities.slice();
@@ -770,6 +886,34 @@ export default function ProApplyForm({
       return;
     }
 
+    // Validación requerida de cuenta bancaria con Zod + DV adicional
+    const clabeDigits = onlyDigits(bankClabe);
+    const bankParsed = BankSchema.safeParse({
+      account_holder_name: bankHolder.trim(),
+      bank_name: bankName.trim(),
+      clabe: clabeDigits,
+      account_type: accountType || undefined,
+      verification_document_url: undefined, // se asigna tras upload si existe
+    });
+    if (!bankParsed.success) {
+      const issues = bankParsed.error.issues || [];
+      const holderErr = issues.some((i) => i.path[0] === 'account_holder_name');
+      const bankErr = issues.some((i) => i.path[0] === 'bank_name');
+      const clabeErr = issues.some((i) => i.path[0] === 'clabe');
+      setBankErrs({ holder: holderErr, bank: bankErr, clabe: clabeErr });
+      const first = issues[0]?.message || 'Revisa los datos de tu cuenta bancaria.';
+      setError(first);
+      toast.error(first);
+      return;
+    }
+    if (!isValidClabe(clabeDigits)) {
+      setBankErrs((p) => ({ ...p, clabe: true }));
+      const msg = 'CLABE inválida (dígito verificador no coincide).';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
     setLoading(true);
     try {
       // 1) Upload files
@@ -832,6 +976,23 @@ export default function ProApplyForm({
         uploads.id_front_url = idFrontUp.url;
         uploads.id_back_url = idBackUp.url;
       }
+
+      // Bank cover (opcional)
+      if (bankCover) {
+        if (bankCover.size > MAX_FILE_SIZE) {
+          const msg = "Carátula bancaria excede 10 MB.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, bankCover: true }));
+          return;
+        }
+        const bankPrefix = `${userId}/`;
+        const bankUp = await uploadViaApi(
+          bankCover,
+          `${bankPrefix}bank-cover-${Date.now()}-${encodeURIComponent(bankCover.name)}`,
+        );
+        uploads.bank_cover_url = bankUp.url;
+      }
       const canvas = sigCanvasRef.current!;
       const blob: Blob = await new Promise((resolve) =>
         canvas.toBlob((b) => resolve(b as Blob), "image/png"),
@@ -861,6 +1022,26 @@ export default function ProApplyForm({
       if (!profRes.ok) {
         const j = await profRes.json().catch(() => null);
         throw new Error(j?.error || "No se pudo guardar el perfil");
+      }
+
+      // 2.5) Guardar cuenta bancaria (requerida)
+      {
+        const resBank = await fetch("/api/me/bank-account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({
+            account_holder_name: bankHolder.trim(),
+            bank_name: bankName.trim(),
+            clabe: clabeDigits,
+            account_type: accountType || undefined,
+            verification_document_url: uploads.bank_cover_url || undefined,
+            rfc: rfc ? rfc.trim().toUpperCase() : undefined,
+          }),
+        });
+        if (!resBank.ok) {
+          const j = await resBank.json().catch(() => null);
+          throw new Error(j?.error || "No se pudo guardar la cuenta bancaria");
+        }
       }
 
       // 3) Send application to admins
@@ -931,12 +1112,12 @@ export default function ProApplyForm({
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm mb-1">Nombre completo</label>
+            <label className="block text-sm mb-1">{empresa ? "Nombre comercial de la empresa" : "Nombre completo"}</label>
             <Input
               aria-invalid={fieldErrs.full_name}
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Tu nombre"
+              placeholder={empresa ? "Nombre comercial" : "Tu nombre"}
             />
           </div>
           <div>
@@ -1260,6 +1441,89 @@ export default function ProApplyForm({
         </div>
       </section>
 
+      {/* Cuentas bancarias */}
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="mb-3 text-base font-semibold">Cuentas bancarias</h2>
+        <p className="text-xs text-slate-600 mb-3">Usaremos esta cuenta para transferirte tus pagos. Debe estar a tu nombre.</p>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm mb-1">Nombre del titular</label>
+            <Input
+              aria-invalid={bankErrs.holder}
+              value={bankHolder}
+              placeholder="Como aparece en tu banco"
+              disabled
+              className="bg-slate-50"
+            />
+            {bankErrs.holder && (
+              <p className="text-xs text-pink-600 mt-1">Ingresa el nombre del titular</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Banco</label>
+            <Input
+              aria-invalid={bankErrs.bank}
+              value={bankName}
+              onChange={(e) => { setBankEdited(true); setBankName(e.target.value); }}
+              placeholder="Selecciona tu banco"
+            />
+            {bankErrs.bank && (
+              <p className="text-xs text-pink-600 mt-1">Completa el banco</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm mb-1">CLABE: 18 dígitos (solo números)</label>
+            <Input
+              aria-invalid={bankErrs.clabe}
+              value={clabePretty(bankClabe)}
+              onChange={(e) => setBankClabe(onlyDigits(e.target.value).slice(0, 18))}
+              onPaste={(e) => {
+                const t = e.clipboardData.getData('text');
+                e.preventDefault();
+                setBankClabe(onlyDigits(t).slice(0, 18));
+              }}
+              placeholder="0000 0000 0000 0000 00"
+              inputMode="numeric"
+            />
+            {(() => {
+              const d = onlyDigits(bankClabe);
+              if (d.length > 0 && d.length < 18)
+                return <p className="text-xs text-amber-700 mt-1">CLABE incompleta (18 dígitos requeridos)</p>;
+              if (d.length === 18 && !isValidClabe(d))
+                return <p className="text-xs text-pink-600 mt-1">CLABE inválida (dígito verificador no coincide)</p>;
+              if (bankErrs.clabe)
+                return <p className="text-xs text-pink-600 mt-1">CLABE inválida</p>;
+              return null;
+            })()}
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Tipo de cuenta (opcional)</label>
+            <Select value={accountType} onValueChange={setAccountType}>
+              <SelectTrigger className="w-full" aria-label="Tipo de cuenta">
+                <SelectValue placeholder="Selecciona tipo de cuenta" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ahorro">Ahorro</SelectItem>
+                <SelectItem value="cheques">Cheques</SelectItem>
+                <SelectItem value="nomina">Nómina</SelectItem>
+                <SelectItem value="debito">Débito</SelectItem>
+                <SelectItem value="otra">Otra</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="block text-sm mb-1">Sube carátula o captura donde se vea tu nombre y CLABE (opcional, ayuda a verificar)</label>
+            <Input
+              className={cn(fileErrs.bankCover && "border-pink-500 focus-visible:ring-pink-500/50")}
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setBankCover(e.currentTarget.files?.[0] ?? null)}
+            />
+            <p className="text-xs text-slate-500 mt-1">Máx. 10 MB. Formatos: PDF o imagen.</p>
+          </div>
+        </div>
+      </section>
+
       {!empresa && (
         <section className="rounded-xl border bg-white p-5 shadow-sm">
           <h2 className="mb-3 text-base font-semibold">Facturación</h2>
@@ -1381,10 +1645,13 @@ export default function ProApplyForm({
             </Button>
             {sigPreviewUrl && (
               <div className="mt-3">
-                <img
+                <Image
                   src={sigPreviewUrl}
                   alt="Firma"
-                  className="h-20 w-auto max-w-full rounded-md border bg-white"
+                  width={320}
+                  height={80}
+                  unoptimized
+                  className="h-20 w-auto max-w-full rounded-md border bg-white object-contain"
                 />
               </div>
             )}
@@ -1491,3 +1758,10 @@ function MultiSelect({
     </Popover>
   );
 }
+const BankSchema = z.object({
+  account_holder_name: z.string().min(2, "Requerido"),
+  bank_name: z.string().min(2, "Requerido"),
+  clabe: z.string().regex(/^\d{18}$/, "La CLABE debe tener 18 dígitos"),
+  account_type: z.string().optional(),
+  verification_document_url: z.string().url().optional(),
+});

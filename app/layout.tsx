@@ -8,6 +8,7 @@ import SiteHeader from "@/components/site-header";
 import ConditionalSiteHeader from "@/components/ConditionalSiteHeader.client";
 import ConditionalFooter from "@/components/ConditionalFooter.client";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
+import CreateRequestWizardRoot from "@/components/requests/CreateRequestWizardRoot";
 import { concertOne, nunito, varelaRound } from "@/lib/fonts";
 import LeafletCSS from "@/components/LeafletCSS.client";
 import OneTapMount from "@/components/OneTapMount";
@@ -39,7 +40,7 @@ export const metadata: Metadata = {
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
     url: "/",
     siteName: "Handi",
-    images: ["/images/Logo-Handi-v2.gif"],
+    images: ["/images/LOGO_HANDI_DB.png"],
     locale: "es_MX",
     type: "website",
   },
@@ -48,19 +49,13 @@ export const metadata: Metadata = {
     title: "Handi",
     description:
       "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
-    images: ["/images/Logo-Handi-v2.gif"],
+    images: ["/images/LOGO_HANDI_DB.png"],
   },
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   icons: {
-    // Mantener rutas originales de favicon por compatibilidad
-    icon: [
-      { url: "/icons/favicon-handi.gif", type: "image/gif" },
-      { url: "/favicon.ico", type: "image/x-icon" },
-    ],
-    shortcut: ["/favicon.ico", "/icons/favicon-handi.gif"],
-    apple: [
-      { url: "/icons/favicon-handi.gif" },
-    ],
+    icon: [{ url: "/images/handifav_sinfondo.png", type: "image/png" }],
+    shortcut: ["/favicon.ico", "/images/handifav_sinfondo.png"],
+    apple: [{ url: "/images/handifav_fondo.png", type: "image/png" }],
   },
 };
 
@@ -81,8 +76,8 @@ export default function RootLayout({
         <meta charSet="utf-8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <link rel="apple-touch-icon" href="/icons/favicon-handi.gif" />
-        <link rel="icon" type="image/gif" href="/icons/favicon-handi.gif" />
+        <link rel="apple-touch-icon" href="/images/handifav_fondo.png" />
+        <link rel="icon" type="image/png" href="/images/handifav_sinfondo.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
           rel="preconnect"
@@ -118,6 +113,7 @@ export default function RootLayout({
         <ConditionalFooter />
         {/* Mobile-only bottom tab bar for clients */}
         <MobileClientTabBar />
+        <CreateRequestWizardRoot />
         {/* Load Leaflet styles once on client */}
         <LeafletCSS />
         {/* Ensure Service Worker is registered (place above install/notify banners) */}

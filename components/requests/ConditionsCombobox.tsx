@@ -3,6 +3,7 @@ import * as React from "react";
 import { X, Search } from "lucide-react";
 
 import { CONDITION_SUGGESTIONS, mapConditionToLabel } from "@/lib/conditions";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ type Props = {
   onChange: (v: string) => void;
   max?: number;
   placeholder?: string;
+  triggerClassName?: string;
 };
 
 function splitChips(s: string): string[] {
@@ -30,12 +32,14 @@ export default function ConditionsCombobox({
   onChange,
   max = 10,
   placeholder = "Agregar condición...",
+  triggerClassName,
 }: Props) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   const chips = React.useMemo(() => splitChips(value).slice(0, max), [value, max]);
+  const hasChips = chips.length > 0;
 
   const normalized = React.useCallback((s: string) => s.replace(/\s+/g, " ").trim(), []);
   const add = React.useCallback(
@@ -77,29 +81,31 @@ export default function ConditionsCombobox({
   }, [normalized, query, chips]);
 
   return (
-    <div className="space-y-2">
+    <div className={cn(hasChips ? "space-y-2" : "space-y-0")}>
       {/* Chips seleccionados */}
-      <div className="flex flex-wrap gap-2">
-        {chips.map((c, i) => (
-          <Badge
-            key={`${c}-${i}`}
-            variant="secondary"
-            title={c}
-            aria-label={c}
-            className="px-2 py-1 text-xs bg-secondary/50 text-secondary-foreground/90 border-secondary/30"
-          >
-            <span>{mapConditionToLabel(c)}</span>
-            <button
-              type="button"
-              aria-label={`Quitar ${c}`}
-              className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded hover:bg-slate-200"
-              onClick={() => remove(i)}
+      {hasChips ? (
+        <div className="flex flex-wrap gap-2">
+          {chips.map((c, i) => (
+            <Badge
+              key={`${c}-${i}`}
+              variant="secondary"
+              title={c}
+              aria-label={c}
+              className="px-2 py-1 text-xs bg-secondary/50 text-secondary-foreground/90 border-secondary/30"
             >
-              <X className="h-3 w-3" />
-            </button>
-          </Badge>
-        ))}
-      </div>
+              <span>{mapConditionToLabel(c)}</span>
+              <button
+                type="button"
+                aria-label={`Quitar ${c}`}
+                className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded hover:bg-slate-200"
+                onClick={() => remove(i)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      ) : null}
 
       {/* Trigger + Popover */}
       <Popover open={open} onOpenChange={setOpen}>
@@ -109,7 +115,7 @@ export default function ConditionsCombobox({
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="inline-flex gap-2"
+            className={cn("inline-flex gap-2", triggerClassName)}
           >
             <span>{placeholder}</span>
           </Button>
@@ -152,7 +158,7 @@ export default function ConditionsCombobox({
             {filtered.length > 0 ? (
               <ul role="listbox" aria-label="Sugerencias">
                 {filtered.map((s) => (
-                  <li key={s.value} role="option">
+                  <li key={s.value} role="option" aria-selected={false}>
                     <Button
                       type="button"
                       variant="ghost"

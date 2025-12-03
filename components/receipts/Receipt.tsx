@@ -1,9 +1,10 @@
-/* eslint-disable import/order */
-import * as React from 'react';
-import Link from 'next/link';
-import { formatMXN, formatDateMX } from '@/lib/format';
-import type { ServerReceipt } from '@/types/receipt';
-import { toReceiptData } from '@/lib/receipt-map';
+import * as React from "react";
+import Image from "next/image";
+import Link from "next/link";
+
+import { formatDateMX, formatMXN } from "@/lib/format";
+import { toReceiptData } from "@/lib/receipt-map";
+import type { ServerReceipt } from "@/types/receipt";
 
 type Props = { data: ServerReceipt };
 
@@ -52,8 +53,14 @@ export default async function Receipt({ data: src }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-6">
         <div className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={d.business?.logoUrl || '/images/Logo-Handi-v2.gif'} alt={d.business?.name || 'Handi'} className="h-10 w-10 rounded" />
+          <Image
+            src={d.business?.logoUrl || "/images/LOGO_HANDI_DB.png"}
+            alt={d.business?.name || "Handi"}
+            width={40}
+            height={40}
+            className="h-10 w-10 rounded"
+            unoptimized
+          />
           <div>
             <div className="text-xl font-semibold tracking-tight">{d.business?.name || 'Handi'}</div>
             <div className="text-xs uppercase text-gray-500">Recibo de pago</div>
@@ -61,7 +68,14 @@ export default async function Receipt({ data: src }: Props) {
         </div>
         <div className="text-right">
           {/* Logo top-right */}
-          <img src="/images/Logo-Handi-v2.gif" alt="Handi" className="h-6 w-auto ml-auto mb-1 hidden sm:block" />
+          <Image
+            src="/images/LOGO_HANDI_DB.png"
+            alt="Handi"
+            width={120}
+            height={24}
+            className="ml-auto mb-1 hidden h-6 w-auto sm:block"
+            unoptimized
+          />
           <div className="text-xs uppercase text-gray-500">Folio</div>
           <div className="text-sm font-medium">{d.id}</div>
           <div className="text-xs uppercase text-gray-500 mt-2">Fecha</div>
@@ -160,8 +174,14 @@ export default async function Receipt({ data: src }: Props) {
           <div className="text-sm text-gray-900">Escanéame para verificar</div>
           <div className="text-xs text-gray-600">{receiptUrl}</div>
         </div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qrSrc || '/images/Logo-Handi-v2.gif'} alt="QR" className="h-24 w-24 border rounded" />
+        <Image
+          src={qrSrc || "/images/LOGO_HANDI_DB.png"}
+          alt="QR"
+          width={96}
+          height={96}
+          className="h-24 w-24 rounded border"
+          unoptimized
+        />
       </div>
     </section>
   );

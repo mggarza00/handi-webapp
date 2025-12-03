@@ -1,15 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import ensurePushSubscription from "@/lib/push";
+
+const logPushError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.error("[EnableNotificationsButton]", error);
+  }
+};
 
 function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false;
   try {
     const ua = navigator.userAgent || navigator.vendor || "";
     const iOSUA = /iPad|iPhone|iPod/i.test(ua);
-    const iPadOS = navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1;
+    const iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
     return iOSUA || iPadOS;
   } catch {
     return false;
@@ -40,7 +47,8 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
     if (!supported) return;
     try {
       setPerm(Notification.permission);
-    } catch {
+    } catch (error) {
+      logPushError(error);
       setPerm(null);
     }
   }, [supported]);
@@ -55,8 +63,8 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
         if (!reg) return;
         const sub = await reg.pushManager.getSubscription();
         setEnabled(!!sub);
-      } catch {
-        // ignore
+      } catch (error) {
+        logPushError(error);
       }
     })();
   }, [mounted, supported]);
@@ -69,7 +77,7 @@ export default function EnableNotificationsButton({ publicKey, className, labelE
       if (!publicKey) throw new Error('Falta la clave pública VAPID');
 
       const sub = await ensurePushSubscription(publicKey);
-      const payload = (sub as any)?.toJSON?.() ?? JSON.parse(JSON.stringify(sub));
+      const payload = sub?.toJSON?.() ?? JSON.parse(JSON.stringify(sub));
       const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : undefined;
       const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
 

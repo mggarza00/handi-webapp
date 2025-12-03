@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
-
 import { notifyAgreementUpdated } from "@/lib/notifications";
+import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 
 const JSON_HEADERS = {
@@ -17,7 +16,6 @@ const BodySchema = z.object({
 type AgreementsTable = Database["public"]["Tables"]["agreements"];
 type AgreementRow = AgreementsTable["Row"];
 type AgreementUpdate = AgreementsTable["Update"];
-type RequestRow = Database["public"]["Tables"]["requests"]["Row"];
 type Actor = z.infer<typeof BodySchema>["actor"];
 type WaitingFor = "cliente" | "profesional" | null;
 
@@ -143,13 +141,27 @@ export async function handleServiceCompletion(
       );
     }
 
-    const { data: agreement, error: agreementError } = await (supabase as any)
+    const { data: agreement, error: agreementError } = await supabase
       .from("agreements")
       .select(
         "id, request_id, professional_id, amount, status, completed_by_pro, completed_by_client, completed_at, created_at, updated_at",
       )
       .eq("id", idParse.data)
-      .maybeSingle();
+      .maybeSingle<
+        Pick<
+          Database["public"]["Tables"]["agreements"]["Row"],
+          | "id"
+          | "request_id"
+          | "professional_id"
+          | "amount"
+          | "status"
+          | "completed_by_pro"
+          | "completed_by_client"
+          | "completed_at"
+          | "created_at"
+          | "updated_at"
+        >
+      >();
 
     if (agreementError) {
       return NextResponse.json(
@@ -190,7 +202,7 @@ export async function handleServiceCompletion(
         );
       }
 
-      const { data: request, error: requestError } = await (supabase as any)
+      const { data: request, error: requestError } = await supabase
         .from("requests")
         .select("id, created_by")
         .eq("id", agreement.request_id)
@@ -203,8 +215,7 @@ export async function handleServiceCompletion(
         );
       }
 
-      const requestRow = request as RequestRow | null;
-      if (!requestRow || requestRow.created_by !== userId) {
+      if (!request || request.created_by !== userId) {
         return NextResponse.json(
           { ok: false, error: "FORBIDDEN" },
           { status: 403, headers: JSON_HEADERS },
@@ -247,13 +258,14 @@ export async function handleServiceCompletion(
     let updatedAgreement = agreement;
 
     if (Object.keys(update).length > 0) {
-      const { data: updated, error: updateError } = await (supabase as any)
+      const { data: updated, error: updateError } = await supabase
         .from("agreements")
         .update(update)
         .eq("id", agreement.id)
         .select(
           "id, request_id, professional_id, amount, status, completed_by_pro, completed_by_client, completed_at, created_at, updated_at",
         )
+        .returns<AgreementRow>()
         .maybeSingle();
 
       if (updateError) {
@@ -263,15 +275,14 @@ export async function handleServiceCompletion(
         );
       }
 
-      const updatedRow = updated as AgreementRow | null;
-      if (!updatedRow) {
+      if (!updated) {
         return NextResponse.json(
           { ok: false, error: "UPDATE_NOT_FOUND" },
           { status: 500, headers: JSON_HEADERS },
         );
       }
 
-      updatedAgreement = updatedRow;
+      updatedAgreement = updated;
 
       if (update.status !== undefined && update.status !== agreement.status && update.status) {
         try {

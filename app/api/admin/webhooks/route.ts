@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import getRouteClient from "@/lib/supabase/route-client";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

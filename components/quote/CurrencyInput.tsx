@@ -1,5 +1,7 @@
 "use client";
+
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 type Props = React.InputHTMLAttributes<HTMLInputElement> & {
@@ -41,7 +43,7 @@ export function CurrencyInput({ value, onValueChange, className, ...rest }: Prop
           onValueChange(n);
           setDisplay(e.target.value);
         }}
-        onFocus={(e) => {
+        onFocus={() => {
           setFocused(true);
         }}
         onBlur={() => {

@@ -1,9 +1,13 @@
 "use client";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+
+import type { CalendarEvent } from "./types";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   monthGrid,
   fmtMonth,
@@ -13,7 +17,6 @@ import {
   nextMonth,
   prevMonth,
 } from "@/lib/calendar/date";
-import type { CalendarEvent } from "./types";
 
 export default function CalendarGrid({ events }: { events: CalendarEvent[] }) {
   const [cursor, setCursor] = React.useState<Date>(() => new Date());
@@ -72,30 +75,46 @@ export default function CalendarGrid({ events }: { events: CalendarEvent[] }) {
           const key = fmtDateKey(d);
           const list = byDay.get(key) || [];
           const inMonth = sameMonth(d, cursor);
+          const isToday = key === todayKey;
+          const dayNumberClass = `text-sm font-medium text-center sm:text-left ${isToday ? "text-blue-600" : ""}`;
+          const boxBase = [
+            "h-24",
+            "rounded-2xl",
+            "border",
+            "p-2",
+            "overflow-hidden",
+            inMonth ? "bg-white" : "bg-neutral-50 opacity-40",
+            isToday ? "border-2 border-blue-500" : "border-slate-200",
+          ].join(" ");
           return (
             <div
               key={key}
-              className={`h-28 rounded-2xl border p-2 overflow-hidden ${inMonth ? "bg-white" : "bg-neutral-50 opacity-40"}`}
+              className={boxBase}
             >
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">{fmtDayNum(d)}</div>
-                {key === todayKey ? (
-                  <span className="inline-block rounded-full bg-blue-500 text-white text-[10px] px-1.5 py-0.5">hoy</span>
-                ) : null}
+              <div className="flex items-center justify-center sm:justify-between">
+                <div className={dayNumberClass}>{fmtDayNum(d)}</div>
               </div>
               <div className="mt-1 flex flex-col gap-1">
-                {list.slice(0, 3).map((ev, idx) => (
-                  <button
-                    key={`${ev.id}-${idx}`}
-                    type="button"
-                    onClick={() => router.push(`/requests/explore/${ev.id}`)}
-                    className="w-full truncate rounded-xl bg-muted px-2 py-1 text-left text-xs hover:opacity-90"
-                    title={ev.title || "Servicio"}
-                    aria-label={ev.title || "Servicio"}
-                  >
-                    {ev.title || "Servicio"}
-                  </button>
-                ))}
+                {list.slice(0, 3).map((ev, idx) => {
+                  const name = (ev.title && ev.title.trim().length ? ev.title : "Servicio").trim();
+                  return (
+                    <Tooltip key={`${ev.id}-${idx}`}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/requests/explore/${ev.id}`)}
+                          className="w-full truncate rounded-xl bg-muted px-2 py-1 text-left text-xs hover:opacity-90"
+                          aria-label={name}
+                        >
+                          {name}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" align="start" className="max-w-[220px] text-xs">
+                        {name}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                })}
                 {list.length > 3 ? (
                   <Badge variant="outline" className="w-fit whitespace-nowrap text-[10px]">+{list.length - 3} más</Badge>
                 ) : null}

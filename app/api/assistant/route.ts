@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import type { ChatMessage } from "@/types/assistant";
+
 import { SYSTEM_PROMPT } from "@/lib/assistant/prompt";
 import { getHelpEntry, openAppLink, whoAmI } from "@/lib/assistant/tools";
+import type { ChatMessage } from "@/types/assistant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,11 +35,6 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 function sse(data: string) {
   return `data: ${data}\n\n`;
-}
-
-function encodeSSE(controller: ReadableStreamDefaultController<Uint8Array>, text: string) {
-  const enc = new TextEncoder();
-  controller.enqueue(enc.encode(sse(text)));
 }
 
 function toolSpecs() {
@@ -165,9 +161,9 @@ export async function POST(req: NextRequest) {
         let contentYielded = false;
         const bodyStream = await callOpenAIStream(openaiMessages);
         const reader = bodyStream.getReader();
-        let partialTool: Record<number, ToolCall> = {};
+        const partialTool: Record<number, ToolCall> = {};
         let lineBuffer = "";
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
@@ -254,7 +250,7 @@ export async function POST(req: NextRequest) {
           const bodyStream2 = await callOpenAIStream(followup);
           const reader2 = bodyStream2.getReader();
           let lineBuffer2 = "";
-          while (true) {
+          for (;;) {
             const { done, value } = await reader2.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });

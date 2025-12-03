@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Input } from "@/components/ui/input";
+
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type AddressValue = {
@@ -23,14 +24,17 @@ const MapPickerModal = dynamic(() => import("./MapPickerModal"), { ssr: false })
 
 type Suggestion = AddressValue & { _source: "saved" | "geocode" };
 
-function useDebounced<T extends (...args: any[]) => void>(fn: T, wait = 350) {
+function useDebounced<T extends (...args: unknown[]) => void>(fn: T, wait = 350) {
   const ref = React.useRef<number | null>(null);
-  return React.useCallback((...args: Parameters<T>) => {
-    if (ref.current) window.clearTimeout(ref.current);
-    ref.current = window.setTimeout(() => {
-      (fn as any)(...args as any);
-    }, wait);
-  }, [fn, wait]);
+  return React.useCallback(
+    (...args: Parameters<T>) => {
+      if (ref.current) window.clearTimeout(ref.current);
+      ref.current = window.setTimeout(() => {
+        fn(...args);
+      }, wait);
+    },
+    [fn, wait],
+  );
 }
 
 export default function AddressField({ value, onChange, placeholder = "Escribe tu dirección…" }: Props) {
@@ -53,7 +57,14 @@ export default function AddressField({ value, onChange, placeholder = "Escribe t
           .order("last_used_at", { ascending: false })
           .limit(5);
         if (!cancelled && !error) {
-          const mapped: Suggestion[] = (data || []).map((r) => ({
+          type SavedRow = {
+            address_line: string;
+            address_place_id: string | null;
+            lat: number | null;
+            lng: number | null;
+          };
+          const rows = (data ?? []) as unknown as SavedRow[];
+          const mapped: Suggestion[] = rows.map((r) => ({
             address_line: r.address_line,
             place_id: r.address_place_id,
             lat: r.lat,
@@ -88,8 +99,14 @@ export default function AddressField({ value, onChange, placeholder = "Escribe t
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(qq)}`, { cache: "no-store" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok || j?.ok === false) { setResults([]); return; }
-      const feats = Array.isArray(j?.results) ? j.results : [];
-      const mapped: Suggestion[] = feats.map((f: any) => ({
+      type GeocodeResult = {
+        address_line?: unknown;
+        place_id?: unknown;
+        lat?: unknown;
+        lng?: unknown;
+      };
+      const feats = Array.isArray(j?.results) ? (j.results as GeocodeResult[]) : [];
+      const mapped: Suggestion[] = feats.map((f) => ({
         address_line: String(f?.address_line || ""),
         place_id: typeof f?.place_id === "string" ? f.place_id : null,
         lat: typeof f?.lat === "number" ? f.lat : null,

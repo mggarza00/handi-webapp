@@ -1,5 +1,6 @@
-import { getClientData } from "@/lib/clients/get-client-data";
 import ClientProfileView from "./ClientProfileView";
+
+import { getClientData } from "@/lib/clients/get-client-data";
 
 type Params = { params: { id: string } };
 

@@ -1,0 +1,441 @@
+
+> homaid-webapp@0.1.0 lint C:\dev\handi-webapp
+> next lint && npm run lint:css
+
+
+./components/pwa/IOSInstallBanner.client.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+32:59  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+32:88  Error: `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`.  react/no-unescaped-entities
+
+./components/pwa/NotificationsOnboarding.client.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/pwa/PushAutoSubscribeOnGrant.client.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+20:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/pwa/PWAInstallAndNotify.client.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+4:1  Error: There should be at least one empty line between import groups  import/order
+5:1  Error: `react` import should occur before import of `@/lib/pwa/install-detect`  import/order
+
+./components/pwa/RequestNotificationsToast.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+32:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:46  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:70  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+57:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+72:36  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+94:9  Error: 'iosPushCapable' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./components/pwa/ServiceWorkerUpdater.client.tsx
+51:36  Error: Empty block statement.  no-empty
+68:49  Error: Empty block statement.  no-empty
+71:13  Error: Empty block statement.  no-empty
+85:124  Error: Empty block statement.  no-empty
+
+./components/quote/CurrencyInput.tsx
+2:1  Error: There should be at least one empty line between import groups  import/order
+44:19  Error: 'e' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./components/quote/QuoteCreateDialog.tsx
+5:1  Error: There should be at least one empty line between import groups  import/order
+6:33  Error: 'DialogDescription' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+6:93  Error: 'DialogClose' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+10:1  Error: There should be at least one empty line between import groups  import/order
+11:1  Error: There should be at least one empty line between import groups  import/order
+11:1  Error: `./CurrencyInput` import should occur before import of `@/components/ui/dialog`  import/order
+12:1  Error: `lucide-react` import should occur before import of `@/components/ui/dialog`  import/order
+55:9  Error: 'fmt' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+74:9  Error: 'canSubmit' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+104:115  Warning: React Hook React.useMemo has an unnecessary dependency: 'open'. Either exclude it or remove the dependency array.  react-hooks/exhaustive-deps
+132:82  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+133:67  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+134:82  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/quote/QuoteImage.tsx
+24:3  Error: 'logoUrl' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./components/quotes/QuoteComposerDialog.tsx
+5:1  Error: There should be at least one empty line between import groups  import/order
+6:1  Error: There should be at least one empty line between import groups  import/order
+7:1  Error: There should be at least one empty line between import groups  import/order
+7:1  Error: `lucide-react` import should occur before import of `@/components/ui/button`  import/order
+8:46  Error: 'DialogDescription' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+11:10  Error: 'Label' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+14:29  Error: 'FormDescription' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+15:1  Error: There should be at least one empty line between import groups  import/order
+15:10  Error: 'cn' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+16:1  Error: `sonner` import should occur before import of `@/components/ui/button`  import/order
+59:115  Warning: React Hook React.useMemo has an unnecessary dependency: 'open'. Either exclude it or remove the dependency array.  react-hooks/exhaustive-deps
+144:84  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+144:128  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+144:147  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/receipt/ReceiptActions.client.tsx
+2:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/receipts/PageActions.client.tsx
+6:75  Error: Empty block statement.  no-empty
+
+./components/receipts/Receipt.tsx
+64:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/requests/AddressField.tsx
+4:1  Error: There should be at least one empty line between import groups  import/order
+26:43  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+31:14  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+31:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+99:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/requests/ConditionsChips.tsx
+4:1  Error: There should be no empty line within import group  import/order
+
+./components/requests/ConditionsCombobox.tsx
+155:37  Warning: Elements with the ARIA role "option" must have the following attributes defined: aria-selected  jsx-a11y/role-has-required-aria-props
+
+./components/requests/CreateRequestButton.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/requests/CreateRequestWizard.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+12:1  Error: There should be at least one empty line between import groups  import/order
+13:1  Error: There should be at least one empty line between import groups  import/order
+13:1  Error: `lucide-react` import should occur before import of `@/components/ui/dialog`  import/order
+42:16  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+61:44  Error: Empty block statement.  no-empty
+62:43  Error: Empty block statement.  no-empty
+130:57  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+179:108  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+246:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./components/requests/CreateRequestWizardRoot.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/requests/useCreateRequestForm.ts
+3:8  Error: 'React' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+10:1  Error: There should be at least one empty line between import groups  import/order
+11:1  Error: There should be at least one empty line between import groups  import/order
+11:1  Error: `@supabase/supabase-js` type import should occur before import of `@/lib/supabase-browser`  import/order
+53:19  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:15  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+130:10  Error: 'authChecked' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+131:10  Error: 'isDirty' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+143:59  Error: Empty block statement.  no-empty
+161:45  Error: Empty block statement.  no-empty
+186:58  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+190:149  Error: Empty block statement.  no-empty
+191:12  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+194:101  Error: Empty block statement.  no-empty
+207:27  Error: 'setAddrResolveBusy' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+209:23  Error: 'setRecentAddrs' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+223:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+228:406  Error: Empty block statement.  no-empty
+229:15  Error: Empty block statement.  no-empty
+293:10  Error: 'manualOverride' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+295:48  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+296:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+297:10  Error: 'categoryId' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+298:10  Error: 'subcategoryId' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+299:24  Error: 'setAiConfidence' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+300:19  Error: 'setAiModel' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+332:97  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+339:174  Error: Empty block statement.  no-empty
+340:230  Error: Empty block statement.  no-empty
+369:319  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+371:94  Error: Empty block statement.  no-empty
+377:15  Error: Empty block statement.  no-empty
+404:92  Error: Empty block statement.  no-empty
+430:310  Error: Empty block statement.  no-empty
+432:17  Error: Empty block statement.  no-empty
+452:192  Error: Empty block statement.  no-empty
+465:9  Error: 'cancelled' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+482:45  Error: Empty block statement.  no-empty
+483:15  Error: Empty block statement.  no-empty
+486:6  Warning: React Hook useEffect has a missing dependency: 'handleSubmit'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+532:93  Error: Empty block statement.  no-empty
+534:326  Error: Empty block statement.  no-empty
+535:440  Error: Empty block statement.  no-empty
+545:95  Error: Empty block statement.  no-empty
+547:129  Error: Empty block statement.  no-empty
+568:41  Error: 'data' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+568:76  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+574:51  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+576:13  Error: Empty block statement.  no-empty
+
+./components/RotatingText.jsx
+Error: Parsing error: ESLint was configured to run on `<tsconfigRootDir>/components\RotatingText.jsx` using `parserOptions.project`: <tsconfigRootDir>/tsconfig.json
+However, that TSConfig does not include this file. Either:
+- Change ESLint's list of included files to not include this file
+- Change that TSConfig to include this file
+- Create a new TSConfig that includes this file and include it in your parserOptions.project
+See the typescript-eslint docs for more info: https://typescript-eslint.io/troubleshooting/typed-linting#i-get-errors-telling-me-eslint-was-configured-to-run--however-that-tsconfig-does-not--none-of-those-tsconfigs-include-this-file
+
+./components/RotatingText.tsx
+30:13  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+31:13  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+32:10  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+76:49  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+77:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+78:60  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+179:106  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+199:53  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/ScrollStack.tsx
+49:27  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:48  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+186:6  Warning: React Hook useCallback has a missing dependency: 'fitToStack'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+262:12  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+286:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+287:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+288:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+289:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+290:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+293:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+294:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+295:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+296:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+297:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+303:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+304:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+305:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+315:52  Error: Empty block statement.  no-empty
+317:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/site-header.tsx
+15:8  Error: 'EnableNotificationsButton' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./components/SplitText.tsx
+54:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+66:18  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+74:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+78:19  Error: Empty block statement.  no-empty
+91:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+94:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+96:19  Error: Empty block statement.  no-empty
+100:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+101:42  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+117:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+119:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+120:29  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+142:44  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+171:37  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+172:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+173:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+201:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+202:42  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+208:37  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+209:59  Error: Empty block statement.  no-empty
+211:17  Error: Empty block statement.  no-empty
+226:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/SpotlightCard.jsx
+Error: Parsing error: ESLint was configured to run on `<tsconfigRootDir>/components\SpotlightCard.jsx` using `parserOptions.project`: <tsconfigRootDir>/tsconfig.json
+However, that TSConfig does not include this file. Either:
+- Change ESLint's list of included files to not include this file
+- Change that TSConfig to include this file
+- Create a new TSConfig that includes this file and include it in your parserOptions.project
+See the typescript-eslint docs for more info: https://typescript-eslint.io/troubleshooting/typed-linting#i-get-errors-telling-me-eslint-was-configured-to-run--however-that-tsconfig-does-not--none-of-those-tsconfigs-include-this-file
+
+./components/ui/ChipsInput.tsx
+5:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/ui/command.tsx
+4:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/ui/CurrencyInput.tsx
+2:1  Error: There should be at least one empty line between import groups  import/order
+80:25  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+81:27  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/ui/form.tsx
+5:1  Error: There should be at least one empty line between import groups  import/order
+30:21  Error: 'TFieldValues' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+30:57  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+31:13  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+33:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+36:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:58  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+40:81  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./components/ui/stepper.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/ui/switch.tsx
+3:1  Error: There should be at least one empty line between import groups  import/order
+
+./components/ui/use-toast.ts
+25:31  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+26:37  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+27:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+28:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+41:14  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+43:37  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/assistant/rag.ts
+1:1  Error: There should be at least one empty line between import groups  import/order
+
+./lib/auth-admin.ts
+2:1  Error: There should be at least one empty line between import groups  import/order
+3:1  Error: There should be no empty line within import group  import/order
+5:15  Error: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./lib/auth-route.ts
+1:1  Error: There should be at least one empty line between import groups  import/order
+2:1  Error: `@supabase/supabase-js` type import should occur before import of `@/utils/supabase/server`  import/order
+
+./lib/clients/get-client-data.ts
+75:7  Error: 'byReq' is never reassigned. Use 'const' instead.  prefer-const
+
+./lib/db/requests.ts
+2:1  Error: There should be at least one empty line between import groups  import/order
+196:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/drafts.ts
+17:10  Error: 'truthy' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+22:10  Error: 'getHostname' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+153:64  Error: Empty block statement.  no-empty
+154:66  Error: Empty block statement.  no-empty
+
+./lib/email/resend.ts
+96:55  Error: 'rest' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./lib/email.ts
+41:145  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+42:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+42:45  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+42:69  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+42:95  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+42:123  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/folio.ts
+4:75  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/fonts.ts
+3:1  Error: There should be at least one empty line between import groups  import/order
+
+./lib/pro/stats.ts
+108:54  Error: 'indexInRange' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+140:9  Error: 'from' is never reassigned. Use 'const' instead.  prefer-const
+
+./lib/profiles/data.ts
+140:15  Error: Empty block statement.  no-empty
+274:3  Error: 'cursor' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./lib/pwa/install-detect.ts
+14:77  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+72:105  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/pwa/useInstallPrompts.ts
+1:1  Error: There should be at least one empty line between import groups  import/order
+
+./lib/quotes/renderImage.ts
+5:1  Error: There should be at least one empty line between import groups  import/order
+
+./lib/rate/limit.ts
+1:1  Error: There should be no empty line within import group  import/order
+3:15  Error: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+10:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+17:47  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+34:22  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/receipts.ts
+3:1  Error: There should be at least one empty line between import groups  import/order
+4:1  Error: There should be at least one empty line between import groups  import/order
+4:1  Error: `@supabase/supabase-js` type import should occur before type import of `@/types/receipt`  import/order
+46:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+47:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+48:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+49:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+51:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+52:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+53:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+54:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+64:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+65:28  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+68:42  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+72:52  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+78:29  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+149:46  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+160:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+165:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+172:50  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+185:48  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+193:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+194:33  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+197:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+198:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+198:96  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+199:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+199:94  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+200:24  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+200:87  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+203:13  Error: 'requestId' is never reassigned. Use 'const' instead.  prefer-const
+203:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+204:13  Error: 'customerId' is never reassigned. Use 'const' instead.  prefer-const
+204:35  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+205:13  Error: 'proId' is never reassigned. Use 'const' instead.  prefer-const
+205:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+207:36  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+208:37  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+209:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+211:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+211:49  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+212:38  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+212:58  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+213:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+213:49  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+218:43  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+225:47  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+232:45  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+238:44  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+238:76  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+238:106  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+240:39  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+242:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+282:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+287:16  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+295:36  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+296:39  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+297:32  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+298:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+305:30  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+308:52  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+314:70  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+317:57  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+324:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+331:56  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+337:42  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+337:69  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+337:96  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+338:45  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+366:26  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/services/service-completion.ts
+1:1  Error: There should be at least one empty line between import groups  import/order
+2:1  Error: There should be at least one empty line between import groups  import/order
+3:1  Error: `zod` import should occur before import of `@/utils/supabase/server`  import/order
+146:75  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+193:73  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+250:72  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/storage-sanitize.ts
+43:23  Error: Unexpected control character(s) in regular expression: \x00, \x1f.  no-control-regex
+48:28  Error: Unnecessary escape character: \?.  no-useless-escape
+136:14  Error: Unexpected control character(s) in regular expression: \x00, \x1f.  no-control-regex
+137:19  Error: Unnecessary escape character: \?.  no-useless-escape
+
+./lib/supabase/client.ts
+3:43  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/telemetry.ts
+4:59  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+6:21  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/text.ts
+13:7  Error: Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free.  @typescript-eslint/ban-ts-comment
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+ ELIFECYCLE  Command failed with exit code 1.

@@ -1,12 +1,14 @@
 "use client";
+
 import * as React from "react";
+import { createPortal } from "react-dom";
+import { Check, ChevronsUpDown, Minus, Plus, X } from "lucide-react";
+
+import RAW_TAXONOMY from "@/data/categories.json";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { createPortal } from "react-dom";
-import { Badge } from "@/components/ui/badge";
-import { Check, ChevronsUpDown, Plus, Minus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import RAW_TAXONOMY from "@/data/categories.json";
 
 const TAXONOMY_FALLBACK: Array<{ name: string; subcategories: string[] }> = [
   { name: "Limpieza", subcategories: ["Industrial", "Residencial", "Pulido y encerado de pisos"] },
@@ -17,6 +19,12 @@ const TAXONOMY_FALLBACK: Array<{ name: string; subcategories: string[] }> = [
 
 type Pick = { category: string; subcategory?: string | null };
 type Opt = { category: string; subcategory: string | null; icon?: string | null };
+type TaxOverride = { name?: string | null; subs?: string | null };
+type CatalogApiItem = { category?: string | null; subcategory?: string | null; icon?: string | null };
+type RawTaxonomyCategory = {
+  name?: string | null;
+  subcategories?: Array<{ name?: string | null; icon?: string | null }>;
+};
 
 function uniq<T>(arr: T[], by: (t: T) => string): T[] {
   const out: T[] = [];
@@ -46,7 +54,7 @@ function DefaultCategoryPicker({
   onChange: (next: Pick[]) => void;
   initialCategories?: string[];
   initialSubcategories?: string[];
-  overrideTaxonomy?: Tax[];
+  overrideTaxonomy?: TaxOverride[];
   single?: boolean;
   showChips?: boolean;
   triggerTestId?: string;
@@ -105,7 +113,11 @@ function DefaultCategoryPicker({
         const r = await fetch("/api/catalog/categories", { headers: { "Content-Type": "application/json; charset=utf-8" } });
         const j = await r.json().catch(() => null);
         const arr: Opt[] = Array.isArray(j?.data)
-          ? j.data.map((x: any) => ({ category: String(x.category || ""), subcategory: x.subcategory || null, icon: x.icon || null }))
+          ? (j.data as CatalogApiItem[]).map((x) => ({
+              category: String(x.category || ""),
+              subcategory: typeof x.subcategory === "string" && x.subcategory.trim().length ? x.subcategory : null,
+              icon: typeof x.icon === "string" && x.icon.trim().length ? x.icon : null,
+            }))
           : [];
         let loaded: Opt[] = [];
         if (!cancelled && arr.length) {
@@ -114,8 +126,7 @@ function DefaultCategoryPicker({
         } else {
           // Fallback to bundled taxonomy JSON
           const fallback: Opt[] = [];
-          const raw: Array<{ name?: string; subcategories?: Array<{ name?: string; icon?: string }> }>
-            = (RAW_TAXONOMY as any) as Array<{ name?: string; subcategories?: Array<{ name?: string; icon?: string }> }>;
+          const raw = RAW_TAXONOMY as RawTaxonomyCategory[];
           for (const c of raw) {
             const cat = String(c?.name || "").trim();
             if (!cat) continue;
@@ -155,8 +166,8 @@ function DefaultCategoryPicker({
           }
           onChange(uniq(picks, (p) => `${p.category}::${p.subcategory || ""}`));
         }
-      } catch {
-        /* ignore */
+      } catch (error) {
+        logCategoryPickerError(error);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -202,14 +213,14 @@ function DefaultCategoryPicker({
       return copy;
     });
     if (nextOpen) {
-      try {
-        requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        try {
           const el = catRefs.current[cat];
           if (el) el.scrollIntoView({ block: "nearest" });
-        });
-      } catch {
-        /* ignore */
-      }
+        } catch (error) {
+          logCategoryPickerError(error);
+        }
+      });
     }
   };
 
@@ -335,7 +346,12 @@ function DefaultCategoryPicker({
                     const icon = opt?.icon || null;
                     const isImg = !!(icon && (/^https?:\/\//.test(icon) || icon.startsWith("/") || /\.(png|jpe?g|gif|svg)$/i.test(icon)));
                     return (
-                      <label key={`${cat}::${s}`} className="flex items-center gap-2 text-sm" role="option">
+                      <label
+                        key={`${cat}::${s}`}
+                        className="flex items-center gap-2 text-sm"
+                        role="option"
+                        aria-selected={checked}
+                      >
                         <input
                           type="checkbox"
                           className="h-4 w-4 rounded border-slate-300"
@@ -513,3 +529,9 @@ export function CategoryPicker({
     />
   );
 }
+const logCategoryPickerError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[CategoryPicker]", error);
+  }
+};

@@ -1,9 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import createClient from "@/utils/supabase/server";
 
-import type { Database } from "@/types/supabase";
-import PageContainer from "@/components/page-container";
 import Breadcrumbs from "@/components/breadcrumbs";
 import CalendarGrid from "@/components/pro-calendar/CalendarGrid";
 import ServiceList from "@/components/pro-calendar/ServiceList";
@@ -11,11 +8,17 @@ import type { ScheduledService, CalendarEvent } from "@/components/pro-calendar/
 import { fmtDateKey } from "@/lib/calendar/date";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import createClient from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type AgreementRow = Database["public"]["Tables"]["agreements"]["Row"];
-type RequestRow = Database["public"]["Tables"]["requests"]["Row"];
+type ApiCalendarItem = {
+  request_id?: string | number | null;
+  title?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  status?: string | null;
+};
 
 async function getScheduledFromApi(cookieHeader: string | null): Promise<ScheduledService[]> {
   try {
@@ -29,25 +32,24 @@ async function getScheduledFromApi(cookieHeader: string | null): Promise<Schedul
       next: { tags: ['pro-calendar'] },
     });
     const j = await res.json().catch(() => ({}));
-    const items = Array.isArray(j?.items) ? j.items : [];
-    const out: ScheduledService[] = items
-      .map((r: any) => {
-        const sd = r.scheduled_date as string | null;
-        if (!sd) return null;
-        const st = r.scheduled_time as string | null;
-        const scheduled_at = `${sd}${st ? `T${st}` : 'T09:00:00'}`;
-        return {
-          id: String(r.request_id),
-          title: (r.title as string) || 'Servicio',
-          scheduled_at,
-          scheduled_end_at: null,
-          client_name: null,
-          city: null,
-          status: (r.status as string | null) ?? null,
-        } as ScheduledService;
-      })
-      .filter((x: any) => !!x);
-    return out as ScheduledService[];
+    const items: ApiCalendarItem[] = Array.isArray(j?.items) ? (j.items as ApiCalendarItem[]) : [];
+    const out: ScheduledService[] = [];
+    items.forEach((r, index) => {
+      const sd = r.scheduled_date?.toString() ?? null;
+      if (!sd) return;
+      const st = r.scheduled_time?.toString() ?? null;
+      const scheduled_at = `${sd}${st ? `T${st}` : "T09:00:00"}`;
+      out.push({
+        id: String(r.request_id ?? `request-temp-${index}`),
+        title: r.title || "Servicio",
+        scheduled_at,
+        scheduled_end_at: null,
+        client_name: null,
+        city: null,
+        status: r.status ?? null,
+      });
+    });
+    return out;
   } catch { return []; }
 }
 
@@ -62,8 +64,8 @@ export default async function Page() {
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .maybeSingle<any>();
-  const role = (profile?.role ?? null) as null | "client" | "pro" | "admin";
+    .maybeSingle<{ role: "client" | "pro" | "admin" | null }>();
+  const role = profile?.role ?? null;
   if (role !== "pro") redirect("/");
 
   // Forward cookies to API so it can read auth and tag for revalidateTag
@@ -84,7 +86,7 @@ export default async function Page() {
         <p className="text-sm text-slate-600">Servicios pagados y agendados.</p>
       </div>
       <div className="flex flex-col lg:flex-row gap-6">
-        <Card className="flex-1 p-4">
+        <Card className="flex-1 min-w-0 p-0 border-transparent bg-transparent shadow-none">
           <CalendarGrid events={calendarEvents} />
         </Card>
         <Card className="lg:w-[380px] p-0">

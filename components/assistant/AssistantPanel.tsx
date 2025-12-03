@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { MessageCircle, Send, Loader2 } from "lucide-react";
 
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ASSISTANT_OPEN_EVENT, type AssistantOpenPayload } from "@/lib/assistant/events";
 
 type Role = "user" | "assistant";
 type Msg = { role: Role; content: string };
@@ -20,7 +22,6 @@ type Msg = { role: Role; content: string };
 export default function AssistantPanel() {
   const pathname = usePathname();
   const isAdmin = pathname === "/admin" || (pathname ?? "").startsWith("/admin/");
-  if (isAdmin) return null;
   const [open, setOpen] = useState(false);
   const [hasBottomBar, setHasBottomBar] = useState(false);
   const onChatDetail = useMemo(() => /^\/mensajes\/[\w-]+/i.test(pathname || ""), [pathname]);
@@ -38,6 +39,21 @@ export default function AssistantPanel() {
     const proBar = document.getElementById("pro-mobile-tabbar");
     setHasBottomBar(!!clientBar || !!proBar);
   }, [pathname]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const handleAssistantOpen = (event: Event) => {
+      const detail = (event as CustomEvent<AssistantOpenPayload>).detail || {};
+      if (detail.message) {
+        setInput(detail.message);
+      }
+      setOpen(true);
+    };
+    window.addEventListener(ASSISTANT_OPEN_EVENT, handleAssistantOpen as EventListener);
+    return () => {
+      window.removeEventListener(ASSISTANT_OPEN_EVENT, handleAssistantOpen as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     // autoscroll on new message
@@ -71,9 +87,13 @@ export default function AssistantPanel() {
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
-      while (true) {
+      let finished = false;
+      while (!finished) {
         const { done, value } = await reader.read();
-        if (done) break;
+        finished = done;
+        if (done) {
+          break;
+        }
         if (!value) continue;
         sseBufferRef.current += decoder.decode(value, { stream: true });
         const frames = sseBufferRef.current.split("\n\n");
@@ -82,7 +102,7 @@ export default function AssistantPanel() {
           if (!f) continue;
           // Do not trim to preserve leading spaces
           if (!f.startsWith("data:")) continue;
-          let payload = f.startsWith("data: ") ? f.slice(6) : f.slice(5);
+          const payload = f.startsWith("data: ") ? f.slice(6) : f.slice(5);
           if (payload === "[DONE]") continue;
           setMessages((prev) => {
             const next = [...prev];
@@ -94,7 +114,8 @@ export default function AssistantPanel() {
           });
         }
       }
-    } catch (err) {
+    } catch (error) {
+      console.error("[AssistantPanel]", error);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Lo siento, ocurrió un error al responder. Intenta de nuevo." },
@@ -111,6 +132,8 @@ export default function AssistantPanel() {
       handleSend();
     }
   }
+
+  if (isAdmin) return null;
 
   return (
     <div
@@ -146,7 +169,14 @@ export default function AssistantPanel() {
           <SheetHeader className="sticky top-0 z-10 h-24 flex items-center px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
             <SheetTitle className="w-full flex items-center justify-between">
               <span className="text-left ml-10 text-[22px]">Asistente Handi</span>
-              <img src="/images/handee_mascota.gif" alt="Handee mascota" className="h-24 w-auto object-contain" />
+              <Image
+                src="/images/handee_mascota.gif"
+                alt="Handee mascota"
+                width={96}
+                height={96}
+                className="h-24 w-auto object-contain"
+                unoptimized
+              />
             </SheetTitle>
           </SheetHeader>
 

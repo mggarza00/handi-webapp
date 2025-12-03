@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
+
 import ensurePushSubscription from "@/lib/push";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
+const logPushAutoSubscribeError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[PushAutoSubscribeOnGrant]", error);
+  }
+};
 
 export function PushAutoSubscribeOnGrant() {
   useEffect(() => {
@@ -17,7 +25,8 @@ export function PushAutoSubscribeOnGrant() {
         if (!publicKey) return;
 
         const sub = await ensurePushSubscription(publicKey);
-        const payload = (sub as any)?.toJSON?.() ?? JSON.parse(JSON.stringify(sub));
+        const payload =
+          typeof sub?.toJSON === "function" ? sub.toJSON() : JSON.parse(JSON.stringify(sub ?? {}));
         const userAgent = navigator.userAgent;
         const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
         await fetch("/api/push/subscribe", {
@@ -26,8 +35,8 @@ export function PushAutoSubscribeOnGrant() {
           headers: JSONH,
           body: JSON.stringify({ subscription: payload, userAgent, appVersion }),
         }).catch(() => {});
-      } catch {
-        // ignore
+      } catch (error) {
+        logPushAutoSubscribeError(error);
       }
     };
 
@@ -38,4 +47,3 @@ export function PushAutoSubscribeOnGrant() {
 }
 
 export default PushAutoSubscribeOnGrant;
-

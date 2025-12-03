@@ -1,8 +1,9 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { isStandalonePWA } from "@/lib/pwa/install-detect";
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
+
+import { isStandalonePWA } from "@/lib/pwa/install-detect";
 
 const AndroidInstallPrompt = dynamic(() => import("./AndroidInstallPrompt.client"), { ssr: false });
 const IOSInstallBanner = dynamic(() => import("./IOSInstallBanner.client"), { ssr: false });
@@ -25,4 +26,3 @@ export default function PWAInstallAndNotify() {
     </>
   );
 }
-

@@ -9,7 +9,7 @@ export default function ProApplySubmittedPage() {
     <main className="mx-auto max-w-2xl px-4 py-16 text-center">
       <div className="mx-auto mb-6 h-16 w-16">
         <Image
-          src="/images/Logo-Handi-v2.gif"
+          src="/images/LOGO_HANDI_DB.png"
           alt="Handi"
           width={64}
           height={64}

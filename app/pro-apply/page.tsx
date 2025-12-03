@@ -1,12 +1,11 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import createClient from "@/utils/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import ProApplyForm from "./pro-apply-form.client";
 
 import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 

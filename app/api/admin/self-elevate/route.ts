@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import getRouteClient from "@/lib/supabase/route-client";
 
 import { getAdminSupabase } from "@/lib/supabase/admin";
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 

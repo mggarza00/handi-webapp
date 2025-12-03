@@ -5,8 +5,8 @@ import { Menu, Bell, MessageSquare, Heart, Settings, HelpCircle, FileText, Share
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
 
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -119,7 +119,6 @@ function MobileMenuDrawer({
   const { open, setOpen } = useSidebar();
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [hasNotifs, setHasNotifs] = React.useState(false);
-  const [hasNewMsgs, setHasNewMsgs] = React.useState(false);
   const [notifItems, setNotifItems] = React.useState<Notif[]>([]);
   const [notifLoading, setNotifLoading] = React.useState(false);
   const supabase = React.useMemo(() => createSupabaseBrowser(), []);
@@ -172,14 +171,10 @@ function MobileMenuDrawer({
       const n =
         localStorage.getItem("handi_has_notifications") ??
         localStorage.getItem("handee_has_notifications");
-      const m =
-        localStorage.getItem("handi_has_new_messages") ??
-        localStorage.getItem("handee_has_new_messages");
       const raw =
         localStorage.getItem("handi_unread_messages_count") ??
         localStorage.getItem("handee_unread_messages_count");
       setHasNotifs(n === "1" || n === "true");
-      setHasNewMsgs(m === "1" || m === "true");
       const ncount = raw ? Number(raw) : 0;
       if (Number.isFinite(ncount)) setUnreadMsgCount(ncount);
     } catch {
@@ -242,7 +237,6 @@ function MobileMenuDrawer({
         const count = arr.reduce((acc, it) => acc + (typeof it.unreadCount === 'number' ? it.unreadCount : 0), 0);
         if (!aborted) {
           setUnreadMsgCount(count);
-          setHasNewMsgs(count > 0);
         }
         try {
           localStorage.setItem("handi_unread_messages_count", String(count));
@@ -349,7 +343,7 @@ function MobileMenuDrawer({
 
   return (
     <>
-      <OpenButton />
+      <OpenButton hasBadge={hasNotifs || unreadMsgCount > 0} />
       <Sidebar side="left" width={320}>
         <SidebarHeader className="text-xl font-semibold">Handi</SidebarHeader>
         <SidebarContent className="mt-4 gap-4">
@@ -422,7 +416,6 @@ function MobileMenuDrawer({
             <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => {
               // Clear messages badge immediately
               setUnreadMsgCount(0);
-              setHasNewMsgs(false);
               try {
                 localStorage.setItem("handi_unread_messages_count", "0");
                 localStorage.setItem("handee_unread_messages_count", "0");

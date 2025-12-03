@@ -3,9 +3,10 @@ import { getStripe } from "@/lib/stripe";
 import type Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
-import React from 'react';
-import { ReceiptTemplate } from '@/components/pdf/ReceiptTemplate';
-import { getReceiptForPdf } from '@/lib/receipts';
+import React from "react";
+import { ReceiptTemplate } from "@/components/pdf/ReceiptTemplate";
+import { getReceiptForPdf } from "@/lib/receipts";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
         const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
         if (url && serviceRole) {
-          const admin = createClient(url, serviceRole);
+          const admin = createClient<Database>(url, serviceRole);
           const offerId = (session.metadata?.offer_id || "").trim();
           const metadataType = ((session.metadata as any)?.type || "").trim();
           const onsiteIdMeta = ((session.metadata as any)?.onsite_quote_request_id || (session.metadata as any)?.onsite_request_id || "").trim();
@@ -122,7 +123,7 @@ export async function POST(req: Request) {
           // As a last resort, compute breakdown from offer.amount if still missing
           if (offerId && (commission_cents === 0 || iva_cents === 0)) {
             try {
-              const { data: offRow2 } = await (createClient(url!, serviceRole!))
+              const { data: offRow2 } = await (createClient<Database>(url!, serviceRole!))
                 .from('offers')
                 .select('amount')
                 .eq('id', offerId)
@@ -392,6 +393,9 @@ export async function POST(req: Request) {
                     if (proId) {
                       try { (patch as any).professional_id = proId; } catch {}
                       try { (patch as any).accepted_professional_id = proId; } catch {}
+                    }
+                    if (serviceDateIso) {
+                      try { (patch as any).required_at = serviceDateIso; } catch {}
                     }
                     if (scheduledDateMeta) {
                       (patch as any).scheduled_date = scheduledDateMeta;

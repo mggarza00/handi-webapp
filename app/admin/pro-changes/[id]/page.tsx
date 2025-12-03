@@ -1,8 +1,21 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getAdminSupabase } from "@/lib/supabase/admin";
 import Image from "next/image";
+import { notFound } from "next/navigation";
+
 import { Card } from "@/components/ui/card";
+import type { Database } from "@/types/supabase";
+import { getAdminSupabase } from "@/lib/supabase/admin";
+
+type ProfileChangePayload = {
+  profiles?: Record<string, unknown> | null;
+  professionals?: Record<string, unknown> | null;
+  gallery_add_paths?: string[] | null;
+};
+
+type ProfileChangeRow = Pick<
+  Database["public"]["Tables"]["profile_change_requests"]["Row"],
+  "id" | "user_id" | "status" | "payload" | "created_at"
+>;
 
 type Ctx = { params: { id: string } };
 
@@ -47,19 +60,19 @@ export const dynamic = "force-dynamic";
 
 export default async function ProChangesDetailPage({ params }: Ctx) {
   const id = params.id;
-  const admin = getAdminSupabase() as any;
+  const admin = getAdminSupabase();
   const { data: req } = await admin
     .from("profile_change_requests")
     .select("id, user_id, status, payload, created_at")
     .eq("id", id)
-    .maybeSingle();
+    .maybeSingle<ProfileChangeRow>();
   if (!req) return notFound();
 
-  const userId = (req as any).user_id as string;
-  const payload = (req as any).payload as Record<string, unknown> | null;
-  const profPatch = ((payload as any)?.profiles || {}) as Record<string, unknown>;
-  const proPatch = ((payload as any)?.professionals || {}) as Record<string, unknown>;
-  const galleryAdd = (Array.isArray((payload as any)?.gallery_add_paths) ? (payload as any)?.gallery_add_paths : []) as string[];
+  const userId = req.user_id;
+  const payload = (req.payload as unknown as ProfileChangePayload | null) ?? null;
+  const profPatch = (payload?.profiles as Record<string, unknown> | undefined) ?? {};
+  const proPatch = (payload?.professionals as Record<string, unknown> | undefined) ?? {};
+  const galleryAdd = Array.isArray(payload?.gallery_add_paths) ? payload.gallery_add_paths : [];
 
   // Current values
   // profiles: only fields we display
@@ -68,7 +81,9 @@ export default async function ProChangesDetailPage({ params }: Ctx) {
   try {
     const pr = await admin.from("profiles").select("full_name, avatar_url").eq("id", userId).maybeSingle();
     if (pr?.data) profCur = pr.data as Record<string, unknown>;
-  } catch {}
+  } catch {
+    /* ignore */
+  }
   try {
     const pr2 = await admin
       .from("professionals")
@@ -76,7 +91,9 @@ export default async function ProChangesDetailPage({ params }: Ctx) {
       .eq("id", userId)
       .maybeSingle();
     if (pr2?.data) proCur = pr2.data as Record<string, unknown>;
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   // Published gallery (professionals-gallery) - use signed URLs to avoid public-bucket requirement
   let publishedGallery: string[] = [];
@@ -88,19 +105,21 @@ export default async function ProChangesDetailPage({ params }: Ctx) {
     if (!list.error && Array.isArray(list.data)) {
       publishedGallery = await Promise.all(
         list.data
-          .filter((x: any) => x?.name)
-          .map(async (obj: any) => {
-            const path = `${prefix}${obj.name}`;
+          .filter((file) => typeof file?.name === "string" && file.name.length > 0)
+          .map(async (obj) => {
+            const path = `${prefix}${String(obj.name)}`;
             const signed = await admin.storage
               .from("professionals-gallery")
               .createSignedUrl(path, 3600)
               .catch(() => ({ data: null }));
-            return (signed as any)?.data?.signedUrl || "";
+            return signed.data?.signedUrl || "";
           }),
       );
       publishedGallery = publishedGallery.filter(Boolean);
     }
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   // Draft gallery (profiles-gallery) from payload
   let draftGallery: string[] = [];
@@ -112,7 +131,9 @@ export default async function ProChangesDetailPage({ params }: Ctx) {
       }),
     );
     draftGallery = draftGallery.filter(Boolean);
-  } catch {}
+  } catch {
+    /* ignore */
+  }
 
   const rows: Array<{ label: string; cur: unknown; next: unknown; isImage?: boolean }> = [
     { label: "Nombre", cur: profCur.full_name, next: profPatch.full_name },

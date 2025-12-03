@@ -1,10 +1,17 @@
 "use client";
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+
+const logResizeError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.error("[StatusMultiSelect]", error);
+  }
+};
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Activas" },
@@ -94,7 +101,11 @@ export default function StatusMultiSelect({
     const onWin = () => updateLayout();
     window.addEventListener("resize", onWin);
     return () => {
-      try { ro.disconnect(); } catch {}
+      try {
+        ro.disconnect();
+      } catch (error) {
+        logResizeError(error);
+      }
       window.removeEventListener("resize", onWin);
     };
   }, [updateLayout]);

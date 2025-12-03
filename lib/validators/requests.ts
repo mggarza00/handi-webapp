@@ -23,6 +23,9 @@ export const RequestCreateSchema = z.object({
   description: z.string().min(10).max(2000).optional(),
   city: z.string().min(2).max(80),
   category: z.string().min(2).max(80).optional(),
+  // Optional AI-assisted IDs (forward-compatible)
+  category_id: z.string().uuid().optional().nullable(),
+  subcategory_id: z.string().uuid().optional().nullable(),
   subcategories: z
     .array(SubcatInput)
     .max(6)
@@ -56,6 +59,10 @@ export const RequestCreateSchema = z.object({
   address_state: z.string().max(120).optional(),
   address_country: z.string().max(120).optional(),
   address_context: z.any().optional(),
+  // AI metadata (optional)
+  ai_confidence: z.number().min(0).max(1).optional().nullable(),
+  ai_model: z.string().max(120).optional().nullable(),
+  ai_overridden: z.boolean().optional().nullable(),
 });
 
 export type RequestCreateInput = z.infer<typeof RequestCreateSchema>;

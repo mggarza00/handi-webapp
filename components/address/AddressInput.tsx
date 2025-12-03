@@ -2,9 +2,12 @@
 
 import * as React from "react";
 import { MapPin } from "lucide-react";
-import { Input } from "@/components/ui/input";
+
+import MapPickerModal, { type Payload as MapPickerPayload } from "@/components/address/MapPickerModal";
 import { Button } from "@/components/ui/button";
-import MapPickerModal from "@/components/address/MapPickerModal";
+import { Input } from "@/components/ui/input";
+
+type AddressContext = MapPickerPayload["context"];
 
 export type AddressValue = {
   address_line?: string | null;
@@ -15,7 +18,7 @@ export type AddressValue = {
   postcode?: string | null;
   state?: string | null;
   country?: string | null;
-  context?: any;
+  context?: AddressContext;
 };
 
 type Props = {
@@ -23,18 +26,34 @@ type Props = {
   onChange: (address_line: string, place_id: string | null, lat: number | null, lng: number | null) => void;
   userId?: string | null;
   placeholder?: string;
-  onDetails?: (meta: { city?: string | null; postcode?: string | null; state?: string | null; country?: string | null; context?: any }) => void;
+  onDetails?: (meta: { city?: string | null; postcode?: string | null; state?: string | null; country?: string | null; context?: AddressContext }) => void;
   cityHint?: string;
 };
 
-type Suggestion = { address_line: string; place_id?: string | null; lat?: number | null; lng?: number | null; city?: string | null; postcode?: string | null; state?: string | null; country?: string | null; context?: any; _source: "saved" | "geocode" };
+type Suggestion = {
+  address_line: string;
+  place_id?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  city?: string | null;
+  postcode?: string | null;
+  state?: string | null;
+  country?: string | null;
+  context?: AddressContext;
+  _source: "saved" | "geocode";
+};
 
-function useDebounced<T extends (...args: any[]) => void>(fn: T, wait = 350) {
+function useDebounced<T extends (...args: unknown[]) => void>(fn: T, wait = 350) {
   const ref = React.useRef<number | null>(null);
-  return React.useCallback((...args: Parameters<T>) => {
-    if (ref.current) window.clearTimeout(ref.current);
-    ref.current = window.setTimeout(() => { (fn as any)(...args as any); }, wait);
-  }, [fn, wait]);
+  return React.useCallback(
+    (...args: Parameters<T>) => {
+      if (ref.current) window.clearTimeout(ref.current);
+      ref.current = window.setTimeout(() => {
+        fn(...args);
+      }, wait);
+    },
+    [fn, wait],
+  );
 }
 
 export default function AddressInput({ value, onChange, userId, placeholder = "Escribe tu dirección…", onDetails, cityHint }: Props) {
@@ -45,6 +64,21 @@ export default function AddressInput({ value, onChange, userId, placeholder = "E
   const [results, setResults] = React.useState<Suggestion[]>([]);
   const [showList, setShowList] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const onChangeRef = React.useRef(onChange);
+  const valueAddressRef = React.useRef(value?.address_line || "");
+  const qRef = React.useRef(q);
+
+  React.useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  React.useEffect(() => {
+    valueAddressRef.current = value?.address_line || "";
+  }, [value?.address_line]);
+
+  React.useEffect(() => {
+    qRef.current = q;
+  }, [q]);
 
   // Prefetch saved addresses for the current user
   React.useEffect(() => {
@@ -53,28 +87,30 @@ export default function AddressInput({ value, onChange, userId, placeholder = "E
       try {
         const res = await fetch("/api/addresses/saved", { cache: "no-store" });
         const j = await res.json().catch(() => ({}));
-        const list = Array.isArray(j?.data) ? j.data : [];
+        const list: Array<Record<string, unknown>> = Array.isArray(j?.data) ? j.data : [];
         if (!cancelled) {
-          const mapped: Suggestion[] = list.map((r: any) => ({
-            address_line: String(r?.address_line || ""),
-            place_id: typeof r?.address_place_id === "string" ? r.address_place_id : null,
-            lat: typeof r?.lat === "number" ? r.lat : null,
-            lng: typeof r?.lng === "number" ? r.lng : null,
-            city: null,
-            postcode: null,
-            state: null,
-            country: null,
-            context: null,
-            _source: "saved",
-          })).filter((s: Suggestion) => s.address_line.length > 0);
+          const mapped: Suggestion[] = list
+            .map<Suggestion>((r) => ({
+              address_line: String(r?.address_line || ""),
+              place_id: typeof r?.address_place_id === "string" ? r.address_place_id : null,
+              lat: typeof r?.lat === "number" ? r.lat : null,
+              lng: typeof r?.lng === "number" ? r.lng : null,
+              city: null,
+              postcode: null,
+              state: null,
+              country: null,
+              context: null,
+              _source: "saved",
+            }))
+            .filter((s) => s.address_line.length > 0);
           setSaved(mapped);
           // Prefill with last used address if no value provided
           try {
-            const current = (q || (value?.address_line || "")).toString();
+            const current = (qRef.current || (valueAddressRef.current || "")).toString();
             if (!current && mapped.length > 0) {
               const first = mapped[0];
               setQ(first.address_line || "");
-              onChange(first.address_line || "", first.place_id || null, first.lat ?? null, first.lng ?? null);
+              onChangeRef.current(first.address_line || "", first.place_id || null, first.lat ?? null, first.lng ?? null);
             }
           } catch { /* ignore */ }
         }
@@ -106,20 +142,34 @@ export default function AddressInput({ value, onChange, userId, placeholder = "E
       params.set("limit", "5");
       const res = await fetch(`/api/addresses/suggest?${params.toString()}`, { cache: "no-store" });
       const j = await res.json().catch(() => ({}));
-      const items: Array<{ id?: string; address: string; city?: string | null; lat?: number | null; lon?: number | null; postal_code?: string | null; label?: string | null }> =
-        Array.isArray(j?.items) ? j.items : (Array.isArray(j?.data) ? j.data : []);
-      const mapped: Suggestion[] = (items || []).map((it) => ({
-        address_line: String(it.address || ""),
-        place_id: null,
-        lat: typeof it.lat === 'number' ? it.lat : null,
-        lng: typeof it.lon === 'number' ? it.lon : null,
-        city: typeof it.city === 'string' ? it.city : null,
-        postcode: typeof it.postal_code === 'string' ? it.postal_code : null,
-        state: null,
-        country: null,
-        context: null,
-        _source: "saved" as const,
-      })).filter((x) => x.address_line.length > 0);
+      const items: Array<{
+        id?: string;
+        address: string;
+        city?: string | null;
+        lat?: number | null;
+        lon?: number | null;
+        postal_code?: string | null;
+        label?: string | null;
+        _source?: string | null;
+      }> = Array.isArray(j?.items) ? j.items : (Array.isArray(j?.data) ? j.data : []);
+
+      const normalizeSource = (source?: string | null): Suggestion["_source"] =>
+        source === "saved" ? "saved" : "geocode";
+
+      const mapped: Suggestion[] = (items || [])
+        .map<Suggestion>((it) => ({
+          address_line: String(it.address || ""),
+          place_id: typeof it.id === "string" ? it.id : null,
+          lat: typeof it.lat === "number" ? it.lat : null,
+          lng: typeof it.lon === "number" ? it.lon : null,
+          city: typeof it.city === "string" ? it.city : null,
+          postcode: typeof it.postal_code === "string" ? it.postal_code : null,
+          state: null,
+          country: null,
+          context: null,
+          _source: it.id ? "saved" : normalizeSource(it._source ?? null),
+        }))
+        .filter((x) => x.address_line.length > 0);
       setResults(mapped);
     } catch {
       setResults([]);
@@ -201,12 +251,18 @@ export default function AddressInput({ value, onChange, userId, placeholder = "E
             address: ((value?.address_line || q || "") as string) || undefined,
           }}
           onClose={() => setOpen(false)}
-          onConfirm={(p) => {
-            const line = (p?.address || "") as string;
-            const pid = (p?.place_id || null) as string | null;
+          onConfirm={(payload: MapPickerPayload) => {
+            const line = payload.address || "";
+            const pid = payload.place_id || null;
             setQ(line);
-            onChange(line, pid, p.lat, p.lng);
-            onDetails?.({ city: (p?.city ?? null) as string | null, postcode: (p?.postcode ?? null) as string | null, state: (p?.state ?? null) as string | null, country: (p?.country ?? null) as string | null, context: p?.context ?? null });
+            onChange(line, pid, payload.lat, payload.lng);
+            onDetails?.({
+              city: payload.city ?? null,
+              postcode: payload.postcode ?? null,
+              state: payload.state ?? null,
+              country: payload.country ?? null,
+              context: (payload.context as AddressContext) ?? null,
+            });
             setOpen(false);
           }}
         />

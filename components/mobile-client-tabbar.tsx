@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
-import createClient from "@/utils/supabase/server";
-// Reemplazamos iconos lucide por imágenes GIF de marca
 
 import MobileClientTabbarButtons from "@/components/mobile-client-tabbar.client";
-import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
+
+// Reemplazamos iconos lucide por imágenes GIF de marca
 
 type Role = "client" | "pro" | "admin";
+type ProfileRow = { role: Role | null };
 
 async function getSessionInfoSafe() {
   try {
@@ -23,8 +24,8 @@ async function getSessionInfoSafe() {
       .from("profiles")
       .select("role")
       .eq("id", user.id)
-      .maybeSingle<any>();
-    const role = ((profileRaw as any)?.role ?? null) as Role | null;
+      .maybeSingle<ProfileRow>();
+    const role = profileRaw?.role ?? null;
     return { isAuth: true as const, role };
   } catch {
     return { isAuth: false as const, role: null as null };

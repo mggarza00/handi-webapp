@@ -3,9 +3,11 @@ import Link from "next/link";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { normalizeAvatarUrl, parseSupabaseStoragePath } from "@/lib/avatar";
 import * as React from "react";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { cn } from "@/lib/utils";
+import type { ChatSummary } from "./types";
+import formatPresence from "./presence";
 
 function formatRel(ts?: string | null) {
   if (!ts) return "";
@@ -21,53 +23,66 @@ function formatRel(ts?: string | null) {
   return d.toLocaleDateString() + " " + hm;
 }
 
+function resolveUnreadCount(chat: ChatSummary): number {
+  if (typeof chat.unreadCount === "number") return Math.max(0, chat.unreadCount);
+  return chat.unread ? 1 : 0;
+}
+
 export type Props = {
-  chatId: string;
-  avatarUrl?: string | null;
-  displayName: string;
-  lastMessageSnippet?: string | null;
-  lastMessageAt?: string | null;
-  unreadCount?: number; // 0..n
+  chat: ChatSummary;
   isActive?: boolean; // fila seleccionada
   isNewArrival?: boolean; // true al recibir mensaje recientemente
   // Opcionales para modo edición/eliminación
   editing?: boolean;
   removing?: boolean;
   deleting?: boolean;
+  typing?: boolean;
   onDelete?: () => void;
   DeleteIcon?: React.ComponentType<{ className?: string }>;
 };
 
 function ChatListItem({
-  chatId,
-  avatarUrl,
-  displayName,
-  lastMessageSnippet,
-  lastMessageAt,
-  unreadCount: unreadCountProp,
+  chat,
   isActive,
   isNewArrival,
   editing,
   removing,
   deleting,
+  typing,
   onDelete,
   DeleteIcon,
 }: Props) {
-  const rawTitle = typeof displayName === "string" ? displayName : "";
+  const chatId = chat.id;
+  const avatarUrl = chat.avatarUrl ?? null;
+  const rawTitle = typeof chat.title === "string" ? chat.title : "";
   const trimmedTitle = rawTitle.trim();
   const displayTitle = trimmedTitle.length > 0 ? rawTitle : "Contacto";
-  const rawSnippet = typeof lastMessageSnippet === "string" ? lastMessageSnippet : "";
-  const subtitle = rawSnippet.trim().length > 0 ? rawSnippet : "la solicitud de servicio";
-
-  const unreadCount = typeof unreadCountProp === "number" ? Math.max(0, unreadCountProp) : 0;
+  const fallbackPreview =
+    typeof chat.requestTitle === "string" && chat.requestTitle.trim().length > 0
+      ? chat.requestTitle
+      : typeof chat.preview === "string"
+        ? chat.preview
+        : "";
+  const secondaryLine = typing ? "Escribiendo" : fallbackPreview;
+  const secondaryText = typeof secondaryLine === "string" ? secondaryLine.trim() : "";
+  const showSecondary = secondaryText.length > 0;
+  const secondaryClasses = cn(
+    "text-xs mt-0.5 line-clamp-1",
+    typing ? "text-blue-600 font-medium" : "text-muted-foreground",
+  );
+  const secondaryTestId = typing ? "chat-thread-typing" : undefined;
+  const unreadCount = resolveUnreadCount(chat);
   const isUnread = unreadCount > 0;
   const unreadLabel = `${unreadCount} ${unreadCount === 1 ? "mensaje no leído" : "mensajes no leídos"}`;
+  const lastMessageAt = chat.lastMessageAt ?? null;
+  const presence = formatPresence(chat.otherLastActiveAt ?? null);
+  const presenceClasses = "text-[11px] text-slate-400 mt-0.5";
 
   // Resolve avatar URL: sign Supabase storage paths; allow external URLs and proxy paths
   const supabase = React.useMemo(() => createSupabaseBrowser(), []);
-  const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() => normalizeAvatarUrl(avatarUrl || null));
+  const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() => normalizeAvatarUrl(avatarUrl));
   React.useEffect(() => {
-    const url = avatarUrl || null;
+    const url = avatarUrl;
     const norm = normalizeAvatarUrl(url);
     if (!url) { setAvatarSrc(null); return; }
     // Pass through external URLs and API proxy
@@ -132,10 +147,12 @@ function ChatListItem({
               <div className="text-sm truncate flex items-center gap-2">
                 <span className={`truncate ${isUnread ? "font-semibold text-slate-900" : "font-medium"}`} data-testid="chat-thread-title">{displayTitle}</span>
               </div>
-              <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5 flex items-center gap-1">
-                {isUnread ? <Mail className="w-3.5 h-3.5 text-blue-600" aria-hidden /> : null}
-                <span>{subtitle}</span>
-              </div>
+              {showSecondary ? (
+                <div className={secondaryClasses} data-testid={secondaryTestId}>
+                  {typing ? "Escribiendo" : secondaryText}
+                </div>
+              ) : null}
+              <div className={presenceClasses}>{presence}</div>
             </div>
           </div>
           <div className="text-[11px] text-muted-foreground shrink-0 ml-2">{formatRel(lastMessageAt)}</div>
@@ -170,18 +187,24 @@ function ChatListItem({
 }
 
 function areEqual(a: Props, b: Props): boolean {
+  const chatA = a.chat;
+  const chatB = b.chat;
   return (
-    a.chatId === b.chatId &&
-    a.avatarUrl === b.avatarUrl &&
-    a.displayName === b.displayName &&
-    a.lastMessageSnippet === b.lastMessageSnippet &&
-    a.lastMessageAt === b.lastMessageAt &&
-    (a.unreadCount ?? 0) === (b.unreadCount ?? 0) &&
+    chatA.id === chatB.id &&
+    (chatA.avatarUrl ?? null) === (chatB.avatarUrl ?? null) &&
+    (chatA.title ?? "") === (chatB.title ?? "") &&
+    (chatA.preview ?? null) === (chatB.preview ?? null) &&
+    (chatA.requestTitle ?? null) === (chatB.requestTitle ?? null) &&
+    (chatA.lastMessageAt ?? null) === (chatB.lastMessageAt ?? null) &&
+    (chatA.otherLastActiveAt ?? null) === (chatB.otherLastActiveAt ?? null) &&
+    resolveUnreadCount(chatA) === resolveUnreadCount(chatB) &&
+    !!chatA.unread === !!chatB.unread &&
     !!a.isActive === !!b.isActive &&
     !!a.isNewArrival === !!b.isNewArrival &&
     !!a.editing === !!b.editing &&
     !!a.removing === !!b.removing &&
     !!a.deleting === !!b.deleting &&
+    !!a.typing === !!b.typing &&
     a.DeleteIcon === b.DeleteIcon &&
     a.onDelete === b.onDelete
   );

@@ -1,10 +1,12 @@
 "use client";
+
 import * as React from "react";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
-import { Badge } from "@/components/ui/badge";
 import { Check, ChevronsUpDown, X } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_CITIES = [
@@ -15,6 +17,8 @@ const DEFAULT_CITIES = [
   "Santa Catarina",
   "Escobedo",
 ] as const;
+
+type CityApiItem = { name?: string | null };
 
 export function CityMultiSelect({
   value,
@@ -49,7 +53,9 @@ export function CityMultiSelect({
         const r = await fetch(fetchUrl, { headers: { "Content-Type": "application/json; charset=utf-8" } });
         const j = await r.json().catch(() => null);
         const arr: string[] | null = Array.isArray(j?.data)
-          ? j.data.map((x: any) => (typeof x?.name === "string" ? x.name : null)).filter(Boolean)
+          ? (j.data as CityApiItem[])
+              .map((x) => (typeof x?.name === "string" ? x.name : null))
+              .filter((city): city is string => Boolean(city))
           : null;
         if (!cancelled && arr && arr.length) setOptList(Array.from(new Set(arr)));
       } catch {
@@ -61,7 +67,7 @@ export function CityMultiSelect({
     return () => {
       cancelled = true;
     };
-  }, [fetchUrl]);
+  }, [fetchUrl, options]);
 
   const selected = React.useMemo(() => new Set(parseCsv(value)), [value]);
 

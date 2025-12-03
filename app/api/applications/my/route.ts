@@ -1,7 +1,6 @@
 import createClient from "@/utils/supabase/server";
-
+import { jsonFail, jsonOk } from "@/lib/errors";
 import type { Application } from "@/types/homaid";
-import { jsonOk, jsonFail } from "@/lib/errors";
 
 /**
  * GET /api/applications/my

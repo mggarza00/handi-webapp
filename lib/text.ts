@@ -6,15 +6,12 @@ export function fixMojibake(input?: string | null): string {
   if (!s) return "";
   // Quick detection of common UTF-8->latin1 mojibake sequences seen in app (e.g., "AÃ±os", "GalerÃ­a")
   if (!/[ÃÂ]/.test(s)) return s;
-  try {
-    // Node.js path: Buffer is available server-side
-    // eslint-disable-next-line no-undef
-    if (typeof Buffer !== "undefined") {
-      // @ts-ignore Buffer global in Node; on client this path is skipped
+  if (typeof Buffer !== "undefined" && typeof Buffer.from === "function") {
+    try {
       return Buffer.from(s, "latin1").toString("utf8");
+    } catch {
+      /* fallthrough */
     }
-  } catch {
-    // fallthrough to browser path
   }
   try {
     // Browser-safe path: rebuild bytes from char codes (0..255) and decode as UTF-8
@@ -30,4 +27,3 @@ export function fixMojibake(input?: string | null): string {
 }
 
 export default fixMojibake;
-

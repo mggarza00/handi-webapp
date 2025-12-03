@@ -1,7 +1,10 @@
 'use server';
+
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase-server";
+import type { PostgrestError } from "@supabase/supabase-js";
+
 import { createBearerClient } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-server";
 
 export type ExploreFilters = {
   city?: string;           // 'Todas'  value
@@ -193,7 +196,8 @@ export async function toggleFavorite(
       .from("pro_request_favorites")
       .insert({ pro_id: proId, request_id: requestId });
     // Idempotente: ignorar unique violation (23505)
-    if (error && (error as any).code !== "23505") {
+    const isConflict = (error as PostgrestError | null)?.code === "23505";
+    if (error && !isConflict) {
       return { ok: false, is_favorite: false, error: error.message };
     }
     return { ok: true, is_favorite: true };

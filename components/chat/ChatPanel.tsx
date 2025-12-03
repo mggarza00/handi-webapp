@@ -16,6 +16,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "sonner";
 import TypingIndicator from "@/components/chat/TypingIndicator";
 import { Button } from "@/components/ui/button";
+import { UI_STATUS_LABELS } from "@/lib/request-status";
 import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
 import { Slider } from "@/components/ui/slider";
 import { appendAttachment, removeAttachment } from "@/components/chat/utils";
@@ -171,6 +172,7 @@ export default function ChatPanel({
   const [offerAmountLocked, setOfferAmountLocked] = React.useState(false);
   const [offerCurrency, setOfferCurrency] = React.useState("MXN");
   const [offerServiceDate, setOfferServiceDate] = React.useState("");
+  const [offerServiceDateError, setOfferServiceDateError] = React.useState(false);
   const [offerScheduleRange, setOfferScheduleRange] = React.useState<[number, number]>([9, 17]);
   const [offerFlexibleSchedule, setOfferFlexibleSchedule] = React.useState(true);
   const [offerSubmitting, setOfferSubmitting] = React.useState(false);
@@ -361,6 +363,11 @@ export default function ChatPanel({
     [supabaseAuth, meId],
   );
   React.useEffect(() => {
+    // Si nos pasan userId desde fuera, úsalo de inmediato para habilitar acciones por rol
+    if (userId && userId !== meId) setMeId(userId);
+  }, [userId, meId]);
+
+  React.useEffect(() => {
     if (meId) return;
     (async () => {
       try {
@@ -387,6 +394,7 @@ export default function ChatPanel({
   }, [userId]);
   // Request meta
   const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
+  const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
   const load = React.useCallback(
     async (withSpinner = true) => {
       if (!conversationId) return;
@@ -447,15 +455,38 @@ export default function ChatPanel({
     if (!offerAmount && typeof budget === "number" && Number.isFinite(budget)) {
       setOfferAmount(String(budget));
     }
-    if (!offerServiceDate && requiredAt) {
-      // requiredAt already comes as YYYY-MM-DD
-      if (/^\d{4}-\d{2}-\d{2}$/.test(requiredAt)) setOfferServiceDate(requiredAt);
-      else {
-        const parsed = new Date(requiredAt);
-        if (!Number.isNaN(parsed.getTime())) setOfferServiceDate(toYMD(parsed));
+    if (!offerServiceDate) {
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      let defaultDate = toYMD(todayStart);
+      if (requiredAt) {
+        let parsed: Date | null = null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(requiredAt)) parsed = fromYMD(requiredAt);
+        else {
+          const tmp = new Date(requiredAt);
+          parsed = Number.isNaN(tmp.getTime()) ? null : tmp;
+        }
+        if (parsed) {
+          const parsedStart = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+          if (parsedStart >= todayStart) {
+            defaultDate = toYMD(parsedStart);
+          }
+        }
       }
+      setOfferServiceDate(defaultDate);
+      if (offerServiceDateError) setOfferServiceDateError(false);
     }
-  }, [offerDialogOpen, budget, requiredAt, offerAmount, offerServiceDate, requestTitle, toYMD]);
+  }, [
+    offerDialogOpen,
+    budget,
+    requiredAt,
+    offerAmount,
+    offerServiceDate,
+    requestTitle,
+    toYMD,
+    fromYMD,
+    offerServiceDateError,
+  ]);
   React.useEffect(() => {
     if (!requestId) return;
     let cancelled = false;
@@ -476,6 +507,8 @@ export default function ChatPanel({
         if (!cancelled) setRequiredAt(reqAt);
         const reqTitle = typeof data?.title === "string" ? (data.title as string) : null;
         if (!cancelled) setRequestTitle(reqTitle);
+        const reqStatus = typeof data?.status === "string" ? (data.status as string) : null;
+        if (!cancelled) setRequestStatus(reqStatus);
       } catch {
         /* ignore */
       }
@@ -833,6 +866,13 @@ export default function ChatPanel({
       toast.error("Monto invalido");
       return;
     }
+    const serviceDateValue = offerServiceDate.trim();
+    if (!serviceDateValue) {
+      toast.error("Selecciona la fecha en la que requieres tu servicio");
+      setOfferServiceDateError(true);
+      return;
+    }
+    if (offerServiceDateError) setOfferServiceDateError(false);
     setOfferSubmitting(true);
     try {
       const headers = await getAuthHeaders();
@@ -856,8 +896,8 @@ export default function ChatPanel({
       }
       const finalDescription = [userDesc, flexibleNote, scheduleNote].filter(Boolean).join("\n");
       if (finalDescription) payload.description = finalDescription;
-      if (offerServiceDate) {
-        const d = fromYMD(offerServiceDate) ?? new Date(offerServiceDate);
+      if (serviceDateValue) {
+        const d = fromYMD(serviceDateValue) ?? new Date(serviceDateValue);
         if (!Number.isNaN(d.getTime())) {
           // Normalize to start-of-day local, then to ISO
           const localStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1308,7 +1348,6 @@ export default function ChatPanel({
   React.useEffect(() => {
     if (!hasPaid) return;
     if (!requestId) return;
-    let cancelled = false;
     (async () => {
       try {
         await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
@@ -1321,7 +1360,6 @@ export default function ChatPanel({
         // ignore
       }
     })();
-    return () => { cancelled = true; };
   }, [hasPaid, requestId]);
 
   // Fee dialog state (customer confirms before redirect)
@@ -1377,7 +1415,11 @@ export default function ChatPanel({
 
   const actionButtons = (
     <>
-      {participants && meId === participants?.customer_id && !hasPaid && !hideClientCtas ? (
+      {(() => {
+        const st = (requestStatus || '').toLowerCase();
+        const stageLocked = st === 'scheduled' || st === 'in_process' || st === 'inprogress' || st === 'finished' || st === 'completed';
+        return (participants && meId === participants?.customer_id && !hasPaid && !hideClientCtas && !stageLocked);
+      })() ? (
         <div className="p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {onsiteDeposit ? (
@@ -1412,6 +1454,43 @@ export default function ChatPanel({
   );
 
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
+  const statusHeader = (() => {
+    if (!requestId || !requestStatus) return null;
+    const label = UI_STATUS_LABELS[(requestStatus as any) as keyof typeof UI_STATUS_LABELS] || requestStatus;
+    return (
+      <div className="border-b px-3 py-2 text-xs text-slate-600 flex items-center justify-between bg-white">
+        <div className="truncate">{requestTitle || "Servicio"}</div>
+        <div className="inline-flex items-center gap-2">
+          <span className="hidden sm:inline text-xs text-muted-foreground">Estatus:</span>
+          <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
+            {label}
+          </span>
+        </div>
+      </div>
+    );
+  })();
+
+  async function patchRequestStatus(nextStatus: 'in_process' | 'completed') {
+    if (!requestId) return;
+    try {
+      const res = await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        credentials: 'include',
+        body: JSON.stringify({ nextStatus }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(json?.error || 'No se pudo actualizar el estado');
+        return;
+      }
+      const s = (json?.data?.status as string | null) ?? null;
+      if (s) setRequestStatus(s);
+      toast.success(nextStatus === 'in_process' ? 'Trabajo iniciado' : 'Trabajo marcado como realizado');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de red');
+    }
+  }
   const messageList = (
     <MessageList
       items={messagesState}
@@ -1480,6 +1559,7 @@ export default function ChatPanel({
           setOfferAmountLocked(false);
           setOfferCurrency("MXN");
           setOfferServiceDate("");
+          setOfferServiceDateError(false);
           setOfferScheduleRange([9, 17]);
           setOfferFlexibleSchedule(true);
         }
@@ -1532,10 +1612,17 @@ export default function ChatPanel({
             <label className="text-sm font-medium text-slate-700">Fecha objetivo</label>
             <input
               type="date"
-              className="w-full border rounded px-3 py-2 text-sm"
+              className={`w-full border rounded px-3 py-2 text-sm ${
+                offerServiceDateError ? "border-red-500 focus-visible:ring-red-500" : ""
+              }`}
               value={offerServiceDate}
-              onChange={(event) => setOfferServiceDate(event.target.value)}
+              onChange={(event) => {
+                setOfferServiceDate(event.target.value);
+                if (offerServiceDateError) setOfferServiceDateError(false);
+              }}
               min={toYMD(new Date())}
+              required
+              aria-invalid={offerServiceDateError}
             />
           </div>
           <div className="space-y-2">
@@ -1877,11 +1964,39 @@ export default function ChatPanel({
               </div>
             </div>
           ) : null}
+          {statusHeader}
           {loadingState || (
             <>
               {messageList}
               {typingIndicator}
-              {actionButtons}
+              {/* Stage-aware actions: include default CTAs and in-process controls */}
+              {(() => {
+                const st = (requestStatus || '').toLowerCase();
+                const isScheduled = st === 'scheduled';
+                const isInProcess = st === 'in_process' || st === 'inprogress';
+                const proActions = participants && meId === participants?.pro_id;
+                const canStart = proActions && isScheduled;
+                const canMarkDone = (isScheduled || isInProcess) && !!requestId;
+                return (
+                  <>
+                    {actionButtons}
+                    {(canStart || canMarkDone) ? (
+                      <div className="p-3 flex items-center gap-2 border-t">
+                        {canStart ? (
+                          <Button variant="outline" onClick={() => { void patchRequestStatus('in_process'); }}>
+                            Empezar trabajo
+                          </Button>
+                        ) : null}
+                        {canMarkDone ? (
+                          <Button className="bg-brand text-white hover:opacity-90" onClick={() => { void patchRequestStatus('completed'); }}>
+                            Trabajo realizado
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                );
+              })()}
             </>
           )}
           <div className="border-t p-2">

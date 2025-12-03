@@ -200,8 +200,7 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
 
   if (loading) return <p className="text-sm">Cargando acuerdos…</p>;
   if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!items?.length)
-    return <p className="text-sm text-gray-600">Aún no hay acuerdos.</p>;
+  if (!items?.length) return null;
 
   return (
     <>

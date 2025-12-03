@@ -1,0 +1,70 @@
+                </div>
+                <p className="text-sm text-white">
+                  Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                </p>
+              </div>
+            </SpotlightCard>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust badges */}
+      <section className="border-t border-slate-200 bg-[#041645]">
+        <div className="mx-auto max-w-5xl px-4 py-10">
+          <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
+            <div className="text-center md:text-left">
+              <p className="text-sm font-medium text-white">
+                Confianza y transparencia
+              </p>
+              <p className="text-sm text-white">
+                Política de bajas automáticas ante calificaciones bajas
+                recurrentes.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#041645]">
+                Identidad verificada
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#041645]">
+                Referencias
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#041645]">
+                Historial y reseñas
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  );
+}
+
+// Components
+function FeatureCard({
+  icon,
+  title,
+  desc,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}) {
+  const imgMap: Record<string, string> = {
+    "Encuentra cerca de ti": "/images/Encuentra cerca de ti.png",
+    "Perfiles verificados": "/images/Perfiles verificados.webp",
+    "Calificaciones reales": "/images/Calificaciones reales.jpg",
+  };
+  const imgSrc = imgMap[title];
+  const containerBase =
+    "relative overflow-hidden rounded-2xl border border-slate-200 p-6 shadow-sm";
+  return (
+    <div className={imgSrc ? containerBase : `${containerBase} bg-white`}>
+      {imgSrc ? (
+        <>
+          <Image
+            src={imgSrc}
+            alt={title}
+            fill
+            className="absolute inset-0 z-0 h-full w-full object-cover opacity-65"
+            priority={false}

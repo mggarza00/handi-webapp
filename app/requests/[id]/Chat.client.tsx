@@ -2,10 +2,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
 
-import { Button } from "@/components/ui/button";
 import ChatPanel from "@/components/chat/ChatPanel";
+import { Button } from "@/components/ui/button";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = {
   requestId: string;

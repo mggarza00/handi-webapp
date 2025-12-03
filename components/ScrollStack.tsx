@@ -1,6 +1,6 @@
 "use client";
 import { useLayoutEffect, useRef, useCallback, useState } from "react";
-import Lenis from "lenis";
+import Lenis, { type LenisOptions } from "lenis";
 
 export const ScrollStackItem = ({ children, itemClassName = "" }: { children: React.ReactNode; itemClassName?: string }) => (
   <div className={`scroll-stack-card ${itemClassName}`.trim()}>{children}</div>
@@ -26,6 +26,17 @@ type ScrollStackProps = {
   endSpacerPx?: number;
 };
 
+type LenisController = {
+  destroy?: () => void;
+};
+
+type TransformSnapshot = {
+  translateY: number;
+  scale: number;
+  rotation: number;
+  blur: number;
+};
+
 export default function ScrollStack({
   children,
   className = "",
@@ -46,9 +57,9 @@ export default function ScrollStack({
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const stackCompletedRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
-  const lenisRef = useRef<any>(null);
+  const lenisRef = useRef<Lenis | LenisController | null>(null);
   const cardsRef = useRef<HTMLElement[]>([]);
-  const lastTransformsRef = useRef<Map<number, any>>(new Map());
+  const lastTransformsRef = useRef<Map<number, TransformSnapshot>>(new Map());
   const isUpdatingRef = useRef(false);
   const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
 
@@ -148,7 +159,7 @@ export default function ScrollStack({
         translateY = itemStackDistance * i;
       }
 
-      const newTransform = {
+      const newTransform: TransformSnapshot = {
         translateY: Math.round(translateY * 100) / 100,
         scale: Math.round(scale * 1000) / 1000,
         rotation: Math.round(rotation * 100) / 100,
@@ -166,8 +177,8 @@ export default function ScrollStack({
       if (hasChanged) {
         const transform = `translate3d(0, ${newTransform.translateY}px, 0) scale(${newTransform.scale}) rotate(${newTransform.rotation}deg)`;
         const filter = newTransform.blur > 0 ? `blur(${newTransform.blur}px)` : '';
-        (card as HTMLElement).style.transform = transform;
-        (card as HTMLElement).style.filter = filter;
+        card.style.transform = transform;
+        card.style.filter = filter;
         lastTransformsRef.current.set(i, newTransform);
       }
 
@@ -192,6 +203,7 @@ export default function ScrollStack({
     rotationAmount,
     blurAmount,
     useWindowScroll,
+    fitToStack,
     onStackComplete,
     calculateProgress,
     parsePercentage,
@@ -236,10 +248,12 @@ export default function ScrollStack({
       setTimeout(measureHeights, 100);
       setTimeout(measureHeights, 350);
       // Store stop function in ref
-      lenisRef.current = { destroy: () => {
-        window.removeEventListener('scroll', onScroll);
-        window.removeEventListener('resize', onResize);
-      }};
+      lenisRef.current = {
+        destroy: () => {
+          window.removeEventListener('scroll', onScroll);
+          window.removeEventListener('resize', onResize);
+        },
+      };
       return lenisRef.current;
     } else {
       const scroller = scrollerRef.current;
@@ -259,7 +273,7 @@ export default function ScrollStack({
         syncTouch: true,
         syncTouchLerp: 0.075,
         touchInertia: 0.6,
-      } as any);
+      } as LenisOptions);
       lenis.on('scroll', handleScroll);
       const raf = (time: number) => {
         lenis.raf(time);
@@ -281,28 +295,27 @@ export default function ScrollStack({
     const transformsCache = lastTransformsRef.current;
     cards.forEach((card, i) => {
       if (fitToStack && useWindowScroll) {
-        // In compact mode, stack cards in place and remove flow spacing
-        if (i < cards.length - 1) card.style.marginBottom = `0px`;
-        (card.style as any).position = 'absolute';
-        (card.style as any).top = '0';
-        (card.style as any).left = '0';
-        (card.style as any).right = '0';
-        (card.style as any).zIndex = String(cards.length - i);
+        if (i < cards.length - 1) card.style.marginBottom = "0px";
+        card.style.position = "absolute";
+        card.style.top = "0";
+        card.style.left = "0";
+        card.style.right = "0";
+        card.style.zIndex = String(cards.length - i);
       } else {
         if (i < cards.length - 1) card.style.marginBottom = `${itemDistance}px`;
-        (card.style as any).position = '';
-        (card.style as any).top = '';
-        (card.style as any).left = '';
-        (card.style as any).right = '';
-        (card.style as any).zIndex = '';
+        card.style.position = "";
+        card.style.top = "";
+        card.style.left = "";
+        card.style.right = "";
+        card.style.zIndex = "";
       }
-      card.style.willChange = 'transform, filter';
-      card.style.transformOrigin = 'top center';
-      card.style.backfaceVisibility = 'hidden';
-      card.style.transform = 'translateZ(0)';
-      (card.style as any).webkitTransform = 'translateZ(0)';
-      (card.style as any).perspective = '1000px';
-      (card.style as any).webkitPerspective = '1000px';
+      card.style.willChange = "transform, filter";
+      card.style.transformOrigin = "top center";
+      card.style.backfaceVisibility = "hidden";
+      card.style.transform = "translateZ(0)";
+      card.style.setProperty("-webkit-transform", "translateZ(0)");
+      card.style.perspective = "1000px";
+      card.style.setProperty("-webkit-perspective", "1000px");
     });
 
     setupLenis();
@@ -311,10 +324,10 @@ export default function ScrollStack({
 
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      // Cleanup listeners/lenis
-      try { lenisRef.current?.destroy?.(); } catch {}
+      lenisRef.current?.destroy?.();
+      lenisRef.current = null;
       stackCompletedRef.current = false;
-      cardsRef.current = [] as any;
+      cardsRef.current = [];
       transformsCache.clear();
       isUpdatingRef.current = false;
     };

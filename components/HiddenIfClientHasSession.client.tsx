@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function HiddenIfClientHasSession({ children }: { children: React.ReactNode }) {

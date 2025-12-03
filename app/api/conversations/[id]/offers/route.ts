@@ -120,6 +120,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (error || !offer)
       return NextResponse.json({ error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
 
+    // Best-effort: in-app notification for the professional
+    try {
+      const adminSrv = createServiceClient();
+      const formatted = new Intl.NumberFormat("es-MX", { style: "currency", currency: (offer.currency || "MXN").toUpperCase() }).format(Number(offer.amount || 0));
+      const link = `/mensajes/${encodeURIComponent(conversationId)}`;
+      // user_notifications has RLS insert.self; use service role
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (adminSrv as any).from("user_notifications").insert({
+        user_id: professionalId,
+        type: "offer",
+        title: "Oferta de contratación",
+        body: `${offer.title || "Oferta"} por ${formatted}`,
+        link,
+      });
+    } catch { /* ignore notification errors */ }
+
+    // Email notification to the pro (same path as new message)
+    try {
+      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+      await notifyChatMessageByConversation({ conversationId, senderId: user.id, text: 'Oferta enviada' });
+    } catch { /* ignore email errors */ }
+
     return NextResponse.json({ ok: true, offer }, { status: 201, headers: JSONH });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";

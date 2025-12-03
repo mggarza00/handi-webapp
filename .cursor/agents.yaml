@@ -1,0 +1,23 @@
+﻿codex:
+  approval_mode: "auto"
+  auto_approve:
+    - file_write
+    - run_command
+    - install_dependencies
+    - modify_config
+    - read_file
+    - search_in_repo
+    - read_config
+    - apply_patch
+    - manage_files
+    - format_code
+  guardrails:
+    max_files: 200
+    max_runtime_minutes: 30
+    disallowed:
+      - "git push --force"
+      - "rm -rf /"
+      - "vercel env pull --environment=production"
+      - "openssl rsautl -decrypt"
+      - "gh auth login"
+      - "docker system prune -a"

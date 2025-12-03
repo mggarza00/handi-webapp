@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type SupabaseClientInstance = typeof supabaseBrowser;
@@ -17,4 +18,3 @@ export const useRealtime = (): SupabaseClientInstance => {
   if (!ctx) throw new Error("useRealtime must be used within RealtimeProvider");
   return ctx;
 };
-

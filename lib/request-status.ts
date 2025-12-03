@@ -4,10 +4,9 @@ export const UI_STATUS_LABELS: Record<RequestStatus, string> = {
   active: 'Activa',
   pending: 'Activa',
   scheduled: 'Agendada',
-  in_process: 'En proceso',
+  in_process: 'en proceso',
   completed: 'Finalizada',
   finished: 'Finalizada',
   canceled: 'Cancelada',
   cancelled: 'Cancelada',
 };
-

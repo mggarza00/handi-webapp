@@ -1,27 +1,32 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import getServerClient from "@/lib/supabase/server-client";
 
 import ExploreFilters from "@/app/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
-
-type RequestRow = {
-  id: string;
-  title: string;
-  city: string | null;
-  category: string | null;
-  subcategory?: string | null;
-  status: string | null;
-  created_at: string | null;
-  budget?: number | null;
-  attachments?: unknown;
-};
+import getServerClient from "@/lib/supabase/server-client";
 
 export const dynamic = "force-dynamic";
 
 const PER_PAGE = 20;
+
+type CatalogApiRow = {
+  category?: string | null;
+  subcategory?: string | null;
+  icon?: string | null;
+};
+
+type CatalogResponse = {
+  ok?: boolean;
+  data: CatalogApiRow[];
+};
+
+type CatalogPair = {
+  category: string;
+  subcategory: string | null;
+  icon?: string | null;
+};
 
 function getBaseUrl() {
   const h = headers();
@@ -34,13 +39,34 @@ function getBaseUrl() {
   );
 }
 
-function qs(params: Record<string, string | number | undefined | null>) {
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v == null) return;
-    sp.set(k, String(v));
-  });
-  return sp.toString();
+function parseCatalogResponse(payload: unknown): CatalogResponse | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidateData = (payload as { data?: unknown }).data;
+  if (!Array.isArray(candidateData)) {
+    return null;
+  }
+
+  const isValidRow = (value: unknown): value is CatalogApiRow => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const row = value as Record<string, unknown>;
+    const validateField = (key: string) =>
+      !(key in row) || typeof row[key] === "string" || row[key] == null;
+    return ["category", "subcategory", "icon"].every(validateField);
+  };
+
+  if (!candidateData.every(isValidRow)) {
+    return null;
+  }
+
+  return {
+    ok: (payload as { ok?: boolean }).ok,
+    data: candidateData,
+  };
 }
 
 export default async function ExploreRequestsPage({
@@ -153,7 +179,7 @@ export default async function ExploreRequestsPage({
   // Forward raw cookies for SSR fetch
   const ck = headers();
   const cookie = ck.get("cookie");
-  let catalogPairs: Array<{ category: string; subcategory: string | null; icon?: string | null }> = [];
+  let catalogPairs: CatalogPair[] = [];
   try {
     const res = await fetch(`${base}/api/catalog/categories`, {
       headers: {
@@ -162,12 +188,12 @@ export default async function ExploreRequestsPage({
       },
       cache: "no-store",
     });
-    const j = await res.json().catch(() => null as any);
-    if (res.ok && j?.ok && Array.isArray(j.data)) {
-      catalogPairs = j.data.map((r: any) => ({
-        category: String(r.category || "").trim(),
-        subcategory: (r.subcategory ? String(r.subcategory) : "").trim() || null,
-        icon: (r.icon ? String(r.icon) : "").trim() || null,
+    const parsed = parseCatalogResponse(await res.json().catch(() => null));
+    if (res.ok && parsed?.ok && Array.isArray(parsed.data)) {
+      catalogPairs = parsed.data.map((row) => ({
+        category: String(row.category || "").trim(),
+        subcategory: (row.subcategory ? String(row.subcategory) : "").trim() || null,
+        icon: (row.icon ? String(row.icon) : "").trim() || null,
       }));
     }
   } catch {

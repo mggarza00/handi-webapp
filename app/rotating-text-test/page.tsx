@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useRef, useLayoutEffect, useState } from "react";
-import RotatingText from "@/components/RotatingText";
 import { motion, useAnimation } from "motion/react";
+
+import RotatingText from "@/components/RotatingText";
+
+type AnimationController = ReturnType<typeof useAnimation>;
 
 export default function RotatingTextTestPage() {
   const items = [
@@ -23,20 +26,17 @@ export default function RotatingTextTestPage() {
 
   // Controls + refs para el deslizamiento del prefijo
   const prefixCtrlA = useAnimation();
-  const prefixCtrlB = useAnimation();
   const wrapARef = useRef<HTMLSpanElement | null>(null);
-  const wrapBRef = useRef<HTMLSpanElement | null>(null);
   const contentARef = useRef<HTMLSpanElement | null>(null);
   const contentBRef = useRef<HTMLSpanElement | null>(null);
   const lastWARef = useRef<number | null>(null);
-  const lastWBRef = useRef<number | null>(null);
   const [dimsA, setDimsA] = useState<{ w: number; h: number } | null>(null);
   const [dimsB, setDimsB] = useState<{ w: number; h: number } | null>(null);
 
   const slidePrefixByWidth = (
     wrapRef: React.RefObject<HTMLElement>,
     lastWRef: React.MutableRefObject<number | null>,
-    ctrl: any,
+    ctrl: AnimationController,
     fast = false,
   ) => {
     const wrap = wrapRef.current;
@@ -97,7 +97,7 @@ export default function RotatingTextTestPage() {
                 staggerDuration={0.015}
                 mainClassName="text-slate-900 text-2xl font-semibold"
                 onNext={() => {
-                  slidePrefixByWidth(wrapARef as any, lastWARef, prefixCtrlA, true);
+                  slidePrefixByWidth(wrapARef, lastWARef, prefixCtrlA, true);
                   requestAnimationFrame(() => {
                     const d = measureDims(contentARef.current);
                     if (d) setDimsA(d);

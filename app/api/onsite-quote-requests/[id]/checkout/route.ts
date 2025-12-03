@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -24,7 +25,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       );
     }
 
-    const supabase = createClient(supaUrl, serviceRole, { auth: { persistSession: false } });
+    const supabase = createClient<Database>(supaUrl, serviceRole, { auth: { persistSession: false } });
     const rowId = (params?.id || "").trim();
     if (!rowId) {
       return NextResponse.json({ error: "MISSING_ID" }, { status: 400, headers: JSONH });

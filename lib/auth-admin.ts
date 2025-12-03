@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
+import { NextResponse } from "next/server";
 
-import type { Database } from "@/types/supabase";
+import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 
 export const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 

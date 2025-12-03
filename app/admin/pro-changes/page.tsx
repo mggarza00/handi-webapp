@@ -1,6 +1,19 @@
 import Link from "next/link";
-import createClient from "@/utils/supabase/server";
+
 import { ProChangeActionsCell } from "@/components/admin/ProChangeActionsCell.client";
+import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
+
+type ProfileChangePayload = {
+  profiles?: Record<string, unknown> | null;
+  professionals?: Record<string, unknown> | null;
+  gallery_add_paths?: string[] | null;
+};
+
+type ProfileChangeRow = Pick<
+  Database["public"]["Tables"]["profile_change_requests"]["Row"],
+  "id" | "user_id" | "status" | "payload" | "created_at"
+>;
 
 export const dynamic = "force-dynamic";
 
@@ -12,13 +25,7 @@ export default async function AdminProChangesPage() {
     .order("created_at", { ascending: false })
     .limit(200);
 
-  const list = (rows || []) as Array<{
-    id: string;
-    user_id: string;
-    status: string;
-    created_at: string | null;
-    payload: { profiles?: Record<string, unknown>; professionals?: Record<string, unknown> } | null;
-  }>;
+  const list = (rows || []) as ProfileChangeRow[];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
@@ -50,10 +57,11 @@ export default async function AdminProChangesPage() {
               </tr>
             ) : (
               list.map((r) => {
-                const prof = Object.keys((r.payload?.profiles as Record<string, unknown> | undefined) || {});
-                const pro = Object.keys((r.payload?.professionals as Record<string, unknown> | undefined) || {});
-                const galleryAdds = Array.isArray((r.payload as any)?.gallery_add_paths)
-                  ? (r.payload as any).gallery_add_paths.length
+                const payload = (r.payload as unknown as ProfileChangePayload | null) ?? null;
+                const prof = Object.keys((payload?.profiles as Record<string, unknown> | undefined) || {});
+                const pro = Object.keys((payload?.professionals as Record<string, unknown> | undefined) || {});
+                const galleryAdds = Array.isArray(payload?.gallery_add_paths)
+                  ? payload.gallery_add_paths.length
                   : 0;
                 const summary = [
                   ...prof.map((k) => `profiles.${k}`),

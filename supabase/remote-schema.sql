@@ -1,4 +1,4 @@
-
+﻿
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -93,7 +93,7 @@ begin
     return json_build_object('ok', false, 'error', 'offer_not_found');
   end if;
 
-  -- 3) Propiedad y estado válido (en este esquema, 'sent' → aceptable)
+  -- 3) Propiedad y estado vÃ¡lido (en este esquema, 'sent' â†’ aceptable)
   if v_professional <> p_actor then
     return json_build_object('ok', false, 'error', 'forbidden');
   end if;
@@ -128,7 +128,7 @@ begin
     raise exception 'FORBIDDEN' using errcode = '42501';
   end if;
   if p_clabe is null or char_length(p_clabe) <> 18 or p_clabe !~ '^\d{18}$' then
-    raise exception 'CLABE debe tener 18 dígitos' using errcode = '22000';
+    raise exception 'CLABE debe tener 18 dÃ­gitos' using errcode = '22000';
   end if;
 
   if coalesce(p_is_default, false) then
@@ -175,7 +175,7 @@ begin
 
   if p_clabe is not null then
     if char_length(p_clabe) <> 18 or p_clabe !~ '^\d{18}$' then
-      raise exception 'CLABE debe tener 18 dígitos' using errcode = '22000';
+      raise exception 'CLABE debe tener 18 dÃ­gitos' using errcode = '22000';
     end if;
   end if;
 
@@ -372,9 +372,10 @@ CREATE OR REPLACE FUNCTION "public"."notify_admins"("_type" "text", "_title" "te
     AS $$
 begin
   insert into public.user_notifications (user_id, type, title, body, link)
-  select p.id, _type, _title, _body, _link
+  select distinct p.id, _type, _title, _body, _link
   from public.profiles p
-  where p.role = 'admin';
+  where coalesce(p.is_admin, false) = true
+     or lower(coalesce(p.role, '')) = 'admin';
 end;
 $$;
 
@@ -776,13 +777,13 @@ ALTER TABLE "public"."bank_accounts" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."categories_subcategories" (
-    "Categoría" "text" NOT NULL,
-    "Subcategoría" "text" NOT NULL,
-    "Descripción" "text",
+    "CategorÃ­a" "text" NOT NULL,
+    "SubcategorÃ­a" "text" NOT NULL,
+    "DescripciÃ³n" "text",
     "Activa" "text",
-    "Ícono" "text",
+    "Ãcono" "text",
     "Tipo de servicio" "text",
-    "Nivel de especialización" "text",
+    "Nivel de especializaciÃ³n" "text",
     "categories_subcategories_id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL
 );
 
@@ -912,7 +913,7 @@ CREATE TABLE IF NOT EXISTS "public"."pro_applications" (
     "company_rep_id_front_url" "text",
     "company_rep_id_back_url" "text",
     CONSTRAINT "pro_applications_company_employees_count_check" CHECK ((("company_employees_count" IS NULL) OR ("company_employees_count" > 0))),
-    CONSTRAINT "pro_applications_rfc_format_chk" CHECK ((("rfc" IS NULL) OR ("upper"("rfc") ~ '^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$'::"text")))
+    CONSTRAINT "pro_applications_rfc_format_chk" CHECK ((("rfc" IS NULL) OR ("upper"("rfc") ~ '^[A-ZÃ‘&]{3,4}[0-9]{6}[A-Z0-9]{3}$'::"text")))
 );
 
 
@@ -949,7 +950,7 @@ CREATE TABLE IF NOT EXISTS "public"."professionals" (
     "company_rep_id_front_url" "text",
     "company_rep_id_back_url" "text",
     CONSTRAINT "professionals_company_employees_count_check" CHECK ((("company_employees_count" IS NULL) OR ("company_employees_count" > 0))),
-    CONSTRAINT "professionals_rfc_format_chk" CHECK ((("rfc" IS NULL) OR ("upper"("rfc") ~ '^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$'::"text")))
+    CONSTRAINT "professionals_rfc_format_chk" CHECK ((("rfc" IS NULL) OR ("upper"("rfc") ~ '^[A-ZÃ‘&]{3,4}[0-9]{6}[A-Z0-9]{3}$'::"text")))
 );
 
 
@@ -1056,7 +1057,7 @@ CREATE TABLE IF NOT EXISTS "public"."requests" (
 ALTER TABLE "public"."requests" OWNER TO "postgres";
 
 
-COMMENT ON COLUMN "public"."requests"."subcategories" IS 'Array JSON con subcategorías (ej. ["Plomería", {"name":"Instalación"}])';
+COMMENT ON COLUMN "public"."requests"."subcategories" IS 'Array JSON con subcategorÃ­as (ej. ["PlomerÃ­a", {"name":"InstalaciÃ³n"}])';
 
 
 
@@ -1375,6 +1376,33 @@ CREATE INDEX "ix_profiles_rating" ON "public"."profiles" USING "btree" ("rating"
 
 
 CREATE INDEX "ix_requests_status_city" ON "public"."requests" USING "btree" ("status", "city");
+
+CREATE TABLE IF NOT EXISTS "public"."request_pro_alerts" (
+    "request_id" "uuid" NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "city" "text",
+    "category" "text",
+    "subcategory" "text",
+    "subcategories" "jsonb" DEFAULT '[]'::"jsonb",
+    "request_title" "text",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "last_checked_at" timestamp with time zone,
+    "notified_at" timestamp with time zone,
+    "first_professional_id" "uuid",
+    "first_professional_snapshot" "jsonb",
+    CONSTRAINT "request_pro_alerts_pkey" PRIMARY KEY ("request_id"),
+    CONSTRAINT "request_pro_alerts_request_id_fkey" FOREIGN KEY ("request_id") REFERENCES "public"."requests"("id") ON DELETE CASCADE
+);
+
+ALTER TABLE "public"."request_pro_alerts" OWNER TO "postgres";
+
+CREATE INDEX "idx_request_pro_alerts_user" ON "public"."request_pro_alerts" USING "btree" ("user_id");
+
+ALTER TABLE "public"."request_pro_alerts" ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "request_pro_alerts_owner_manage" ON "public"."request_pro_alerts"
+    USING (("auth"."uid"() = "user_id"))
+    WITH CHECK (("auth"."uid"() = "user_id"));
 
 
 
@@ -2314,6 +2342,10 @@ GRANT ALL ON TABLE "public"."ratings" TO "anon";
 GRANT ALL ON TABLE "public"."ratings" TO "authenticated";
 GRANT ALL ON TABLE "public"."ratings" TO "service_role";
 
+GRANT ALL ON TABLE "public"."request_pro_alerts" TO "anon";
+GRANT ALL ON TABLE "public"."request_pro_alerts" TO "authenticated";
+GRANT ALL ON TABLE "public"."request_pro_alerts" TO "service_role";
+
 
 
 GRANT ALL ON TABLE "public"."requests" TO "anon";
@@ -2389,3 +2421,4 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 RESET ALL;
+

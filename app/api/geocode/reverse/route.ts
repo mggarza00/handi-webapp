@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
+import { guessCityFromCoords } from "@/lib/cities";
 
 function toNumber(v: unknown): number | null {
   const n = typeof v === "string" ? Number(v) : (v as number);
@@ -50,20 +51,30 @@ export async function GET(req: Request) {
     };
 
     const res = await fetch(url.toString(), { headers, cache: "no-store" });
-    if (!res.ok) {
+    if (res.ok) {
+      const j = (await res.json()) as Record<string, unknown>;
+      const address = typeof j?.["display_name"] === "string" ? (j["display_name"] as string) : "";
+      const addrObj = j?.["address"] && typeof j["address"] === "object" ? (j["address"] as Record<string, unknown>) : null;
+      const city = extractCity(addrObj);
+
       return NextResponse.json(
-        { ok: false, error: `reverse_failed_${res.status}` },
-        { status: 500, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } },
+        { ok: true, address, city: city ?? null, lat, lon },
+        { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } },
       );
     }
-    const j = (await res.json()) as Record<string, unknown>;
-    const address = typeof j?.["display_name"] === "string" ? (j["display_name"] as string) : "";
-    const addrObj = j?.["address"] && typeof j["address"] === "object" ? (j["address"] as Record<string, unknown>) : null;
-    const city = extractCity(addrObj);
+
+    // Fallback: if Nominatim fails (e.g., rate-limited in prod), guess city
+    const fallbackCity = guessCityFromCoords(lat, lon);
+    if (fallbackCity) {
+      return NextResponse.json(
+        { ok: true, address: "", city: fallbackCity, lat, lon },
+        { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } },
+      );
+    }
 
     return NextResponse.json(
-      { ok: true, address, city: city ?? null, lat, lon },
-      { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } },
+      { ok: false, error: `reverse_failed_${res.status}` },
+      { status: 500, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } },
     );
   } catch (e: any) {
     return NextResponse.json(

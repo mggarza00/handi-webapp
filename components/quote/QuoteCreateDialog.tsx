@@ -1,15 +1,18 @@
 "use client";
+
 import * as React from "react";
-import { useForm, useFieldArray, Controller, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Trash2 } from "lucide-react";
+
+import { CurrencyInput } from "./CurrencyInput";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CurrencyInput } from "./CurrencyInput";
-import { Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ItemSchema = z.object({
   description: z.string().min(2, "Escribe un concepto"),
@@ -52,8 +55,6 @@ export function QuoteCreateDialog({
   // VAT removed from UI; total equals subtotal
   const subtotal = (items || []).reduce((s, it) => s + (Number(it?.amount) || 0), 0);
   const total = subtotal;
-  const fmt = React.useMemo(() => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }), []);
-
   const lastDescRef = React.useRef<HTMLInputElement | null>(null);
   const firstDescRef = React.useRef<HTMLInputElement | null>(null);
   function handleAdd() {
@@ -71,11 +72,10 @@ export function QuoteCreateDialog({
     form.reset({ items: [{ description: "", amount: 0 }], details: "", includeVAT: false });
   }
 
-  const canSubmit = form.formState.isValid && total > 0 && !form.formState.isSubmitting;
-
-  function nf(n: number) {
-    return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0);
-  }
+  const formatCurrency = React.useCallback(
+    (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n || 0),
+    [],
+  );
 
   function handleFormKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -101,7 +101,10 @@ export function QuoteCreateDialog({
     if (open) setFolio(genFolio());
   }, [open]);
 
-  const today = React.useMemo(() => new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date()), [open]);
+  const today = React.useMemo(
+    () => new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date()),
+    [],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,10 +119,12 @@ export function QuoteCreateDialog({
         <form
           className="space-y-5"
           onKeyDown={handleFormKeyDown}
-          onSubmit={form.handleSubmit(async (v) => { await onSubmit(v); onOpenChange(false); })}
+          onSubmit={form.handleSubmit(handleSubmit)}
         >
           <div className="space-y-3">
-            {fields.map((f, idx) => (
+            {fields.map((f, idx) => {
+              const descField = form.register(`items.${idx}.description` as const);
+              return (
               <div key={f.id} className="grid grid-cols-1 sm:[grid-template-columns:1fr_170px_32px] gap-3 items-start">
                 <div className="sm:col-span-1">
                   <Label className="sr-only" htmlFor={`desc-${idx}`}>Concepto</Label>
@@ -127,11 +132,11 @@ export function QuoteCreateDialog({
                     id={`desc-${idx}`}
                     placeholder="Concepto (ej. Mano de obra)"
                     aria-invalid={!!form.formState.errors.items?.[idx]?.description}
-                    {...form.register(`items.${idx}.description` as const)}
+                    {...descField}
                     ref={(el) => {
-                      (form.register(`items.${idx}.description` as const).ref as any)?.(el);
-                      if (idx === 0) firstDescRef.current = el as any;
-                      if (idx === fields.length - 1) lastDescRef.current = el as any;
+                      descField.ref(el);
+                      if (idx === 0) firstDescRef.current = el;
+                      if (idx === fields.length - 1) lastDescRef.current = el;
                     }}
                   />
                   {form.formState.errors.items?.[idx]?.description ? (
@@ -190,7 +195,7 @@ export function QuoteCreateDialog({
                   ) : null}
                 </div>
               </div>
-            ))}
+            );})}
             <Button type="button" variant="secondary" onClick={() => append({ description: "", amount: 0 })}>
               Agregar concepto
             </Button>
@@ -202,7 +207,7 @@ export function QuoteCreateDialog({
           </div>
 
           <div className="rounded-xl border p-4 bg-muted/30 space-y-2">
-            <div className="flex justify-between text-base font-semibold"><span>Total</span><span>{nf(total)}</span></div>
+            <div className="flex justify-between text-base font-semibold"><span>Total</span><span>{formatCurrency(total)}</span></div>
           </div>
 
           <DialogFooter className="gap-2 flex-col sm:flex-row">

@@ -25,7 +25,12 @@ export default function OfferRedirectPage({ params }: { params: { id: string } }
               const pr = await fetch(`/api/offers/${encodeURIComponent(params.id)}/paid-message`, { method: "POST", credentials: "include" });
               const pj = (await pr.json().catch(() => ({}))) as { ok?: boolean; created?: boolean };
               if (pj?.ok) break;
-            } catch {}
+            } catch (err) {
+              if (process.env.NODE_ENV !== "production") {
+                // eslint-disable-next-line no-console
+                console.error("offer paid-message poll error", err);
+              }
+            }
             if (Date.now() - started > 12000) break;
             await new Promise((r) => setTimeout(r, 800));
           }
@@ -76,4 +81,3 @@ export default function OfferRedirectPage({ params }: { params: { id: string } }
     </main>
   );
 }
-

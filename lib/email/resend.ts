@@ -93,7 +93,7 @@ export async function resendSendEmail(payload: SendEmailInput): Promise<{ ok: bo
 function sanitizeResendError(err: any): Record<string, unknown> {
   try {
     if (!err || typeof err !== 'object') return { message: String(err) };
-    const { name, message, type, statusCode, code, ...rest } = err as any;
+    const { name, message, type, statusCode, code } = err as any;
     const base: Record<string, unknown> = {};
     if (name) base.name = name;
     if (message) base.message = message;

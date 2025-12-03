@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
+
 import { Button } from "@/components/ui/button";
 
-type LocationPayload = {
+export type LocationPayload = {
   type?: string | null;
   // flat
   address_line?: string | null;
@@ -66,4 +67,3 @@ export default function LocationCard({ payload }: Props) {
     </div>
   );
 }
-

@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import MapPicker from "@/components/address/MapPicker";
+
+import AddressMapPickerModal, {
+  type Payload as AddressMapPayload,
+} from "@/components/address/MapPickerModal";
 
 type Props = {
   open: boolean;
@@ -12,22 +15,30 @@ type Props = {
   withSearch?: boolean;
 };
 
-export default function MapPickerModal({ open, onOpenChange, lat, lng, onPick, withSearch = true }: Props) {
-
+export default function MapPickerModal({
+  open,
+  onOpenChange,
+  lat,
+  lng,
+  onPick,
+  withSearch: _withSearch = true, // preserved for backward compatibility
+}: Props) {
   if (!open) return null;
+
+  const handleConfirm = async (payload: AddressMapPayload) => {
+    await onPick(payload.lat, payload.lng);
+    onOpenChange(false);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-[96vw] max-w-3xl rounded-lg bg-white shadow-lg overflow-hidden">
-        <MapPicker
-          lat={lat}
-          lng={lng}
-          withSearch={withSearch}
-          onPick={async ({ lat: la, lng: ln }) => { await onPick(la, ln); onOpenChange(false); }}
-        />
-        <div className="flex items-center justify-end gap-2 p-3 border-t">
-          <button className="px-3 py-2 text-sm text-slate-600 hover:text-slate-800" onClick={() => onOpenChange(false)}>Cerrar</button>
-        </div>
-      </div>
-    </div>
+    <AddressMapPickerModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      initial={{
+        lat: typeof lat === "number" ? lat : undefined,
+        lng: typeof lng === "number" ? lng : undefined,
+      }}
+      onConfirm={handleConfirm}
+    />
   );
 }

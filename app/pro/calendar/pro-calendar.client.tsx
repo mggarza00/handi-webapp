@@ -1,6 +1,8 @@
 "use client";
+
 import * as React from "react";
 import Link from "next/link";
+
 import { SingleCalendar } from "@/components/ui/calendar";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,10 +41,16 @@ export default function ProCalendarClient({ events }: { events: Event[] }) {
 
   const selectedKey = React.useMemo(() => {
     if (!selected) return "";
-    return `${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, "0")}-${String(selected.getDate()).padStart(2, "0")}`;
+    const month = String(selected.getMonth() + 1).padStart(2, "0");
+    const day = String(selected.getDate()).padStart(2, "0");
+    return `${selected.getFullYear()}-${month}-${day}`;
   }, [selected]);
 
-  const selectedEvents = map.get(selectedKey) || [];
+  const selectedEvents = React.useMemo(() => map.get(selectedKey) ?? [], [map, selectedKey]);
+  const listEvents = React.useMemo(() => {
+    if (selectedEvents.length > 0) return selectedEvents;
+    return [...events].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  }, [events, selectedEvents]);
 
   // Build modifiers from event dates
   const modifierDates = React.useMemo(() => {
@@ -64,39 +72,36 @@ export default function ProCalendarClient({ events }: { events: Event[] }) {
           modifiers={{ hasEvent: modifierDates }}
           modifiersClassNames={{
             hasEvent:
-              'relative after:content-["\""] after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-1 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary',
+              "relative after:content-[''] after:absolute after:left-1/2 after:-translate-x-1/2 after:bottom-1 after:w-1.5 after:h-1.5 after:rounded-full after:bg-primary",
           }}
         />
       </Card>
       <div className="space-y-3">
         <h2 className="text-base font-medium">Listado de servicios</h2>
-        {events.length === 0 ? (
+        {listEvents.length === 0 ? (
           <Card className="p-4 text-sm text-slate-600">No hay servicios agendados.</Card>
         ) : (
           <ul className="space-y-3">
-            {events
-              .slice()
-              .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-              .map((ev) => (
-                <li key={ev.offerId}>
-                  <Card className="p-4">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium truncate">{ev.title || "Servicio"}</span>
-                          <Badge variant="secondary">{ev.status}</Badge>
-                        </div>
-                        <p className="text-xs text-slate-600 mt-0.5">{ev.date}</p>
+            {listEvents.map((ev) => (
+              <li key={ev.offerId}>
+                <Card className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">{ev.title || "Servicio"}</span>
+                        <Badge variant="secondary">{ev.status}</Badge>
                       </div>
-                      <div className="shrink-0">
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/requests/explore/${ev.requestId}`}>Ver solicitud</Link>
-                        </Button>
-                      </div>
+                      <p className="text-xs text-slate-600 mt-0.5">{ev.date}</p>
                     </div>
-                  </Card>
-                </li>
-              ))}
+                    <div className="shrink-0">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/requests/explore/${ev.requestId}`}>Ver solicitud</Link>
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              </li>
+            ))}
           </ul>
         )}
       </div>

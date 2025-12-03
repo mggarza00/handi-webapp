@@ -78,14 +78,49 @@ export default function DashboardMetrics() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <KpiCard title="Solicitudes (hoy)" value={kpis?.requestsToday ?? "—"} loading={loading} />
-        <KpiCard title="Conversión (30d)" value={kpis ? `${kpis.conversionRate}%` : "—"} loading={loading} />
-        <KpiCard title="Pagos hoy (MXN)" value={kpis ? kpis.paymentsToday.toLocaleString() : "—"} loading={loading} />
-        <KpiCard title="Payouts pendientes" value={kpis?.payoutsPending ?? "—"} loading={loading} />
-        <KpiCard title="Profesionales activos" value={kpis?.activeProfessionals ?? "—"} loading={loading} />
-        <KpiCard title="SLA promedio (h)" value={kpis?.slaAvgHours ?? "—"} loading={loading} />
+        <KpiCard
+          title="Solicitudes (hoy)"
+          value={kpis?.requestsToday ?? "-"}
+          loading={loading}
+          testId="admin-kpi-requests-today"
+        />
+        <KpiCard
+          title="Conversión (30d)"
+          value={kpis ? `${kpis.conversionRate}%` : "-"}
+          loading={loading}
+          testId="admin-kpi-conversion"
+        />
+        <KpiCard
+          title="Pagos hoy (MXN)"
+          value={kpis ? kpis.paymentsToday.toLocaleString() : "-"}
+          loading={loading}
+          testId="admin-kpi-payments-today"
+        />
+        <KpiCard
+          title="Payouts pendientes"
+          value={kpis?.payoutsPending ?? "-"}
+          loading={loading}
+          testId="admin-kpi-payouts"
+        />
+        <KpiCard
+          title="Profesionales activos"
+          value={kpis?.activeProfessionals ?? "-"}
+          loading={loading}
+          testId="admin-kpi-active-pros"
+        />
+        <KpiCard
+          title="SLA promedio (h)"
+          value={kpis?.slaAvgHours ?? "-"}
+          loading={loading}
+          testId="admin-kpi-sla"
+        />
         {typeof kpis?.openTickets === 'number' ? (
-          <KpiCard title="Tickets abiertos" value={kpis!.openTickets!} loading={loading} />
+          <KpiCard
+            title="Tickets abiertos"
+            value={kpis.openTickets}
+            loading={loading}
+            testId="admin-kpi-open-tickets"
+          />
         ) : null}
       </div>
 
@@ -115,11 +150,21 @@ export default function DashboardMetrics() {
   );
 }
 
-function KpiCard({ title, value, loading }: { title: string; value: string | number; loading?: boolean }) {
+function KpiCard({
+  title,
+  value,
+  loading,
+  testId,
+}: {
+  title: string;
+  value: string | number;
+  loading?: boolean;
+  testId?: string;
+}) {
   return (
-    <div className="rounded-xl border p-4">
+    <div className="rounded-xl border p-4" data-testid={testId}>
       <div className="text-sm opacity-70">{title}</div>
-      <div className="mt-1 text-2xl font-semibold">{loading ? "—" : value}</div>
+      <div className="mt-1 text-2xl font-semibold">{loading ? "-" : value}</div>
     </div>
   );
 }

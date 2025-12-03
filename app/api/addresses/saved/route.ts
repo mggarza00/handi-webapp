@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 
+import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
+
+type SavedAddressRow = Pick<
+  Database["public"]["Tables"]["user_saved_addresses"]["Row"],
+  "label" | "address_line" | "address_place_id" | "lat" | "lng" | "last_used_at" | "times_used"
+>;
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -16,10 +21,7 @@ export async function GET(_req: NextRequest) {
     const userId = auth?.user?.id || null;
     if (!userId) return NextResponse.json({ ok: true, data: [] }, { status: 200, headers: JSONH });
 
-    // Use "any" table name to avoid typing mismatch if the generated types aren't updated yet
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supaAny = supabase as any;
-    const { data, error } = await supaAny
+    const { data, error } = await supabase
       .from("user_saved_addresses")
       .select("label,address_line,address_place_id,lat,lng,last_used_at,times_used")
       .eq("user_id", userId)

@@ -2,12 +2,14 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
+
 import { Button } from "@/components/ui/button";
+import CreateRequestButton from "@/components/requests/CreateRequestButton";
 
 export default function MobileClientTabbarButtons() {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const link1Ref = React.useRef<HTMLAnchorElement | null>(null);
-  const link2Ref = React.useRef<HTMLAnchorElement | null>(null);
+  const link2Ref = React.useRef<HTMLButtonElement | null>(null);
   const icon1Ref = React.useRef<HTMLImageElement | null>(null);
   const icon2Ref = React.useRef<HTMLImageElement | null>(null);
   const label1Ref = React.useRef<HTMLSpanElement | null>(null);
@@ -32,12 +34,16 @@ export default function MobileClientTabbarButtons() {
         const cs = window.getComputedStyle(link);
         const pl = parseFloat(cs.paddingLeft || "0") || 0;
         const pr = parseFloat(cs.paddingRight || "0") || 0;
-        const gap = parseFloat((cs as any).columnGap || (cs as any).gap || "0") || 0;
+        const gap = parseFloat(cs.columnGap || cs.gap || "0") || 0;
         const avail = Math.round(link.clientWidth - pl - pr - icon.clientWidth - gap);
-        const prevWs = (label.style as any).whiteSpace as string | undefined;
+        const previousWhiteSpace = label.style.whiteSpace || "";
         label.style.whiteSpace = "nowrap";
         const req = Math.round(label.scrollWidth);
-        if (prevWs) label.style.whiteSpace = prevWs; else label.style.removeProperty("white-space");
+        if (previousWhiteSpace) {
+          label.style.whiteSpace = previousWhiteSpace;
+        } else {
+          label.style.removeProperty("white-space");
+        }
         return { avail, req };
       };
 
@@ -75,8 +81,11 @@ export default function MobileClientTabbarButtons() {
     window.addEventListener("orientationchange", onResize);
     // Initial measure after mount and after fonts load
     setTimeout(measure, 0);
-    if ((document as any).fonts?.ready) {
-      (document as any).fonts.ready.then(() => setTimeout(measure, 0)).catch(() => {});
+    const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+    if (fonts?.ready) {
+      fonts.ready
+        .then(() => setTimeout(measure, 0))
+        .catch(() => undefined);
     }
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -108,19 +117,23 @@ export default function MobileClientTabbarButtons() {
           <span ref={label1Ref} className={labelBase}>Mis solicitudes</span>
         </Link>
       </Button>
-      <Button asChild variant="ghost" size="lg" className={linkBase + " hover:bg-[#E6F4FF] hover:text-[#11314B]"}>
-        <Link href="/requests/new" aria-label="Nueva solicitud" ref={link2Ref}>
-          <Image
-            ref={icon2Ref}
-            src="/images/icono-nueva-solicitud.gif"
-            alt=""
-            width={32}
-            height={32}
-            className="h-8 w-8"
-          />
-          <span ref={label2Ref} className={labelBase}>Nueva solicitud</span>
-        </Link>
-      </Button>
+      <CreateRequestButton
+        ref={link2Ref}
+        variant="ghost"
+        size="lg"
+        className={linkBase + " hover:bg-[#E6F4FF] hover:text-[#11314B]"}
+        aria-label="Nueva solicitud"
+      >
+        <Image
+          ref={icon2Ref}
+          src="/images/icono-nueva-solicitud.gif"
+          alt=""
+          width={32}
+          height={32}
+          className="h-8 w-8"
+        />
+        <span ref={label2Ref} className={labelBase}>Nueva solicitud</span>
+      </CreateRequestButton>
     </div>
   );
 }

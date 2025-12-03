@@ -1,6 +1,8 @@
 "use client";
-import * as React from 'react';
-import { Button } from '@/components/ui/button';
+
+import * as React from "react";
+
+import { Button } from "@/components/ui/button";
 
 export default function ReceiptActions({ onPrint }: { onPrint?: () => void }) {
   const handlePrint = React.useCallback(() => {
@@ -13,4 +15,3 @@ export default function ReceiptActions({ onPrint }: { onPrint?: () => void }) {
     </div>
   );
 }
-

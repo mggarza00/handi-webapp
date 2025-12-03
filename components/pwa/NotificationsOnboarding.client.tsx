@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { notificationsSupported } from "@/lib/pwa/install-detect";
 import ensurePushSubscription from "@/lib/push";
@@ -67,4 +68,3 @@ export default function NotificationsOnboarding({ publicKey }: Props) {
     </div>
   );
 }
-

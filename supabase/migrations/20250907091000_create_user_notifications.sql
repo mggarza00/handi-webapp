@@ -31,7 +31,7 @@ create index if not exists ix_user_notifications_unread
   on public.user_notifications (user_id, read_at);
 
 -- Función helper para notificar a todos los admins (SECURITY DEFINER)
--- Usa perfiles con role='admin' (ajusta si usas otro flag).
+-- Usa perfiles con role='admin' o is_admin=true.
 create or replace function public.notify_admins(
   _type text,
   _title text,
@@ -44,9 +44,10 @@ set search_path = public
 as $$
 begin
   insert into public.user_notifications (user_id, type, title, body, link)
-  select p.id, _type, _title, _body, _link
+  select distinct p.id, _type, _title, _body, _link
   from public.profiles p
-  where p.role = 'admin';
+  where coalesce(p.is_admin, false) = true
+     or lower(coalesce(p.role, '')) = 'admin';
 end;
 $$;
 

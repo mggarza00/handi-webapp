@@ -18,8 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import ConditionsChips from "@/components/requests/ConditionsChips";
-import { mapConditionToLabel } from "@/lib/conditions";
 import { CITIES } from "@/lib/cities";
+import { UI_STATUS_LABELS } from "@/lib/request-status";
 import {
   Dialog,
   DialogContent,
@@ -310,6 +310,7 @@ export default function RequestDetailClient({
     budget,
     requiredAt,
     attachments,
+    conditionsText,
     initial.id,
     onSaved,
     router,
@@ -518,7 +519,7 @@ export default function RequestDetailClient({
             </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-4">
-                <Field label="Estado" value={status} />
+                <Field label="Estado" value={UI_STATUS_LABELS[(status as any) as keyof typeof UI_STATUS_LABELS] || status} />
               </Card>
               <Card className="p-4">
                 <Field label="Ciudad" value={city} />

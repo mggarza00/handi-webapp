@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+
 import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const supabase = createClient() as any;
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth?.user?.id || null;
     if (!uid) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
@@ -28,4 +29,3 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-

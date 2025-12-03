@@ -1,11 +1,11 @@
-import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import type { Database } from "@/types/supabase";
 import { ApiError } from "@/lib/_supabase-server";
 import { createPublicClient, createBearerClient } from "@/lib/supabase";
+import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
+import type { Database } from "@/types/supabase";
 
-type DBClient = SupabaseClient<Database, "public", "public">;
+type DBClient = SupabaseClient<Database>;
 
 export async function getRouteUserOrThrow(): Promise<{
   supabase: DBClient;

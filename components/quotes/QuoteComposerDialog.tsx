@@ -1,19 +1,19 @@
 "use client";
+
 import * as React from "react";
-import { useForm, useFieldArray, useWatch } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { CurrencyInput } from "@/components/quote/CurrencyInput";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+import { CurrencyInput } from "@/components/quote/CurrencyInput";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 
 const ItemSchema = z.object({
   description: z.string().min(2, "Mínimo 2 caracteres"),
@@ -56,7 +56,10 @@ export default function QuoteComposerDialog({ open, onOpenChange, conversationId
     return `Q-${base}${rand}`;
   }
   React.useEffect(() => { if (open) setFolio(genFolio()); }, [open]);
-  const today = React.useMemo(() => new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date()), [open]);
+  const today = React.useMemo(
+    () => new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(new Date()),
+    [],
+  );
 
   const watchItems = useWatch({ control: form.control, name: "items" }) as Array<{ description?: string; amount?: number }> | undefined;
 
@@ -134,23 +137,31 @@ export default function QuoteComposerDialog({ open, onOpenChange, conversationId
               {fields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-start">
                   <FormField
-                    name={`items.${index}.description`}
-                    render={({ field }) => (
+                    name={`items.${index}.description` as const}
+                    render={({ field }) => {
+                      const setRef = (el: HTMLInputElement | null) => {
+                        field.ref(el);
+                        if (index === fields.length - 1) {
+                          lastDescRef.current = el;
+                        }
+                      };
+                      return (
                       <FormItem className="col-span-12 sm:col-span-7">
                         <FormLabel>Concepto</FormLabel>
                         <FormControl>
                           <Input
                             {...field}
-                            ref={index === fields.length - 1 ? (el) => { (field as any).ref?.(el); lastDescRef.current = el as any; } : (field as any).ref}
+                            ref={setRef}
                             placeholder="Concepto (ej. Mano de obra)"
                           />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
-                    )}
+                      );
+                    }}
                   />
                   <FormField
-                    name={`items.${index}.amount`}
+                    name={`items.${index}.amount` as const}
                     render={({ field }) => (
                       <FormItem className="col-span-12 sm:col-span-4">
                         <FormLabel>Monto</FormLabel>

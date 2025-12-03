@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import getRouteClient from "@/lib/supabase/route-client";
 
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -17,7 +15,7 @@ export async function POST(req: Request) {
       | null;
 
     if (body?.access_token && body?.refresh_token) {
-      const { data, error } = await supabase.auth.setSession({
+      const { error } = await supabase.auth.setSession({
         access_token: body.access_token,
         refresh_token: body.refresh_token,
       });

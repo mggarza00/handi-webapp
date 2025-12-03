@@ -7,10 +7,34 @@ import updateSession from "@/utils/supabase/middleware";
 const ADMIN_ROLES = new Set(["owner", "admin", "ops", "finance", "support", "reviewer"]);
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Rate-limit only for /api/classify-request (per IP, in-memory)
+  if (pathname === "/api/classify-request") {
+    try {
+      const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "anon";
+      const limit = Number(process.env.CLASSIFY_RATE_PER_MIN || "30");
+      const windowMs = 60_000;
+      // @ts-ignore reuse bucket across reloads
+      const bucket: Map<string, number[]> = (globalThis as any).__rl_classify_bucket__ ||= new Map<string, number[]>();
+      const now = Date.now();
+      const arr = bucket.get(ip) ?? [];
+      const recent = arr.filter((t) => now - t < windowMs);
+      if (recent.length >= limit) {
+        return NextResponse.json(
+          { ok: false, error: "RATE_LIMITED", detail: "Too many requests" },
+          { status: 429, headers: { "Content-Type": "application/json; charset=utf-8" } },
+        );
+      }
+      recent.push(now);
+      bucket.set(ip, recent);
+    } catch {
+      // ignore RL errors
+    }
+    return NextResponse.next();
+  }
   // Primero refrescamos sesión para mantener cookies al día
   const response = await updateSession(request);
-
-  const { pathname } = request.nextUrl;
   // Redirección condicional del home a /pro si el usuario está en vista Pro
   if (pathname === "/") {
     try {
@@ -149,6 +173,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/api/classify-request",
     "/((?!api/|_next/|_vercel|_static/|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)",
   ],
 };

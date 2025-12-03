@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import getRouteClient from "@/lib/supabase/route-client";
 
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 export const dynamic = "force-dynamic";
 

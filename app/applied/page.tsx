@@ -1,10 +1,12 @@
-import createClient from "@/utils/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import PageContainer from "@/components/page-container";
 import { Card } from "@/components/ui/card";
 import CompletedWorks from "@/components/profiles/CompletedWorks";
 import { getProJobsWithPhotos } from "@/lib/profiles/jobs";
+import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,11 @@ export default async function AppliedPage() {
   }
 
   // Cargar trabajos completados del profesional (con fotos por solicitud)
-  const jobs = await getProJobsWithPhotos(supabase as any, user.id, 12);
+  const jobs = await getProJobsWithPhotos(
+    supabase as SupabaseClient<Database>,
+    user.id,
+    12,
+  );
 
   return (
     <PageContainer>

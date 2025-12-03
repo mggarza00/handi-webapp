@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+
 import EarningsChart, { type Point } from "@/components/pro/EarningsChart";
 
 type Tab = "week" | "fortnight" | "month";
@@ -33,4 +34,3 @@ export default function EarningsPanel({ week, fortnight, month }: { week: Point[
     </div>
   );
 }
-

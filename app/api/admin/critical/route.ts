@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 
 type KycItem = { id: string; user_id: string; status: string; updated_at: string | null };
 type DisputeItem = { id: string; amount: number; currency: string; created_at: string };
+type ProApplicationRow = { id: string | null; user_id: string | null; status: string | null; updated_at: string | null };
+type PaymentRow = { id: string | null; amount: number | null; currency: string | null; created_at: string | null };
 
 export async function GET() {
   const gate = await assertAdminOrJson();
@@ -50,10 +52,23 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(20);
 
-  const kycPending = (kyc || []) as unknown as KycItem[];
-  const disputesNew = (disputes || [])
-    .map((p) => ({ id: (p as any).id as string, amount: Number((p as any).amount || 0), currency: String((p as any).currency || 'MXN'), created_at: (p as any).created_at as string })) as DisputeItem[];
+  const kycPending: KycItem[] = (kyc || [])
+    .map((row) => ({
+      id: String(row?.id ?? ''),
+      user_id: String(row?.user_id ?? ''),
+      status: String(row?.status ?? 'pending'),
+      updated_at: (row as ProApplicationRow)?.updated_at ?? null,
+    }))
+    .filter((entry) => entry.id.length > 0 && entry.user_id.length > 0);
+
+  const disputesNew: DisputeItem[] = (disputes || [])
+    .map((p) => ({
+      id: String((p as PaymentRow)?.id ?? ''),
+      amount: Number((p as PaymentRow)?.amount ?? 0),
+      currency: String((p as PaymentRow)?.currency ?? 'MXN'),
+      created_at: String((p as PaymentRow)?.created_at ?? ''),
+    }))
+    .filter((entry) => entry.id.length > 0 && entry.created_at.length > 0);
 
   return NextResponse.json({ ok: true, kycPending, disputesNew }, { headers: JSONH });
 }
-

@@ -11,7 +11,7 @@ export function isStandalonePWA(): boolean {
   if (typeof window === "undefined") return false;
   try {
     const standalone = window.matchMedia?.("(display-mode: standalone)")?.matches ?? false;
-    const iosStandalone = typeof navigator !== "undefined" && (navigator as any).standalone === true;
+    const iosStandalone = typeof navigator !== "undefined" && (navigator as NavigatorExtended).standalone === true;
     return standalone || iosStandalone;
   } catch {
     return false;
@@ -69,7 +69,7 @@ function isSafariOniOS(): boolean {
   try {
     const nav = navigator as NavigatorExtended;
     const ua = nav.userAgent || "";
-    const isiOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && (((navigator as any).maxTouchPoints ?? 0) > 1));
+    const isiOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && ((nav.maxTouchPoints ?? 0) > 1));
     // Evita falsos positivos con otros navegadores en iOS
     const isSafari = /^((?!chrome|android|crios|fxios|edgios).)*safari/i.test(ua);
     return isiOS && isSafari;

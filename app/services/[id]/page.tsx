@@ -1,12 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { notFound, redirect } from "next/navigation";
-import createClient from "@/utils/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getUserOrThrow } from "@/lib/_supabase-server";
-// ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
-import ConfirmAndReview from "@/components/services/ConfirmAndReview.client";
-import JobPhotosUploader from "@/components/services/JobPhotosUploader.client";
 import Breadcrumbs from "@/components/breadcrumbs";
+import { getUserOrThrow } from "@/lib/_supabase-server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +13,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Database } from "@/types/supabase";
+// ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
+import ConfirmAndReview from "@/components/services/ConfirmAndReview.client";
+import JobPhotosUploader from "@/components/services/JobPhotosUploader.client";
+import createClient from "@/utils/supabase/server";
 
 type Params = { params: { id: string } };
 

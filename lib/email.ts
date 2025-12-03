@@ -1,7 +1,7 @@
 // Email helper centralizado sobre Resend.
 // No envía si falta configuración; regresa un hint útil.
 
-import { resendSendEmail } from "@/lib/email/resend";
+import { resendSendEmail, type SendEmailInput } from "@/lib/email/resend";
 
 type EmailAttachment = { filename: string; content: string | Uint8Array; mime?: string };
 
@@ -37,7 +37,18 @@ function htmlToText(html: string): string {
 export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; id?: string; error?: string; hint?: string; details?: unknown }> {
   const { to, subject, html, from, text, replyTo, attachments } = payload;
   const plain = text && text.length > 0 ? text : htmlToText(html);
-  const mappedAtt = (attachments || []).map((a) => ({ filename: a.filename, content: a.content }));
-  const res = await resendSendEmail({ to, subject, html, text: plain, from: from ?? null, replyTo: replyTo ?? null, attachments: mappedAtt } as any);
-  return { ok: (res as any).ok, id: (res as any).id, error: (res as any).error, hint: (res as any).hint, details: (res as any).details };
+  const mappedAtt: SendEmailInput["attachments"] = attachments?.map((a) => ({
+    filename: a.filename,
+    content: a.content,
+  }));
+  const payloadToSend: SendEmailInput = {
+    to,
+    subject,
+    html,
+    text: plain,
+    from: from ?? null,
+    replyTo: replyTo ?? null,
+    attachments: mappedAtt,
+  };
+  return resendSendEmail(payloadToSend);
 }

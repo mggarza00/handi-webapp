@@ -33,7 +33,7 @@ export default function AdminTopbar({ userEmail, fullName, avatarUrl }: Props) {
         <div className="flex items-center justify-center">
           <Link href="/" className="inline-flex items-center" prefetch={false}>
             <Image
-              src="/images/Logo-Handi-v2.gif"
+              src="/images/LOGO_HANDI_DB.png"
               alt="Handi"
               width={52}
               height={52}
@@ -57,10 +57,13 @@ export default function AdminTopbar({ userEmail, fullName, avatarUrl }: Props) {
             <>
               <NotificationsDropdown />
               {avatarUrl ? (
-                <img
+                <Image
                   src={avatarUrl}
                   alt={displayName}
+                  width={32}
+                  height={32}
                   className="h-8 w-8 rounded-full object-cover"
+                  unoptimized
                 />
               ) : (
                 <div className="h-8 w-8 rounded-full bg-muted" />
@@ -88,7 +91,7 @@ export default function AdminTopbar({ userEmail, fullName, avatarUrl }: Props) {
         <div className="flex items-center gap-2 pl-4">
           <Link href="/" className="inline-flex items-center ml-2" prefetch={false}>
             <Image
-              src="/images/Logo-Handi-v2.gif"
+              src="/images/LOGO_HANDI_DB.png"
               alt="Handi"
               width={52}
               height={52}
@@ -108,10 +111,13 @@ export default function AdminTopbar({ userEmail, fullName, avatarUrl }: Props) {
             <>
               <NotificationsDropdown />
               {avatarUrl ? (
-                <img
+                <Image
                   src={avatarUrl}
                   alt={displayName}
+                  width={32}
+                  height={32}
                   className="h-8 w-8 rounded-full object-cover"
+                  unoptimized
                 />
               ) : (
                 <div className="h-8 w-8 rounded-full bg-muted" />

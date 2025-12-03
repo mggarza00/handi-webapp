@@ -2,8 +2,21 @@
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
 import { sendEmail } from "@/lib/email";
+import {
+  buildProfileChangeMessage,
+  dedupeEmails,
+  getAdminProfileEmails,
+  getConfiguredAdminEmails,
+  SUPPORT_EMAIL,
+} from "@/lib/profile-change-notify";
 
-type Role = "client" | "pro" | "admin" | null;
+type ProfilesRow = Database["public"]["Tables"]["profiles"]["Row"];
+type ProfessionalsRow = Database["public"]["Tables"]["professionals"]["Row"];
+type ChangePayload = {
+  profiles: Record<string, unknown>;
+  professionals: Record<string, unknown>;
+  gallery_add_paths?: string[];
+};
 
 function parseCsvOrJson(value: string | null | undefined): Array<{ name: string }> | undefined {
   if (!value) return undefined;
@@ -33,15 +46,6 @@ function deepEqual(a: unknown, b: unknown): boolean {
   } catch {
     return a === b;
   }
-}
-
-function listAdmins(): string[] {
-  const env = (process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim()).filter(Boolean);
-  const legacy = (process.env.HANDEE_ADMIN_EMAIL || process.env.MAIL_DEFAULT_TO || "").trim();
-  const result = new Set<string>();
-  for (const e of env) result.add(e);
-  if (legacy) result.add(legacy);
-  return Array.from(result);
 }
 
 export async function createChangeRequest(formData: FormData): Promise<{ ok: boolean; error?: string }>
@@ -90,12 +94,12 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
     .from("profiles")
     .select("full_name, avatar_url, role, city, bio, categories, subcategories")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<ProfilesRow>();
   const { data: pro } = await supabase
     .from("professionals")
     .select("headline, years_experience, city, cities, categories, subcategories, avatar_url, bio")
     .eq("id", user.id)
-    .maybeSingle();
+    .maybeSingle<ProfessionalsRow>();
 
   // Compute diffs
   const profChanges: Record<string, unknown> = {};
@@ -107,21 +111,23 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   // Nota: bio/categorías/subcategorías solo se aplican en professionals
 
   if (headline != null && headline !== (pro?.headline ?? null)) proChanges.headline = headline;
-  if (typeof years_experience === "number" && years_experience !== (pro?.years_experience ?? null)) proChanges.years_experience = years_experience;
+  if (typeof years_experience === "number" && years_experience !== (pro?.years_experience ?? null))
+    proChanges.years_experience = years_experience;
   if (city != null && city !== (pro?.city ?? null)) proChanges.city = city;
-  if (service_cities && !deepEqual(service_cities, (pro as any)?.cities ?? null)) (proChanges as any).cities = service_cities;
+  if (service_cities && !deepEqual(service_cities, pro?.cities ?? null)) proChanges.cities = service_cities;
   if (bio != null && bio !== (pro?.bio ?? null)) proChanges.bio = bio;
   if (avatar_url != null && avatar_url !== (pro?.avatar_url ?? null)) proChanges.avatar_url = avatar_url;
   if (categories && !deepEqual(categories, (pro?.categories as unknown) ?? null)) proChanges.categories = categories;
-  if (subcategories && !deepEqual(subcategories, (pro?.subcategories as unknown) ?? null)) proChanges.subcategories = subcategories;
+  if (subcategories && !deepEqual(subcategories, (pro?.subcategories as unknown) ?? null))
+    proChanges.subcategories = subcategories;
 
   const hasChanges = Object.keys(profChanges).length > 0 || Object.keys(proChanges).length > 0;
   if (!hasChanges) return { ok: false, error: "NO_CHANGES" };
 
-  const payload: Record<string, unknown> = { profiles: profChanges, professionals: proChanges } as const as any;
+  const payload: ChangePayload = { profiles: profChanges, professionals: proChanges };
   if (gallery_paths && gallery_paths.length) {
     // Store under a dedicated key for the approver flow
-    (payload as any).gallery_add_paths = gallery_paths;
+    payload.gallery_add_paths = gallery_paths;
   }
 
   const { error: insErr } = await supabase
@@ -130,30 +136,31 @@ export async function createChangeRequest(formData: FormData): Promise<{ ok: boo
   if (insErr) return { ok: false, error: `INSERT_FAILED: ${insErr.message}` };
 
   // Notify admins
-  const admins = listAdmins();
-  const recipients = Array.from(new Set([...(admins || []), "soporte@handi.mx"])).filter(Boolean);
   const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-  const subject = "HANDI · Solicitud de cambios de perfil";
-  const summary: string[] = [];
-  for (const k of Object.keys(profChanges)) summary.push(`profiles.${k}`);
-  for (const k of Object.keys(proChanges)) summary.push(`professionals.${k}`);
   const link = `${base}/admin/pro-changes`;
-  const html = `
-      <h1>Nueva solicitud de cambios de perfil</h1>
-      <p>Usuario: <code>${user.id}</code></p>
-      <p>Campos: ${summary.join(", ") || "(sin resumen)"}</p>
-      <p><a href="${link}">Abrir panel admin</a></p>
-    `;
+  const message = buildProfileChangeMessage({
+    userId: user.id,
+    userEmail: user.email,
+    userMetadata: (user.user_metadata ?? null) as Record<string, unknown> | null,
+    profile: prof ?? null,
+    professional: pro ?? null,
+    profChanges,
+    proChanges,
+    galleryAddPaths: payload.gallery_add_paths ?? null,
+    adminLink: link,
+  });
+  const configuredAdmins = getConfiguredAdminEmails();
+  const profileAdminEmails = await getAdminProfileEmails();
+  const recipients = dedupeEmails([...(configuredAdmins || []), ...profileAdminEmails, SUPPORT_EMAIL]);
   if (recipients.length > 0) {
-    await sendEmail({ to: recipients, subject, html }).catch(() => undefined);
+    await sendEmail({ to: recipients, subject: message.subject, html: message.html }).catch(() => undefined);
   }
-
   // In-app notification to admins via RPC (SECURITY DEFINER)
   try {
-    await (supabase as any).rpc("notify_admins", {
+    await supabase.rpc("notify_admins", {
       _type: "profile_change:requested",
       _title: "Solicitud de cambios de perfil",
-      _body: (summary.join(", ") || "(sin resumen)"),
+      _body: message.notificationBody,
       _link: link,
     });
   } catch {

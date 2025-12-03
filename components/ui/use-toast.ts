@@ -18,27 +18,34 @@ export type ToastOptions = {
   action?: ToastAction;
 };
 
+type ToastConfig = { title: string } & ToastOptions;
+
+type InternalToastOptions = {
+  description?: string;
+  duration?: number;
+  action?: { label: string; onClick: () => void };
+};
+
 export function toast(title: string, options?: ToastOptions): string | number;
-export function toast(config: { title: string; description?: string; duration?: number; action?: ToastAction }): string | number;
-export function toast(a: string | { title: string; description?: string; duration?: number; action?: ToastAction }, b?: ToastOptions) {
-  const isObj = typeof a === "object" && a !== null;
-  const title = isObj ? (a as any).title : (a as string);
-  const description = isObj ? (a as any).description : b?.description;
-  const duration = isObj ? (a as any).duration : b?.duration;
-  const action = (isObj ? (a as any).action : b?.action) as ToastAction | undefined;
-  const opts: Record<string, unknown> = {};
-  if (description) opts.description = description;
-  if (typeof duration === "number") opts.duration = duration;
-  if (action && action.label) {
+export function toast(config: ToastConfig): string | number;
+export function toast(arg1: string | ToastConfig, arg2?: ToastOptions): string | number {
+  const config: ToastConfig = typeof arg1 === "string" ? { title: arg1, ...arg2 } : arg1;
+  const opts: InternalToastOptions = {};
+  if (config.description) opts.description = config.description;
+  if (typeof config.duration === "number") opts.duration = config.duration;
+  if (config.action?.label) {
     const handler = () => {
       try {
-        if (action.href) window.location.assign(action.href);
-        else action.onClick?.();
-      } catch {
-        /* noop */
+        if (config.action?.href) window.location.assign(config.action.href);
+        else config.action?.onClick?.();
+      } catch (error) {
+        if (process.env.NODE_ENV !== "production") {
+          // eslint-disable-next-line no-console
+          console.error("[toast.action]", error);
+        }
       }
     };
-    (opts as any).action = { label: action.label, onClick: handler };
+    opts.action = { label: config.action.label, onClick: handler };
   }
-  return sonnerToast(title, opts as any);
+  return sonnerToast(config.title, opts);
 }

@@ -2,6 +2,13 @@
 
 import { useEffect, useState } from "react";
 
+const logSwUpdateError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[ServiceWorkerUpdater]", error);
+  }
+};
+
 function useServiceWorkerUpdate() {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
 
@@ -17,10 +24,12 @@ function useServiceWorkerUpdate() {
         if (!reg) reg = (await navigator.serviceWorker.getRegistration()) || null;
         if (!mounted || !reg) return;
         if (reg.waiting) setWaiting(reg.waiting);
-        await reg.update().catch(() => {});
+        await reg.update().catch((error) => {
+          logSwUpdateError(error);
+        });
         if (reg.waiting) setWaiting(reg.waiting);
-      } catch {
-        // ignore
+      } catch (error) {
+        logSwUpdateError(error);
       }
     };
 
@@ -41,14 +50,18 @@ function useServiceWorkerUpdate() {
         });
         // initial and periodic checks
         await check();
-      } catch {
-        // ignore
+      } catch (error) {
+        logSwUpdateError(error);
       }
     })();
 
     // Chequeo periódico (cada 30 min)
     const id = window.setInterval(async () => {
-      try { await check(); } catch {}
+      try {
+        await check();
+      } catch (error) {
+        logSwUpdateError(error);
+      }
     }, 30 * 60 * 1000);
 
     // Listener único en cada clic
@@ -65,10 +78,16 @@ function useServiceWorkerUpdate() {
       waiting.postMessage({ type: 'SKIP_WAITING' });
       const onCtrl = () => {
         navigator.serviceWorker.removeEventListener('controllerchange', onCtrl);
-        try { window.location.reload(); } catch {}
+        try {
+          window.location.reload();
+        } catch (error) {
+          logSwUpdateError(error);
+        }
       };
       navigator.serviceWorker.addEventListener('controllerchange', onCtrl);
-    } catch {}
+    } catch (error) {
+      logSwUpdateError(error);
+    }
   };
 
   return { hasUpdate: !!waiting, reload } as const;
@@ -82,7 +101,16 @@ export default function ServiceWorkerUpdater() {
       <div className="text-sm font-semibold">Nueva versión disponible</div>
       <p className="text-xs mt-1">Actualiza para obtener las últimas mejoras y correcciones.</p>
       <div className="mt-3 flex gap-2 justify-end">
-        <button className="px-3 py-1.5 text-sm rounded-xl border" onClick={() => { try { window.location.reload(); } catch {} }}>
+        <button
+          className="px-3 py-1.5 text-sm rounded-xl border"
+          onClick={() => {
+            try {
+              window.location.reload();
+            } catch (error) {
+              logSwUpdateError(error);
+            }
+          }}
+        >
           Luego
         </button>
         <button className="px-3 py-1.5 text-sm rounded-xl bg-black text-white" onClick={reload}>

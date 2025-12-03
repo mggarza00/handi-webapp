@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 
-import type { Database } from "@/types/supabase";
 import { canonicalizeCityName } from "@/lib/cities";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const BASE = "https://api.mapbox.com/geocoding/v5/mapbox.places";
+
+type AddressRow = {
+  id: string;
+  address: string;
+  city: string | null;
+  lat: number | null;
+  lon: number | null;
+  postal_code: string | null;
+  label: string | null;
+  last_used_at?: string | null;
+};
 
 function getToken() {
   return process.env.MAPBOX_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -50,12 +60,9 @@ export async function GET(req: NextRequest) {
     const userId = auth?.user?.id || null;
     if (!userId) return NextResponse.json({ ok: true, items: [] }, { status: 200, headers: JSONH });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supaAny = supabase as any;
-
     // 1) If no q: return recent (like /recent)
     if (!q) {
-      const { data, error } = await supaAny
+      const { data, error } = await supabase
         .from("user_addresses")
         .select("id,address,city,lat,lon,postal_code,label,last_used_at")
         .eq("profile_id", userId)
@@ -85,7 +92,7 @@ export async function GET(req: NextRequest) {
     };
 
     // 2) Saved matches ILIKE
-    const { data: savedData } = await supaAny
+    const { data: savedData } = await supabase
       .from("user_addresses")
       .select("id,address,city,lat,lon,postal_code,label,last_used_at")
       .eq("profile_id", userId)

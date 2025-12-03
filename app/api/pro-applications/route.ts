@@ -51,6 +51,8 @@ const PayloadSchema = z
       company_csf_url: z.string().url().optional(),
       company_rep_id_front_url: z.string().url().optional(),
       company_rep_id_back_url: z.string().url().optional(),
+      // bancario (opcional)
+      bank_cover_url: z.string().url().optional(),
       // firma (se mantiene)
       signature_url: z.string().url().optional(),
     }),
@@ -307,9 +309,19 @@ export async function POST(req: Request) {
         ${Array.isArray(p.uploads.letters_urls) ? p.uploads.letters_urls.map((u: string) => `<li>Carta: <a href="${u}">${u}</a></li>`).join("") : ''}
         ${p.uploads.id_front_url ? `<li>Identificación (frente): <a href="${p.uploads.id_front_url}">${p.uploads.id_front_url}</a></li>` : ''}
         ${p.uploads.id_back_url ? `<li>Identificación (reverso): <a href="${p.uploads.id_back_url}">${p.uploads.id_back_url}</a></li>` : ''}
+        ${p.uploads.bank_cover_url ? `<li>Carátula bancaria: <a href="${p.uploads.bank_cover_url}">${p.uploads.bank_cover_url}</a></li>` : ''}
         ${p.uploads.signature_url ? `<li>Firma: <a href="${p.uploads.signature_url}">${p.uploads.signature_url}</a></li>` : ''}
       </ul>
-      ` : ''}
+      ` : `
+      <ul>
+        ${p.uploads.company_doc_incorporation_url ? `<li>Acta: <a href="${p.uploads.company_doc_incorporation_url}">${p.uploads.company_doc_incorporation_url}</a></li>` : ''}
+        ${p.uploads.company_csf_url ? `<li>CSF: <a href="${p.uploads.company_csf_url}">${p.uploads.company_csf_url}</a></li>` : ''}
+        ${p.uploads.company_rep_id_front_url ? `<li>ID Rep (frente): <a href="${p.uploads.company_rep_id_front_url}">${p.uploads.company_rep_id_front_url}</a></li>` : ''}
+        ${p.uploads.company_rep_id_back_url ? `<li>ID Rep (reverso): <a href="${p.uploads.company_rep_id_back_url}">${p.uploads.company_rep_id_back_url}</a></li>` : ''}
+        ${p.uploads.bank_cover_url ? `<li>Carátula bancaria: <a href="${p.uploads.bank_cover_url}">${p.uploads.bank_cover_url}</a></li>` : ''}
+        ${p.uploads.signature_url ? `<li>Firma: <a href="${p.uploads.signature_url}">${p.uploads.signature_url}</a></li>` : ''}
+      </ul>
+      `}
       <p><a href="${profileUrl}">Ver perfil</a></p>
     `;
 

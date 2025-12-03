@@ -1,4 +1,5 @@
 import { FAQS } from "./faqs";
+
 import type { RetrievedAnswer } from "@/types/assistant";
 
 function normalize(text: string): string {
@@ -70,4 +71,3 @@ export function retrieveAnswer(query: string): RetrievedAnswer {
     sources,
   };
 }
-

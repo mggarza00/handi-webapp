@@ -71,6 +71,8 @@ export default function ChatStartPro({ requestId, initialConversationId }: { req
           onClose={() => setOpen(false)}
           mode="panel"
           userId={me}
+          requestId={requestId}
+          dataPrefix="request-chat"
         />
       ) : null}
     </div>

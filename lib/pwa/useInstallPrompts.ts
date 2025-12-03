@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+
 import isSafariOniOS, { isStandalonePWA, isAndroid } from "./install-detect";
 
 type UserChoiceOutcome = "accepted" | "dismissed";
@@ -74,3 +75,4 @@ export function useInstallPrompts() {
 }
 
 export default useInstallPrompts;
+

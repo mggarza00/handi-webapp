@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import getRouteClient from "@/lib/supabase/route-client";
 import { z } from "zod";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
+import getRouteClient from "@/lib/supabase/route-client";
 import type { Database } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+type AdminSettingsRow = Database["public"]["Tables"]["admin_settings"]["Row"];
+type AdminSettingsInsert = Database["public"]["Tables"]["admin_settings"]["Insert"];
+type AuditLogInsert = Database["public"]["Tables"]["audit_log"]["Insert"];
 
 export async function GET() {
   const gate = await assertAdminOrJson();
@@ -16,7 +20,7 @@ export async function GET() {
     .from("admin_settings")
     .select("id, commission_percent, vat_percent, updated_at, updated_by")
     .eq("id", 1)
-    .maybeSingle();
+    .maybeSingle<AdminSettingsRow>();
   if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers: JSONH });
   return NextResponse.json({ ok: true, settings: data }, { headers: JSONH });
 }
@@ -36,22 +40,24 @@ export async function POST(req: Request) {
   }
   const supabase = getRouteClient();
   const { commission_percent, vat_percent } = parsed.data;
-  // Tipos de tablas admin no están en el stub; castear a any para Insert seguro
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db: any = supabase as any;
-  const { error: upErr } = await db
+  const upsertRow: AdminSettingsInsert = {
+    id: 1,
+    commission_percent,
+    vat_percent,
+    updated_by: gate.userId,
+    updated_at: new Date().toISOString(),
+  };
+  const { error: upErr } = await supabase
     .from("admin_settings")
-    .upsert({ id: 1, commission_percent, vat_percent, updated_by: gate.userId, updated_at: new Date().toISOString() }, { onConflict: "id" });
+    .upsert(upsertRow, { onConflict: "id" });
   if (upErr) return NextResponse.json({ ok: false, error: upErr.message }, { status: 500, headers: JSONH });
 
   // Audit log
-  await db
-    .from("audit_log")
-    .insert({
-      action: "SETTINGS_UPDATE",
-      actor_id: gate.userId,
-      // meta es jsonb en BD; castear a unknown evita 'any'
-      meta: ({ commission_percent, vat_percent } as unknown) as Record<string, unknown>,
-    });
+  const auditRow: AuditLogInsert = {
+    action: "SETTINGS_UPDATE",
+    actor_id: gate.userId,
+    meta: { commission_percent, vat_percent },
+  };
+  await supabase.from("audit_log").insert(auditRow);
   return NextResponse.json({ ok: true }, { headers: JSONH });
 }

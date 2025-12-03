@@ -105,7 +105,7 @@ function startOfWeek(d: Date): Date {
   return date;
 }
 
-function formatLabel(date: Date, interval: Interval, indexInRange: number): string {
+function formatLabel(date: Date, interval: Interval, _indexInRange: number): string {
   const y = date.getUTCFullYear();
   if (interval === "week") {
     // ISO week number approximation by counting Mondays since year start
@@ -137,7 +137,7 @@ function getPeriodBoundaries(interval: Interval, periods = 6): Array<{ from: Dat
     cursor.setUTCHours(0, 0, 0, 0);
   }
   for (let i = 0; i < periods; i++) {
-    let from = new Date(cursor);
+    const from = new Date(cursor);
     let to = new Date(cursor);
     if (interval === "week") {
       to = new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -266,4 +266,3 @@ export async function getTotals(userId: string): Promise<{
     };
   }
 }
-

@@ -2,7 +2,6 @@
 import * as React from "react";
 
 import { CONDITION_SUGGESTIONS, mapConditionToLabel } from "@/lib/conditions";
-
 import { Input } from "@/components/ui/input";
 
 type Props = {
@@ -148,4 +147,3 @@ export default function ConditionsChips({
     </div>
   );
 }
-

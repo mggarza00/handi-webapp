@@ -1,24 +1,20 @@
 import * as React from "react";
 import type { Metadata } from "next";
-import { headers, cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 // import Image from "next/image";
 import { createClient as createSupabaseJs } from "@supabase/supabase-js";
-import createClient from "@/utils/supabase/server";
 
+import AgreementsClient from "./Agreements.client";
+import MobileProsAnchorButton from "./MobileProsAnchorButton.client";
 import RequestDetailClient from "./RequestDetailClient";
 import RequestHeaderActions from "./RequestHeaderActions.client";
-import AgreementsClient from "./Agreements.client";
-// Optionally render applications/offers flow if present in snapshot
-// import ApplicationsClient from "./Applications.client";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { Card } from "@/components/ui/card";
-import MobileProsAnchorButton from "./MobileProsAnchorButton.client";
-// Removed pre-card PhotoGallery to avoid duplicate images
 import ProfessionalsList from "@/components/professionals/ProfessionalsList";
-import type { Database } from "@/types/supabase";
+import { Card } from "@/components/ui/card";
 import { mapConditionToLabel } from "@/lib/conditions";
+import createClient from "@/utils/supabase/server";
 
 type Params = {
   params: { id: string };
@@ -73,7 +69,7 @@ export default async function RequestDetailPage({ params }: Params) {
 
   // Owner-only guard: only the creator can view this client detail page
   try {
-  const supabase = createClient();
+    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -143,6 +139,31 @@ export default async function RequestDetailPage({ params }: Params) {
     conditions: (d.conditions as string | undefined) ?? "",
     photos,
   };
+
+  // Si la solicitud está en proceso, identificar el profesional pagado para mostrarlo como agendado
+  let onlyProfessionalId: string | null = null;
+  if ((initial.status || "") === "in_process") {
+    try {
+      const agrRes = await fetch(`${base}/api/requests/${params.id}/agreements`, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        },
+        cache: "no-store",
+      });
+      const aj = await agrRes.json().catch(() => null);
+      if (agrRes.ok && Array.isArray(aj?.data)) {
+        // Prioriza acuerdo pagado; si no existe, usa en progreso
+        const paid = (aj.data as Array<Record<string, unknown>>).find((a) => (a.status as string) === "paid");
+        const inProg = (aj.data as Array<Record<string, unknown>>).find((a) => (a.status as string) === "in_progress");
+        const pick = paid || inProg || null;
+        const pid = pick?.professional_id as string | undefined;
+        if (pid) onlyProfessionalId = pid;
+      }
+    } catch {
+      // noop: mantener lista normal si falla
+    }
+  }
 
   const conditionsList: string[] = ((initial.conditions as string) || "")
     .split(",")
@@ -228,15 +249,17 @@ export default async function RequestDetailPage({ params }: Params) {
         <aside className="order-last md:order-none md:sticky md:top-4 space-y-4">
           {!disablePros ? (
             <Card id="available-professionals" className="p-4 scroll-mt-24">
-              <h2 className="font-medium mb-2">Profesionales disponibles</h2>
+              <h2 className="font-medium mb-2">{(initial.status || "") === "in_process" ? "Profesional agendado" : "Profesionales disponibles"}</h2>
               <ProfessionalsList
                 requestId={initial.id}
                 category={category}
                 subcategory={subcat}
                 city={city}
+                onlyProfessionalId={onlyProfessionalId}
               />
             </Card>
-          ) : null}</aside>
+          ) : null}
+        </aside>
       </div>
 
       {/* Trust badges removed per request */}

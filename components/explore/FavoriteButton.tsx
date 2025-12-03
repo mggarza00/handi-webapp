@@ -14,7 +14,7 @@ type Props = {
   onToggled?: (fav: boolean) => void;
 };
 
-export default function FavoriteButton({ proId, requestId, initial, onToggled }: Props) {
+export default function FavoriteButton({ proId: _proId, requestId, initial, onToggled }: Props) {
   const [isPending, startTransition] = useTransition();
   const [fav, setFav] = useState<boolean>(!!initial);
 

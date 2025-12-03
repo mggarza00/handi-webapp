@@ -99,7 +99,7 @@ export function ReceiptTemplate({ data, baseUrl }: { data: ServerReceipt; baseUr
   const created = formatDateTimeMX(vm.createdAt);
   const candidate = (data as ServerReceipt)?.business?.logoUrl || (baseUrl ? `${baseUrl}/brand/homaid-logo.png` : "/brand/homaid-logo.png");
   const useImage = candidate && /\.(png|jpg|jpeg|gif)$/i.test(candidate);
-  const fallbackLogo = baseUrl ? `${baseUrl}/images/Logo-Handi-v2.gif` : '/images/Logo-Handi-v2.gif';
+  const fallbackLogo = baseUrl ? `${baseUrl}/images/LOGO_HANDI_DB.png` : '/images/LOGO_HANDI_DB.png';
   const logo = useImage ? candidate : fallbackLogo;
 
   return (

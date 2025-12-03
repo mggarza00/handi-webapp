@@ -1,12 +1,11 @@
-/* eslint-disable import/order */
 import Link from "next/link";
-import { cookies } from "next/headers";
-import createClient from "@/utils/supabase/server";
+
+import { getAdminSupabase } from "../../../lib/supabase/admin";
 
 import AdminActionsClient from "./AdminActionsClient";
 
-import { getAdminSupabase } from "../../../lib/supabase/admin";
 import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
 
 type Search = {
   searchParams: {
@@ -17,6 +16,8 @@ type Search = {
     to?: string;
   };
 };
+
+type ProfileRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "role" | "is_admin">;
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,11 @@ export default async function AdminApplicationsPage({ searchParams }: Search) {
     .from("profiles")
     .select("role, is_admin")
     .eq("id", auth.user.id)
-    .maybeSingle();
+    .maybeSingle<ProfileRow>();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
-    (prof as any)?.is_admin === true ||
-    (prof as any)?.role === "admin" ||
+    prof?.is_admin === true ||
+    prof?.role === "admin" ||
     (allowEmail && auth.user.email?.toLowerCase() === allowEmail.toLowerCase());
   if (!isAdmin) return forbidden();
 

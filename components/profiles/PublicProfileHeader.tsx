@@ -23,8 +23,8 @@ export default function PublicProfileHeader({
   name,
   avatarUrl,
   city,
-  state,
-  country,
+  state: _state,
+  country: _country,
   verified,
   averageRating,
   ratingCount,
@@ -34,7 +34,6 @@ export default function PublicProfileHeader({
   serviceCities,
   actions,
 }: PublicProfileHeaderProps) {
-  const location = [city, state, country].filter(Boolean).join(", ");
   const avatar = avatarUrl || "/avatar.png";
   const categoryChips = (categories || "")
     .split(",")
@@ -71,6 +70,16 @@ export default function PublicProfileHeader({
                 {typeof ratingCount === "number" ? (
                   <span className="text-slate-500">({ratingCount} reseñas)</span>
                 ) : null}
+              </span>
+            ) : null}
+            {typeof yearsExperience === "number" ? (
+              <span className="inline-flex items-center gap-1 text-slate-600">
+                {yearsExperience} años de experiencia
+              </span>
+            ) : null}
+            {typeof jobsDone === "number" ? (
+              <span className="inline-flex items-center gap-1 text-slate-600">
+                {jobsDone} trabajos realizados
               </span>
             ) : null}
           </div>

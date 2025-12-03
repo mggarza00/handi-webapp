@@ -11,13 +11,13 @@ import { getRequestWithClient } from "../_lib/getRequestWithClient";
 import ChatStartPro from "./chat-start-pro.client";
 // Cross-app SSR helper
 import { getConversationIdForRequest } from "@/app/(app)/mensajes/_lib/getConversationForRequest";
-import { Card } from "@/components/ui/card";
-import PhotoGallery from "@/components/ui/PhotoGallery";
-import type { Database } from "@/types/supabase";
-import { mapConditionToLabel } from "@/lib/conditions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 import RatingStars from "@/components/ui/RatingStars";
+import PhotoGallery from "@/components/ui/PhotoGallery";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import { mapConditionToLabel } from "@/lib/conditions";
+import { UI_STATUS_LABELS } from "@/lib/request-status";
 
 // Helpers para normalizar/mostrar fechas como dd-mm-aaaa
 function normalizeDateInput(input?: string | null): string {
@@ -71,7 +71,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   }
 
   // Require professional role
-  const { data: prof } = await (supabase as any)
+  const { data: prof } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user!.id)
@@ -167,7 +167,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
     ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url, rating: (clientFromAdmin as { rating?: number | null }).rating ?? null }
     : null;
   if (!clientProfile && clientId) {
-    const { data: cp } = await (supabaseS as any)
+    const { data: cp } = await supabaseS
       .from("profiles")
       .select("id, full_name, avatar_url, rating")
       .eq("id", clientId)
@@ -213,6 +213,11 @@ export default async function ProRequestDetailPage({ params }: Params) {
   } catch {
     /* ignore */
   }
+
+  const statusLabel =
+    status && Object.hasOwn(UI_STATUS_LABELS, status)
+      ? UI_STATUS_LABELS[status as keyof typeof UI_STATUS_LABELS]
+      : status;
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
@@ -283,7 +288,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
             </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-4">
-                <Field label="Estado" value={status} />
+                <Field label="Estado" value={statusLabel} />
               </Card>
               <Card className="p-4">
                 <Field label="Ciudad" value={city} />

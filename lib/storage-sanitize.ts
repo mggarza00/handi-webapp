@@ -1,4 +1,9 @@
 // lib/storage-sanitize.ts
+
+// Allow explicit control-character ranges for sanitization
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR_REGEX = /[\x00-\x1F\x7F]/g;
+const DIACRITIC_MARKS_REGEX = new RegExp("[\\u0300-\\u036f]", "g");
 /**
  * Devuelve la extensión del nombre (incluyendo el ".") o cadena vacía si no hay.
  * Ejemplos: "foto.png" -> ".png", ".env" -> "" (no consideramos nombres que empiezan con punto como extensión)
@@ -40,12 +45,12 @@ export function sanitizeForStorageFilename(
   let stem = ext ? base.slice(0, base.length - ext.length) : base;
 
   // Eliminar caracteres de control y BOM
-  stem = stem.replace(/[\u0000-\u001F\u007F]/g, "");
+  stem = stem.replace(CONTROL_CHAR_REGEX, "");
 
   // Quitar separadores y caracteres problemáticos para claves
   // Permitimos espacios, acentos y símbolos comunes. Removemos solo los peligrosos.
   // Peligrosos: barra, backslash, ?, %, #, *, ", <, >, |, :
-  stem = stem.replace(/[\\/\?%#*"<>|:]/g, "");
+  stem = stem.replace(/[/\\?%#*"<>|:]/g, "");
 
   // Contraer espacios y recortar
   stem = stem.replace(/\s+/g, " ").trim();
@@ -133,8 +138,8 @@ export function ultraSafeFilename(name: string, opts?: { maxLength?: number }): 
   const ext = getExtension(base);
   const stemRaw = ext ? base.slice(0, base.length - ext.length) : base;
   let stem = removeDiacritics(stemRaw)
-    .replace(/[\u0000-\u001F\u007F]/g, "")
-    .replace(/[\\/\?%#*"<>|:]/g, "")
+    .replace(CONTROL_CHAR_REGEX, "")
+    .replace(/[/\\?%#*"<>|:]/g, "")
     .replace(/[^A-Za-z0-9._\- ]+/g, "_")
     .replace(/\s+/g, "-")
     .replace(/_+/g, "_")
@@ -226,7 +231,7 @@ export function buildStorageKey(
  */
 function removeDiacritics(input: string): string {
   try {
-    return input.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return input.normalize("NFD").replace(DIACRITIC_MARKS_REGEX, "");
   } catch {
     return input;
   }

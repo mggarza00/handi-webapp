@@ -279,6 +279,12 @@ export async function POST(req: Request) {
   };
   if (payload.description) insert.description = payload.description;
   if (payload.category) insert.category = payload.category;
+  // Optional AI-assisted fields
+  if (typeof payload.category_id === 'string') insert.category_id = payload.category_id;
+  if (typeof payload.subcategory_id === 'string') insert.subcategory_id = payload.subcategory_id;
+  if (typeof payload.ai_confidence === 'number') insert.ai_confidence = payload.ai_confidence;
+  if (typeof payload.ai_model === 'string') insert.ai_model = payload.ai_model;
+  if (typeof payload.ai_overridden === 'boolean') insert.ai_overridden = payload.ai_overridden;
   // conditions: aceptar string o array; normalizar y deduplicar
   try {
     const cond = (payload as { conditions?: unknown }).conditions;

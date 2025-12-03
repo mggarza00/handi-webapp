@@ -72,7 +72,7 @@ export async function getClientData(clientId: string): Promise<ClientData> {
   }));
 
   // 4) Reseña del profesional por cada solicitud (si existe)
-  let byReq = new Map<string, ReviewLite>();
+  const byReq = new Map<string, ReviewLite>();
   if (requests.length > 0) {
     const ids = requests.map((r) => r.id);
     const { data: proRevs } = await admin
@@ -107,4 +107,3 @@ export async function getClientData(clientId: string): Promise<ClientData> {
     requests: requestsWithReview,
   };
 }
-

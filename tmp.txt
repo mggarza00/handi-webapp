@@ -1,0 +1,300 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { MapPin } from "lucide-react";
+
+import Stepper, { Step } from "@/components/react-bits/stepper/Stepper";
+import LocationPickerDialog from "@/components/location/LocationPickerDialog";
+import ConditionsCombobox from "@/components/requests/ConditionsCombobox";
+import useCreateRequestForm from "@/components/requests/useCreateRequestForm";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { CITIES } from "@/lib/cities";
+
+type CreateRequestFormApi = ReturnType<typeof useCreateRequestForm>;
+type CreateRequestFormState = CreateRequestFormApi["state"];
+type AddressSuggestion = CreateRequestFormState["addrSuggestions"][number];
+
+const TOTAL_STEPS = 3;
+
+function isUrl(v: string | null | undefined) {
+  return !!v && (v.startsWith("http://") || v.startsWith("https://") || v.startsWith("/"));
+}
+
+export default function StepperTestPage() {
+  const {
+    state,
+    setTitle,
+    setDescription,
+    setCity,
+    setCityTouched,
+    setCategory,
+    setSubcategory,
+    setBudget,
+    setRequiredAt,
+    setConditionsText,
+    addFiles,
+    removeFileAt,
+    setOpenMap,
+    setAddress,
+    pickAddress,
+    debouncedFetchAddr,
+    setAddrOpen,
+    categoriesList,
+    subcatOptions,
+    handleSubmit,
+  } = useCreateRequestForm();
+  const {
+    values: { title, description, city, category, subcategory, budget, requiredAt, conditionsText, files, address },
+    errors,
+    submitting,
+    uploading,
+    loadingCats,
+    addrOpen,
+    addrSuggestions,
+    recentAddrs,
+    coords,
+    openMap,
+  } = state;
+
+  const [currentStep, setCurrentStep] = useState(1);
+  const [status, setStatus] = useState("Ningun evento todavia.");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const availableSubcategories = useMemo(() => subcatOptions, [subcatOptions]);
+
+  return (
+    <main className="mx-auto max-w-5xl px-4 py-10">
+      <header className="mb-8 space-y-2">
+        <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">Demo</p>
+        <h1 className="text-3xl font-bold">Stepper de React Bits + formulario real</h1>
+        <p className="text-sm text-slate-600">
+          Esta pagina reutiliza exactamente el formulario de <code>/requests/new</code>, pero organizado en tres pasos
+          usando el Stepper de React Bits. Incluye validaciones con Zod, clasificacion automatica, drafts, cargas y todo
+          el flujo real contra <strong>/api/requests</strong>.
+        </p>
+      </header>
+
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Paso 2 - Ubicacion y contacto</h2>
+              <p className="text-sm text-slate-600">Incluye la ciudad y direccion con el buscador o usando el mapa.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Ciudad</Label>
+              <Select
+                value={city}
+                onValueChange={(v) => {
+                  setCityTouched(true);
+                  setCity(v);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona ciudad" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CITIES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors?.city ? <p className="text-xs text-red-600">{errors.city}</p> : null}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Direccion</Label>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 lg:flex-row">
+                  <Input
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="Calle y numero, colonia, CP"
+                    className={`flex-1 ${errors?.address_line ? "border-red-600 focus-visible:ring-red-600" : ""}`}
+                    aria-invalid={errors?.address_line ? true : undefined}
+                    onFocus={() => {
+                        const q = (address || "").trim();
+                        if (q.length >= 3) {
+                          setAddrOpen(true);
+                          debouncedFetchAddr(address || "");
+                      }
+                    }}
+                    onBlur={() => {
+                      window.setTimeout(() => api.setAddrOpen(false), 120);
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" onClick={() => setOpenMap(true)} aria-label="Abrir mapa">
+                      <MapPin size={18} />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        const q = (address || "").trim();
+                        if (!q) return;
+                        try {
+                          const response = await fetch(`/api/geocode/search?q=${encodeURIComponent(q)}`, {
+                            cache: "no-store",
+                            headers: {
+                              Accept: "application/json; charset=utf-8",
+                              "Content-Type": "application/json; charset=utf-8",
+                            },
+                          });
+                          const payload = (await response.json().catch(() => ({}))) as {
+                            data?: Array<{ lat?: number; lon?: number; address?: string }>;
+                          };
+                          const first = Array.isArray(payload?.data) && payload.data.length ? payload.data[0] : null;
+                          if (first) {
+                            const lat = typeof first.lat === "number" ? first.lat : null;
+                            const lon = typeof first.lon === "number" ? first.lon : null;
+                            pickAddress({ address: first.address || q, lat, lon });
+                          }
+                        } catch {
+                          // noop, hook ya maneja toasts
+                        }
+                      }}
+                    >
+                      Buscar
+                    </Button>
+                  </div>
+                </div>
+                {errors?.address_line ? <p className="text-xs text-red-600">{errors.address_line}</p> : null}
+              </div>
+
+              {addrOpen &&
+              ((address.trim().length >= 3 && addrSuggestions.length > 0) ||
+                (address.trim().length === 0 && recentAddrs.length > 0)) ? (
+                <div className="mt-2 max-h-60 w-full overflow-auto rounded-md border bg-white shadow-sm">
+                  {(address.trim().length >= 3 ? addrSuggestions : recentAddrs).map((item: AddressSuggestion, idx) => {
+                    const isSaved = Boolean(item.id);
+                    const meta = [item.postal_code, item.city].filter(Boolean).join(", ");
+                    return (
+                      <button
+                        key={(item.id || item.address) + String(idx)}
+                        type="button"
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50"
+                        onClick={() => {
+                          pickAddress({ address: item.address, lat: item.lat ?? null, lon: item.lon ?? null });
+                          setAddress(item.address);
+                          setAddrOpen(false);
+                        }}
+                      >
+                        <div>
+                          <p className="text-sm font-medium">{item.address}</p>
+                          {meta ? <p className="text-xs text-slate-500">{meta}</p> : null}
+                        </div>
+                        {isSaved ? <span className="text-xs text-slate-500">Guardado</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <p className="text-xs text-slate-500">Puedes escribir la direccion, usar la busqueda o elegirla en el mapa.</p>
+              {!address && coords ? (
+                <p className="text-xs text-slate-500">Se usara tu ubicacion actual si no cambias la direccion.</p>
+              ) : null}
+            </div>
+          </div>
+        </Step>
+
+        <Step label="Condiciones y archivos">
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Paso 3 - Condiciones y archivos</h2>
+              <p className="text-sm text-slate-600">Define fecha, presupuesto, condiciones y adjunta fotos o archivos.</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Condiciones</Label>
+              <p className="text-xs text-slate-500">Selecciona o escribe condiciones relevantes (max. 10).</p>
+              <ConditionsCombobox value={conditionsText} onChange={(v) => setConditionsText(v)} />
+              {errors?.conditions ? <p className="text-xs text-red-600">{errors.conditions}</p> : null}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Fecha requerida</Label>
+                <div className="w-[18ch] md:w-[16ch]">
+                  <Input type="date" value={requiredAt} onChange={(e) => setRequiredAt(e.target.value)} className="w-full text-center" />
+                </div>
+                {errors?.required_at ? <p className="text-xs text-red-600">{errors.required_at}</p> : null}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Presupuesto estimado</Label>
+                <div className="relative max-w-[220px]">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-slate-500">$</span>
+                  <Input
+                    type="number"
+                    value={budget}
+                    min={0}
+                    step={100}
+                    onChange={(e) => setBudget(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="pl-6 pr-12"
+                    placeholder="800"
+                  />
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-500">MXN</span>
+                </div>
+                {errors?.budget ? <p className="text-xs text-red-600">{errors.budget}</p> : null}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Imagenes del sitio (max 5 MB c/u)</Label>
+              <p className="text-xs text-slate-500">Permite hasta 5 imagenes.</p>
+              <input
+                ref={fileInputRef}
+                className="sr-only"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => {
+                  const incoming = Array.from(e.currentTarget.files ?? []);
+                  addFiles(incoming);
+                  e.currentTarget.value = "";
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                {files.map((f, idx) => (
+                  <div key={`${f.name}-${idx}`} className="relative h-20 w-20 overflow-hidden rounded border border-slate-200 bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={URL.createObjectURL(f)} alt={f.name} className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-white"
+                      onClick={() => removeFileAt(idx)}
+                      aria-label="Quitar archivo"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+
+                {files.length < 5 ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex h-20 w-20 items-center justify-center rounded border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50"
+                    title="Agregar imagen"
+                  >
+                    +
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+              <p>
+                Al presionar <strong>Enviar solicitud</strong> se ejecuta el mismo submit que en <code>/requests/new</code>,
+                con validaciones, drafts, carga de archivos y gating de sesion.
+              </p>
+              <p className="mt-2 text-xs">Estado actual: {submitting || uploading ? "Enviando..." : "Listo para enviar."}</p>
+              {submissionMessage ? <p className="mt-1 text-xs text-green-600">{submissionMessage}</p> : null}
+            </div>

@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import useInstallPrompts from "@/lib/pwa/useInstallPrompts";
+
 import isSafariOniOS from "@/lib/pwa/install-detect";
+import useInstallPrompts from "@/lib/pwa/useInstallPrompts";
+
+const logInstallBannerError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[InstallAppBanner]", error);
+  }
+};
 
 export default function InstallAppBanner() {
   const { androidEvent, triggerAndroidInstall, showIOSBanner, dismissIOSBanner } = useInstallPrompts();
@@ -25,8 +33,8 @@ export default function InstallAppBanner() {
   async function onInstallAndroid() {
     try {
       await triggerAndroidInstall();
-    } catch {
-      // ignore
+    } catch (error) {
+      logInstallBannerError(error);
     }
     setAndroidDismissed(true);
   }
@@ -34,8 +42,8 @@ export default function InstallAppBanner() {
   function onDismissAndroid() {
     try {
       localStorage.setItem("handi:pwa:install:dismissed", "1");
-    } catch {
-      // ignore
+    } catch (error) {
+      logInstallBannerError(error);
     }
     setAndroidDismissed(true);
   }

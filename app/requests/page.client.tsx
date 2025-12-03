@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -13,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import StatusMultiSelect from "@/components/filters/StatusMultiSelect";
+import CreateRequestButton from "@/components/requests/CreateRequestButton";
 
 const RequestDetailClient = dynamic(() => import("./[id]/RequestDetailClient"), {
   ssr: false,
@@ -409,9 +409,7 @@ export default function RequestsClientPage() {
                 <div className="space-y-2">
                   <p className="font-medium text-slate-700">Aun no tienes solicitudes.</p>
                   <p>Crea una solicitud para recibir propuestas de profesionales.</p>
-                  <Button asChild variant="outline">
-                    <Link href="/requests/new">Crear nueva solicitud</Link>
-                  </Button>
+                  <CreateRequestButton variant="outline">Crear nueva solicitud</CreateRequestButton>
                 </div>
               ) : (
                 <span>No hay solicitudes que coincidan con los filtros.</span>

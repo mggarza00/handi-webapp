@@ -1,22 +1,34 @@
 import { NextResponse } from "next/server";
+
 import createClient from "@/utils/supabase/server";
+import type { Database } from "@/types/supabase";
+
+type ProfileRow = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "role" | "is_client_pro"
+>;
+
+type BankAccountRow = Pick<
+  Database["public"]["Tables"]["bank_accounts"]["Row"],
+  "id" | "status" | "profile_id" | "verified_at" | "updated_at"
+>;
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } as const;
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   try {
     const supabase = createClient();
-    const db = supabase as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
-    const { data: profile } = await db
+  const { data: profile } = await supabase
       .from("profiles")
       .select("role, is_client_pro")
       .eq("id", user.id)
-      .maybeSingle();
-    const isPro = (profile?.role as unknown as string) === "professional" || Boolean((profile as unknown as { is_client_pro?: boolean })?.is_client_pro);
+      .maybeSingle<ProfileRow>();
+    const role = profile?.role ?? null;
+    const isPro = role === "professional" || profile?.is_client_pro === true;
     if (!isPro) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
     const id = params?.id;
@@ -25,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!body?.is_default) return NextResponse.json({ error: "NOOP" }, { status: 400, headers: JSONH });
 
     // Demote any existing confirmed
-    const { error: archErr } = await db
+    const { error: archErr } = await supabase
       .from("bank_accounts")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("profile_id", user.id)
@@ -33,7 +45,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (archErr) return NextResponse.json({ error: archErr.message }, { status: 400, headers: JSONH });
 
     // Promote selected to confirmed
-    const { error: confErr } = await db
+    const { error: confErr } = await supabase
       .from("bank_accounts")
       .update({ status: "confirmed", verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", id)

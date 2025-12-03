@@ -1,13 +1,13 @@
-/* eslint-disable import/order */
-/* eslint-disable import/order */
- import Link from "next/link";
-import { cookies } from "next/headers";
-import createClient from "@/utils/supabase/server";
+import Link from "next/link";
+
+import { getAdminSupabase } from "../../../lib/supabase/admin";
 
 import AdminActions from "./AdminActions.client";
 
 import type { Database } from "@/types/supabase";
-import { getAdminSupabase } from "../../../lib/supabase/admin";
+import createClient from "@/utils/supabase/server";
+
+type ProfileRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "role" | "is_admin">;
 
 type Search = {
   searchParams: {
@@ -31,11 +31,11 @@ export default async function AdminProApplicationsPage({
     .from("profiles")
     .select("role, is_admin")
     .eq("id", auth.user.id)
-    .maybeSingle();
+    .maybeSingle<ProfileRow>();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
-    (prof as any)?.is_admin === true ||
-    (prof as any)?.role === "admin" ||
+    prof?.is_admin === true ||
+    prof?.role === "admin" ||
     (allowEmail && auth.user.email?.toLowerCase() === allowEmail.toLowerCase());
   if (!isAdmin) return forbidden();
 
@@ -147,7 +147,7 @@ export default async function AdminProApplicationsPage({
                 <td className="px-3 py-2">{r.full_name}</td>
                 <td className="px-3 py-2">{r.email}</td>
                 <td className="px-3 py-2">{r.phone}</td>
-                <td className="px-3 py-2">{(("empresa" in (r as unknown as Record<string, unknown>) && (r as unknown as { empresa?: boolean | null }).empresa) ? "Sí" : "No")}</td>
+                <td className="px-3 py-2">{r.empresa ? "Sí" : "No"}</td>
                 <td className="px-3 py-2">{labelStatus(r.status)}</td>
                 <td className="px-3 py-2">
                   {new Date(r.created_at || "").toLocaleString()}

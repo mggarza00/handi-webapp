@@ -1,10 +1,8 @@
-/* eslint-disable import/order */
 import { NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
-import type { Database } from "@/types/supabase";
 import { getAdminSupabase } from "../../../../../../lib/supabase/admin";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -33,7 +31,7 @@ async function assertIsAdmin(): Promise<
     .maybeSingle();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
-    (prof as any)?.role === "admin" ||
+    (prof?.role ?? null) === "admin" ||
     (allowEmail && auth.user.email?.toLowerCase() === allowEmail.toLowerCase());
   if (!isAdmin) {
     return {

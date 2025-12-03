@@ -3,9 +3,12 @@
 import * as React from "react";
 
 import useCompletionReview from "../../_components/_hooks/useCompletionReview";
+
+import formatPresence from "./presence";
+
+import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { normalizeAvatarUrl } from "@/lib/avatar";
-import ChatPanel from "@/components/chat/ChatPanel";
 
 type Profile = {
   id: string;
@@ -13,20 +16,6 @@ type Profile = {
   avatar_url: string | null;
   last_active_at: string | null;
 };
-
-function formatPresence(lastActiveAt: string | null): string {
-  if (!lastActiveAt) return "Sin actividad reciente";
-  const d = new Date(lastActiveAt).getTime();
-  const now = Date.now();
-  const diff = Math.max(0, now - d);
-  const mins = Math.floor(diff / 60000);
-  if (mins < 3) return "En línea";
-  if (mins < 60) return `Activo hace ${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `Activo hace ${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `Activo hace ${days}d`;
-}
 
 export default function ChatWindow({ conversationId }: { conversationId: string }) {
   const [meId, setMeId] = React.useState<string | null>(null);
@@ -206,10 +195,8 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
       {/* Actions by status */}
       {(() => {
         const st = (requestStatus || '').toLowerCase();
-        const isActive = st === 'active' || st === 'pending';
         const isScheduled = st === 'scheduled';
         const isInProcess = st === 'in_process' || st === 'inprogress';
-        const isFinished = st === 'finished' || st === 'completed';
         if (!requestId) return null;
         if (viewerRole === 'pro') {
           return (

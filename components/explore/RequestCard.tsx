@@ -33,13 +33,6 @@ function extractThumb(att?: unknown): string | null {
   return null;
 }
 
-function formatDateShort(input?: string | null): string {
-  if (!input) return "";
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return String(input).slice(0, 10);
-  return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium" }).format(d);
-}
-
 export default function RequestCard({
   proId,
   request,

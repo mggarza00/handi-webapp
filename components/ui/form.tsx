@@ -1,8 +1,11 @@
 "use client";
+
 import * as React from "react";
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
 import { Controller, FormProvider, useFormContext } from "react-hook-form";
+import type { ControllerProps, FieldPath, FieldValues } from "react-hook-form";
+
 import { cn } from "@/lib/utils";
 
 const Form = FormProvider;
@@ -27,17 +30,22 @@ function useFormField() {
   };
 }
 
-type FormFieldProps<TFieldValues extends Record<string, any>> = {
-  control?: any;
-  name: string;
-  render: ({ field }: { field: any }) => React.ReactNode;
+type FormFieldProps<
+  TFieldValues extends FieldValues,
+  TName extends FieldPath<TFieldValues>,
+> = {
+  name: TName;
+  render: ControllerProps<TFieldValues, TName>["render"];
 };
 
-function FormField<TFieldValues extends Record<string, any>>({ name, render }: FormFieldProps<TFieldValues>) {
+function FormField<TFieldValues extends FieldValues, TName extends FieldPath<TFieldValues>>({
+  name,
+  render,
+}: FormFieldProps<TFieldValues, TName>) {
   const { control } = useFormContext<TFieldValues>();
   return (
     <FormFieldContext.Provider value={{ name }}>
-      <Controller name={name as any} control={control as any} render={render as any} />
+      <Controller name={name} control={control} render={render} />
     </FormFieldContext.Provider>
   );
 }

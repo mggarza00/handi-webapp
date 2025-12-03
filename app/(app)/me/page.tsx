@@ -1,11 +1,21 @@
 import { redirect } from "next/navigation";
-import createClient from "@/utils/supabase/server";
 
-import type { Database } from "@/types/supabase";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
+
+type ProfileSelection = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "full_name" | "avatar_url" | "role" | "city" | "bio" | "categories" | "subcategories" | "is_client_pro"
+>;
+
+type ProfessionalSelection = Pick<
+  Database["public"]["Tables"]["professionals"]["Row"],
+  "headline" | "years_experience" | "city" | "categories" | "subcategories" | "avatar_url" | "bio"
+>;
 
 export default async function MePage() {
   const supabase = createClient();
@@ -19,7 +29,7 @@ export default async function MePage() {
       "full_name, avatar_url, role, city, bio, categories, subcategories, is_client_pro",
     )
     .eq("id", user.id)
-    .maybeSingle<any>();
+    .maybeSingle<ProfileSelection>();
 
   const { data: pro } = await supabase
     .from("professionals")
@@ -27,7 +37,7 @@ export default async function MePage() {
       "headline, years_experience, city, categories, subcategories, avatar_url, bio",
     )
     .eq("id", user.id)
-    .maybeSingle<any>();
+    .maybeSingle<ProfessionalSelection>();
 
   const fullName =
     profile?.full_name ?? user.user_metadata?.full_name ?? "Usuario";

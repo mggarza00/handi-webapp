@@ -9,10 +9,12 @@ const CACHE_VERSION = 'handi-v1';
 const PRECACHE = [
   '/',                 // start_url
   '/offline.html',
-  '/manifest.json',
+  '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/maskable_icon.png',
+  '/images/handifav_fondo.png',
+  '/images/handifav_sinfondo.png',
 ].filter(Boolean);
 
 self.addEventListener('install', (event) => {
@@ -97,8 +99,8 @@ self.addEventListener('push', (event) => {
     // Minimal options per spec
     const options = {
       body: (data && data.body) ? data.body : '',
-      icon: '/icons/favicon-handi.gif',
-      badge: '/icons/favicon-handi.gif',
+      icon: '/images/handifav_fondo.png',
+      badge: '/images/handifav_fondo.png',
       data: data ? data.data : undefined,
     };
 

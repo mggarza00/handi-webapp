@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type RealtimeMessage = {
@@ -39,7 +40,7 @@ export type Handlers = {
  * Subscribes to realtime inserts on public.messages and public.message_attachments for a conversation.
  * Keeps UI responsive without manual refresh.
  */
-  export function useChatRealtime(conversationId: string, h: Handlers) {
+export function useChatRealtime(conversationId: string, h: Handlers) {
   React.useEffect(() => {
     if (!conversationId) return;
     const sb = createSupabaseBrowser();

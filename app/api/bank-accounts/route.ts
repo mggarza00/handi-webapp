@@ -1,7 +1,19 @@
 import { NextResponse } from "next/server";
+
 import createClient from "@/utils/supabase/server";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } as const;
+
+type ProfileRow = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "role" | "is_client_pro" | "full_name"
+>;
+
+type BankAccountRow = Pick<
+  Database["public"]["Tables"]["bank_accounts"]["Row"],
+  "id" | "bank_name" | "clabe" | "status" | "created_at" | "verified_at" | "profile_id" | "updated_at" | "account_holder_name"
+>;
 
 function onlyDigits(s: string): string { return (s || "").replace(/\D+/g, ""); }
 function isValidClabe(clabe: string): boolean {
@@ -17,20 +29,20 @@ function isValidClabe(clabe: string): boolean {
 export async function GET() {
   try {
     const supabase = createClient();
-    const db = supabase as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
-    const { data: profile } = await db
+    const { data: profile } = await supabase
       .from("profiles")
       .select("role, is_client_pro, full_name")
       .eq("id", user.id)
-      .maybeSingle();
-    const isPro = (profile?.role as unknown as string) === "professional" || Boolean((profile as unknown as { is_client_pro?: boolean })?.is_client_pro);
+      .maybeSingle<ProfileRow>();
+    const role = profile?.role ?? null;
+    const isPro = role === "professional" || profile?.is_client_pro === true;
     if (!isPro) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
-    const { data: rows, error: listErr } = await db
+    const { data: rows, error: listErr } = await supabase
       .from("bank_accounts")
       .select("id, bank_name, clabe, status, created_at, verified_at")
       .eq("profile_id", user.id)
@@ -38,23 +50,23 @@ export async function GET() {
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 400, headers: JSONH });
 
     const items = (rows ?? []).map((r) => {
-      const raw = onlyDigits((r as any).clabe || "");
+      const raw = onlyDigits(r.clabe || "");
       const first3 = raw.slice(0, 3);
       const last4 = raw.slice(-4);
       const stars = raw ? "*".repeat(Math.max(0, raw.length - 7)) : "";
       const clabe_masked = raw ? `${first3}${stars}${last4}` : null;
-      const status = (r as any).status as string | null;
+      const status = r.status ?? null;
       return {
-        id: (r as any).id as string,
-        bank_name: (r as any).bank_name as string | null,
+        id: r.id,
+        bank_name: r.bank_name ?? null,
         clabe_masked,
         status,
         is_default: status === "confirmed",
-        created_at: (r as any).created_at as string | null,
+        created_at: r.created_at ?? null,
       };
     });
     return NextResponse.json(
-      { full_name: (profile as unknown as { full_name?: string | null })?.full_name ?? null, items },
+      { full_name: profile?.full_name ?? null, items },
       { headers: JSONH },
     );
   } catch (e) {
@@ -70,20 +82,20 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
 
     const supabase = createClient();
-    const db = supabase as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
     // Optional gating by role
-    const { data: profile } = await db
+    const { data: profile } = await supabase
       .from("profiles")
       .select("role, is_client_pro, full_name")
       .eq("id", user.id)
-      .maybeSingle();
-    const isPro = (profile?.role as unknown as string) === "professional" || Boolean((profile as unknown as { is_client_pro?: boolean })?.is_client_pro);
+      .maybeSingle<ProfileRow>();
+    const role = profile?.role ?? null;
+    const isPro = role === "professional" || profile?.is_client_pro === true;
     if (!isPro) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
-    const fullName = String((profile as unknown as { full_name?: string | null })?.full_name || "").trim();
+    const fullName = String(profile?.full_name || "").trim();
     if (!fullName)
       return NextResponse.json({ error: "MISSING_FULL_NAME" }, { status: 422, headers: JSONH });
 
@@ -94,7 +106,7 @@ export async function PUT(req: Request) {
     if (!/^\d{18}$/.test(clabe) || !isValidClabe(clabe)) return NextResponse.json({ error: "INVALID_CLABE" }, { status: 422, headers: JSONH });
 
     // Upsert editable row: pending/rejected else insert; then promote to confirmed and archive previous confirmed
-    const existing = await db
+    const existing = await supabase
       .from("bank_accounts")
       .select("id, status")
       .eq("profile_id", user.id)
@@ -105,7 +117,7 @@ export async function PUT(req: Request) {
 
     let targetId: string | null = null;
     if (existing?.data?.id) {
-      const upd = await db
+        const upd = await supabase
         .from("bank_accounts")
         .update({
           account_holder_name: fullName,
@@ -120,7 +132,7 @@ export async function PUT(req: Request) {
       if (upd.error) return NextResponse.json({ error: upd.error.message }, { status: 400, headers: JSONH });
       targetId = upd.data?.id ?? null;
     } else {
-      const ins = await db
+      const ins = await supabase
         .from("bank_accounts")
         .insert({
           profile_id: user.id,
@@ -138,7 +150,7 @@ export async function PUT(req: Request) {
     if (!targetId) return NextResponse.json({ error: "UPSERT_FAILED" }, { status: 400, headers: JSONH });
 
     // Archive existing confirmed
-    const { error: archErr } = await db
+    const { error: archErr } = await supabase
       .from("bank_accounts")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("profile_id", user.id)
@@ -146,7 +158,7 @@ export async function PUT(req: Request) {
     if (archErr) return NextResponse.json({ error: archErr.message }, { status: 400, headers: JSONH });
 
     // Promote to confirmed
-    const { error: confErr } = await db
+    const { error: confErr } = await supabase
       .from("bank_accounts")
       .update({ status: "confirmed", verified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq("id", targetId);

@@ -5,9 +5,9 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AttachmentList } from "@/app/(app)/messages/_components/AttachmentList";
-import LocationCard from "@/components/chat/LocationCard";
+import LocationCard, { type LocationPayload } from "@/components/chat/LocationCard";
 import AcceptOfferButton from "@/app/(app)/offers/_components/AcceptOfferButton";
-import { extractOfferId, extractStatus, extractProIds, extractViewerIds, isOwnerPro, canProAct } from "@/lib/offers/actors";
+import { extractOfferId, extractStatus, extractProIds, extractViewerIds, isOwnerPro } from "@/lib/offers/actors";
 import ClientFeeDialog from "@/components/payments/ClientFeeDialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
@@ -58,6 +58,26 @@ type OfferState = {
   messageId: string;
   lastUpdate: string;
 };
+
+type QuotePayload = {
+  quote_id?: string | null;
+  total?: number | string | null;
+  currency?: string | null;
+};
+
+type SystemMessagePayload = LocationPayload & {
+  status?: string | null;
+  reason?: string | null;
+  receipt_url?: string | null;
+  receipt_id?: string | null;
+  download_url?: string | null;
+  quote_id?: string | null;
+  total?: number | string | null;
+  currency?: string | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object";
 
 function formatRelative(ts: string): string {
   const d = new Date(ts);
@@ -467,14 +487,14 @@ export default function MessageList({
       return renderOffer(message);
     }
     if (message.messageType === "quote" && message.payload && typeof message.payload === "object") {
-      const payloadRecord = message.payload as Record<string, unknown>;
-      const qid = typeof payloadRecord.quote_id === 'string' ? (payloadRecord.quote_id as string) : null;
-      const totalRaw = payloadRecord.total as unknown;
-      const currencyRaw = payloadRecord.currency as unknown;
-      const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? NaN);
-      const currency = typeof currencyRaw === 'string' ? currencyRaw : 'MXN';
-      const totalFmt = Number.isFinite(total) ? formatCurrency(total, currency || 'MXN') : null;
-      const hasAttachment = Array.isArray((message as any).attachments) && (message as any).attachments.length > 0;
+      const payloadRecord = message.payload as QuotePayload;
+      const qid = typeof payloadRecord.quote_id === "string" ? payloadRecord.quote_id : null;
+      const totalRaw = payloadRecord.total;
+      const currencyRaw = payloadRecord.currency;
+      const total = typeof totalRaw === "number" ? totalRaw : Number(totalRaw ?? NaN);
+      const currency = typeof currencyRaw === "string" ? currencyRaw : "MXN";
+      const totalFmt = Number.isFinite(total) ? formatCurrency(total, currency || "MXN") : null;
+      const hasAttachment = Array.isArray(message.attachments) && message.attachments.length > 0;
       return (
         <div className="space-y-1">
           <div className="text-sm font-medium text-slate-800">Cotización enviada</div>
@@ -503,14 +523,21 @@ export default function MessageList({
       );
     }
     if (message.messageType === "system" && message.payload && typeof message.payload === "object") {
-      const payloadRecord = message.payload as Record<string, unknown>;
+      const payloadRecord = message.payload as SystemMessagePayload;
       // LocationCard: type 'system/location' o 'schedule_details'
-      const payloadType = typeof payloadRecord.type === 'string' ? payloadRecord.type : '';
-      const hasLocationFlat = typeof payloadRecord.map_image_url === 'string' || typeof payloadRecord.maps_url === 'string' || typeof payloadRecord.address_line === 'string';
-      const nested = (payloadRecord.location && typeof payloadRecord.location === 'object') ? (payloadRecord.location as Record<string, unknown>) : null;
-      const hasLocationNested = nested && (typeof nested.map_image_url === 'string' || typeof nested.maps_url === 'string' || typeof nested.address_line === 'string');
-      if (payloadType === 'system/location' || payloadType === 'schedule_details' || hasLocationFlat || hasLocationNested) {
-        return <LocationCard payload={payloadRecord as any} />;
+      const payloadType = typeof payloadRecord.type === "string" ? payloadRecord.type : "";
+      const hasLocationFlat =
+        typeof payloadRecord.map_image_url === "string" ||
+        typeof payloadRecord.maps_url === "string" ||
+        typeof payloadRecord.address_line === "string";
+      const nested = payloadRecord.location && typeof payloadRecord.location === "object" ? payloadRecord.location : null;
+      const hasLocationNested =
+        !!nested &&
+        (typeof nested.map_image_url === "string" ||
+          typeof nested.maps_url === "string" ||
+          typeof nested.address_line === "string");
+      if (payloadType === "system/location" || payloadType === "schedule_details" || hasLocationFlat || hasLocationNested) {
+        return <LocationCard payload={payloadRecord} />;
       }
       const statusValue = typeof payloadRecord.status === "string" ? payloadRecord.status : undefined;
       const status = extractStatus(statusValue);
@@ -553,7 +580,7 @@ export default function MessageList({
         return (
           <div className="text-sm text-slate-800">
             {message.body}
-            {Array.isArray((message as any).attachments) && (message as any).attachments.length > 0 ? null : (
+            {Array.isArray(message.attachments) && message.attachments.length > 0 ? null : (
               link ? (
                 <>
                   {" "}
@@ -645,8 +672,8 @@ export default function MessageList({
             <AttachmentList
               items={m.attachments}
               resolveLightboxUrl={(_att, url) => {
-                const payload = (m?.payload && typeof m.payload === 'object') ? (m.payload as Record<string, unknown>) : null;
-                const qid = payload && typeof (payload as any).quote_id === 'string' ? (payload as any).quote_id as string : null;
+                const payload = isRecord(m.payload) ? (m.payload as QuotePayload) : null;
+                const qid = typeof payload?.quote_id === "string" ? payload.quote_id : null;
                 if (m.messageType === 'quote' && qid) {
                   return `/api/quotes/${encodeURIComponent(qid)}/image`;
                 }
@@ -657,9 +684,9 @@ export default function MessageList({
         ) : null}
         {(() => {
           if (m.messageType !== 'quote' || viewerRole !== 'customer') return null;
-          const payload = (m.payload && typeof m.payload === 'object') ? (m.payload as Record<string, unknown>) : null;
-          const totalRaw = payload ? (payload as any).total : null;
-          const currencyRaw = payload ? (payload as any).currency : null;
+          const payload = isRecord(m.payload) ? (m.payload as QuotePayload) : null;
+          const totalRaw = payload?.total ?? null;
+          const currencyRaw = payload?.currency ?? null;
           const total = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? NaN);
           const currency = typeof currencyRaw === 'string' ? currencyRaw : 'MXN';
           if (!Number.isFinite(total)) return null;

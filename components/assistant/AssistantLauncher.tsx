@@ -84,7 +84,8 @@ export default function AssistantLauncher() {
           });
         }
       }
-    } catch (err) {
+    } catch (error) {
+      console.error("[AssistantLauncher]", error);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "Lo siento, hubo un problema al responder. Intenta de nuevo." },

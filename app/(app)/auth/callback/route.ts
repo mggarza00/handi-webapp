@@ -62,7 +62,7 @@ export async function GET(req: Request) {
   return NextResponse.redirect(new URL(next, env.appUrl), { status: 302 });
 }
 
-async function ensureProfile(supabase: SupabaseClient<Database, "public">) {
+async function ensureProfile(supabase: SupabaseClient<Database>) {
   const { data } = await supabase.auth.getUser();
   const user = data.user ?? null;
   if (!user) return;

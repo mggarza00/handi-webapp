@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, useMotionValue, useTransform } from "motion/react";
-import { animate } from "motion";
+import { animate, type PanInfo } from "motion";
+import { motion, useMotionValue, useTransform as motionUseTransform, type MotionValue } from "motion/react";
 
 type Props = React.PropsWithChildren<{
   gap?: number; // px gap between slides
@@ -18,6 +18,31 @@ type Props = React.PropsWithChildren<{
 const SPRING = { type: "spring", stiffness: 300, damping: 30 } as const;
 const DRAG_BUFFER = 0; // px
 const VELOCITY_THRESHOLD = 500; // px/s
+
+type SlideProps = {
+  item: React.ReactNode;
+  index: number;
+  itemWidth: number;
+  trackStep: number;
+  threeD: boolean;
+  x: MotionValue<number>;
+};
+
+function CarouselSlide({ item, index, itemWidth, trackStep, threeD, x }: SlideProps) {
+  const inputRange = React.useMemo(
+    () => [-(index + 1) * trackStep, -index * trackStep, -(index - 1) * trackStep],
+    [index, trackStep],
+  );
+  const rotateY = motionUseTransform(x, inputRange, [90, 0, -90], { clamp: false });
+  return (
+    <motion.div
+      className="shrink-0 snap-start"
+      style={{ width: itemWidth, minWidth: itemWidth, rotateY: threeD ? rotateY : undefined }}
+    >
+      {item}
+    </motion.div>
+  );
+}
 
 export default function MobileCarousel({
   children,
@@ -87,7 +112,7 @@ export default function MobileCarousel({
   }, [autoplay, autoplayDelay, items.length, loop, renderItems.length, pauseOnHover, isHovered]);
 
   const onDragEnd = useCallback(
-    (_: any, info: { offset: { x: number }; velocity: { x: number } }) => {
+    (_: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) => {
       const offset = info?.offset?.x ?? 0;
       const velocity = info?.velocity?.x ?? 0;
       if (offset < -DRAG_BUFFER || velocity < -VELOCITY_THRESHOLD) {
@@ -137,25 +162,17 @@ export default function MobileCarousel({
         onDragEnd={onDragEnd}
         aria-roledescription="carousel"
       >
-        {renderItems.map((child, i) => {
-          const rotateY = threeD
-            ? useTransform(
-                x,
-                [-(i + 1) * trackStep, -i * trackStep, -(i - 1) * trackStep],
-                [90, 0, -90],
-                { clamp: false },
-              )
-            : undefined;
-          return (
-            <motion.div
-              key={i}
-              className="shrink-0 snap-start"
-              style={{ width: itemW, minWidth: itemW, rotateY }}
-            >
-              {child}
-            </motion.div>
-          );
-        })}
+        {renderItems.map((child, i) => (
+          <CarouselSlide
+            key={i}
+            item={child}
+            index={i}
+            itemWidth={itemW}
+            trackStep={trackStep}
+            threeD={threeD}
+            x={x}
+          />
+        ))}
       </motion.div>
       {showIndicators && items.length > 1 ? (
         <div className="mt-3 flex w-full items-center justify-center gap-2">

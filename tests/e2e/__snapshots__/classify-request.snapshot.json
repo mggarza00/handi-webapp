@@ -1,0 +1,15 @@
+{
+  "note": "Snapshot placeholder for classify-request output. Populate by running seeds locally with OpenAI enabled.",
+  "schema": {
+    "best": {
+      "category": "string",
+      "subcategory": "string",
+      "category_id": "string|null",
+      "subcategory_id": "string|null",
+      "confidence": "number",
+      "model": "string|null"
+    },
+    "alternatives": ["Suggestion", "... up to 3"]
+  }
+}
+

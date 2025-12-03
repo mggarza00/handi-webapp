@@ -2,7 +2,14 @@
 
 import * as React from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+
 import { cn } from "@/lib/utils";
+
+const logStorageError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.error("[AdminCollapseToggle]", error);
+  }
+};
 
 type Props = {
   targetId?: string;
@@ -25,7 +32,9 @@ export default function AdminCollapseToggle({ targetId = "admin-shell", classNam
       setCollapsed(initial);
       const el = document.getElementById(targetId);
       if (el) el.setAttribute("data-collapsed", initial ? "true" : "false");
-    } catch {}
+    } catch (error) {
+      logStorageError(error);
+    }
   }, [targetId]);
 
   const toggle = React.useCallback(() => {
@@ -35,7 +44,9 @@ export default function AdminCollapseToggle({ targetId = "admin-shell", classNam
     if (el) el.setAttribute("data-collapsed", next ? "true" : "false");
     try {
       localStorage.setItem("admin.sidebar.collapsed", next ? "1" : "0");
-    } catch {}
+    } catch (error) {
+      logStorageError(error);
+    }
   }, [collapsed, targetId]);
 
   return (
@@ -52,4 +63,3 @@ export default function AdminCollapseToggle({ targetId = "admin-shell", classNam
     </button>
   );
 }
-

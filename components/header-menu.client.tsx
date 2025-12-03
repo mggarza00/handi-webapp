@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Menu, Settings as SettingsIcon } from "lucide-react";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
 
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { buttonVariants } from "@/components/ui/button";
 
 function _MenuIcon(props: React.SVGProps<SVGSVGElement>) {

@@ -1,7 +1,7 @@
 // Generate a simple, readable folio: HMD-YYYYMMDD-XXXX
 // XXXX is a short base36 code derived from a CRC32 of the receipt id
-export function generateSimpleFolio(id: string, createdAt: Date): string {
-  const d = createdAt instanceof Date ? createdAt : new Date(createdAt as any);
+export function generateSimpleFolio(id: string, createdAt: Date | string | number): string {
+  const d = createdAt instanceof Date ? createdAt : new Date(createdAt);
   const y = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
@@ -46,4 +46,3 @@ const crc32Table = (() => {
   }
   return tbl;
 })();
-

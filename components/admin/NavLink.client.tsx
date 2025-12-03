@@ -10,12 +10,14 @@ export default function NavLink({
   className,
   title,
   exact = false,
+  dataTestId,
 }: {
   href: string;
   children: React.ReactNode;
   className?: string;
   title?: string;
   exact?: boolean;
+  dataTestId?: string;
 }) {
   const pathname = usePathname() || "";
   const active = exact ? pathname === href : pathname === href || pathname.startsWith(href + "/");
@@ -24,6 +26,7 @@ export default function NavLink({
       href={href}
       title={title}
       aria-current={active ? "page" : undefined}
+      data-testid={dataTestId}
       className={cn(
         "flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-accent",
         active && "bg-accent text-accent-foreground",

@@ -1,388 +1,48 @@
-/**
- * Tipos mínimos de la BD (stub) según Documento Maestro V1.
- * Sustituye cuando generes los tipos oficiales con: supabase gen types typescript ...
- */
 export type Json =
   | string
   | number
   | boolean
   | null
-  | { [key: string]: Json }
+  | { [key: string]: Json | undefined }
   | Json[];
 
-export interface Tables {
-  web_push_subscriptions: {
-    Row: {
-      id: string;
-      user_id: string;
-      endpoint: string;
-      p256dh?: string; // legacy
-      auth?: string;   // legacy
-      keys?: Json | null; // jsonb keys { p256dh, auth }
-      user_agent: string | null;
-      app_version: string | null;
-      created_at: string | null;
-      updated_at: string | null;
+export interface Database {
+  public: {
+    Tables: {
+      [table: string]: {
+        Row: Record<string, any>;
+        Insert: Record<string, any>;
+        Update: Record<string, any>;
+        Relationships: any[];
+      };
     };
-    Insert: {
-      user_id: string;
-      endpoint: string;
-      p256dh?: string;
-      auth?: string;
-      keys?: Json | null;
-      user_agent?: string | null;
-      app_version?: string | null;
-      created_at?: string | null;
-      updated_at?: string | null;
+    Views: {
+      [view: string]: {
+        Row: Record<string, any>;
+        Relationships: any[];
+      };
     };
-    Update: Partial<Tables["web_push_subscriptions"]["Row"]>;
-  };
-  profiles: {
-    Row: {
-      id: string;
-      full_name: string | null;
-      role: "client" | "pro" | "admin" | null;
-      avatar_url: string | null;
-      // Extended profile fields used across the app
-      headline?: string | null;
-      bio?: string | null;
-      years_experience?: number | null;
-      rating: number | null; // 0..5 (source of truth)
-      is_featured?: boolean | null;
-      active?: boolean | null;
-      city?: string | null;
-      cities?: Json | null;
-      categories?: Json | null;
-      subcategories?: Json | null;
-      last_active_at?: string | null; // timestamptz ISO
-      /** banderas auxiliares que existen en algunas migraciones */
-      is_client_pro?: boolean | null;
-      is_admin?: boolean | null;
-      /** preferencia: correos del chat */
-      email_chat_notifications_enabled?: boolean | null;
-      /** columnas varias que pueden existir por migraciones previas */
-      created_at: string | null; // timestamptz ISO
+    Functions: {
+      [fn: string]: {
+        Args: Record<string, any>;
+        Returns: any;
+      };
     };
-    Insert: Partial<Tables["profiles"]["Row"]> & { id: string };
-    Update: Partial<Tables["profiles"]["Row"]>;
-  };
-  ratings: {
-    Row: {
-      id: string;
-      request_id: string;
-      from_user_id: string;
-      to_user_id: string;
-      stars: number; // 1..5
-      comment: string | null;
-      created_at: string | null; // timestamptz ISO
+    Enums: {
+      [enumName: string]: string;
     };
-    Insert: {
-      request_id: string;
-      from_user_id: string;
-      to_user_id: string;
-      stars: number;
-      comment?: string | null;
+    CompositeTypes: {
+      [typeName: string]: Record<string, any>;
     };
-    Update: Partial<Tables["ratings"]["Row"]>;
-  };
-  service_photos: {
-    Row: {
-      id: string;
-      offer_id: string;
-      request_id: string;
-      professional_id: string;
-      image_url: string;
-      uploaded_at: string | null; // timestamptz ISO
-    };
-    Insert: {
-      offer_id: string;
-      request_id: string;
-      professional_id: string;
-      image_url: string;
-    };
-    Update: Partial<Tables["service_photos"]["Row"]>;
-  };
-  reviews: {
-    Row: {
-      id: string;
-      request_id: string;
-      professional_id: string;
-      client_id: string;
-      reviewer_role: "client" | "pro";
-      rating: number; // 1..5
-      comment: string | null;
-      created_at: string | null; // timestamptz ISO
-    };
-    Insert: never;
-    Update: never;
-  };
-  professionals: {
-    Row: {
-      id: string;
-      full_name: string | null;
-      avatar_url: string | null;
-      headline: string | null;
-      bio: string | null;
-      years_experience: number | null;
-      is_featured: boolean | null;
-      active: boolean | null;
-      empresa?: boolean | null;
-      rfc?: string | null;
-      is_company?: boolean | null;
-      company_legal_name?: string | null;
-      company_industry?: string | null;
-      company_employees_count?: number | null;
-      company_website?: string | null;
-      company_doc_incorporation_url?: string | null;
-      company_csf_url?: string | null;
-      company_rep_id_front_url?: string | null;
-      company_rep_id_back_url?: string | null;
-      city: string | null;
-      cities: Json | null;
-      categories: Json | null;
-      subcategories: Json | null;
-      last_active_at: string | null;
-      created_at: string | null;
-    };
-    Insert: Partial<Tables["professionals"]["Row"]> & { id: string };
-    Update: Partial<Tables["professionals"]["Row"]>;
-  };
-  requests: {
-    Row: {
-      id: string;
-      title: string;
-      description: string | null;
-      city: string | null;
-      category: string | null;
-      subcategories: Json | null;
-      budget: number | null;
-      required_at: string | null; // date
-      status: "active" | "in_process" | "completed" | "cancelled" | null;
-      attachments: Json | null;
-      conditions: string; // chips serialized as text (comma-separated)
-      created_by: string;
-      created_at: string | null;
-    };
-    Insert: Partial<Tables["requests"]["Row"]> & {
-      title: string;
-      created_by: string;
-    };
-    Update: Partial<Tables["requests"]["Row"]>;
-  };
-  offers: {
-    Row: {
-      id: string;
-      conversation_id: string;
-      client_id: string;
-      professional_id: string;
-      title: string;
-      description: string | null;
-      service_date: string | null;
-      currency: string;
-      amount: number;
-      status: 'sent' | 'accepted' | 'rejected' | 'expired' | 'canceled' | 'paid';
-      reject_reason: string | null;
-      checkout_url: string | null;
-      payment_intent_id: string | null;
-      metadata: Json;
-      accepting_at: string | null;
-      created_at: string;
-      created_by: string;
-      updated_at: string;
-    };
-    Insert: Partial<Omit<Tables['offers']['Row'], 'id' | 'created_at' | 'updated_at'>> & {
-      conversation_id: string;
-      client_id: string;
-      professional_id: string;
-      title: string;
-      amount: number;
-      created_by: string;
-    };
-    Update: Partial<Tables['offers']['Row']>;
-  };
-  pro_request_favorites: {
-    Row: {
-      pro_id: string;
-      request_id: string;
-      created_at: string | null; // timestamptz ISO
-    };
-    Insert: {
-      pro_id: string;
-      request_id: string;
-    };
-    Update: Partial<{
-      pro_id: string;
-      request_id: string;
-      created_at: string | null;
-    }>;
-  };
-  client_favorites: {
-    Row: {
-      client_id: string;
-      pro_id: string;
-      created_at: string | null; // timestamptz ISO
-    };
-    Insert: {
-      client_id: string;
-      pro_id: string;
-    };
-    Update: Partial<{
-      client_id: string;
-      pro_id: string;
-      created_at: string | null;
-    }>;
-  };
-  request_photos: {
-    Row: {
-      id: string;
-      request_id: string;
-      path: string;
-      thumb_path: string | null;
-      size_bytes: number | null;
-      width: number | null;
-      height: number | null;
-      created_by: string;
-      created_at: string;
-    };
-    Insert: Partial<Omit<Tables['request_photos']['Row'], 'request_id' | 'path'>> & {
-      request_id: string;
-      path: string;
-    };
-    Update: Partial<Tables['request_photos']['Row']>;
-  };
-  applications: {
-    Row: {
-      id: string;
-      request_id: string;
-      professional_id: string;
-      note: string | null;
-      // allow both 'pending' and legacy 'applied' to support different snapshots
-      status: "pending" | "applied" | "accepted" | "rejected" | "completed" | null;
-      created_at: string | null;
-      updated_at: string | null;
-    };
-    Insert: Partial<Tables["applications"]["Row"]> & {
-      request_id: string;
-      professional_id: string;
-    };
-    Update: Partial<Tables["applications"]["Row"]>;
-  };
-  conversations: {
-    Row: {
-      id: string;
-      request_id: string;
-      customer_id: string;
-      pro_id: string;
-      last_message_at: string | null;
-      created_at: string | null;
-    };
-    Insert: {
-      id?: string;
-      request_id: string;
-      customer_id: string;
-      pro_id: string;
-      last_message_at?: string | null;
-      created_at?: string | null;
-    };
-    Update: Partial<{
-      id: string;
-      request_id: string;
-      customer_id: string;
-      pro_id: string;
-      last_message_at: string | null;
-      created_at: string | null;
-    }>;
-  };
-  pro_applications: {
-    Row: {
-      id: string;
-      user_id: string;
-      full_name: string;
-      phone: string | null;
-      email: string | null;
-      rfc?: string | null;
-      empresa?: boolean | null;
-      is_company?: boolean | null;
-      company_legal_name?: string | null;
-      company_industry?: string | null;
-      company_employees_count?: number | null;
-      company_website?: string | null;
-      company_doc_incorporation_url?: string | null;
-      company_csf_url?: string | null;
-      company_rep_id_front_url?: string | null;
-      company_rep_id_back_url?: string | null;
-      services_desc: string | null;
-      cities: Json;
-      categories: Json;
-      years_experience: number | null;
-      refs: Json | null;
-      uploads: Json | null;
-      status: "pending" | "accepted" | "rejected";
-      created_at: string | null;
-      updated_at: string | null;
-    };
-    Insert: Partial<Tables["pro_applications"]["Row"]> & { user_id: string; full_name: string; cities: Json; categories: Json };
-    Update: Partial<Tables["pro_applications"]["Row"]>;
-  };
-  agreements: {
-    Row: {
-      id: string;
-      request_id: string;
-      professional_id: string;
-      amount: number | null;
-      status:
-        | "negotiating"
-        | "accepted"
-        | "paid"
-        | "in_progress"
-        | "completed"
-        | "cancelled"
-        | "disputed"
-        | null;
-      completed_by_pro: boolean | null;
-      completed_by_client: boolean | null;
-      completed_at: string | null;
-      created_at: string | null;
-      updated_at: string | null;
-    };
-    Insert: Partial<Tables["agreements"]["Row"]> & {
-      request_id: string;
-      professional_id: string;
-    };
-    Update: Partial<Tables["agreements"]["Row"]>;
   };
 }
 
-/** Tipo raíz de Supabase generado (interfaz esperada por @supabase/auth-helpers-nextjs) */
-export type Database = {
-  public: {
-    Tables: Tables;
-    Views: {
-      professionals_with_profile: {
-        Row: {
-          id: string;
-          full_name: string | null;
-          avatar_url: string | null;
-          headline: string | null;
-          bio: string | null;
-          years_experience: number | null;
-          rating: number | null;
-          is_featured: boolean | null;
-          active: boolean | null;
-          empresa?: boolean | null;
-          city: string | null;
-          cities: Json | null;
-          categories: Json | null;
-          subcategories: Json | null;
-          last_active_at: string | null;
-          created_at: string | null;
-        };
-        Insert: never;
-        Update: never;
-      };
-    };
-    Functions: { [_: string]: never };
-    Enums: { [_: string]: never };
-    CompositeTypes: { [_: string]: never };
-  };
-};
+export type PublicSchema = Database["public"];
+export type Tables = PublicSchema["Tables"];
+export type Views = PublicSchema["Views"];
+export type Functions = PublicSchema["Functions"];
+export type Enums = PublicSchema["Enums"];
+export type CompositeTypes = PublicSchema["CompositeTypes"];
+export type TableRow<T extends keyof Tables> = Tables[T]["Row"];
+export type TableInsert<T extends keyof Tables> = Tables[T]["Insert"];
+export type TableUpdate<T extends keyof Tables> = Tables[T]["Update"];

@@ -3,6 +3,7 @@
 import React from "react";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
+
 import QuoteImage from "@/components/quote/QuoteImage";
 import { getInterFont } from "@/lib/fonts";
 

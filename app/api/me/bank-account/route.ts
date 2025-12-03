@@ -37,7 +37,7 @@ export async function GET(_req: Request) {
     // Prefer confirmed; fallback to latest
     const confirmed = await db
       .from("bank_accounts")
-      .select("id, profile_id, account_holder_name, bank_name, rfc, clabe, status, verified_at, created_at, updated_at")
+      .select("id, profile_id, account_holder_name, bank_name, rfc, clabe, account_type, verification_document_url, status, verified_at, created_at, updated_at")
       .eq("profile_id", user.id)
       .eq("status", "confirmed")
       .maybeSingle();
@@ -47,7 +47,7 @@ export async function GET(_req: Request) {
 
     const latest = await db
       .from("bank_accounts")
-      .select("id, profile_id, account_holder_name, bank_name, rfc, clabe, status, verified_at, created_at, updated_at")
+      .select("id, profile_id, account_holder_name, bank_name, rfc, clabe, account_type, verification_document_url, status, verified_at, created_at, updated_at")
       .eq("profile_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -78,6 +78,8 @@ export async function POST(req: Request) {
     const account_holder_name = String(body["account_holder_name"] || "").trim();
     const bank_name = String(body["bank_name"] || "").trim();
     const rfc = String(body["rfc"] || "").trim().toUpperCase();
+    const account_type = String(body["account_type"] || "").trim();
+    const verification_document_url = String(body["verification_document_url"] || "").trim() || null;
     const clabeRaw = String(body["clabe"] || "");
     const clabe = onlyDigits(clabeRaw);
 
@@ -105,6 +107,8 @@ export async function POST(req: Request) {
           account_holder_name,
           bank_name: bank_name || null,
           rfc: rfc || null,
+          account_type: account_type || null,
+          verification_document_url,
           clabe,
           status: "pending",
           updated_at: new Date().toISOString(),
@@ -123,6 +127,8 @@ export async function POST(req: Request) {
           account_holder_name,
           bank_name: bank_name || null,
           rfc: rfc || null,
+          account_type: account_type || null,
+          verification_document_url,
           clabe,
           status: "pending",
         })

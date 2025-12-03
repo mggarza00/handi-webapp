@@ -1,17 +1,19 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { sendEmail } from "@/lib/email";
+import type { Database } from "@/types/supabase";
 import {
   applicationCreatedHtml,
   applicationUpdatedHtml,
   agreementCreatedHtml,
   agreementUpdatedHtml,
+  firstProfessionalAvailableHtml,
   messageReceivedHtml,
   proApplicationAcceptedHtml,
   proApplicationRejectedHtml,
 } from "@/lib/email-templates";
 
-type DB = unknown;
+type DB = Database;
 
 function getAdmin(): SupabaseClient<DB> | null {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
@@ -63,8 +65,7 @@ export async function notifyApplicationCreated(params: {
   if (!admin) return;
   const { request_id } = params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: req } = await (admin as any)
+  const { data: req } = await admin
     .from("requests")
     .select("created_by, title")
     .eq("id", request_id)
@@ -97,8 +98,7 @@ export async function notifyAdminApplicationCreated(params: {
   if (!admin) return;
   const { request_id, professional_id } = params;
   // Obtener info básica
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: req } = await (admin as any)
+  const { data: req } = await admin
     .from("requests")
     .select("title, created_by")
     .eq("id", request_id)
@@ -133,8 +133,7 @@ export async function notifyApplicationUpdated(params: {
   if (!admin) return;
   const { application_id, status } = params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: app } = await (admin as any)
+  const { data: app } = await admin
     .from("applications")
     .select("professional_id, request_id")
     .eq("id", application_id)
@@ -168,8 +167,7 @@ export async function notifyAgreementCreated(params: {
   if (!admin) return;
   const { request_id, professional_id, agreement_id } = params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: req } = await (admin as any)
+  const { data: req } = await admin
     .from("requests")
     .select("created_by, title")
     .eq("id", request_id)
@@ -207,8 +205,7 @@ export async function notifyAgreementUpdated(params: {
   if (!admin) return;
   const { agreement_id, status } = params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: agr } = await (admin as any)
+  const { data: agr } = await admin
     .from("agreements")
     .select("request_id, professional_id")
     .eq("id", agreement_id)
@@ -222,8 +219,7 @@ export async function notifyAgreementUpdated(params: {
   )?.professional_id;
   if (!reqId) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: req } = await (admin as any)
+  const { data: req } = await admin
     .from("requests")
     .select("created_by, title")
     .eq("id", reqId)
@@ -262,8 +258,7 @@ export async function notifyMessageReceived(params: {
   if (!admin) return;
   const { request_id, to_user_id, text } = params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: req } = await (admin as any)
+  const { data: req } = await admin
     .from("requests")
     .select("title")
     .eq("id", request_id)
@@ -288,4 +283,49 @@ export async function notifyMessageReceived(params: {
     linkUrl,
   });
   await sendEmail({ to: email, subject, html });
+}
+
+export async function notifyFirstProfessionalAvailable({
+  request_id,
+  user_id,
+  request_title,
+  professional_id: _professionalId,
+  professional_name,
+}: {
+  request_id: string;
+  user_id: string;
+  request_title?: string | null;
+  professional_id?: string | null;
+  professional_name?: string | null;
+}) {
+  const admin = getAdmin();
+  if (!admin) return;
+  const email = await getUserEmail(user_id);
+  const base =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "http://localhost:3000";
+  const linkUrl = `${base}/requests/${request_id}`;
+  const subject = "Ya hay un profesional disponible para tu solicitud";
+  const html = firstProfessionalAvailableHtml({
+    requestTitle: request_title ?? request_id,
+    professionalName: professional_name ?? null,
+    linkUrl,
+  });
+  if (email) {
+    await sendEmail({ to: email, subject, html });
+  }
+  try {
+    await admin.from("user_notifications").insert({
+      user_id,
+      type: "request_pro_available",
+      title: "Un profesional está disponible",
+      body: professional_name
+        ? `${professional_name} puede ayudarte en ${request_title ?? "tu solicitud"}.`
+        : `Ya hay un profesional disponible para ${request_title ?? "tu solicitud"}.`,
+      link: linkUrl,
+    });
+  } catch {
+    /* ignore notif insert errors */
+  }
 }

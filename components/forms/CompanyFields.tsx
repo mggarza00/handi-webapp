@@ -1,7 +1,9 @@
 "use client";
 import * as React from "react";
-import { Input } from "@/components/ui/input";
+
 import SlideDown from "./SlideDown";
+
+import { Input } from "@/components/ui/input";
 
 type Props = {
   open: boolean;
@@ -59,7 +61,7 @@ export default function CompanyFields({ open, legalName, setLegalName, industry,
             aria-invalid={!!errors?.website}
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
-            placeholder="https://www.homaid.mx"
+            placeholder="https://www.handi.mx"
           />
         </div>
       </div>

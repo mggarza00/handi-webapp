@@ -3,6 +3,12 @@ import { z } from "zod";
 import createClient from "@/utils/supabase/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email";
+import {
+  buildProfileChangeMessage,
+  dedupeEmails,
+  getConfiguredAdminEmails,
+  SUPPORT_EMAIL,
+} from "@/lib/profile-change-notify";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -89,23 +95,25 @@ export async function POST(req: Request) {
     if (insErr)
       return NextResponse.json({ ok: false, error: `INSERT_FAILED: ${insErr.message}` }, { status: 400, headers: JSONH });
 
-    // Build summary for notifications/email
-    const profKeys = Object.keys(profChanges);
-    const proKeys = Object.keys(proChanges);
-    const galleryCount = Array.isArray(body.gallery_paths) ? body.gallery_paths.length : 0;
-    const summaryParts: string[] = [];
-    if (profKeys.length) summaryParts.push(`profiles: ${profKeys.join(", ")}`);
-    if (proKeys.length) summaryParts.push(`professionals: ${proKeys.join(", ")}`);
-    if (galleryCount) summaryParts.push(`gallery: +${galleryCount}`);
-    const summaryText = summaryParts.join(" | ") || "(sin resumen)";
+    const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const link = `${base}/admin/pro-changes`;
+    const message = buildProfileChangeMessage({
+      userId: user.id,
+      userEmail: user.email,
+      userMetadata: (user.user_metadata ?? null) as Record<string, unknown> | null,
+      profile: prof ?? null,
+      professional: pro ?? null,
+      profChanges,
+      proChanges,
+      galleryAddPaths: Array.isArray(body.gallery_paths) ? body.gallery_paths : null,
+      adminLink: link,
+    });
 
     // In-app notification to admins (direct insert; service role bypasses RLS)
     try {
-      const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-      const link = `${base}/admin/pro-changes`;
       const admins = await (admin as any)
         .from("profiles")
-        .select("id, role, is_admin")
+        .select("id, role, is_admin, email")
         .or("role.eq.admin,is_admin.eq.true");
       const rows = Array.isArray(admins?.data) ? admins.data : [];
       if (rows.length) {
@@ -114,28 +122,18 @@ export async function POST(req: Request) {
             user_id: r.id,
             type: "profile_change:requested",
             title: "Solicitud de cambios de perfil",
-            body: summaryText,
+            body: message.notificationBody,
             link,
           })),
         );
       }
-      // Email notify with details
-      const envEmails = (process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim()).filter(Boolean);
-      const legacy = (process.env.HANDEE_ADMIN_EMAIL || process.env.MAIL_DEFAULT_TO || "").trim();
-      const recipients = Array.from(new Set([...(envEmails || []), legacy, "soporte@handi.mx"].filter(Boolean)));
+      const configuredAdmins = getConfiguredAdminEmails();
+      const adminEmails = rows
+        .map((row: any) => (typeof row.email === "string" ? row.email.trim() : ""))
+        .filter((email: string | null): email is string => Boolean(email && email.length));
+      const recipients = dedupeEmails([...(configuredAdmins || []), ...adminEmails, SUPPORT_EMAIL]);
       if (recipients.length) {
-        const subject = "HANDI · Solicitud de cambios de perfil";
-        const html = `
-          <h1>Nueva solicitud de cambios de perfil</h1>
-          <p>Usuario: <code>${user.id}</code></p>
-          <ul>
-            ${profKeys.length ? `<li><strong>profiles</strong>: ${profKeys.join(", ")}</li>` : ""}
-            ${proKeys.length ? `<li><strong>professionals</strong>: ${proKeys.join(", ")}</li>` : ""}
-            ${galleryCount ? `<li><strong>gallery</strong>: +${galleryCount}</li>` : ""}
-          </ul>
-          <p><a href="${link}">Abrir panel admin</a></p>
-        `;
-        await sendEmail({ to: recipients, subject, html });
+        await sendEmail({ to: recipients, subject: message.subject, html: message.html }).catch(() => undefined);
       }
     } catch { /* ignore */ }
 

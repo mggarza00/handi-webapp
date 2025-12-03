@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { isIOS, isStandalonePWA } from "@/lib/pwa/install-detect";
 
@@ -29,14 +30,18 @@ export default function IOSInstallBanner() {
         <div className="flex-1">
           <p className="text-sm font-medium">Agregar Handi a tu pantalla de inicio</p>
           <p className="text-sm text-muted-foreground">
-            En Safari, toca el botón de compartir y luego "Agregar a pantalla de inicio".
+            En Safari, toca el botón de compartir y luego &quot;Agregar a pantalla de inicio&quot;.
           </p>
         </div>
         <button
           aria-label="Cerrar"
           onClick={() => {
             setVisible(false);
-            try { localStorage.setItem(LS_KEY_IOS_BANNER_DISMISSED, "1"); } catch { /* ignore */ }
+            try {
+              localStorage.setItem(LS_KEY_IOS_BANNER_DISMISSED, "1");
+            } catch {
+              // ignore
+            }
           }}
           className="ml-2 text-muted-foreground hover:text-foreground"
         >
@@ -44,12 +49,20 @@ export default function IOSInstallBanner() {
         </button>
       </div>
       <div className="mt-3 flex justify-end">
-        <Button variant="ghost" onClick={() => {
-          setVisible(false);
-          try { localStorage.setItem(LS_KEY_IOS_BANNER_DISMISSED, "1"); } catch { /* ignore */ }
-        }}>Entendido</Button>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setVisible(false);
+            try {
+              localStorage.setItem(LS_KEY_IOS_BANNER_DISMISSED, "1");
+            } catch {
+              // ignore
+            }
+          }}
+        >
+          Entendido
+        </Button>
       </div>
     </div>
   );
 }
-

@@ -1,6 +1,7 @@
 // lib/fonts.ts
 import fs from "node:fs";
 import path from "node:path";
+
 import { Concert_One, Nunito, Varela_Round } from "next/font/google";
 
 let interData: ArrayBuffer | null = null;

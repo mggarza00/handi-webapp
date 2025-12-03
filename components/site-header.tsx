@@ -12,9 +12,9 @@ import HeaderMenu from "@/components/header-menu.client";
 import ProMobileTabbar from "@/components/pro-mobile-tabbar.client";
 import AvatarDropdown from "@/components/AvatarDropdown.client";
 import HeaderAuthRefresh from "@/components/HeaderAuthRefresh.client";
-import EnableNotificationsButton from "@/components/EnableNotificationsButton";
 import type { Database } from "@/types/supabase";
 import ClientNoSessionOnly from "@/components/ClientNoSessionOnly.client";
+import PublicLandingHeader from "@/components/PublicLandingHeader.client";
 
 type Role = "client" | "pro" | "admin";
 
@@ -161,7 +161,7 @@ export default async function SiteHeader() {
   if (minimal) {
     return (
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
-        <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+        <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center">
             <Image src="/images/Logo-Handi-v2.gif" alt="Handi" width={64} height={64} priority className="h-16 w-16 object-contain" />
           </Link>
@@ -178,6 +178,24 @@ export default async function SiteHeader() {
 
   // El logo siempre debe redirigir a la pÃ¡gina de inicio
   const leftHref = "/";
+  const publicNavItems = [
+    {
+      href: "#servicios",
+      label: "Servicios",
+      icon: "/icons/servicios_icon.svg",
+      isActive: true,
+    },
+    {
+      href: "#como-funciona",
+      label: "Como funciona",
+      icon: "/icons/engrane_icon.svg",
+    },
+    {
+      href: "#cerca-de-ti",
+      label: "Cerca de ti",
+      icon: "/icons/loc_icon.svg",
+    },
+  ];
 
   let rightLinks: {
     href: string;
@@ -331,10 +349,17 @@ export default async function SiteHeader() {
 
   return (
     <>
-    {/* If SSR thinks unauth but client has session, trigger a gentle refresh */}
-    {!isAuth ? <HeaderAuthRefresh enabled={!isAuth} /> : null}
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
-      <div className="relative mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+      {/* If SSR thinks unauth but client has session, trigger a gentle refresh */}
+      {!isAuth ? <HeaderAuthRefresh enabled={!isAuth} /> : null}
+      <header
+        className="handi-header header--default fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md"
+        data-authenticated={isAuth ? "1" : "0"}
+      >
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center px-6">
+          <div className="handi-header__public hidden w-full">
+            <PublicLandingHeader items={publicNavItems} logoHref={leftHref} loginHref="/auth/sign-in" />
+          </div>
+          <div className="handi-header__default relative flex h-16 w-full items-center justify-between">
         {/* Lado izquierdo: botÃ³n menÃº mÃ³vil (solo autenticado) */}
         {isAuth ? (
           <div className="md:hidden">
@@ -572,7 +597,8 @@ export default async function SiteHeader() {
           )}
         </div>
       </div>
-    </header>
+    </div>
+  </header>
   {/* Pro mobile tabbar removed as requested */}
   {isAuth && role === "pro" ? <ProMobileTabbar /> : null}
     </>

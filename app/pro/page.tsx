@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import createClient from "@/utils/supabase/server";
 
+import createClient from "@/utils/supabase/server";
 import SectionCard from "@/components/pro/SectionCard";
 import EarningsPanel from "@/components/pro/EarningsPanel.client";
 import KpiCard from "@/components/pro/KpiCard";
@@ -35,11 +35,6 @@ async function HeaderGreeting({ userId }: { userId: string }) {
       <div>
         <h1 className="text-2xl font-semibold">Hola, {name}</h1>
         <p className="text-xs text-slate-600">Panel profesional</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Link href="/requests/explore" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50">Explorar trabajos</Link>
-        <Link href="/pro/calendar" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50">Calendario</Link>
-        <Link href="/applied" className="rounded-md border px-3 py-2 text-sm hover:bg-slate-50">Historial</Link>
       </div>
     </div>
   );

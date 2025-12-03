@@ -11,7 +11,7 @@ export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
     process.env.NEXT_PUBLIC_SITE_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://handi.mx');
   const siteBase = rawBase.replace(/\/$/, "");
-  const logoUrl = `${siteBase}/images/Logo-Handi-v2.gif`;
+  const logoUrl = `${siteBase}/images/LOGO_HANDI_DB.png`;
   return `<!doctype html>
 <html lang="es">
   <head>
@@ -126,6 +126,25 @@ export function messageReceivedHtml(opts: {
   return emailLayout({
     title,
     preheader: "Tienes un nuevo mensaje",
+    childrenHtml: body,
+  });
+}
+
+export function firstProfessionalAvailableHtml(opts: {
+  requestTitle?: string | null;
+  professionalName?: string | null;
+  linkUrl?: string;
+}) {
+  const title = "Encontramos un profesional para tu solicitud";
+  const body = `
+    <h1>${title}</h1>
+    <p>${opts.professionalName ? `<strong>${opts.professionalName}</strong>` : "Un profesional"} está listo para apoyarte en <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
+    <p>Entra a Handi para revisar su perfil y continuar con el proceso.</p>
+    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ver solicitud</a></p>` : ""}
+  `;
+  return emailLayout({
+    title,
+    preheader: "Ya tenemos un profesional disponible para tu solicitud",
     childrenHtml: body,
   });
 }

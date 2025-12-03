@@ -3,7 +3,6 @@ import React from "react";
 
 type QuoteItem = { description: string; amount: number };
 type QuoteImageProps = {
-  logoUrl?: string;
   title?: string;
   folio: string;
   issuedAtISO: string;
@@ -15,13 +14,13 @@ type QuoteImageProps = {
   notes?: string;
   brandHex?: string;
   grayHex?: string;
+  logoUrl?: string | null;
 };
 
 const peso = (n: number, currency: string = "MXN") =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(n);
 
 export default function QuoteImage({
-  logoUrl,
   title = "Cotización",
   folio,
   issuedAtISO,
@@ -33,6 +32,7 @@ export default function QuoteImage({
   notes,
   brandHex = "#0E7490",
   grayHex = "#E5E7EB",
+  logoUrl,
 }: QuoteImageProps) {
   const subtotal = items.reduce((acc, i) => acc + (i.amount || 0), 0);
   const total = subtotal;
@@ -41,7 +41,13 @@ export default function QuoteImage({
   return (
     <div style={{ width: 1080, height: 1600, backgroundColor: "#FFFFFF", color: "#0F172A", display: "flex", flexDirection: "column", padding: 48, fontFamily: "Inter", gap: 24 }}>
       {/* Header simple */}
-      <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: -0.5, color: brandHex }}>{`Handi ${title}`}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+        <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: -0.5, color: brandHex }}>{`Handi ${title}`}</span>
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="Logotipo" style={{ height: 72, width: 72, objectFit: "cover", borderRadius: 12 }} />
+        ) : null}
+      </div>
 
       {/* Meta compacta */}
       <span style={{ fontSize: 24, color: "#334155" }}>{`Folio: ${folio}  •  Fecha: ${dateStr}`}</span>

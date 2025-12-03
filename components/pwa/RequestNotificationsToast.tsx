@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import safeIsSafariOniOS, { isIOS164OrLater } from "@/lib/pwa/install-detect";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+
+import ensurePushSubscription from "@/lib/push";
+import safeIsSafariOniOS from "@/lib/pwa/install-detect";
 
 const LS_KEYS = {
   SEEN_TOAST: "handi_notif_seen_toast_v1",
@@ -13,6 +15,13 @@ export default function RequestNotificationsToast() {
   const [ui, setUI] = useState<NotifState>("hidden");
   const [isIOS, setIsIOS] = useState(false);
 
+  const logToastError = useCallback((error: unknown) => {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.error("[RequestNotificationsToast]", error);
+    }
+  }, []);
+
   const canUseNotifications = useMemo(
     () => typeof window !== "undefined" && "Notification" in window,
     [],
@@ -20,41 +29,22 @@ export default function RequestNotificationsToast() {
 
   useEffect(() => {
     // Detect platform once (safe on SSR)
-    try { setIsIOS(safeIsSafariOniOS()); } catch { setIsIOS(false); }
-  }, []);
-
-  useEffect(() => {
-    if (!canUseNotifications) return;
-    // Solo en cliente
-    let mounted = true;
     try {
-      const seen = ((): boolean => { try { return localStorage.getItem(LS_KEYS.SEEN_TOAST) === "1"; } catch { return false; } })();
-      const status = (window as any).Notification?.permission as NotificationPermission ?? "default";
-      if (!mounted) return;
-      if (status === "default" && !seen) setUI("ask");
-      else if (status === "denied") {
-        const dismissed = localStorage.getItem(LS_KEYS.DISMISSED_DENIED_HELP) === "1";
-        if (!dismissed) setUI("denied");
-      }
-    } catch { /* ignore */ }
+      setIsIOS(safeIsSafariOniOS());
+    } catch (error) {
+      logToastError(error);
+      setIsIOS(false);
+    }
+  }, [logToastError]);
 
-    const onEvent = () => { void onGrant(); };
-    window.addEventListener("handi:push:subscribe", onEvent);
-    return () => {
-      mounted = false;
-      window.removeEventListener("handi:push:subscribe", onEvent);
-    };
-  }, [canUseNotifications]);
-
-  async function onGrant() {
+  const onGrant = useCallback(async () => {
     setUI("hidden");
     try {
-      const mod = await import("@/lib/push");
-      const ensurePushSubscription = (mod as any).default || (mod as any).ensurePushSubscription;
       const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY || "";
-      if (!publicKey || typeof ensurePushSubscription !== "function") return;
+      if (!publicKey) return;
       const sub = await ensurePushSubscription(publicKey);
-      const payload = (sub as any)?.toJSON?.() ?? JSON.parse(JSON.stringify(sub));
+      if (!sub) return;
+      const payload = typeof sub.toJSON === "function" ? sub.toJSON() : sub;
       const userAgent = navigator.userAgent;
       const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
       await fetch("/api/push/subscribe", {
@@ -63,36 +53,95 @@ export default function RequestNotificationsToast() {
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({ subscription: payload, userAgent, appVersion }),
       });
-    } catch { /* ignore */ }
-  }
+    } catch (error) {
+      logToastError(error);
+    }
+  }, [logToastError]);
+
+  useEffect(() => {
+    if (!canUseNotifications) return;
+    // Solo en cliente
+    let mounted = true;
+    try {
+      const seen = (() => {
+        try {
+          return localStorage.getItem(LS_KEYS.SEEN_TOAST) === "1";
+        } catch (error) {
+          logToastError(error);
+          return false;
+        }
+      })();
+      const status =
+        typeof window !== "undefined" && "Notification" in window
+          ? window.Notification.permission
+          : "default";
+      if (!mounted) return;
+      if (status === "default" && !seen) setUI("ask");
+      else if (status === "denied") {
+        const dismissed = localStorage.getItem(LS_KEYS.DISMISSED_DENIED_HELP) === "1";
+        if (!dismissed) setUI("denied");
+      }
+    } catch (error) {
+      logToastError(error);
+    }
+
+    const onEvent = () => {
+      void onGrant();
+    };
+    window.addEventListener("handi:push:subscribe", onEvent);
+    return () => {
+      mounted = false;
+      window.removeEventListener("handi:push:subscribe", onEvent);
+    };
+  }, [canUseNotifications, logToastError, onGrant]);
 
   const requestPerm = useCallback(async () => {
     if (!canUseNotifications) return setUI("hidden");
     try {
-      const res = await (window as any).Notification.requestPermission();
-      try { localStorage.setItem(LS_KEYS.SEEN_TOAST, "1"); } catch { /* ignore */ }
+      const res =
+        typeof window !== "undefined" && "Notification" in window
+          ? await window.Notification.requestPermission()
+          : "default";
+      try {
+        localStorage.setItem(LS_KEYS.SEEN_TOAST, "1");
+      } catch (error) {
+        logToastError(error);
+      }
       if (res === "granted") {
         setUI("hidden");
-        try { window.dispatchEvent(new Event("handi:push:subscribe")); } catch { /* ignore */ }
-      }
-      else if (res === "denied") setUI("denied");
+        try {
+          window.dispatchEvent(new Event("handi:push:subscribe"));
+        } catch (error) {
+          logToastError(error);
+        }
+      } else if (res === "denied") setUI("denied");
       else setUI("hidden");
-    } catch { setUI("hidden"); }
-  }, [canUseNotifications]);
+    } catch (error) {
+      logToastError(error);
+      setUI("hidden");
+    }
+  }, [canUseNotifications, logToastError]);
 
   const dismissAsk = useCallback(() => {
-    try { localStorage.setItem(LS_KEYS.SEEN_TOAST, "1"); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(LS_KEYS.SEEN_TOAST, "1");
+    } catch (error) {
+      logToastError(error);
+    }
     setUI("hidden");
-  }, []);
+  }, [logToastError]);
   function dismissDeniedHelp() {
-    try { localStorage.setItem(LS_KEYS.DISMISSED_DENIED_HELP, "1"); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(LS_KEYS.DISMISSED_DENIED_HELP, "1");
+    } catch (error) {
+      logToastError(error);
+    }
     setUI("hidden");
   }
 
   if (!canUseNotifications || ui === "hidden") return null;
 
-  const iosPushCapable = isIOS && isIOS164OrLater();
-  const Card = ({ children }: { children: React.ReactNode }) => (
+  const Card = ({ children }: { children: ReactNode }) => (
     <div className="fixed inset-x-0 bottom-20 mx-auto w-95% max-w-md rounded-2xl shadow-lg border bg-white p-4 z-50">
       {children}
     </div>

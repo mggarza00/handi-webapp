@@ -1,9 +1,11 @@
 "use client";
+
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +14,6 @@ import CityMultiSelect from "@/components/profile/CityMultiSelect";
 import CategoryPicker from "@/components/profile/CategoryPicker";
 import { AvatarField } from "@/components/profile/AvatarField";
 import { fixMojibake } from "@/lib/text";
-import { toast } from "sonner";
 
 const Schema = z.object({
   full_name: z.string().min(3, "Nombre completo inválido"),
@@ -36,6 +37,18 @@ const Schema = z.object({
   city: z.string().optional(),
 });
 
+const sanitizeCityArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((city) => (typeof city === "string" ? fixMojibake(city) : ""))
+    .filter((city) => city.length > 0);
+};
+
+const getFormString = (formData: FormData, key: string): string => {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+};
+
 type Profile = {
   full_name: string | null;
   avatar_url: string | null;
@@ -55,11 +68,11 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
   const [ok, setOk] = React.useState<string | null>(null);
 
   const [avatarUrl, setAvatarUrl] = React.useState(initial?.avatar_url ?? "");
-  const [serviceCities, setServiceCities] = React.useState<string[]>(
-    Array.isArray(initial?.cities)
-      ? (initial!.cities as string[]).filter(Boolean)
-      : (typeof initial?.city === "string" && initial?.city ? [fixMojibake(initial?.city)] : []),
-  );
+  const sanitizedCities = sanitizeCityArray(initial?.cities ?? null);
+  const fallbackCity = typeof initial?.city === "string" && initial.city ? fixMojibake(initial.city) : "";
+  const defaultServiceCities =
+    sanitizedCities.length > 0 ? sanitizedCities : fallbackCity ? [fallbackCity] : [];
+  const [serviceCities, setServiceCities] = React.useState<string[]>(defaultServiceCities);
   const [picks, setPicks] = React.useState<Array<{ category: string; subcategory?: string | null }>>([]);
   const [gallery, setGallery] = React.useState<
     Array<{ url: string; path: string; name: string; size: number | null }>
@@ -76,10 +89,8 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       headline: fixMojibake(initial?.headline) || "",
       bio: (fixMojibake(initial?.bio) || "").slice(0, 800),
       years_experience: (initial?.years_experience as number | null) ?? 0,
-      city: (Array.isArray(initial?.cities) && initial?.cities?.[0]) || (initial?.city ?? "") || "",
-      service_cities: Array.isArray(initial?.cities)
-        ? (initial!.cities as string[]).filter(Boolean)
-        : (typeof initial?.city === "string" && initial?.city ? [fixMojibake(initial?.city)] : []),
+      city: defaultServiceCities[0] || fallbackCity || "",
+      service_cities: defaultServiceCities,
       categories: [],
       subcategories: [],
     },
@@ -95,7 +106,7 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           cache: "no-store",
         });
         const j = await r.json();
-        const uid = j?.user?.id as string | undefined;
+        const uid = typeof j?.user?.id === "string" ? j.user.id : undefined;
         if (!uid) return;
         if (!cancelled) setMeId(uid);
         const g = await fetch(`/api/profiles/${uid}/gallery`, {
@@ -103,7 +114,9 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           cache: "no-store",
         });
         const gj = await g.json();
-        if (!cancelled && g.ok && gj?.data) setGallery(gj.data);
+        if (!cancelled && g.ok && Array.isArray(gj?.data)) {
+          setGallery(gj.data);
+        }
       } catch {
         /* ignore */
       }
@@ -115,34 +128,28 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
 
   // Build initial categories/subcategories arrays from possible CSV or arrays
   const initialCategoryNames = React.useMemo(() => {
-    const raw = (initial as any)?.categories ?? null;
-    if (Array.isArray(raw))
-      return raw
-        .map((x: any) => fixMojibake(String((typeof x === "string" ? x : x?.name) || "")))
-        .filter(Boolean);
-    if (typeof raw === "string") return raw.split(",").map((s) => fixMojibake(s.trim())).filter(Boolean);
-    return [] as string[];
+    if (!initial?.categories) return [];
+    return initial.categories
+      .map((item) => fixMojibake(item.name ?? ""))
+      .filter((name) => name.length > 0);
   }, [initial]);
   const initialSubcategoryNames = React.useMemo(() => {
-    const raw = (initial as any)?.subcategories ?? null;
-    if (Array.isArray(raw))
-      return raw
-        .map((x: any) => fixMojibake(String((typeof x === "string" ? x : x?.name) || "")))
-        .filter(Boolean);
-    if (typeof raw === "string") return raw.split(",").map((s) => fixMojibake(s.trim())).filter(Boolean);
-    return [] as string[];
+    if (!initial?.subcategories) return [];
+    return initial.subcategories
+      .map((item) => fixMojibake(item.name ?? ""))
+      .filter((name) => name.length > 0);
   }, [initial]);
 
   // Sync controlled UI widgets to RHF state
   React.useEffect(() => {
     form.setValue("service_cities", serviceCities, { shouldValidate: true });
-  }, [serviceCities]);
+  }, [form, serviceCities]);
   React.useEffect(() => {
     const uniqueCategories = Array.from(new Set(picks.map((p) => p.category).filter(Boolean)));
-    const subcats = picks.map((p) => p.subcategory || "").filter(Boolean) as string[];
+    const subcats = picks.map((p) => p.subcategory || "").filter(Boolean);
     form.setValue("categories", uniqueCategories, { shouldValidate: true });
     form.setValue("subcategories", subcats, { shouldValidate: false });
-  }, [picks]);
+  }, [form, picks]);
 
   async function onSubmit(data: z.input<typeof Schema>) {
     setLoading(true);
@@ -150,15 +157,13 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
     setOk(null);
     const uniqueCategories = data.categories || [];
     const subcats = data.subcategories || [];
-    const c = uniqueCategories.map((name) => ({ name }));
-    const sc = subcats.map((name) => ({ name }));
     try {
       const fd = new FormData();
         fd.set("full_name", fixMojibake(data.full_name) || "");
         fd.set("avatar_url", avatarUrl);
         fd.set("headline", fixMojibake(data.headline) || "");
         fd.set("bio", fixMojibake(data.bio || ""));
-        fd.set("years_experience", String((data as any).years_experience ?? ""));
+        fd.set("years_experience", String(data.years_experience ?? ""));
         // Compat: main_city (city) = first of service_cities
         fd.set("city", (data.service_cities?.[0] ?? ""));
         fd.set("service_cities", JSON.stringify(data.service_cities || []));
@@ -184,12 +189,12 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       // Fallback to API route
       if (!ok) {
         const payload = {
-          full_name: fd.get("full_name") as string,
-          avatar_url: fd.get("avatar_url") as string,
-          headline: fd.get("headline") as string,
-          bio: fd.get("bio") as string,
+          full_name: getFormString(fd, "full_name"),
+          avatar_url: getFormString(fd, "avatar_url"),
+          headline: getFormString(fd, "headline"),
+          bio: getFormString(fd, "bio"),
           years_experience: Number(fd.get("years_experience") || 0),
-          city: fd.get("city") as string,
+          city: getFormString(fd, "city"),
           service_cities: JSON.parse(String(fd.get("service_cities") || "[]")),
           categories: JSON.parse(String(fd.get("categories") || "[]")),
           subcategories: JSON.parse(String(fd.get("subcategories") || "[]")),
@@ -301,9 +306,9 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           max={80}
           step={1}
           defaultValue={
-            (typeof initial?.years_experience === "number" && !Number.isNaN(initial.years_experience)
+            typeof initial?.years_experience === "number" && !Number.isNaN(initial.years_experience)
               ? initial.years_experience
-              : 0) as any
+              : 0
           }
           {...register("years_experience" as const, { valueAsNumber: true })}
         />

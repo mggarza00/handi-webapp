@@ -27,6 +27,8 @@ export type ProfessionalsListProps = {
   subcategory?: string | null;
   city?: string | null;
   className?: string;
+  // Cuando se especifica, muestra únicamente este profesional
+  onlyProfessionalId?: string | null;
 };
 
 export default function ProfessionalsList({
@@ -35,6 +37,7 @@ export default function ProfessionalsList({
   subcategory,
   city,
   className,
+  onlyProfessionalId,
 }: ProfessionalsListProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -108,9 +111,13 @@ export default function ProfessionalsList({
       setError(null);
       try {
         const qs = new URLSearchParams();
-        if (category) qs.set("category", category);
-        if (subcategory) qs.set("subcategory", subcategory);
-        if (city) qs.set("city", city);
+        qs.set("request_id", requestId);
+        // Si se especifica un profesional concreto, omitir filtros para asegurar que aparezca
+        if (!onlyProfessionalId) {
+          if (category) qs.set("category", category);
+          if (subcategory) qs.set("subcategory", subcategory);
+          if (city) qs.set("city", city);
+        }
         const url = `/api/professionals${qs.toString() ? `?${qs.toString()}` : ""}`;
         const res = await fetch(url, {
           headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -127,7 +134,7 @@ export default function ProfessionalsList({
         }
         const j = (await res.json()) as { ok?: boolean; data?: unknown };
         const data = (Array.isArray(j?.data) ? j?.data : []) as unknown[];
-        const mapped: Professional[] = data
+        let mapped: Professional[] = data
           .map((x) => x as Record<string, unknown>)
           .map((r) => ({
             id: String(r.id ?? ""),
@@ -138,6 +145,9 @@ export default function ProfessionalsList({
             rating: typeof r.rating === "number" ? (r.rating as number) : null,
           }))
           .filter((p) => p.id);
+        if (onlyProfessionalId) {
+          mapped = mapped.filter((p) => p.id === onlyProfessionalId);
+        }
         if (!abort) setItems(mapped);
       } catch (e) {
         if (!abort) setError(e instanceof Error ? e.message : String(e));
@@ -149,22 +159,26 @@ export default function ProfessionalsList({
     return () => {
       abort = true;
     };
-  }, [category, subcategory, city]);
+  }, [category, subcategory, city, onlyProfessionalId, requestId]);
 
   if (!mounted) return <div className={className}>Cargando…</div>;
   if (loading) return <div className={className}>Cargando profesionales…</div>;
-  if (error)
+  if (error) {
+    if (onlyProfessionalId) return null;
     return (
       <div className={className}>
-        No se encuentran profesionales disponibles para esta solicitud.
+        No se encuentran profesionales disponibles para esta solicitud por el momento, te notificaremos cuando se presente uno.
       </div>
     );
-  if (items.length === 0)
+  }
+  if (items.length === 0) {
+    if (onlyProfessionalId) return null;
     return (
       <div className={className}>
-        No se encuentran profesionales disponibles para esta solicitud.
+        No se encuentran profesionales disponibles para esta solicitud por el momento, te notificaremos cuando se presente uno.
       </div>
     );
+  }
 
   return (
     <div className={"space-y-3 " + (className ?? "")}> 

@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { toast } from "sonner";
+
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase";
 
 type CredentialResponse = { credential?: string };
@@ -26,6 +27,17 @@ declare global {
   interface Window { google?: GoogleGlobal }
 }
 
+const logOneTapError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.error("[OneTap]", error);
+  }
+};
+
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+const DISMISS_KEY = "one_tap_dismissed_until";
+
 /**
  * Google One Tap (GIS) integration
  * - Loads GIS script on demand
@@ -37,17 +49,14 @@ export default function OneTap() {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const supabase = React.useMemo(() => createSupabaseBrowser<Database>(), []);
 
-  const HOUR = 60 * 60 * 1000;
-  const DAY = 24 * HOUR;
-  const DISMISS_KEY = "one_tap_dismissed_until";
-
   const dismissedStillActive = React.useCallback((): boolean => {
     if (typeof window === "undefined") return false;
     try {
       const v = localStorage.getItem(DISMISS_KEY);
       if (!v) return false;
       return Date.now() < Number(v);
-    } catch {
+    } catch (error) {
+      logOneTapError(error);
       return false;
     }
   }, []);
@@ -56,8 +65,8 @@ export default function OneTap() {
     if (typeof window === "undefined") return;
     try {
       localStorage.setItem(DISMISS_KEY, String(Date.now() + ms));
-    } catch {
-      // ignore
+    } catch (error) {
+      logOneTapError(error);
     }
   }, []);
 
@@ -90,7 +99,8 @@ export default function OneTap() {
           .map((b) => (b % 36).toString(36))
           .join("")
           .slice(0, len);
-      } catch {
+      } catch (error) {
+        logOneTapError(error);
         return Math.random().toString(36).slice(2, 2 + len);
       }
     };
@@ -119,10 +129,14 @@ export default function OneTap() {
               window.google?.accounts?.id?.cancel?.();
               window.google?.accounts?.id?.disableAutoSelect?.();
               localStorage.removeItem(DISMISS_KEY);
-            } catch {}
+            } catch (error) {
+              logOneTapError(error);
+            }
             try {
               window.location.reload();
-            } catch {}
+            } catch (error) {
+              logOneTapError(error);
+            }
           } else {
             try {
               // Log and back off re-prompting
@@ -141,12 +155,16 @@ export default function OneTap() {
                 if (n && n.startsWith("/")) nextPath = n;
                 const rt = localStorage.getItem("returnTo");
                 if (rt && rt.startsWith("/")) nextPath = rt;
-              } catch {}
+              } catch (error) {
+                logOneTapError(error);
+              }
               await supabase.auth.signInWithOAuth({
                 provider: "google",
                 options: { redirectTo: `${base}/auth/callback?next=${encodeURIComponent(nextPath)}` },
               });
-            } catch {}
+            } catch (oauthError) {
+              logOneTapError(oauthError);
+            }
           }
         };
 
@@ -207,8 +225,8 @@ export default function OneTap() {
               } else if (notification.isSkippedMoment?.() === true) {
                 setDismiss(12 * HOUR);
               }
-            } catch {
-              // ignore
+            } catch (notificationError) {
+              logOneTapError(notificationError);
             }
           });
         }
@@ -219,17 +237,16 @@ export default function OneTap() {
             try {
               window.google?.accounts?.id?.cancel?.();
               window.google?.accounts?.id?.disableAutoSelect?.();
-            } catch {}
+            } catch (cancelError) {
+              logOneTapError(cancelError);
+            }
           }
         });
         // expose unsubscribe for effect cleanup
         unsubscribe = () => listener.subscription.unsubscribe();
       } catch (e) {
-        try {
-          // eslint-disable-next-line no-console
-          console.error("OneTap exception", e);
-          setDismiss(60 * 60 * 1000);
-        } catch {}
+        logOneTapError(e);
+        setDismiss(60 * 60 * 1000);
       }
     };
 
@@ -239,12 +256,16 @@ export default function OneTap() {
       active = false;
       try {
         window.google?.accounts?.id?.cancel?.();
-      } catch {}
+      } catch (error) {
+        logOneTapError(error);
+      }
       try {
         unsubscribe?.();
-      } catch {}
+      } catch (error) {
+        logOneTapError(error);
+      }
     };
-  }, [supabase]);
+  }, [supabase, dismissedStillActive, setDismiss]);
 
   // Container that anchors the One Tap prompt in the top-right corner
   return (

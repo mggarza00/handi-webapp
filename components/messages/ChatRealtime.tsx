@@ -2,14 +2,25 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
+
 import { useRealtime } from "@/components/messages/RealtimeProvider";
 import { toast } from "@/components/ui/use-toast";
 
 type Props = {
   chatId: string;
   meId?: string | null;
-  onNewMessage: (m: any) => void;
+  onNewMessage: (message: MessageRow) => void;
   showToastWhenNotFocused?: boolean;
+};
+
+type MessageRow = {
+  sender_id?: string | null;
+} & Record<string, unknown>;
+
+const logRealtimeError = (error: unknown) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.error("[ChatRealtime]", error);
+  }
 };
 
 /**
@@ -28,8 +39,8 @@ export function ChatRealtime({ chatId, meId, onNewMessage, showToastWhenNotFocus
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${chatId}` },
         (payload) => {
-          const row = payload.new as any;
-          const senderId = String(row?.sender_id ?? "");
+          const row = payload.new as MessageRow;
+          const senderId = typeof row.sender_id === "string" ? row.sender_id : String(row.sender_id ?? "");
           const isMine = meId && senderId === meId;
           onNewMessage(row);
           if (showToastWhenNotFocused && !isMine) {
@@ -42,11 +53,14 @@ export function ChatRealtime({ chatId, meId, onNewMessage, showToastWhenNotFocus
       )
       .subscribe();
     return () => {
-      try { sb.removeChannel(channel); } catch { /* ignore */ }
+      try {
+        sb.removeChannel(channel);
+      } catch (error) {
+        logRealtimeError(error);
+      }
     };
   }, [sb, chatId, meId, pathname, onNewMessage, showToastWhenNotFocused]);
   return null;
 }
 
 export default ChatRealtime;
-

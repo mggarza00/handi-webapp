@@ -1,0 +1,120 @@
+                poster={posterUrl ?? "/images/poster.png"}
+                playsInline
+              />
+              {!showControls && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowControls(true);
+                    try {
+                      videoRef.current?.play().catch(() => {});
+                    } catch {}
+                  }}
+                  aria-label="Reproducir video"
+                  className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
+                >
+                  <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md">
+                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon fill="currentColor" stroke="none" points="9,7 19,12 9,17" />
+                    </svg>
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features - moved above Quick ask */}
+      <section
+        className="border-b border-slate-200 bg-gradient-to-b from-white via-white to-[#e8e8e8]"
+        id="como-funciona"
+      >
+        <div className="mx-auto max-w-5xl px-4 py-12">
+          <h2 className="mb-8 text-center text-2xl font-semibold tracking-tight md:text-3xl">
+            Como funciona
+          </h2>
+
+          {/* Mobile carousel effect */}
+          <div className="md:hidden -mx-4 overflow-x-hidden">
+            <MobileCarousel className="px-0 pt-6" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+              <StepCard
+                step="1"
+                title="Crea tu solicitud de servicio"
+                desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+                rightImageSrc="/images/nueva-solicitud-mockup-short.png"
+              />
+              <StepCard
+                step="2"
+                title="Compara profesionales"
+                desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+                rightImageSrc="/images/profesionals-list-mockup-short.png"
+              />
+              <StepCard
+                step="3"
+                title="Contrata con confianza"
+                desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+                rightImageSrc="/images/chat-mockup-short.png"
+              />
+            </MobileCarousel>
+          </div>
+
+          {/* Desktop grid */}
+          <div className="hidden md:grid grid-cols-1 gap-6 md:grid-cols-3">
+            <StepCard
+              step="1"
+              title="Crea tu solicitud de servicio"
+              desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+              rightImageSrc="/images/nueva-solicitud-mockup-short.png"
+            />
+            <StepCard
+              step="2"
+              title="Compara profesionales"
+              desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+              rightImageSrc="/images/profesionals-list-mockup-short.png"
+            />
+            <StepCard
+              step="3"
+              title="Contrata con confianza"
+              desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+              rightImageSrc="/images/chat-mockup-short.png"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Quick ask */}
+      <section
+        className="relative bg-slate-50 bg-cover bg-center bg-no-repeat bg-fixed"
+        style={{ backgroundImage: "url('/images/home_background.png')" }}
+      >
+        <div className="pointer-events-none absolute inset-0 z-0 bg-white/60" />
+        <div className="relative z-10 mx-auto max-w-5xl px-4 py-10">
+          <div className="mx-auto max-w-5xl" />
+
+          {/* Categories marquee (opposite direction to subcategories) */}
+          {categories.length > 0 && (
+            <div className="mt-2">
+              <div className="marquee marquee--right" style={{ ["--marquee-duration" as any]: "150s" }}>
+                <div className="marquee__inner">
+                  <div className="marquee__group overflow-visible relative">
+                    {categories.map((c) => (
+                      <Link
+                        key={`cat-a-${c}`}
+                        href={`/requests/new?category=${encodeURIComponent(c)}`}
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                      >
+                        {c}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
+                    {categories.map((c) => (
+                      <Link
+                        key={`cat-b-${c}`}
+                        href={`/requests/new?category=${encodeURIComponent(c)}`}
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                      >
+                        {c}
+                      </Link>
+                    ))}

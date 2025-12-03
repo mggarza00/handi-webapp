@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
-import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import getRouteClient from "@/lib/supabase/route-client";
+import { createServerClient } from "@/lib/supabase";
 
 import type { Database } from "@/types/supabase";
 
@@ -106,6 +107,20 @@ export async function POST(req: Request) {
       .single();
     if (error || !offer)
       return NextResponse.json({ ok: false, error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
+
+    // In-app notification for the professional
+    try {
+      const admin = createServerClient();
+      const formatted = new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(Number(offer.amount || 0));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any).from("user_notifications").insert({
+        user_id: professionalId,
+        type: "offer",
+        title: "Oferta de contratación",
+        body: `${title} por ${formatted}`,
+        link: `/mensajes/${encodeURIComponent(conversationId)}`,
+      });
+    } catch { /* ignore */ }
 
     // Notificar por correo al profesional: "Oferta enviada" (además del trigger de DB que crea el mensaje)
     try {

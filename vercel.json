@@ -4,6 +4,31 @@
   "env": {
     "NEXT_TELEMETRY_DISABLED": "1"
   },
-  "installCommand": "npm ci",
-  "buildCommand": "npm run build"
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "rewrites": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/images/handifav_sinfondo.png"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.homaid.mx"
+        }
+      ],
+      "destination": "https://homaid.mx/:path*",
+      "permanent": true
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/runner",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

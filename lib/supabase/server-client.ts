@@ -9,7 +9,7 @@ import type { Database } from "@/types/supabase";
  * Server client para layouts, server components y server actions.
  * Usa el mismo encoding de cookies para mantener consistencia.
  */
-export function getServerClient(): SupabaseClient {
+export function getServerClient(): SupabaseClient<Database> {
   const cookieStore = cookies();
   // headers() sólo si lo requieres en hooks SSR; se expone por si lo necesitas.
   void headers();

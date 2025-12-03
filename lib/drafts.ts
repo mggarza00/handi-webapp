@@ -14,21 +14,6 @@ export function clearDraftKey(key: string): void {
   }
 }
 
-function truthy(v: string | undefined | null): boolean {
-  const s = (v || "").trim().toLowerCase();
-  return s === "1" || s === "true" || s === "on" || s === "yes" || s === "enable" || s === "enabled";
-}
-
-function getHostname(): string {
-  if (typeof window !== "undefined" && window.location) return window.location.hostname || "";
-  const base = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "";
-  try {
-    return base ? new URL(base).hostname : "";
-  } catch {
-    return "";
-  }
-}
-
 // Public feature flag to guard draft read/write
 export function draftsEnabled(): boolean {
   // Never on SSR
@@ -150,8 +135,16 @@ export function purgeAllDrafts(): void {
     ([("draft:create-service" as DraftKey), ("draft:apply-professional" as DraftKey)] as DraftKey[]).forEach((k) => {
       try { window.localStorage.removeItem(k); } catch { /* ignore */ }
     });
-    try { window.localStorage.removeItem(PENDING_KEY); } catch {}
-    try { window.localStorage.removeItem(RETURN_TO_KEY); } catch {}
+    try {
+      window.localStorage.removeItem(PENDING_KEY);
+    } catch {
+      // ignore
+    }
+    try {
+      window.localStorage.removeItem(RETURN_TO_KEY);
+    } catch {
+      // ignore
+    }
   } catch {
     // ignore
   }

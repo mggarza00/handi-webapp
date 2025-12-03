@@ -1,5 +1,7 @@
 "use client";
+
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type"> & {
@@ -8,7 +10,7 @@ type Props = Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChan
   currency?: string; // default MXN
 };
 
-export default function CurrencyInput({ value, onChange, currency = "MXN", className, onBlur, onFocus, ...rest }: Props) {
+export default function CurrencyInput({ value, onChange, currency = "MXN", className, ...rest }: Props) {
   const fmt = React.useMemo(() => new Intl.NumberFormat("es-MX", { style: "currency", currency }), [currency]);
   const [display, setDisplay] = React.useState<string>(value != null && Number.isFinite(value) ? fmt.format(value) : "");
   const inputRef = React.useRef<HTMLInputElement | null>(null);
@@ -77,11 +79,8 @@ export default function CurrencyInput({ value, onChange, currency = "MXN", class
       onInput={handleInput}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
-      onBlur={onBlur as any}
-      onFocus={onFocus as any}
       className={cn("w-full border rounded px-2 py-1 text-sm", className)}
       placeholder={rest.placeholder ?? "$0.00"}
     />
   );
 }
-

@@ -2,6 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function NotificationsDropdown() {

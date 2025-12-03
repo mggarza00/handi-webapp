@@ -1,12 +1,24 @@
 "use client";
-/* eslint-disable import/order */
+
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { Trash2 } from "lucide-react";
+
 import ChatListItem from "./ChatListItem";
 import type { ChatSummary } from "./types";
-import { Trash2 } from "lucide-react";
-import ChatListRealtime from "@/components/messages/ChatListRealtime";
+
+import ChatListRealtime, { type MessagePayload } from "@/components/messages/ChatListRealtime";
+import { supabaseBrowser } from "@/lib/supabase-browser";
+
+type ChatRoomsApiItem = {
+  id: string | number;
+  title?: string | null;
+  lastMessagePreview?: string | null;
+  lastMessageTime?: string | null;
+  unreadCount?: number | null;
+  avatarUrl?: string | null;
+};
 
 export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   const initial = useMemo(() => (Array.isArray(chats) ? chats : []), [chats]);
@@ -17,6 +29,14 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   const itemsRef = useRef<ChatSummary[]>(items);
   useEffect(() => { itemsRef.current = items; }, [items]);
   const [flash, setFlash] = useState<Set<string>>(new Set());
+  const [typingMap, setTypingMap] = useState<Record<string, boolean>>({});
+  const channelKey = useMemo(() => {
+    if (!items.length) return "";
+    const ids = Array.from(new Set(items.map((chat) => chat.id))).filter(Boolean);
+    if (!ids.length) return "";
+    ids.sort();
+    return ids.join("|");
+  }, [items]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pathname = usePathname() || "";
   const activeId = React.useMemo(() => {
@@ -44,24 +64,103 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
     setItems(initial);
   }, [initial]);
 
+  useEffect(() => {
+    if (!channelKey) {
+      setTypingMap({});
+      return () => undefined;
+    }
+    const sb = supabaseBrowser;
+    const channels: ReturnType<typeof sb.channel>[] = [];
+    const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
+    const ids = channelKey.split("|").filter(Boolean);
+    setTypingMap((prev) => {
+      if (!Object.keys(prev).length) return prev;
+      const next: Record<string, boolean> = {};
+      for (const id of ids) {
+        if (prev[id]) next[id] = true;
+      }
+      const prevKeys = Object.keys(prev);
+      if (prevKeys.length === Object.keys(next).length && prevKeys.every((key) => next[key])) {
+        return prev;
+      }
+      return next;
+    });
+    for (const id of ids) {
+      const channel = sb
+        .channel(`messages:${id}`)
+        .on("broadcast", { event: "typing" }, () => {
+          try {
+            setTypingMap((prev) => {
+              if (prev[id]) return prev;
+              return { ...prev, [id]: true };
+            });
+            const existing = timeouts.get(id);
+            if (existing) clearTimeout(existing);
+            const timeout = setTimeout(() => {
+              timeouts.delete(id);
+              setTypingMap((prev) => {
+                if (!prev[id]) return prev;
+                const next = { ...prev };
+                delete next[id];
+                return next;
+              });
+            }, 3000);
+            timeouts.set(id, timeout);
+          } catch {
+            /* ignore */
+          }
+        })
+        .subscribe();
+      channels.push(channel);
+    }
+    return () => {
+      const idsToClear = Array.from(timeouts.keys());
+      timeouts.forEach((timeout) => clearTimeout(timeout));
+      timeouts.clear();
+      if (idsToClear.length) {
+        setTypingMap((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const id of idsToClear) {
+            if (next[id]) {
+              delete next[id];
+              changed = true;
+            }
+          }
+          return changed ? next : prev;
+        });
+      }
+      for (const channel of channels) {
+        try {
+          sb.removeChannel(channel);
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+  }, [channelKey]);
+
   // Client-side fallback: if SSR provided no chats (env or cookie missing), load via API
   useEffect(() => {
     if (initial.length > 0) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch('/api/chat/rooms', { credentials: 'include', cache: 'no-store' });
+        const res = await fetch("/api/chat/rooms", { credentials: "include", cache: "no-store" });
         const j = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && Array.isArray(j?.data)) {
-          const mapped: ChatSummary[] = (j.data as Array<any>).map((it: any) => ({
+          const mapped: ChatSummary[] = (j.data as ChatRoomsApiItem[]).map((it) => ({
             id: String(it.id),
-            title: typeof it.title === 'string' ? it.title : 'Contacto',
-            preview: typeof it.lastMessagePreview === 'string' ? it.lastMessagePreview : null,
-            lastMessageAt: typeof it.lastMessageTime === 'string' ? it.lastMessageTime : null,
-            unread: typeof it.unreadCount === 'number' ? it.unreadCount > 0 : false,
-            avatarUrl: it.avatarUrl ?? null,
+            title: typeof it.title === "string" ? it.title : "Contacto",
+            preview:
+              typeof it.lastMessagePreview === "string" ? it.lastMessagePreview : null,
+            lastMessageAt:
+              typeof it.lastMessageTime === "string" ? it.lastMessageTime : null,
+            unread: typeof it.unreadCount === "number" ? it.unreadCount > 0 : false,
+            avatarUrl: typeof it.avatarUrl === "string" ? it.avatarUrl : null,
             requestTitle: null,
-            unreadCount: typeof it.unreadCount === 'number' ? it.unreadCount : 0,
+            unreadCount: typeof it.unreadCount === "number" ? it.unreadCount : 0,
+            otherLastActiveAt: null,
           }));
           setItems(mapped);
         }
@@ -79,7 +178,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   }, [activeId]);
 
   // Realtime via helper component (minimal wiring inside ChatList)
-  const handleGlobalInsert = React.useCallback((cid: string, row: any, isActive: boolean) => {
+  const handleGlobalInsert = React.useCallback((cid: string, row: MessagePayload, isActive: boolean) => {
     const rawBody = typeof row?.body === "string" && row.body.trim().length
       ? row.body
       : (typeof row?.text === "string" ? row.text : "");
@@ -90,7 +189,53 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
     setItems((prev) => {
       const copy = [...prev];
       const i = copy.findIndex((c) => c.id === cid);
-      if (i === -1) return prev;
+      if (i === -1) {
+        // Nuevo chat que no está en la lista: agregarlo con datos mínimos y mejorar luego
+        const createdAt = row?.created_at ? String(row.created_at) : new Date().toISOString();
+        const provisional: ChatSummary = {
+          id: cid,
+          title: 'Contacto',
+          preview: body || null,
+          lastMessageAt: createdAt,
+          unread: isActive ? false : true,
+          avatarUrl: null,
+          requestTitle: null,
+          unreadCount: isActive ? 0 : 1,
+          otherLastActiveAt: null,
+        };
+        copy.unshift(provisional);
+        // Best-effort: completar nombre y avatar del otro participante
+        (async () => {
+          try {
+            const r = await fetch(`/api/chat/history?conversationId=${encodeURIComponent(cid)}&limit=1`, { credentials: 'include', cache: 'no-store' });
+            const j = await r.json().catch(() => ({}));
+            const parts = j?.participants as { customer_id?: string; pro_id?: string } | undefined;
+            const me = meIdRef.current;
+            const otherId = me && parts?.customer_id && parts?.pro_id ? (me === parts.pro_id ? parts.customer_id : parts.pro_id) : null;
+            if (!otherId) return;
+            const rp = await fetch(`/api/profiles/${encodeURIComponent(otherId)}`, { credentials: 'include', cache: 'no-store' });
+            const pj = await rp.json().catch(() => ({}));
+            if (!pj?.data) return;
+            const name = typeof pj.data.full_name === 'string' ? pj.data.full_name : null;
+            const avatar = typeof pj.data.avatar_url === 'string' ? pj.data.avatar_url : null;
+            const lastActive =
+              typeof pj.data.last_active_at === 'string' ? pj.data.last_active_at : null;
+            setItems((curr) =>
+              curr.map((c) =>
+                c.id === cid
+                  ? {
+                      ...c,
+                      title: name && name.trim().length ? name : c.title,
+                      avatarUrl: avatar ?? c.avatarUrl,
+                      otherLastActiveAt: lastActive ?? c.otherLastActiveAt ?? null,
+                    }
+                  : c,
+              ),
+            );
+          } catch { /* ignore */ }
+        })();
+        return copy;
+      }
       const prevItem = copy[i];
       const nextCount = (prevItem.unreadCount ?? (prevItem.unread ? 1 : 0)) + (isActive ? 0 : 1);
       const updated: ChatSummary = {
@@ -179,24 +324,19 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
       <ul className="divide-y" data-testid="chat-thread-list" aria-live="polite" aria-relevant="additions text">
         <ChatListRealtime
           meId={meId}
-          ids={items.map((x) => x.id)}
           onUnreadIncrement={handleGlobalInsert}
           getChatTitle={(id) => (itemsRef.current.find((x) => x.id === id)?.title || "")}
         />
         {items.map((c) => (
           <ChatListItem
             key={c.id}
-            chatId={c.id}
-            avatarUrl={c.avatarUrl}
-            displayName={(c.title || '').trim() || 'Contacto'}
-            lastMessageSnippet={typeof c.preview === 'string' ? c.preview : c.requestTitle}
-            lastMessageAt={c.lastMessageAt}
-            unreadCount={typeof c.unreadCount === 'number' ? c.unreadCount : (c.unread ? 1 : 0)}
+            chat={c}
             isActive={activeId === c.id}
             isNewArrival={flash.has(c.id)}
             editing={editing}
             deleting={busyId === c.id}
             removing={removingId === c.id}
+            typing={!!typingMap[c.id]}
             onDelete={() => onDelete(c.id)}
             DeleteIcon={Trash2}
           />

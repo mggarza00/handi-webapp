@@ -1,12 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
+import type { Database } from "@/types/supabase";
+
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 if (!url) throw new Error("Falta NEXT_PUBLIC_SUPABASE_URL");
 if (!anon) throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-export const supabaseClient = () => createClient(url, anon);
+export const supabaseClient = () => createClient<Database>(url, anon);
 
 /**
  * Sube un archivo al bucket de Supabase y devuelve la URL pública

@@ -3,6 +3,7 @@
 import * as React from "react";
 // Prefer plain <img> to avoid remote domain config for Next/Image
 // eslint-disable-next-line @next/next/no-img-element
+
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type Attachment = {
