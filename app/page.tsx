@@ -33,16 +33,15 @@ const momoTrust = localFont({
   display: "swap",
   variable: "--font-momo-trust",
 });
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MobileCarousel from "@/components/MobileCarousel";
 import SpotlightCard from "@/components/SpotlightCard";
 // import RotatingText from "@/components/RotatingText";
 // import ScrollStack, { ScrollStackItem } from "@/components/ScrollStack";
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
-import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 import HowToUseHandiSection from "./_components/HowToUseHandiSection.client";
+import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 
 type Subcategory = { name: string; icon: string | null };
 type CatalogRow = {
@@ -86,10 +85,11 @@ const MARQUEE_DURATION = "150s";
 const MARQUEE_PILL_BASE = `relative isolate inline-flex items-center gap-1 rounded-full text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#009377] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900`;
 
 export default function Page() {
-  const router = useRouter();
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
   const [categories, setCategories] = useState<string[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const heroTitleRef = useRef<HTMLDivElement | null>(null);
+  const heroSubtitleRef = useRef<HTMLParagraphElement | null>(null);
 
   // Rotating text and prefix slide removed
 
@@ -164,40 +164,70 @@ export default function Page() {
     };
   }, []);
 
-  const handleProtectedNavigation = useCallback(
-    async (
-      event: React.MouseEvent<HTMLAnchorElement>,
-      destination: string,
-      toastKey: string,
-    ) => {
-      event.preventDefault();
-      try {
-        const sb = createSupabaseBrowser();
-        const { data } = await sb.auth.getSession();
-        if (data?.session) {
-          router.push(destination);
-          return;
-        }
-        router.push(
-          `/auth/sign-in?next=${encodeURIComponent(destination)}&toast=${toastKey}`,
-        );
-      } catch {
-        router.push(destination);
-      }
-    },
-    [router],
-  );
+  // Efecto de aparición por caracteres en el título del hero (similar a "Bienvenido a Handi")
+  useEffect(() => {
+    const run = async () => {
+      if (!heroTitleRef.current) return;
+      const root = heroTitleRef.current;
+      const anyRoot = root as HTMLElement & { dataset: Record<string, string> };
+      if (anyRoot.dataset?.heroSplitApplied) return;
 
-  const heroHighlights: Array<{
-    id: string;
-    icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-    label: string;
-  }> = [
-    { id: "secure-payments", icon: ShieldIcon, label: "Pagos 100% protegidos" },
-    { id: "verified-pros", icon: IdCardIcon, label: "Perfiles verificados y con referencias" },
-    { id: "near-you", icon: PinIcon, label: "Profesionales cerca de ti" },
-    { id: "top-rated", icon: StarIcon, label: "Reseñas reales en cada servicio" },
-  ];
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) =>
+          node.textContent && node.textContent.trim().length > 0
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT,
+      });
+
+      const textNodes: Text[] = [];
+      while (walker.nextNode()) {
+        textNodes.push(walker.currentNode as Text);
+      }
+
+      textNodes.forEach((tn) => {
+        const frag = document.createDocumentFragment();
+        const chars = tn.textContent || "";
+        for (const ch of Array.from(chars)) {
+          const span = document.createElement("span");
+          span.textContent = ch === " " ? "\u00A0" : ch;
+          span.className = "hero-split inline-block align-baseline opacity-0 translate-y-6";
+          frag.appendChild(span);
+        }
+        tn.parentNode?.replaceChild(frag, tn);
+      });
+
+      anyRoot.dataset.heroSplitApplied = "1";
+
+      const { gsap } = await import("gsap");
+      const chars = Array.from(root.querySelectorAll<HTMLElement>(".hero-split"));
+      if (!chars.length) return;
+      const subtitle = heroSubtitleRef.current;
+      if (subtitle) {
+        gsap.set(subtitle, { opacity: 0 });
+      }
+      const tl = gsap.timeline();
+      tl.to(chars, {
+        opacity: 1,
+        y: 0,
+        ease: "power3.out",
+        duration: 0.6,
+        stagger: 0.05,
+      });
+      if (subtitle) {
+        tl.to(
+          subtitle,
+          {
+            opacity: 1,
+            ease: "power2.out",
+            duration: 0.8,
+          },
+          "+=0.05",
+        );
+      }
+    };
+
+    void run();
+  }, []);
 
   const isUrl = (s: string | null) => {
     if (!s) return false;
@@ -208,44 +238,6 @@ export default function Page() {
       return false;
     }
   };
-
-  function MagnifierIcon(props: React.SVGProps<SVGSVGElement>) {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-        {...props}
-      >
-        <circle cx="11" cy="11" r="8" />
-        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-      </svg>
-    );
-  }
-
-  function IdCardIcon(props: React.SVGProps<SVGSVGElement>) {
-    return (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-        {...props}
-      >
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <line x1="7" y1="8" x2="13" y2="8" />
-        <circle cx="8.5" cy="14" r="2" />
-        <path d="M12 16c0-1.657 1.79-3 4-3" />
-      </svg>
-    );
-  }
 
   function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
     return (
@@ -428,80 +420,46 @@ export default function Page() {
       {/* Hero */}
       <section
         id="hero"
-        className="bg-slate-50 pt-24 md:pt-28 pb-16"
+        className="relative isolate overflow-hidden bg-slate-50"
       >
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-10 px-4 md:flex-row md:items-start md:px-6">
-          <div className="w-full md:w-1/2 space-y-5">
-            <div className="space-y-5">
-              <h1 className={`${stackSansMedium.className} text-3xl md:text-5xl font-semibold text-slate-900 leading-tight`}>
-                No es magia,
-                <br />
-                es Handi
-              </h1>
-              <p className="text-base md:text-lg text-slate-600">
-                Conecta con profesionales de confianza para resolver tus problemas en casa o en tu negocio,
-                con pagos 100% protegidos.
-              </p>
+        <div className="relative w-full">
+          <div className="relative aspect-[16/9] w-full md:aspect-[21/9] lg:h-[620px] min-h-[600px]">
+            <Image
+              src="/images/be204f42cd07529e6b8dc2c7c9218d6f5728f12b.jpg"
+              alt="Profesional industrial trabajando con equipo de seguridad"
+              fill
+              className="object-cover"
+              sizes="100vw"
+              priority
+            />
+            <div
+              className={`${stackSansMedium.className} absolute left-6 top-36 w-[240px] text-white font-semibold leading-[1.04] text-[26px] drop-shadow-[0_14px_32px_rgba(0,0,0,0.55)] md:left-[96px] md:top-[180px] md:w-[300px] md:text-[38px]`}
+              ref={heroTitleRef}
+            >
+              <span className="block">No es magia,</span>
+              <span className="block">es Handi</span>
             </div>
+            <p
+              className={`${interLight.className} absolute left-6 top-[220px] w-[260px] text-white text-sm leading-snug text-left opacity-0 drop-shadow-[0_12px_28px_rgba(0,0,0,0.5)] md:left-[96px] md:top-[270px] md:w-[380px] md:text-base`}
+              ref={heroSubtitleRef}
+            >
+              <span className="block font-semibold">Conecta con profesionales</span>
+              <span className="block">
+                de <em className="italic">confianza</em> para cualquier
+              </span>
+              <span className="block">servicio en tu hogar</span>
+            </p>
+            <Link
+              href="/requests/new"
+              className={`btn-contratar ${stackSansMedium.className} absolute left-6 top-[370px] z-10 md:left-[96px] md:top-[420px]`}
+            >
+              Contratar
+              <span className="btn-circle" aria-hidden="true" />
+            </Link>
 
-            <div className="mt-4 space-y-6">
-              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:gap-x-2 sm:gap-y-3">
-                <Link
-                  href="/requests/new"
-                  onClick={(event) =>
-                    handleProtectedNavigation(event, "/requests/new", "new-request")
-                  }
-                  className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#009377] px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-[#0a7f6a]"
-                >
-                  <MagnifierIcon className="h-4 w-4" />
-                  Quiero solicitar un servicio
-                </Link>
-                <Link
-                  href="/pro-apply"
-                  onClick={(event) =>
-                    handleProtectedNavigation(event, "/pro-apply", "pro-apply")
-                  }
-                  className="group inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0B3949] px-4 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-[#082634]"
-                >
-                  <IdCardIcon className="h-4 w-4" />
-                  Quiero ofrecer mis servicios
-                </Link>
-              </div>
-
-              <div>
-                <p className="text-xs text-slate-500">
-                  ¿Ya tienes cuenta? Ve a tu perfil o revisa tus solicitudes en el menú.
-                </p>
-                <div className="mt-3">
-                  <PaymentProtectionBadge />
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                {heroHighlights.map(({ id, icon: Icon, label }) => (
-                  <div
-                    key={id}
-                    className="flex items-center gap-2 rounded-2xl border border-white/80 bg-white/80 px-3 py-2 text-left shadow-sm backdrop-blur"
-                  >
-                    <Icon className="h-4 w-4 text-[#009377]" />
-                    <span className="text-sm font-medium text-slate-700 text-left">{label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Columna derecha */}
-          <div className="w-full md:w-1/2 flex justify-center md:justify-end">
-            <div className="relative max-w-sm w-full rounded-3xl bg-white shadow-xl overflow-hidden">
-              <Image
-                src="/images/handifav_sinfondo.png"
-                alt="Ilustración Handi"
-                width={480}
-                height={480}
-                className="w-full h-auto object-contain"
-                priority
-              />
+            {/* Badge de pagos protegidos sobre el hero (solo desktop) */}
+            <div className="hero-payment-badge absolute inset-0 pointer-events-none hidden md:block">
+              <PaymentProtectionBadge />
             </div>
           </div>
         </div>
@@ -518,10 +476,12 @@ export default function Page() {
       >
         <div className="mx-auto max-w-5xl px-4 py-12">
           <div className="mb-8 space-y-2 text-center">
-            <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
+            <h2
+              className={`${stackSansMedium.className} text-[40px] leading-[1] font-semibold tracking-[0] text-[#082877]`}
+            >
               Cómo funciona
             </h2>
-            <p className="text-sm text-slate-600 md:text-base">
+            <p className={`${interLight.className} text-sm md:text-base text-[#082877]`}>
               Describe lo que necesitas, compara perfiles y contrata con protección de pagos.
             </p>
           </div>
@@ -531,20 +491,20 @@ export default function Page() {
             <MobileCarousel className="px-0 pt-6" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
               <StepCard
                 step="1"
-                title="Crea tu solicitud de servicio"
-                desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+                title={<span className={`${interBold.className} font-bold text-[#082877]`}>Crea tu solicitud de servicio</span>}
+                desc={<span className={`${interLight.className} text-[#082877]`}>Describe el servicio que necesitas, presupuesto, lugar y fecha.</span>}
                 rightImageSrc="/images/nueva-solicitud-mockup-short.png"
               />
               <StepCard
                 step="2"
-                title="Compara profesionales"
-                desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+                title={<span className={`${interBold.className} font-bold text-[#082877]`}>Compara profesionales</span>}
+                desc={<span className={`${interLight.className} text-[#082877]`}>Revisa perfiles de profesionales disponibles dentro de tu solicitud.</span>}
                 rightImageSrc="/images/profesionals-list-mockup-short.png"
               />
               <StepCard
                 step="3"
-                title="Contrata con confianza"
-                desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+                title={<span className={`${interBold.className} font-bold text-[#082877]`}>Contrata con confianza</span>}
+                desc={<span className={`${interLight.className} text-[#082877]`}>Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat.</span>}
                 rightImageSrc="/images/chat-mockup-short.png"
               />
             </MobileCarousel>
@@ -554,20 +514,20 @@ export default function Page() {
           <div className="hidden md:grid grid-cols-1 gap-6 md:grid-cols-3">
             <StepCard
               step="1"
-              title="Crea tu solicitud de servicio"
-              desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+              title={<span className={`${interBold.className} font-bold text-[#082877]`}>Crea tu solicitud de servicio</span>}
+              desc={<span className={`${interLight.className} text-[#082877]`}>Describe el servicio que necesitas, presupuesto, lugar y fecha.</span>}
               rightImageSrc="/images/nueva-solicitud-mockup-short.png"
             />
             <StepCard
               step="2"
-              title="Compara profesionales"
-              desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+              title={<span className={`${interBold.className} font-bold text-[#082877]`}>Compara profesionales</span>}
+              desc={<span className={`${interLight.className} text-[#082877]`}>Revisa perfiles de profesionales disponibles dentro de tu solicitud.</span>}
               rightImageSrc="/images/profesionals-list-mockup-short.png"
             />
             <StepCard
               step="3"
-              title="Contrata con confianza"
-              desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+              title={<span className={`${interBold.className} font-bold text-[#082877]`}>Contrata con confianza</span>}
+              desc={<span className={`${interLight.className} text-[#082877]`}>Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat.</span>}
               rightImageSrc="/images/chat-mockup-short.png"
             />
           </div>
@@ -739,61 +699,63 @@ export default function Page() {
               desc="Retroalimentación de contratantes como tú."
             />
           </div>
-          <div className="mt-6">
-            <SpotlightCard className="relative overflow-hidden rounded-2xl border border-slate-200 bg-[#104008] p-6 text-white shadow-sm">
-              <div
-                className="pointer-events-none absolute inset-0 z-0 bg-cover bg-center opacity-70"
-                style={{
-                  backgroundImage:
-                    "url('/images/modern-background-of-green-abstract-gradient-wallpaper-vector.jpg')",
-                }}
-              />
-              <div className="relative z-10 mx-auto w-fit max-w-full">
-                <div className="mb-1 inline-flex items-center gap-2">
-                  <Image
-                    src="/images/icono-pago-seguro.png"
-                    alt="Pagos 100% protegidos"
-                    width={24}
-                    height={24}
-                    className="h-6 w-6"
-                  />
-                  <h3 className={`${momoTrust.className} text-xl font-normal uppercase md:text-2xl`}>
+          <div className="mt-8">
+            <div className="grid overflow-hidden rounded-3xl border border-slate-200 shadow-xl md:grid-cols-[1.05fr_0.95fr]">
+              <div className="relative min-h-[280px] md:min-h-[360px]">
+                <Image
+                  src="/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg"
+                  alt="Profesional Handi listo para trabajar"
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 40vw, (min-width: 768px) 50vw, 100vw"
+                />
+              </div>
+              <div className="flex flex-col justify-between gap-6 bg-[#114430] p-6 text-white sm:p-8">
+                <div className="space-y-5">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[#A6D234] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#114430]">
+                    <Image src="/icons/candado.png" alt="Candado" width={20} height={20} className="h-5 w-5" />
+                    Pagos 100% protegidos
+                  </span>
+                  <h3 className={`${stackSansMedium.className} text-3xl leading-tight text-white sm:text-4xl`}>
                     Pagos 100% protegidos
                   </h3>
+                  <p className={`${stackSansLight.className} text-base text-white/90 sm:text-lg`}>
+                    Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                  </p>
                 </div>
-                <p className="text-sm text-white/90 md:text-base">
-                  Liberamos el pago al profesional únicamente cuando confirmas que el servicio quedó como esperabas.
-                </p>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.35em] text-white/70">
-                  Protección en cada contratación
-                </p>
+                <Link
+                  href="#como-funciona"
+                  className={`${stackSansMedium.className} inline-flex w-fit items-center justify-center rounded-full bg-[#A6D234] px-8 py-3 text-base text-[#114430] shadow-sm transition hover:bg-[#9bc32f]`}
+                >
+                  Cómo funciona
+                </Link>
               </div>
-            </SpotlightCard>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Trust badges */}
-      <section className="border-t border-slate-200 bg-white">
+      {/* Trust badges (junto al footer) */}
+      <section className="border-t border-[#001447] bg-[#001447] text-white">
         <div className="mx-auto max-w-5xl px-4 py-10">
           <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
             <div className="text-center md:text-left">
-              <p className="text-sm font-medium text-slate-900">
+              <p className="text-sm font-medium text-white">
                 Confianza y transparencia
               </p>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-white/80">
                 Política de bajas automáticas ante calificaciones bajas
                 recurrentes.
               </p>
             </div>
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
+            <div className="flex items-center gap-3 text-xs text-white">
+              <span className="rounded-full border border-white/50 bg-white px-3 py-1 text-[#001447] shadow-sm">
                 Identidad verificada
               </span>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
+              <span className="rounded-full border border-white/50 bg-white px-3 py-1 text-[#001447] shadow-sm">
                 Referencias
               </span>
-              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 shadow-sm">
+              <span className="rounded-full border border-white/50 bg-white px-3 py-1 text-[#001447] shadow-sm">
                 Historial y reseñas
               </span>
             </div>

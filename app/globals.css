@@ -199,6 +199,52 @@ body {
   @apply bg-white text-neutral-900;
 }
 
+.btn-contratar {
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 9.17px;
+  padding: 7px 22px;
+  width: 150px;
+  height: 42px;
+  background: #a1d301;
+  border-radius: 9999px;
+  color: #00442f;
+  font-family: "Stack Sans Text", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 19px;
+  text-decoration: none;
+  box-shadow: 0 16px 36px -14px rgba(0, 0, 0, 0.45), 0 6px 16px -12px rgba(0, 0, 0, 0.35);
+  transition: transform 140ms ease, box-shadow 160ms ease, filter 140ms ease;
+}
+
+.btn-contratar:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+  box-shadow: 0 22px 42px -16px rgba(0, 0, 0, 0.55), 0 10px 20px -10px rgba(0, 0, 0, 0.35);
+}
+
+.btn-contratar:active {
+  transform: translateY(0);
+  filter: brightness(0.99);
+}
+
+.btn-contratar:focus-visible {
+  outline: 2px solid #a1d301;
+  outline-offset: 3px;
+  box-shadow: 0 16px 36px -14px rgba(0, 0, 0, 0.45);
+}
+
+.btn-circle {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #d9d9d9;
+}
+
 .dark body {
   @apply bg-neutral-950 text-neutral-100;
 }
@@ -479,17 +525,53 @@ body {
 }
 
 @layer components {
+  .logo-white {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
+  }
+
+  .handi-header {
+    font-family: var(--font-stack-sans-text), "Stack Sans Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .handi-header :is(a, button, span, p, strong, small, div, nav) {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
+
   /* Reusable glassmorphism card (spec exacta solicitada) */
-  .glass-card {
-    position: relative;
-    overflow: hidden;
-    border-radius: 1.5rem;            /* rounded-3xl */
-    background: rgba(255, 255, 255, 0.05);
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;            /* rounded-3xl */
+  background: rgba(255, 255, 255, 0.05);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);      /* frosted */
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Hero payment badge positioning (desktop only; mobile handled by module CSS) */
+@media (min-width: 768px) {
+  .hero-payment-badge :global(.paymentBadge) {
+    position: absolute;
+    top: 28%;
+    right: 40px;
+    bottom: auto;
+    left: auto;
+    transform: translateY(-45%);
+    margin: 0;
+    width: 260px;
+    max-width: none;
   }
+}
 
   .glass-card::before {
     content: "";

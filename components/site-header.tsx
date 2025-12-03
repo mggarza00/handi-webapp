@@ -4,6 +4,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import createClient from "@/utils/supabase/server";
 import { cookies } from "next/headers";
+import localFont from "next/font/local";
 
 import MobileMenu from "@/components/mobile-menu";
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,17 @@ import HeaderAuthRefresh from "@/components/HeaderAuthRefresh.client";
 import type { Database } from "@/types/supabase";
 import ClientNoSessionOnly from "@/components/ClientNoSessionOnly.client";
 import PublicLandingHeader from "@/components/PublicLandingHeader.client";
+import HeaderLogoSwap from "@/components/HeaderLogoSwap.client";
 
 type Role = "client" | "pro" | "admin";
+
+const stackSansText = localFont({
+  src: "../public/fonts/Stack_Sans_Text/static/StackSansText-Regular.ttf",
+  weight: "400",
+  style: "normal",
+  display: "swap",
+  variable: "--font-stack-sans-text",
+});
 
 export const dynamic = "force-dynamic";
 
@@ -160,7 +170,9 @@ export default async function SiteHeader() {
   const minimal = (process.env.NEXT_PUBLIC_HEADER_MINIMAL || "").trim() === "1";
   if (minimal) {
     return (
-      <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md">
+      <header
+        className={`${stackSansText.className} ${stackSansText.variable} fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md`}
+      >
         <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center">
             <Image src="/images/Logo-Handi-v2.gif" alt="Handi" width={64} height={64} priority className="h-16 w-16 object-contain" />
@@ -352,10 +364,11 @@ export default async function SiteHeader() {
       {/* If SSR thinks unauth but client has session, trigger a gentle refresh */}
       {!isAuth ? <HeaderAuthRefresh enabled={!isAuth} /> : null}
       <header
-        className="handi-header header--default fixed top-0 left-0 right-0 z-50 border-b border-border bg-neutral-50/80 dark:bg-neutral-900/40 backdrop-blur-md"
+        className={`${stackSansText.className} ${stackSansText.variable} handi-header header--default fixed top-0 left-0 right-0 z-50`}
         data-authenticated={isAuth ? "1" : "0"}
       >
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center px-6">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/8 to-transparent" aria-hidden="true" />
+        <div className="relative mx-auto flex h-16 w-full max-w-6xl items-center px-6">
           <div className="handi-header__public hidden w-full">
             <PublicLandingHeader items={publicNavItems} logoHref={leftHref} loginHref="/auth/sign-in" />
           </div>
@@ -377,19 +390,59 @@ export default async function SiteHeader() {
         )}
 
         {/* Logo: centrado en mÃ³vil, alineado a la izquierda en desktop */}
-        <Link
+        <HeaderLogoSwap
           href={leftHref}
           className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
-        >
-          <Image
-            src="/images/Logo-Handi-v2.gif"
-            alt="Handi"
-            width={64}
-            height={64}
-            priority
-            className="h-16 w-16 object-contain"
-          />
-        </Link>
+          width={128}
+          height={128}
+        />
+
+        {/* Navegacion publica centrada (solo invitado, desktop) */}
+        {!isAuth ? (
+          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
+            <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
+              <Link
+                href="/services"
+                className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
+              >
+                <Image
+                  src="/icons/servicios_icon.svg"
+                  alt=""
+                  width={18}
+                  height={18}
+                  className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+                />
+                <span>Servicios</span>
+              </Link>
+              <Link
+                href="/how-it-works"
+                className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
+              >
+                <Image
+                  src="/icons/engrane_icon.svg"
+                  alt=""
+                  width={18}
+                  height={18}
+                  className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+                />
+                <span>Cómo funciona</span>
+              </Link>
+              <Link
+                href="/near-you"
+                className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
+              >
+                <Image
+                  src="/icons/loc_icon.svg"
+                  alt=""
+                  width={18}
+                  height={18}
+                  className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+                />
+                <span>Cerca de ti</span>
+              </Link>
+            </div>
+          </nav>
+        ) : null}
 
         {/* Botones centrados (cliente y profesional) - desktop */}
         {role === "client" ? (
@@ -518,18 +571,21 @@ export default async function SiteHeader() {
             })
             .map((l) => {
               const isRequests = l.href.startsWith("/requests") && !l.className;
+              const isLogin = l.testId === "btn-login";
               const variant = l.variant ?? "outline";
               const wantsGrayHover =
                 variant !== "default" && variant !== "destructive";
               const grayHover = wantsGrayHover ? "hover:bg-neutral-200" : "";
-              const extra = l.className
-                ? `${l.className} ${grayHover}`.trim()
-                : [
-                    grayHover,
-                    isRequests ? "!text-[#11314B] hover:!text-[#11314B]" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
+              const extra = isLogin
+                ? "rounded-full px-5 py-3.5 bg-black/20 text-white hover:bg-white hover:text-[#0C2555] backdrop-blur"
+                : l.className
+                    ? `${l.className} ${grayHover}`.trim()
+                    : [
+                        grayHover,
+                        isRequests ? "!text-[#11304A] hover:!text-[#11304A]" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
               // Si es el botÃ³n de login, renderiza normal y ocÃºltalo en cliente si ya hay sesiÃ³n
               const wrapLogin = (node: React.ReactNode) =>
                 l.testId === "btn-login" ? <ClientNoSessionOnly key={l.href}>{node}</ClientNoSessionOnly> : node;
@@ -565,6 +621,15 @@ export default async function SiteHeader() {
                         />
                       ) : null}
                       <span>{l.label}</span>
+                      {isLogin ? (
+                        <Image
+                          src="/icons/Vector_inicio.svg"
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="h-4 w-4"
+                        />
+                      ) : null}
                     </Link>
                   </Button>,
                 )
@@ -589,7 +654,16 @@ export default async function SiteHeader() {
           {!isAuth ? (
             <ClientNoSessionOnly>
               <Button asChild size="sm" variant="outline">
-                <Link href="/auth/sign-in">Iniciar sesión</Link>
+                <Link href="/auth/sign-in" className="inline-flex items-center gap-2">
+                  <span>Iniciar sesión</span>
+                  <Image
+                    src="/icons/Vector_inicio.svg"
+                    alt=""
+                    width={16}
+                    height={16}
+                    className="h-4 w-4"
+                  />
+                </Link>
               </Button>
             </ClientNoSessionOnly>
           ) : (
