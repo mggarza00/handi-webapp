@@ -45,6 +45,8 @@
     "test:ui": "playwright test --ui",
     "snap": "node scripts/snapshots.js",
     "poster": "node scripts/extract-poster.mjs",
+    "ui:revise": "tsx tools/ui-revision.ts",
+    "ui:revise:target": "tsx tools/ui-revision.ts --target=",
     "classify:gen": "tsx scripts/generate-heuristics.ts",
     "format": "prettier --write .",
     "test:e2e:headed": "playwright test --headed",

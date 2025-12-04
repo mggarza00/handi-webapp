@@ -10,14 +10,14 @@ module.exports = {
     extend: {
       colors: {
         handi: {
-          primary: '#11304A',
-          green: '#3e9554',
+          primary: "#082877",
+          green: "#00452E",
         },
         brand: {
-          primary: '#2563EB',
-          accent: '#F59E0B',
-          gray900: '#111827',
-          gray500: '#6B7280',
+          primary: "#001447",
+          accent: "#5A9CF4",
+          gray900: "#191919",
+          gray500: "#F9E7D2",
         },
       },
       keyframes: {

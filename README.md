@@ -96,11 +96,17 @@ Endpoints canónicos para Web Push:
 - Cuando termines, deten los servicios con `npx supabase stop`.
 
 ## Revisión automática de CSS/UI
-- Ejecuta typecheck + lint + capturas responsivas + Lighthouse:
-  - `npm run review:ui` (sirve en dev si no hay `BASE_URL`)
-  - Variables opcionales: `BASE_URL` o `PREVIEW_URL` para apuntar a un entorno ya levantado
-- Capturas: `snapshots/*`
-- Reportes Lighthouse: `artifacts/lhci/*.html` (configurable en `lighthouserc.cjs`)
+- `npm run review:ui`: typecheck + lint (soft-fail) + capturas con Playwright + Lighthouse.
+- Capturas: `snapshots/*.png` y resumen `snapshots/ui-review.json`.
+- Rutas por defecto: home (guest), requests y mensajes (client), dashboard pro y admin, `/design-check`.
+- Config por archivo: `scripts/ui-revision.targets.json` (rutas/roles/viewports); override rápido con `ROUTES`, `VIEWPORTS`, `BASE_URL`/`PREVIEW_URL`.
+- Variables: `BASE_URL`/`PREVIEW_URL` para usar un entorno existente, `ROUTES=",/extra"` para forzar rutas custom (guest), `VIEWPORTS="430,1024,1440"` para tamaños, `SNAPSHOT_STRICT=true` para fallar si hay errores.
+- Reportes Lighthouse: `artifacts/lhci/*.html` (config en `lighthouserc.cjs`).
+
+## Revisión UI asistida (artefactos para agente)
+- Configura targets en `scripts/ui-revision.targets.json`.
+- Genera PNG + HTML por target: `npm run ui:revise` o `npm run ui:revise -- --target=home-guest`.
+- Artefactos: `artifacts/ui-revision/<target>/iter-<n>/`. Ver docs en `docs/REVISION_UI_AUTOMATION.md`.
 
 ## E2E con Playwright (dev/CI)
 - Ruta de **mock de rol** (solo dev/CI): `/api/test-auth/:role` con `role` en `guest|client|professional|admin`.

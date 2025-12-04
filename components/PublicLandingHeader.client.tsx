@@ -54,7 +54,7 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
                 className={`nav-pill ${item.isActive ? "nav-pill--active" : ""}`.trim()}
               >
                 <span className="nav-label">{item.label}</span>
-                <img src={item.icon} alt="" className="nav-pill-icon" />
+                <Image src={item.icon} alt="" className="nav-pill-icon" width={20} height={20} />
               </Link>
             ))}
           </nav>
@@ -62,7 +62,7 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
         <div className="header-right">
           <Link href={loginHref} className="login-pill">
             <span className="login-label">Iniciar sesión</span>
-            <img src="/icons/Vector_inicio.svg" alt="" className="login-pill-icon" />
+            <Image src="/icons/Vector_inicio.svg" alt="" className="login-pill-icon" width={20} height={20} />
           </Link>
         </div>
       </div>
@@ -106,7 +106,7 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
         <div className="header-right">
           <Link href={loginHref} className="login-pill login-pill--mobile">
             <span className="login-label">Iniciar sesión</span>
-            <img src="/icons/Vector_inicio.svg" alt="" className="login-pill-icon" />
+            <Image src="/icons/Vector_inicio.svg" alt="" className="login-pill-icon" width={20} height={20} />
           </Link>
         </div>
       </div>
@@ -124,7 +124,7 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
               onClick={closeMobileMenu}
             >
               <span>{item.label}</span>
-              <img src={item.icon} alt="" />
+              <Image src={item.icon} alt="" width={20} height={20} />
             </Link>
           ))}
         </nav>

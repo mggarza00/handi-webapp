@@ -48,7 +48,7 @@ export default async function CategoriasPage() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("categories_subcategories")
-        .select('"Categoría","Subcategoría","Activa","Ícono"');
+        .select('"Categoría","Subcategoría","Activa","ícono","Emoji"');
       if (error) throw error;
       const rows = Array.isArray(data) ? (data as Array<Record<string, unknown>>) : [];
       normalized = rows
@@ -56,7 +56,7 @@ export default async function CategoriasPage() {
         .map((r) => ({
           category: (r["Categoría"] ?? "").toString().trim(),
           subcategory: (r["Subcategoría"] ?? "").toString().trim(),
-          icon: ((r["Ícono"] ?? "").toString().trim() || null) as string | null,
+          icon: ((r["Emoji"] ?? "").toString().trim() || null) as string | null,
         }))
         .filter((r) => r.category.length > 0 && r.subcategory.length > 0);
     } catch {

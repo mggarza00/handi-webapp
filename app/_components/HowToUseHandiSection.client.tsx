@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -10,7 +11,6 @@ type CardType = "client" | "pro";
 export default function HowToUseHandiSection() {
   const router = useRouter();
   const [hoveredCard, setHoveredCard] = useState<CardType | null>(null);
-  const isInteracting = hoveredCard !== null;
 
   return (
     <section className="bg-[#F5F7FA] py-12 md:py-16">
@@ -90,9 +90,11 @@ export default function HowToUseHandiSection() {
                   Tengo un problema que quiero solucionar
                 </h3>
               </div>
-              <img
+              <Image
                 src="/icons/engraneceleste_icon.svg"
                 alt=""
+                width={36}
+                height={36}
                 className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0"
               />
             </div>
@@ -149,9 +151,11 @@ export default function HowToUseHandiSection() {
                   Quiero trabajar con Handi
                 </h3>
               </div>
-              <img
+              <Image
                 src="/icons/Icono_pro_verde.svg"
                 alt=""
+                width={36}
+                height={36}
                 className="w-8 h-8 md:w-9 md:h-9 flex-shrink-0"
               />
             </div>

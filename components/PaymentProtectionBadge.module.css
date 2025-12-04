@@ -70,15 +70,44 @@
 
 @media (width <= 768px) {
   .paymentBadge {
-    position: static;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
     transform: none;
-    margin: 78px auto 0;
-    width: min(75vw, 260px);
-    padding: 14px 22px;
+    margin: 0;
+    width: auto;
+    max-width: 280px;
+    padding: 14px 18px;
+    border-radius: 20px;
+    box-shadow: 0 14px 35px rgb(0 0 0 / 0.30);
+    gap: 12px;
+  }
+
+  .paymentBadge__iconWrapper {
+    width: 44px;
+    height: 44px;
+  }
+
+  .paymentBadge__title {
+    font-size: 15px;
+  }
+
+  .paymentBadge__subtitle {
+    font-size: 14px;
+  }
+
+  .paymentBadge__stars {
+    margin-top: 4px;
+  }
+
+  .paymentBadge__star {
+    width: 14px;
+    height: 14px;
   }
 
   .paymentBadge:hover {
-    transform: scale(1.02);
+    transform: none;
   }
 }
 

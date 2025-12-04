@@ -9,17 +9,20 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 export async function GET() {
   try {
     const admin = getAdminSupabase();
-    // Selecciona columnas con nombre exacto y acentos
-    const { data, error } = await admin
-      .from("categories_subcategories")
-      .select('"Categoría","Subcategoría","Activa","Ícono"');
-    if (error) {
+    const selectColumns = "*";
+    const { data, error } = await admin.from("categories_subcategories").select(selectColumns);
+
+    let rows: unknown[] | null = data;
+    let finalError = error;
+
+    if (finalError) {
       return NextResponse.json(
-        { ok: false, error: "DB_ERROR", detail: error.message },
+        { ok: false, error: "DB_ERROR", detail: finalError.message },
         { status: 500, headers: JSONH },
       );
     }
-    const rows = Array.isArray(data) ? data : [];
+
+    const safeRows = Array.isArray(rows) ? rows : [];
     const isActive = (v: unknown) => {
       const s = (v ?? "").toString().trim().toLowerCase();
       return (
@@ -32,7 +35,16 @@ export async function GET() {
         s === "x"
       );
     };
-    const normalized = rows
+    const pick = (rec: Record<string, unknown>, keys: string[]) => {
+      for (const k of keys) {
+        const val = rec?.[k];
+        if (val !== undefined && val !== null && String(val).trim().length > 0) {
+          return String(val).trim();
+        }
+      }
+      return null;
+    };
+    const normalized = safeRows
       .filter((r) => isActive((r as Record<string, unknown>)["Activa"]))
       .map((r) => {
         const rec = r as Record<string, unknown>;
@@ -43,9 +55,12 @@ export async function GET() {
           subcategory: (String(rec["Subcategoría"] ?? "")
             .toString()
             .trim() || null) as string | null,
-          icon: (String(rec["Ícono"] ?? "")
+          icon: (String(rec["Emoji"] ?? "")
             .toString()
             .trim() || null) as string | null,
+          iconUrl: pick(rec, ["ícono", "icono", "icon", "icono_url", "icon_url", "iconUrl", "Ícono URL"]),
+          image: pick(rec, ["imagen", "image"]),
+          color: pick(rec, ["color"]),
         };
       });
     return NextResponse.json(

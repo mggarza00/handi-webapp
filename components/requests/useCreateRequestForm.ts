@@ -368,7 +368,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
           try {
             const { data, error: dbError } = await supabaseBrowser
               .from("categories_subcategories")
-              .select('"categories_subcategories_id","Categoría","Subcategoría","Activa","Ícono"');
+              .select('"categories_subcategories_id","Categoría","Subcategoría","Activa","ícono","Emoji"');
             if (dbError) throw dbError;
             const tmp: Record<string, Subcat[]> = {};
             const isActive = (v: unknown) => {
@@ -380,7 +380,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
               const cat = (row?.["Categoría"] ?? "").toString().trim();
               const sub = (row?.["Subcategoría"] ?? "").toString().trim();
               const id = (row?.["categories_subcategories_id"] ?? null) as string | null;
-              const icon = (row?.["Ícono"] ?? "").toString().trim() || null;
+            const icon = (row?.["Emoji"] ?? "").toString().trim() || null;
               if (!cat) return;
               if (!tmp[cat]) tmp[cat] = [];
               if (sub && !tmp[cat].some((x) => x.name === sub)) tmp[cat].push({ id, name: sub, icon });

@@ -15,14 +15,14 @@ Las variables están mapeadas a tokens de Tailwind vía `@theme inline` en `app/
 
 ## Marca
 
-- Color de marca (primario): `#11304A`
+- Color de marca (primario): `#082877`
   - Texto: clase utilitaria `.text-brand`
   - Fondo: clase utilitaria `.bg-brand`
   - Uso: botones y CTAs primarios, titulares discretos, logotipo. Evitar grandes bloques de texto con color de marca.
 
-- Color secundario: `#F9E7C9`
+- Color secundario: `#F9E7D2`
   - Uso: superficies suaves (chips, badges, secciones destacadas ligeras), `variant="secondary"` en botones.
-  - Contraste en dark: texto sobre secundario usa `--secondary-foreground` ajustado a `#11304A`.
+  - Contraste en dark: texto sobre secundario usa `--secondary-foreground` ajustado a `#001447`.
 
 ## Header (tinte gris translúcido)
 

@@ -43,41 +43,107 @@ import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 import HowToUseHandiSection from "./_components/HowToUseHandiSection.client";
 import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 
-type Subcategory = { name: string; icon: string | null };
+type CategoryCard = {
+  name: string;
+  color: string | null;
+  image: string | null;
+};
+
+type Subcat = {
+  name: string;
+  icon: string | null;
+  color: string | null;
+  iconUrl: string | null;
+};
 type CatalogRow = {
   category?: string | null;
   subcategory?: string | null;
   icon?: string | null;
+  iconUrl?: string | null;
+  image?: string | null;
+  color?: string | null;
 };
 type CatalogLists = {
-  categories: string[];
-  subcategories: Subcategory[];
+  categoryCards: CategoryCard[];
+  subcategories: Subcat[];
 };
 
 const toCleanString = (value: unknown) => (value ?? "").toString().trim();
 const localeSort = (a: string, b: string) =>
   a.localeCompare(b, "es", { sensitivity: "base" });
+const normalizeMediaUrl = (value: string | null | undefined) => {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+  const s = raw.replace(/^["']+|["']+$/g, "").replace(/\\/g, "/").trim();
+  if (!s) return null;
+  // paths absolutos locales: recorta hasta /public/ si existe
+  const lower = s.toLowerCase();
+  const publicIdx = lower.indexOf("/public/");
+  if (publicIdx >= 0) {
+    const tail = s.slice(publicIdx + "/public".length);
+    return tail.startsWith("/") ? tail : `/${tail}`;
+  }
+  // Si viene con drive (C:/...) sin /public/, intenta detectar carpeta images/categorias
+  if (/^[a-zA-Z]:\//.test(s) || (s.startsWith("/") && /^[a-zA-Z]:\//.test(s.slice(1)))) {
+    const imagesIdx = lower.indexOf("/images/");
+    const iconsIdx = lower.indexOf("/icons/");
+    const idx = imagesIdx >= 0 ? imagesIdx : iconsIdx;
+    if (idx >= 0) {
+      const tail = s.slice(idx);
+      return tail.startsWith("/") ? tail : `/${tail}`;
+    }
+    return null;
+  }
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/")) return s;
+  if (s.includes("://")) return null;
+  // rutas relativas dentro de public (ej: images/categorias/archivo.jpg)
+  if (lower.startsWith("images/")) return `/${s}`;
+  return `/${s.replace(/^\/+/, "")}`;
+};
+const isValidImageSrc = (src: string | null) => {
+  if (!src) return false;
+  return src.startsWith("/") || src.startsWith("http://") || src.startsWith("https://");
+};
 const buildCatalogLists = (rows: CatalogRow[]): CatalogLists => {
-  const categories = Array.from(
-    new Set(
-      (rows || [])
-        .map((row) => toCleanString(row.category))
-        .filter((value) => value.length > 0),
-    ),
-  ).sort(localeSort);
-  const subMap = new Map<string, string | null>();
+  const catMeta = new Map<string, { color: string | null; image: string | null }>();
+  const subMap = new Map<string, Subcat>();
+
   (rows || []).forEach((row) => {
-    const name = toCleanString(row.subcategory);
-    if (!name || subMap.has(name)) return;
+    const categoryName = toCleanString(row.category);
+    const subName = toCleanString(row.subcategory);
     const icon = toCleanString(row.icon) || null;
-    subMap.set(name, icon);
+    const iconUrl = normalizeMediaUrl(row.iconUrl);
+    const image = normalizeMediaUrl(row.image);
+    const color = toCleanString(row.color) || null;
+
+    if (categoryName.length > 0) {
+      const existing = catMeta.get(categoryName) || { color: null, image: null };
+      catMeta.set(categoryName, {
+        color: existing.color || color || null,
+        image: existing.image || image || null,
+      });
+    }
+
+    if (subName.length > 0 && !subMap.has(subName)) {
+      subMap.set(subName, {
+        name: subName,
+        icon,
+        iconUrl,
+        color,
+      });
+    }
   });
 
   return {
-    categories,
-    subcategories: Array.from(subMap.entries())
-      .map(([name, icon]) => ({ name, icon }))
+    categoryCards: Array.from(catMeta.entries())
+      .map(([name, meta]) => ({
+        name,
+        color: meta.color,
+        image: meta.image,
+      }))
       .sort((a, b) => localeSort(a.name, b.name)),
+    subcategories: Array.from(subMap.values()).sort((a, b) => localeSort(a.name, b.name)),
   };
 };
 
@@ -86,8 +152,9 @@ const MARQUEE_PILL_BASE = `relative isolate inline-flex items-center gap-1 round
 
 export default function Page() {
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
-  const [categories, setCategories] = useState<string[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
+  const [topCategoryCards, setTopCategoryCards] = useState<CategoryCard[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcat[]>([]);
   const heroTitleRef = useRef<HTMLDivElement | null>(null);
   const heroSubtitleRef = useRef<HTMLParagraphElement | null>(null);
 
@@ -109,9 +176,9 @@ export default function Page() {
 
     const fetchFromSupabase = async (): Promise<CatalogLists | null> => {
       const sb = createSupabaseBrowser();
-      const { data, error } = await sb
-        .from("categories_subcategories")
-        .select('"Categoría","Subcategoría","Activa","Ícono"');
+      const primary = await sb.from("categories_subcategories").select("*");
+      const data = primary.data as unknown[] | null;
+      const error = primary.error as { message: string; code?: string } | null;
       if (error) throw error;
       const isActive = (value: unknown) => {
         const normalized = toCleanString(value).toLowerCase();
@@ -125,19 +192,31 @@ export default function Page() {
           normalized === "x"
         );
       };
+      const pick = (rec: Record<string, unknown>, keys: string[]) => {
+        for (const k of keys) {
+          const val = rec?.[k];
+          if (val !== undefined && val !== null && String(val).trim().length > 0) {
+            return String(val).trim();
+          }
+        }
+        return null;
+      };
       const rows: CatalogRow[] = (data || [])
         .filter((row: Record<string, unknown>) => isActive(row?.["Activa"]))
         .map((row: Record<string, unknown>) => ({
           category: toCleanString(row?.["Categoría"]),
           subcategory: toCleanString(row?.["Subcategoría"]),
-          icon: toCleanString(row?.["Ícono"]) || null,
+          icon: toCleanString(row?.["Emoji"]) || null,
+          iconUrl: pick(row, ["ícono", "icono", "icon", "icon_url", "icono_url", "iconUrl", "Ícono URL"]),
+          image: pick(row, ["imagen", "image"]),
+          color: pick(row, ["color"]),
         }));
       return buildCatalogLists(rows);
     };
 
     const applyCatalog = (lists: CatalogLists | null) => {
       if (!isMounted || !lists) return false;
-      setCategories(lists.categories);
+      setCategoryCards(lists.categoryCards);
       setSubcategories(lists.subcategories);
       return true;
     };
@@ -158,6 +237,30 @@ export default function Page() {
     };
 
     void loadCatalog();
+
+    const loadTopCategories = async () => {
+      if (!categoryCards.length) return;
+      const sb = createSupabaseBrowser();
+      const { data, error } = await sb.from("requests").select("category");
+      if (error || !Array.isArray(data)) {
+        setTopCategoryCards(categoryCards.slice(0, 8));
+        return;
+      }
+      const counts = new Map<string, number>();
+      data.forEach((row) => {
+        const name = toCleanString((row as Record<string, unknown>)?.category);
+        if (!name) return;
+        counts.set(name, (counts.get(name) || 0) + 1);
+      });
+      const sorted = [...categoryCards].sort((a, b) => {
+        const diff = (counts.get(b.name) || 0) - (counts.get(a.name) || 0);
+        if (diff !== 0) return diff;
+        return localeSort(a.name, b.name);
+      });
+      setTopCategoryCards(sorted.slice(0, 8));
+    };
+
+    void loadTopCategories();
 
     return () => {
       isMounted = false;
@@ -235,8 +338,44 @@ export default function Page() {
       const u = new URL(s);
       return u.protocol === "http:" || u.protocol === "https:";
     } catch {
-      return false;
+      return s.startsWith("/");
     }
+  };
+
+  const SubcategoriesCarousel = ({ items }: { items: Subcat[] }) => {
+    if (!items.length) return null;
+    const loop = [...items, ...items];
+    return (
+      <div className="overflow-hidden">
+        <div className="subcat-marquee">
+          {loop.map((s, idx) => {
+            const swatch = s.color && s.color.startsWith("#") ? s.color : "#001447";
+            const key = `${s.name}-${idx}`;
+            return (
+              <Link
+                key={key}
+                href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
+                className="inline-flex items-center gap-3 rounded-xl bg-white px-4 py-2 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-[2px] hover:shadow-md"
+                style={{ borderColor: swatch }}
+              >
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: swatch }}
+                  aria-hidden="true"
+                />
+                {s.iconUrl && isUrl(s.iconUrl) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={s.iconUrl} alt="" className="h-6 w-6 object-contain" />
+                ) : s.icon ? (
+                  <span className="text-base leading-none">{s.icon}</span>
+                ) : null}
+                <span className="text-sm font-medium text-slate-900">{s.name}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -534,128 +673,124 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Quick ask */}
-      <section
-        className="relative bg-slate-50 bg-cover bg-center bg-no-repeat bg-fixed"
-        style={{ backgroundImage: "url('/images/home_background.png')" }}
-      >
-        <div className="pointer-events-none absolute inset-0 z-0 bg-white/60" />
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-16">
-          <header className="max-w-3xl space-y-3 text-center md:text-left">
-            <p
-              className={`${stackSansLight.className} text-xs font-semibold uppercase tracking-[0.35em] text-slate-500`}
-            >
-              Explora Handi
-            </p>
-            <h2 className="text-2xl font-semibold text-slate-900 md:text-3xl">
-              Encuentra el servicio perfecto sin salir de casa
+      {/* Categorías y subcategorías */}
+      <section className="border-b border-slate-200 bg-white" id="servicios-populares">
+        <div className="mx-auto max-w-5xl px-4 py-12 space-y-10">
+          <div className="space-y-2">
+            <h2 className={`${stackSansMedium.className} text-4xl font-semibold tracking-tight text-[#082877]`}>
+              Servicios populares
             </h2>
-            <p className="text-sm text-slate-600 md:text-base">
-              Navega por categorías populares o crea tu solicitud para que expertos verificados te envíen
-              cotizaciones con pagos protegidos.
-            </p>
-          </header>
+            <p className="text-sm text-slate-600">Explora las categorías más contratadas por nuestros clientes.</p>
+          </div>
 
-          <div className="mt-10 space-y-8">
-            {categories.length > 0 && (
-              <div className="space-y-3" aria-label="Categorías populares">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">
-                  Categorías populares
-                </p>
-                <div
-                  className="marquee marquee--right"
-                  style={{ ["--marquee-duration" as any]: MARQUEE_DURATION }}
+          <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
+            {(topCategoryCards.length > 0 ? topCategoryCards : categoryCards).slice(0, 9).map((cat) => {
+              const bg = cat.color && cat.color.startsWith("#") ? cat.color : "#012A31";
+              return (
+                <Link
+                  key={`cat-card-${cat.name}`}
+                  href={`/search?category=${encodeURIComponent(cat.name)}`}
+                  className="relative overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+                  style={{ backgroundColor: bg }}
+                  aria-label={`Buscar profesionales de ${cat.name}`}
                 >
-                  <div className="marquee__inner">
-                    <div className="marquee__group overflow-visible relative">
-                      {categories.map((c) => (
-                        <Link
-                          key={`cat-a-${c}`}
-                          href={`/requests/new?category=${encodeURIComponent(c)}`}
-                          className={`${MARQUEE_PILL_BASE} px-4 py-2`}
-                        >
-                          {c}
-                        </Link>
-                      ))}
-                    </div>
-                    <div className="marquee__group overflow-visible relative" aria-hidden="true">
-                      {categories.map((c) => (
-                        <Link
-                          key={`cat-b-${c}`}
-                          href={`/requests/new?category=${encodeURIComponent(c)}`}
-                          className={`${MARQUEE_PILL_BASE} px-4 py-2`}
-                        >
-                          {c}
-                        </Link>
-                      ))}
-                    </div>
+                  <div className="flex h-40 flex-col justify-between p-4 text-white">
+                    <p className={`text-sm font-medium leading-snug ${stackSansMedium.className}`}>
+                      {cat.name}
+                    </p>
+                    {isValidImageSrc(cat.image) && (
+                      <div className="relative mt-3 h-20 w-full overflow-hidden rounded-xl bg-black/10">
+                        <Image
+                          src={cat.image as string}
+                          alt={`Trabajo de ${cat.name}`}
+                          fill
+                          className="object-cover"
+                          sizes="(min-width: 1024px) 220px, 50vw"
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-            )}
+                </Link>
+              );
+            })}
+            <Link
+              href="/categorias"
+              className="flex h-40 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-center text-sm font-medium text-slate-800 hover:bg-slate-100"
+            >
+              <span className="mb-2 inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white text-lg">
+                +
+              </span>
+              Ver todas las categorías
+            </Link>
+          </div>
 
-            {subcategories.length > 0 && (
-              <div className="space-y-3" aria-label="Subcategorías destacadas">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">
-                  Subcategorías destacadas
-                </p>
-                <div className="marquee" style={{ ["--marquee-duration" as any]: MARQUEE_DURATION }}>
-                  <div className="marquee__inner">
-                    <div className="marquee__group overflow-visible relative">
-                      {subcategories.map((s) => (
+          {subcategories.length > 0 ? (
+            <div className="space-y-3">
+              <p className={`${stackSansMedium.className} text-2xl font-semibold tracking-tight text-[#082877]`}>
+                Subcategorías
+              </p>
+              <div className="marquee" style={{ ["--marquee-duration" as any]: MARQUEE_DURATION }}>
+                <div className="marquee__inner">
+                  <div className="marquee__group overflow-visible relative">
+                    {subcategories.map((s) => {
+                      const emoji = s.icon?.trim() || null;
+                      const iconSrc = !emoji ? normalizeMediaUrl(s.iconUrl || null) : null;
+                      return (
                         <Link
                           key={`subcat-a-${s.name}`}
-                          href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                          className={`${MARQUEE_PILL_BASE} px-3 py-1.5`}
+                          href={`/search?subcategory=${encodeURIComponent(s.name)}`}
+                          className="inline-flex min-w-[150px] max-w-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-5 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
                         >
-                          {s.icon ? (
-                            isUrl(s.icon) ? (
+                          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
+                            {emoji ? (
+                              <span className="text-xl leading-none">{emoji}</span>
+                            ) : iconSrc ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={s.icon} alt="" className="h-3.5 w-3.5 object-contain" />
-                            ) : (
-                              <span className="text-sm leading-none">{s.icon}</span>
-                            )
-                          ) : null}
-                          <span>{s.name}</span>
+                              <img src={iconSrc} alt="" className="h-6 w-6 object-contain" />
+                            ) : null}
+                          </div>
+                          <span className="text-center text-sm font-medium text-slate-800">{s.name}</span>
                         </Link>
-                      ))}
-                    </div>
-                    {/* Duplicado para bucle continuo */}
-                    <div className="marquee__group overflow-visible relative" aria-hidden="true">
-                      {subcategories.map((s) => (
+                      );
+                    })}
+                  </div>
+                  {/* Duplicado para bucle continuo */}
+                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
+                    {subcategories.map((s) => {
+                      const emoji = s.icon?.trim() || null;
+                      const iconSrc = !emoji ? normalizeMediaUrl(s.iconUrl || null) : null;
+                      return (
                         <Link
                           key={`subcat-b-${s.name}`}
-                          href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                          className={`${MARQUEE_PILL_BASE} px-3 py-1.5`}
+                          href={`/search?subcategory=${encodeURIComponent(s.name)}`}
+                          className="inline-flex min-w-[150px] max-w-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-5 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
                         >
-                          {s.icon ? (
-                            isUrl(s.icon) ? (
+                          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
+                            {emoji ? (
+                              <span className="text-xl leading-none">{emoji}</span>
+                            ) : iconSrc ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={s.icon} alt="" className="h-3.5 w-3.5 object-contain" />
-                            ) : (
-                              <span className="text-sm leading-none">{s.icon}</span>
-                            )
-                          ) : null}
-                          <span>{s.name}</span>
+                              <img src={iconSrc} alt="" className="h-6 w-6 object-contain" />
+                            ) : null}
+                          </div>
+                          <span className="text-center text-sm font-medium text-slate-800">{s.name}</span>
                         </Link>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-            )}
-
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">
-                Profesionales cerca de ti
-              </p>
-              <NearbyCarousel />
             </div>
+          ) : null}
+
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">
+          
+            </p>
+            <NearbyCarousel />
           </div>
         </div>
       </section>
-
-      
 
       {/* Beneficios */}
       <section className="bg-slate-50 mt-8 md:mt-16">
