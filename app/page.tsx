@@ -865,7 +865,7 @@ export default function Page() {
                 Subcategorías
               </p>
               <div
-                className="marquee"
+                className="marquee overflow-x-hidden overflow-y-visible"
                 style={{ ["--marquee-duration" as any]: MARQUEE_DURATION }}
               >
                 <div className="marquee__inner">
