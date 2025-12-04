@@ -198,12 +198,12 @@ export default async function SiteHeader() {
       isActive: true,
     },
     {
-      href: "#como-funciona",
+      href: "/#como-funciona",
       label: "Como funciona",
       icon: "/icons/engrane_icon.svg",
     },
     {
-      href: "#cerca-de-ti",
+      href: "/#profesionales-cerca-de-ti",
       label: "Cerca de ti",
       icon: "/icons/loc_icon.svg",
     },
@@ -415,7 +415,7 @@ export default async function SiteHeader() {
                 <span>Servicios</span>
               </Link>
               <Link
-                href="/how-it-works"
+                href="/#como-funciona"
                 className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
               >
                 <Image
@@ -428,7 +428,7 @@ export default async function SiteHeader() {
                 <span>Cómo funciona</span>
               </Link>
               <Link
-                href="/near-you"
+                href="/#profesionales-cerca-de-ti"
                 className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
               >
                 <Image

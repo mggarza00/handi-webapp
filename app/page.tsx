@@ -949,7 +949,7 @@ export default function Page() {
             </div>
           ) : null}
 
-          <div className="space-y-3">
+          <div className="space-y-3" id="profesionales-cerca-de-ti">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"></p>
             <NearbyCarousel />
           </div>
