@@ -1,8 +1,16 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
+import localFont from "next/font/local";
 
 import RatingStars from "@/components/ui/RatingStars";
+
+const stackSansMedium = localFont({
+  src: "../../public/fonts/Stack_Sans_Text/static/StackSansText-Medium.ttf",
+  weight: "500",
+  display: "swap",
+  variable: "--font-stack-sans-medium",
+});
 
 type ProItem = {
   id: string;
@@ -22,27 +30,24 @@ function parseCookies(): Record<string, string> {
     .split(";")
     .map((c) => c.trim())
     .filter(Boolean)
-    .reduce((acc, cur) => {
-      const idx = cur.indexOf("=");
-      if (idx === -1) return acc;
-      const k = cur.slice(0, idx).trim();
-      const v = decodeURIComponent(cur.slice(idx + 1));
-      acc[k] = v;
-      return acc;
-    }, {} as Record<string, string>);
+    .reduce(
+      (acc, cur) => {
+        const idx = cur.indexOf("=");
+        if (idx === -1) return acc;
+        const k = cur.slice(0, idx).trim();
+        const v = decodeURIComponent(cur.slice(idx + 1));
+        acc[k] = v;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
 }
 
 function pickCityFromCookies(): string | null {
   const jar = parseCookies();
   const keys = Object.keys(jar);
   // Heurística: buscar varias claves comunes para ciudad
-  const prefer = [
-    "handi_city",
-    "user_city",
-    "city",
-    "location_city",
-    "ciudad",
-  ];
+  const prefer = ["handi_city", "user_city", "city", "location_city", "ciudad"];
   for (const k of prefer) {
     const hit = keys.find((x) => x.toLowerCase() === k.toLowerCase());
     if (hit && jar[hit]) return jar[hit];
@@ -78,13 +83,18 @@ export default function NearbyCarousel() {
       try {
         const qs = new URLSearchParams();
         if (city && city.trim()) qs.set("city", city.trim());
-        const res = await fetch(`/api/professionals${qs.toString() ? `?${qs.toString()}` : ""}`, {
-          headers: { "Content-Type": "application/json; charset=utf-8" },
-          cache: "no-store",
-          credentials: "include",
-        });
+        const res = await fetch(
+          `/api/professionals${qs.toString() ? `?${qs.toString()}` : ""}`,
+          {
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
         const j = await res.json().catch(() => ({}));
-        let data: ProItem[] = Array.isArray(j?.data) ? (j.data as ProItem[]) : [];
+        let data: ProItem[] = Array.isArray(j?.data)
+          ? (j.data as ProItem[])
+          : [];
         // Si no hay ciudad conocida, mostrar aleatorios
         if (!city) data = shuffle(data);
         if (!abort) setItems(data.slice(0, 12));
@@ -127,7 +137,11 @@ export default function NearbyCarousel() {
   return (
     <div className="mt-12 rounded-xl mx-[calc(50%-50vw)] w-screen px-[var(--site-gutter)] py-4 md:py-6">
       <div className="mb-3 text-center">
-        <h3 className="text-lg font-semibold tracking-tight text-black">Profesionales cerca de ti</h3>
+        <h3
+          className={`${stackSansMedium.className} text-4xl font-semibold tracking-tight text-[#082877]`}
+        >
+          Profesionales cerca de ti
+        </h3>
       </div>
       <div
         ref={gridRef}
@@ -138,57 +152,71 @@ export default function NearbyCarousel() {
         }
       >
         {shown.map((p) => (
-          <div key={p.id} className="min-w-[206px] max-w-[206px] flex-shrink-0 relative rounded-3xl">
+          <div
+            key={p.id}
+            className="min-w-[206px] max-w-[206px] flex-shrink-0 relative rounded-3xl"
+          >
             <Link
               href={`/profiles/${p.id}`}
               className="relative z-10 block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] text-slate-900/90"
             >
-            <div className="relative z-10">
-              <div className="flex items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={p.avatar_url || "/images/handee_mascota.gif"}
-                alt={p.full_name || "Avatar"}
-                className="h-10 w-10 rounded-full object-cover ring-2 ring-white/40"
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
-                onError={(e) => {
-                  const t = e.currentTarget as HTMLImageElement & { dataset?: Record<string, string> };
-                  if (t && (!t.dataset || !t.dataset.fallbackApplied)) {
-                    t.src = "/images/handee_mascota.gif";
-                    if (t.dataset) t.dataset.fallbackApplied = "1";
-                  }
-                }}
-              />
-              {typeof p.rating === "number" && Number.isFinite(p.rating) && p.rating > 0 ? (
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-slate-900/90">
-                    {Number.isInteger(p.rating) ? p.rating : Number(p.rating).toFixed(1)}
-                  </span>
-                  <RatingStars value={p.rating} className="text-[12px]" />
+              <div className="relative z-10">
+                <div className="flex items-center gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.avatar_url || "/images/handee_mascota.gif"}
+                    alt={p.full_name || "Avatar"}
+                    className="h-10 w-10 rounded-full object-cover ring-2 ring-white/40"
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      const t = e.currentTarget as HTMLImageElement & {
+                        dataset?: Record<string, string>;
+                      };
+                      if (t && (!t.dataset || !t.dataset.fallbackApplied)) {
+                        t.src = "/images/handee_mascota.gif";
+                        if (t.dataset) t.dataset.fallbackApplied = "1";
+                      }
+                    }}
+                  />
+                  {typeof p.rating === "number" &&
+                  Number.isFinite(p.rating) &&
+                  p.rating > 0 ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium text-slate-900/90">
+                        {Number.isInteger(p.rating)
+                          ? p.rating
+                          : Number(p.rating).toFixed(1)}
+                      </span>
+                      <RatingStars value={p.rating} className="text-[12px]" />
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
+                <div className="mt-1 text-sm font-semibold tracking-tight text-slate-900/90 truncate">
+                  {p.full_name ?? "Profesional"}
+                </div>
+                {p.headline ? (
+                  <div className="text-[12px] text-slate-900/90 line-clamp-2">
+                    {p.headline}
+                  </div>
+                ) : p.bio ? (
+                  <div className="text-[12px] text-slate-900/90 line-clamp-2">
+                    {p.bio}
+                  </div>
+                ) : (
+                  <div className="text-[12px] text-slate-900/90">
+                    Sin descripción
+                  </div>
+                )}
+                {(p.categories?.length ?? 0) + (p.subcategories?.length ?? 0) >
+                  0 && (
+                  <div className="mt-1 text-[11px] text-slate-900/90 line-clamp-2">
+                    {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(
+                      ", ",
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="mt-1 text-sm font-semibold tracking-tight text-slate-900/90 truncate">
-              {p.full_name ?? "Profesional"}
-              </div>
-              {p.headline ? (
-              <div className="text-[12px] text-slate-900/90 line-clamp-2">
-                {p.headline}
-              </div>
-            ) : p.bio ? (
-              <div className="text-[12px] text-slate-900/90 line-clamp-2">
-                {p.bio}
-              </div>
-            ) : (
-              <div className="text-[12px] text-slate-900/90">Sin descripción</div>
-            )}
-              {(((p.categories?.length ?? 0) + (p.subcategories?.length ?? 0)) > 0) && (
-              <div className="mt-1 text-[11px] text-slate-900/90 line-clamp-2">
-                {[...(p.categories ?? []), ...(p.subcategories ?? [])].join(", ")}
-              </div>
-              )}
-            </div>
             </Link>
           </div>
         ))}
