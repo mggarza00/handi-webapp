@@ -560,6 +560,46 @@ body {
     letter-spacing: inherit;
   }
 
+  /* Login pill: keep icon color in sync with text */
+  .handi-header__public .login-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #082877;
+    text-decoration: none;
+    transition: color 0.2s ease, opacity 0.2s ease;
+  }
+
+  .handi-header.header--on-hero .handi-header__public .login-pill {
+    color: #ffffff;
+  }
+
+  .handi-header__public .login-pill .login-pill-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: brightness(0) saturate(100%) invert(17%) sepia(51%) saturate(2204%) hue-rotate(195deg) brightness(90%) contrast(101%);
+    transition: filter 0.2s ease, opacity 0.2s ease;
+  }
+
+  .handi-header.header--on-hero .handi-header__public .login-pill .login-pill-icon {
+    filter: brightness(0) saturate(100%) invert(100%);
+  }
+
+  .handi-header__public .login-pill:hover {
+    color: #0c2555;
+  }
+
+  .handi-header__public .login-pill:hover .login-pill-icon {
+    /* tinta similar al texto al hacer hover */
+    filter: brightness(0) saturate(100%) invert(16%) sepia(59%) saturate(1911%) hue-rotate(191deg) brightness(90%) contrast(96%);
+  }
+
+  .handi-header.header--on-hero .handi-header__public .login-pill:hover .login-pill-icon {
+    filter: brightness(0) saturate(100%) invert(95%);
+  }
+
   /* Reusable glassmorphism card (spec exacta solicitada) */
 .glass-card {
   position: relative;
