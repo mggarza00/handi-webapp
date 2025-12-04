@@ -794,7 +794,7 @@ export default function Page() {
 
       {/* Categorías y subcategorías */}
       <section
-        className="border-b border-slate-200 bg-[#F9E7D2]"
+        className="border-b border-slate-200 bg-[#e8e8e8]"
         id="servicios-populares"
       >
         <div className="mx-auto max-w-5xl px-4 py-12 space-y-10">
