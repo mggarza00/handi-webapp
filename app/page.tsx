@@ -955,9 +955,9 @@ export default function Page() {
       </section>
 
       {/* Beneficios */}
-      <section className="bg-slate-50 mt-8 md:mt-16">
-        <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
-          <div className="mt-8">
+      <section className="bg-slate-50 mt-6 md:mt-10">
+        <div className="relative z-10 mx-auto max-w-5xl px-4 py-8">
+          <div className="mt-6">
             <div className="grid overflow-hidden rounded-3xl border border-slate-200 shadow-xl md:grid-cols-[1.05fr_0.95fr]">
               <div className="relative min-h-[280px] md:min-h-[360px]">
                 <Image
