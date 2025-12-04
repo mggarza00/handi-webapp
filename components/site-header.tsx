@@ -192,7 +192,7 @@ export default async function SiteHeader() {
   const leftHref = "/";
   const publicNavItems = [
     {
-      href: "#servicios",
+      href: "/#servicios-populares",
       label: "Servicios",
       icon: "/icons/servicios_icon.svg",
       isActive: true,
@@ -402,7 +402,7 @@ export default async function SiteHeader() {
           <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
             <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
               <Link
-                href="/services"
+                href="/#servicios-populares"
                 className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
               >
                 <Image
