@@ -338,12 +338,13 @@ body {
     border-color: var(--color-border); /* moderno */
   }
 
-  :root {
-    background-color: #ffffff;      /* fallback */
-    color: #111111;                 /* fallback */
-    background-color: var(--background); /* moderno */
-    color: var(--foreground);            /* moderno */
-  }
+:root {
+  background-color: #ffffff;      /* fallback */
+  color: #111111;                 /* fallback */
+  background-color: var(--background); /* moderno */
+  color: var(--foreground);            /* moderno */
+  scroll-behavior: smooth;
+}
 
   body {
     background-color: #fff;         /* fallback */
