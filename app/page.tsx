@@ -954,53 +954,6 @@ export default function Page() {
       {/* Beneficios */}
       <section className="bg-slate-50 mt-8 md:mt-16">
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
-          {/* Mobile carousel for features */}
-          <div className="md:hidden -mx-4 overflow-x-hidden">
-            <MobileCarousel
-              className="px-0"
-              gap={16}
-              padding={16}
-              autoplay
-              autoplayDelay={4000}
-              loop
-              pauseOnHover
-            >
-              <FeatureCard
-                icon={<PinIcon className="h-5 w-5" />}
-                title="Encuentra cerca de ti"
-                desc="Publica tu servicio y encuentra profesionales cerca de ti."
-              />
-              <FeatureCard
-                icon={<ShieldIcon className="h-5 w-5" />}
-                title="Perfiles verificados"
-                desc="Revisamos referencias, documentos y desempeño de todos los profesionales."
-              />
-              <FeatureCard
-                icon={<StarIcon className="h-5 w-5" />}
-                title="Calificaciones reales"
-                desc="Retroalimentación de contratantes como tú."
-              />
-            </MobileCarousel>
-          </div>
-
-          {/* Desktop grid for features */}
-          <div className="hidden md:grid grid-cols-1 gap-5 md:grid-cols-3">
-            <FeatureCard
-              icon={<PinIcon className="h-5 w-5" />}
-              title="Encuentra cerca de ti"
-              desc="Publica tu servicio y encuentra profesionales cerca de ti."
-            />
-            <FeatureCard
-              icon={<ShieldIcon className="h-5 w-5" />}
-              title="Perfiles verificados"
-              desc="Revisamos referencias, documentos y desempeño de todos los profesionales."
-            />
-            <FeatureCard
-              icon={<StarIcon className="h-5 w-5" />}
-              title="Calificaciones reales"
-              desc="Retroalimentación de contratantes como tú."
-            />
-          </div>
           <div className="mt-8">
             <div className="grid overflow-hidden rounded-3xl border border-slate-200 shadow-xl md:grid-cols-[1.05fr_0.95fr]">
               <div className="relative min-h-[280px] md:min-h-[360px]">
