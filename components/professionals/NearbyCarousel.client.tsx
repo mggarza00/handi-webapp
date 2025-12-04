@@ -158,7 +158,7 @@ export default function NearbyCarousel() {
           >
             <Link
               href={`/profiles/${p.id}`}
-              className="relative z-10 block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] text-slate-900/90"
+              className="relative z-10 block h-full w-full overflow-hidden rounded-3xl p-4 md:p-6 isolate bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 before:content-[''] before:absolute before:inset-0 before:rounded-3xl before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] text-slate-900/90"
             >
               <div className="relative z-10">
                 <div className="flex items-center gap-2">
