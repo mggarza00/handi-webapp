@@ -136,7 +136,7 @@ export default function NearbyCarousel() {
   const shown = items.slice(0, visibleCount);
   return (
     <div className="mt-12 rounded-xl mx-[calc(50%-50vw)] w-screen px-[var(--site-gutter)] py-4 md:py-6">
-      <div className="mb-3 text-center">
+      <div className="mb-6 text-center">
         <h3
           className={`${stackSansMedium.className} text-4xl font-semibold tracking-tight text-[#082877]`}
         >
