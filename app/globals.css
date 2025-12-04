@@ -748,3 +748,9 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+/* Espacio de offset al hacer scroll a anclas (debajo del header) */
+section[id],
+#profesionales-cerca-de-ti {
+  scroll-margin-top: 110px;
+}
