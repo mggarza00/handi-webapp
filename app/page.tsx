@@ -74,7 +74,10 @@ const localeSort = (a: string, b: string) =>
 const normalizeMediaUrl = (value: string | null | undefined) => {
   const raw = toCleanString(value);
   if (!raw) return null;
-  const s = raw.replace(/^["']+|["']+$/g, "").replace(/\\/g, "/").trim();
+  const s = raw
+    .replace(/^["']+|["']+$/g, "")
+    .replace(/\\/g, "/")
+    .trim();
   if (!s) return null;
   // paths absolutos locales: recorta hasta /public/ si existe
   const lower = s.toLowerCase();
@@ -84,7 +87,10 @@ const normalizeMediaUrl = (value: string | null | undefined) => {
     return tail.startsWith("/") ? tail : `/${tail}`;
   }
   // Si viene con drive (C:/...) sin /public/, intenta detectar carpeta images/categorias
-  if (/^[a-zA-Z]:\//.test(s) || (s.startsWith("/") && /^[a-zA-Z]:\//.test(s.slice(1)))) {
+  if (
+    /^[a-zA-Z]:\//.test(s) ||
+    (s.startsWith("/") && /^[a-zA-Z]:\//.test(s.slice(1)))
+  ) {
     const imagesIdx = lower.indexOf("/images/");
     const iconsIdx = lower.indexOf("/icons/");
     const idx = imagesIdx >= 0 ? imagesIdx : iconsIdx;
@@ -103,10 +109,17 @@ const normalizeMediaUrl = (value: string | null | undefined) => {
 };
 const isValidImageSrc = (src: string | null) => {
   if (!src) return false;
-  return src.startsWith("/") || src.startsWith("http://") || src.startsWith("https://");
+  return (
+    src.startsWith("/") ||
+    src.startsWith("http://") ||
+    src.startsWith("https://")
+  );
 };
 const buildCatalogLists = (rows: CatalogRow[]): CatalogLists => {
-  const catMeta = new Map<string, { color: string | null; image: string | null }>();
+  const catMeta = new Map<
+    string,
+    { color: string | null; image: string | null }
+  >();
   const subMap = new Map<string, Subcat>();
 
   (rows || []).forEach((row) => {
@@ -118,7 +131,10 @@ const buildCatalogLists = (rows: CatalogRow[]): CatalogLists => {
     const color = toCleanString(row.color) || null;
 
     if (categoryName.length > 0) {
-      const existing = catMeta.get(categoryName) || { color: null, image: null };
+      const existing = catMeta.get(categoryName) || {
+        color: null,
+        image: null,
+      };
       catMeta.set(categoryName, {
         color: existing.color || color || null,
         image: existing.image || image || null,
@@ -143,7 +159,9 @@ const buildCatalogLists = (rows: CatalogRow[]): CatalogLists => {
         image: meta.image,
       }))
       .sort((a, b) => localeSort(a.name, b.name)),
-    subcategories: Array.from(subMap.values()).sort((a, b) => localeSort(a.name, b.name)),
+    subcategories: Array.from(subMap.values()).sort((a, b) =>
+      localeSort(a.name, b.name),
+    ),
   };
 };
 
@@ -195,7 +213,11 @@ export default function Page() {
       const pick = (rec: Record<string, unknown>, keys: string[]) => {
         for (const k of keys) {
           const val = rec?.[k];
-          if (val !== undefined && val !== null && String(val).trim().length > 0) {
+          if (
+            val !== undefined &&
+            val !== null &&
+            String(val).trim().length > 0
+          ) {
             return String(val).trim();
           }
         }
@@ -207,7 +229,15 @@ export default function Page() {
           category: toCleanString(row?.["Categoría"]),
           subcategory: toCleanString(row?.["Subcategoría"]),
           icon: toCleanString(row?.["Emoji"]) || null,
-          iconUrl: pick(row, ["ícono", "icono", "icon", "icon_url", "icono_url", "iconUrl", "Ícono URL"]),
+          iconUrl: pick(row, [
+            "ícono",
+            "icono",
+            "icon",
+            "icon_url",
+            "icono_url",
+            "iconUrl",
+            "Ícono URL",
+          ]),
           image: pick(row, ["imagen", "image"]),
           color: pick(row, ["color"]),
         }));
@@ -293,7 +323,8 @@ export default function Page() {
         for (const ch of Array.from(chars)) {
           const span = document.createElement("span");
           span.textContent = ch === " " ? "\u00A0" : ch;
-          span.className = "hero-split inline-block align-baseline opacity-0 translate-y-6";
+          span.className =
+            "hero-split inline-block align-baseline opacity-0 translate-y-6";
           frag.appendChild(span);
         }
         tn.parentNode?.replaceChild(frag, tn);
@@ -302,7 +333,9 @@ export default function Page() {
       anyRoot.dataset.heroSplitApplied = "1";
 
       const { gsap } = await import("gsap");
-      const chars = Array.from(root.querySelectorAll<HTMLElement>(".hero-split"));
+      const chars = Array.from(
+        root.querySelectorAll<HTMLElement>(".hero-split"),
+      );
       if (!chars.length) return;
       const subtitle = heroSubtitleRef.current;
       if (subtitle) {
@@ -349,7 +382,8 @@ export default function Page() {
       <div className="overflow-hidden">
         <div className="subcat-marquee">
           {loop.map((s, idx) => {
-            const swatch = s.color && s.color.startsWith("#") ? s.color : "#001447";
+            const swatch =
+              s.color && s.color.startsWith("#") ? s.color : "#001447";
             const key = `${s.name}-${idx}`;
             return (
               <Link
@@ -365,11 +399,17 @@ export default function Page() {
                 />
                 {s.iconUrl && isUrl(s.iconUrl) ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={s.iconUrl} alt="" className="h-6 w-6 object-contain" />
+                  <img
+                    src={s.iconUrl}
+                    alt=""
+                    className="h-6 w-6 object-contain"
+                  />
                 ) : s.icon ? (
                   <span className="text-base leading-none">{s.icon}</span>
                 ) : null}
-                <span className="text-sm font-medium text-slate-900">{s.name}</span>
+                <span className="text-sm font-medium text-slate-900">
+                  {s.name}
+                </span>
               </Link>
             );
           })}
@@ -582,7 +622,9 @@ export default function Page() {
               className={`${interLight.className} absolute left-6 top-[220px] w-[260px] text-white text-sm leading-snug text-left opacity-0 drop-shadow-[0_12px_28px_rgba(0,0,0,0.5)] md:left-[96px] md:top-[270px] md:w-[380px] md:text-base`}
               ref={heroSubtitleRef}
             >
-              <span className="block font-semibold">Conecta con profesionales</span>
+              <span className="block font-semibold">
+                Conecta con profesionales
+              </span>
               <span className="block">
                 de <em className="italic">confianza</em> para cualquier
               </span>
@@ -620,30 +662,74 @@ export default function Page() {
             >
               Cómo funciona
             </h2>
-            <p className={`${interLight.className} text-sm md:text-base text-[#082877]`}>
-              Describe lo que necesitas, compara perfiles y contrata con protección de pagos.
+            <p
+              className={`${interLight.className} text-sm md:text-base text-[#082877]`}
+            >
+              Describe lo que necesitas, compara perfiles y contrata con
+              protección de pagos.
             </p>
           </div>
 
           {/* Mobile carousel effect */}
           <div className="md:hidden -mx-4 overflow-x-hidden">
-            <MobileCarousel className="px-0 pt-6" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+            <MobileCarousel
+              className="px-0 pt-6"
+              gap={16}
+              padding={16}
+              autoplay
+              autoplayDelay={4000}
+              loop
+              pauseOnHover
+            >
               <StepCard
                 step="1"
-                title={<span className={`${interBold.className} font-bold text-[#082877]`}>Crea tu solicitud de servicio</span>}
-                desc={<span className={`${interLight.className} text-[#082877]`}>Describe el servicio que necesitas, presupuesto, lugar y fecha.</span>}
+                title={
+                  <span
+                    className={`${interBold.className} font-bold text-[#082877]`}
+                  >
+                    Crea tu solicitud de servicio
+                  </span>
+                }
+                desc={
+                  <span className={`${interLight.className} text-[#082877]`}>
+                    Describe el servicio que necesitas, presupuesto, lugar y
+                    fecha.
+                  </span>
+                }
                 rightImageSrc="/images/nueva-solicitud-mockup-short.png"
               />
               <StepCard
                 step="2"
-                title={<span className={`${interBold.className} font-bold text-[#082877]`}>Compara profesionales</span>}
-                desc={<span className={`${interLight.className} text-[#082877]`}>Revisa perfiles de profesionales disponibles dentro de tu solicitud.</span>}
+                title={
+                  <span
+                    className={`${interBold.className} font-bold text-[#082877]`}
+                  >
+                    Compara profesionales
+                  </span>
+                }
+                desc={
+                  <span className={`${interLight.className} text-[#082877]`}>
+                    Revisa perfiles de profesionales disponibles dentro de tu
+                    solicitud.
+                  </span>
+                }
                 rightImageSrc="/images/profesionals-list-mockup-short.png"
               />
               <StepCard
                 step="3"
-                title={<span className={`${interBold.className} font-bold text-[#082877]`}>Contrata con confianza</span>}
-                desc={<span className={`${interLight.className} text-[#082877]`}>Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat.</span>}
+                title={
+                  <span
+                    className={`${interBold.className} font-bold text-[#082877]`}
+                  >
+                    Contrata con confianza
+                  </span>
+                }
+                desc={
+                  <span className={`${interLight.className} text-[#082877]`}>
+                    Chatea con los profesionales dentro de la app, pide
+                    cotizaciones y contrata a traves del chat.
+                  </span>
+                }
                 rightImageSrc="/images/chat-mockup-short.png"
               />
             </MobileCarousel>
@@ -653,20 +739,53 @@ export default function Page() {
           <div className="hidden md:grid grid-cols-1 gap-6 md:grid-cols-3">
             <StepCard
               step="1"
-              title={<span className={`${interBold.className} font-bold text-[#082877]`}>Crea tu solicitud de servicio</span>}
-              desc={<span className={`${interLight.className} text-[#082877]`}>Describe el servicio que necesitas, presupuesto, lugar y fecha.</span>}
+              title={
+                <span
+                  className={`${interBold.className} font-bold text-[#082877]`}
+                >
+                  Crea tu solicitud de servicio
+                </span>
+              }
+              desc={
+                <span className={`${interLight.className} text-[#082877]`}>
+                  Describe el servicio que necesitas, presupuesto, lugar y
+                  fecha.
+                </span>
+              }
               rightImageSrc="/images/nueva-solicitud-mockup-short.png"
             />
             <StepCard
               step="2"
-              title={<span className={`${interBold.className} font-bold text-[#082877]`}>Compara profesionales</span>}
-              desc={<span className={`${interLight.className} text-[#082877]`}>Revisa perfiles de profesionales disponibles dentro de tu solicitud.</span>}
+              title={
+                <span
+                  className={`${interBold.className} font-bold text-[#082877]`}
+                >
+                  Compara profesionales
+                </span>
+              }
+              desc={
+                <span className={`${interLight.className} text-[#082877]`}>
+                  Revisa perfiles de profesionales disponibles dentro de tu
+                  solicitud.
+                </span>
+              }
               rightImageSrc="/images/profesionals-list-mockup-short.png"
             />
             <StepCard
               step="3"
-              title={<span className={`${interBold.className} font-bold text-[#082877]`}>Contrata con confianza</span>}
-              desc={<span className={`${interLight.className} text-[#082877]`}>Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat.</span>}
+              title={
+                <span
+                  className={`${interBold.className} font-bold text-[#082877]`}
+                >
+                  Contrata con confianza
+                </span>
+              }
+              desc={
+                <span className={`${interLight.className} text-[#082877]`}>
+                  Chatea con los profesionales dentro de la app, pide
+                  cotizaciones y contrata a traves del chat.
+                </span>
+              }
               rightImageSrc="/images/chat-mockup-short.png"
             />
           </div>
@@ -674,45 +793,59 @@ export default function Page() {
       </section>
 
       {/* Categorías y subcategorías */}
-      <section className="border-b border-slate-200 bg-white" id="servicios-populares">
+      <section
+        className="border-b border-slate-200 bg-white"
+        id="servicios-populares"
+      >
         <div className="mx-auto max-w-5xl px-4 py-12 space-y-10">
           <div className="space-y-2">
-            <h2 className={`${stackSansMedium.className} text-4xl font-semibold tracking-tight text-[#082877]`}>
+            <h2
+              className={`${stackSansMedium.className} text-4xl font-semibold tracking-tight text-[#082877]`}
+            >
               Servicios populares
             </h2>
-            <p className="text-sm text-slate-600">Explora las categorías más contratadas por nuestros clientes.</p>
+            <p className="text-sm text-slate-600">
+              Explora las categorías más contratadas por nuestros clientes.
+            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
-            {(topCategoryCards.length > 0 ? topCategoryCards : categoryCards).slice(0, 9).map((cat) => {
-              const bg = cat.color && cat.color.startsWith("#") ? cat.color : "#012A31";
-              return (
-                <Link
-                  key={`cat-card-${cat.name}`}
-                  href={`/search?category=${encodeURIComponent(cat.name)}`}
-                  className="relative overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
-                  style={{ backgroundColor: bg }}
-                  aria-label={`Buscar profesionales de ${cat.name}`}
-                >
-                  <div className="flex h-40 flex-col justify-between p-4 text-white">
-                    <p className={`text-sm font-medium leading-snug ${stackSansMedium.className}`}>
-                      {cat.name}
-                    </p>
-                    {isValidImageSrc(cat.image) && (
-                      <div className="relative mt-3 h-20 w-full overflow-hidden rounded-xl bg-black/10">
-                        <Image
-                          src={cat.image as string}
-                          alt={`Trabajo de ${cat.name}`}
-                          fill
-                          className="object-cover"
-                          sizes="(min-width: 1024px) 220px, 50vw"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
+            {(topCategoryCards.length > 0 ? topCategoryCards : categoryCards)
+              .slice(0, 9)
+              .map((cat) => {
+                const bg =
+                  cat.color && cat.color.startsWith("#")
+                    ? cat.color
+                    : "#012A31";
+                return (
+                  <Link
+                    key={`cat-card-${cat.name}`}
+                    href={`/search?category=${encodeURIComponent(cat.name)}`}
+                    className="relative overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+                    style={{ backgroundColor: bg }}
+                    aria-label={`Buscar profesionales de ${cat.name}`}
+                  >
+                    <div className="flex h-40 flex-col justify-between p-4 text-white">
+                      <p
+                        className={`text-sm font-medium leading-snug ${stackSansMedium.className}`}
+                      >
+                        {cat.name}
+                      </p>
+                      {isValidImageSrc(cat.image) && (
+                        <div className="relative mt-3 h-20 w-full overflow-hidden rounded-xl bg-black/10">
+                          <Image
+                            src={cat.image as string}
+                            alt={`Trabajo de ${cat.name}`}
+                            fill
+                            className="object-cover"
+                            sizes="(min-width: 1024px) 220px, 50vw"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             <Link
               href="/categorias"
               className="flex h-40 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-center text-sm font-medium text-slate-800 hover:bg-slate-100"
@@ -726,15 +859,22 @@ export default function Page() {
 
           {subcategories.length > 0 ? (
             <div className="space-y-3">
-              <p className={`${stackSansMedium.className} text-2xl font-semibold tracking-tight text-[#082877]`}>
+              <p
+                className={`${stackSansMedium.className} text-2xl font-semibold tracking-tight text-[#082877]`}
+              >
                 Subcategorías
               </p>
-              <div className="marquee" style={{ ["--marquee-duration" as any]: MARQUEE_DURATION }}>
+              <div
+                className="marquee"
+                style={{ ["--marquee-duration" as any]: MARQUEE_DURATION }}
+              >
                 <div className="marquee__inner">
                   <div className="marquee__group overflow-visible relative">
                     {subcategories.map((s) => {
                       const emoji = s.icon?.trim() || null;
-                      const iconSrc = !emoji ? normalizeMediaUrl(s.iconUrl || null) : null;
+                      const iconSrc = !emoji
+                        ? normalizeMediaUrl(s.iconUrl || null)
+                        : null;
                       return (
                         <Link
                           key={`subcat-a-${s.name}`}
@@ -743,22 +883,35 @@ export default function Page() {
                         >
                           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
                             {emoji ? (
-                              <span className="text-xl leading-none">{emoji}</span>
+                              <span className="text-xl leading-none">
+                                {emoji}
+                              </span>
                             ) : iconSrc ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={iconSrc} alt="" className="h-6 w-6 object-contain" />
+                              <img
+                                src={iconSrc}
+                                alt=""
+                                className="h-6 w-6 object-contain"
+                              />
                             ) : null}
                           </div>
-                          <span className="text-center text-sm font-medium text-slate-800">{s.name}</span>
+                          <span className="text-center text-sm font-medium leading-snug text-slate-800 break-words whitespace-normal">
+                            {s.name}
+                          </span>
                         </Link>
                       );
                     })}
                   </div>
                   {/* Duplicado para bucle continuo */}
-                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
+                  <div
+                    className="marquee__group overflow-visible relative"
+                    aria-hidden="true"
+                  >
                     {subcategories.map((s) => {
                       const emoji = s.icon?.trim() || null;
-                      const iconSrc = !emoji ? normalizeMediaUrl(s.iconUrl || null) : null;
+                      const iconSrc = !emoji
+                        ? normalizeMediaUrl(s.iconUrl || null)
+                        : null;
                       return (
                         <Link
                           key={`subcat-b-${s.name}`}
@@ -767,13 +920,21 @@ export default function Page() {
                         >
                           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
                             {emoji ? (
-                              <span className="text-xl leading-none">{emoji}</span>
+                              <span className="text-xl leading-none">
+                                {emoji}
+                              </span>
                             ) : iconSrc ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={iconSrc} alt="" className="h-6 w-6 object-contain" />
+                              <img
+                                src={iconSrc}
+                                alt=""
+                                className="h-6 w-6 object-contain"
+                              />
                             ) : null}
                           </div>
-                          <span className="text-center text-sm font-medium text-slate-800">{s.name}</span>
+                          <span className="text-center text-sm font-medium leading-snug text-slate-800 break-words whitespace-normal">
+                            {s.name}
+                          </span>
                         </Link>
                       );
                     })}
@@ -784,9 +945,7 @@ export default function Page() {
           ) : null}
 
           <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600">
-          
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"></p>
             <NearbyCarousel />
           </div>
         </div>
@@ -797,7 +956,15 @@ export default function Page() {
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
           {/* Mobile carousel for features */}
           <div className="md:hidden -mx-4 overflow-x-hidden">
-            <MobileCarousel className="px-0" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+            <MobileCarousel
+              className="px-0"
+              gap={16}
+              padding={16}
+              autoplay
+              autoplayDelay={4000}
+              loop
+              pauseOnHover
+            >
               <FeatureCard
                 icon={<PinIcon className="h-5 w-5" />}
                 title="Encuentra cerca de ti"
@@ -848,14 +1015,25 @@ export default function Page() {
               <div className="flex flex-col justify-between gap-6 bg-[#114430] p-6 text-white sm:p-8">
                 <div className="space-y-5">
                   <span className="inline-flex items-center gap-2 rounded-full bg-[#A6D234] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#114430]">
-                    <Image src="/icons/candado.png" alt="Candado" width={20} height={20} className="h-5 w-5" />
+                    <Image
+                      src="/icons/candado.png"
+                      alt="Candado"
+                      width={20}
+                      height={20}
+                      className="h-5 w-5"
+                    />
                     Pagos 100% protegidos
                   </span>
-                  <h3 className={`${stackSansMedium.className} text-3xl leading-tight text-white sm:text-4xl`}>
+                  <h3
+                    className={`${stackSansMedium.className} text-3xl leading-tight text-white sm:text-4xl`}
+                  >
                     Pagos 100% protegidos
                   </h3>
-                  <p className={`${stackSansLight.className} text-base text-white/90 sm:text-lg`}>
-                    Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                  <p
+                    className={`${stackSansLight.className} text-base text-white/90 sm:text-lg`}
+                  >
+                    Los pagos de los servicios se liberan a los profesionales
+                    hasta que confirmes que el trabajo se realizó con éxito.
                   </p>
                 </div>
                 <Link
@@ -897,7 +1075,6 @@ export default function Page() {
           </div>
         </div>
       </section>
-
     </main>
   );
 }
