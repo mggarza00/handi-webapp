@@ -744,3 +744,7 @@ body {
 }
 
 /* (Conservar) Fallback de tokens cuando no hay OKLCH: ya definido arriba para :root/.dark */
+
+html {
+  scroll-behavior: smooth;
+}
