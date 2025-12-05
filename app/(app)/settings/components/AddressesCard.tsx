@@ -11,6 +11,7 @@ type Row = {
   label: string | null;
   times_used: number;
   last_used_at: string;
+  readOnly?: boolean;
 };
 
 export default async function AddressesCard() {
@@ -20,13 +21,44 @@ export default async function AddressesCard() {
   if (!userId) return null;
 
   // Read last 20 saved addresses for the user
-  const { data } = await supabase
-    .from("user_addresses")
-    .select("id,address,city,postal_code,label,times_used,last_used_at")
-    .eq("profile_id", userId)
-    .order("last_used_at", { ascending: false })
-    .limit(20);
-  const rows: Row[] = Array.isArray(data) ? (data as Row[]) : [];
+  const [{ data: legacy }, { data: saved }] = await Promise.all([
+    supabase
+      .from("user_addresses")
+      .select("id,address,city,postal_code,label,times_used,last_used_at")
+      .eq("profile_id", userId)
+      .order("last_used_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("user_saved_addresses")
+      .select("id,address_line,label,last_used_at,times_used")
+      .eq("user_id", userId)
+      .order("last_used_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const legacyRows: Row[] = Array.isArray(legacy) ? (legacy as Row[]) : [];
+  const savedRows: Row[] = Array.isArray(saved)
+    ? (saved as Array<{
+        id: string;
+        address_line: string;
+        label: string | null;
+        last_used_at: string | null;
+        times_used: number | null;
+      }>)
+        .filter(Boolean)
+        .map((r) => ({
+          id: r.id,
+          address: r.address_line,
+          city: null,
+          postal_code: null,
+          label: r.label,
+          times_used: r.times_used ?? 0,
+          last_used_at: r.last_used_at ?? "",
+          readOnly: true,
+        }))
+    : [];
+
+  const rows: Row[] = [...savedRows, ...legacyRows];
 
   return (
     <Card className="rounded-2xl">

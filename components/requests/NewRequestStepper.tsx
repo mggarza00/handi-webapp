@@ -37,9 +37,15 @@ export type NewRequestStepperProps = {
   className?: string;
   onSuccess?: (newId?: string) => void;
   showStatus?: boolean;
+  initialAddress?: {
+    address: string;
+    lat?: number | null;
+    lon?: number | null;
+    city?: string | null;
+  };
 };
 
-export default function NewRequestStepper({ className, onSuccess, showStatus = true }: NewRequestStepperProps) {
+export default function NewRequestStepper({ className, onSuccess, showStatus = true, initialAddress }: NewRequestStepperProps) {
   const router = useRouter();
   const {
     state,
@@ -87,6 +93,21 @@ export default function NewRequestStepper({ className, onSuccess, showStatus = t
   const categoryTriggerClass = cn(errors?.category && errorFieldClass, isAutoCategorizing && "opacity-60");
   const subcategoryDisabled = isAutoCategorizing || !category || (catMap[category]?.length ?? 0) === 0;
   const subcategoryTriggerClass = cn(errors?.subcategory && errorFieldClass, isAutoCategorizing && "opacity-60");
+  const initialAddressAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialAddress || initialAddressAppliedRef.current) return;
+    const addrLine = (initialAddress.address || "").toString().trim();
+    if (!addrLine) return;
+    initialAddressAppliedRef.current = true;
+    setAddress(addrLine);
+    pickAddress({
+      address: addrLine,
+      city: initialAddress.city ?? null,
+      lat: initialAddress.lat ?? null,
+      lon: initialAddress.lon ?? null,
+    });
+  }, [initialAddress, pickAddress, setAddress]);
 
   useEffect(() => {
     if (!needsErrorFocus) return;

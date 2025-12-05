@@ -404,7 +404,12 @@ export default function HeaderMenu() {
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
       <summary
-        className={`${buttonVariants({ variant: "outline", size: "icon" })} list-none cursor-pointer relative`}
+        className={buttonVariants({
+          variant: "ghost",
+          size: "icon",
+          className:
+            "list-none cursor-pointer relative flex h-10 w-10 items-center justify-center rounded-full bg-black/20 px-3 py-2 text-white shadow-sm backdrop-blur transition hover:bg-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/70",
+        })}
         aria-label="Abrir menú"
       >
         <Menu className="h-5 w-5" />

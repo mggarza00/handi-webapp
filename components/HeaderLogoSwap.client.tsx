@@ -20,7 +20,7 @@ export default function HeaderLogoSwap({
   const [overHero, setOverHero] = useState(true);
 
   useEffect(() => {
-    const hero = document.getElementById("hero");
+    const hero = document.getElementById("hero-client") ?? document.getElementById("hero");
     if (!hero) return;
 
     const observer = new IntersectionObserver(

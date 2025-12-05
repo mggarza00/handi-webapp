@@ -73,20 +73,20 @@
 
 :root {
   --radius: 0.625rem;
-  --background: #f9e7d2;
+  --background: #ffffff;
   --foreground: #191919;
-  --card: #f9e7d2;
+  --card: #e8e8e8;
   --card-foreground: #191919;
-  --popover: #f9e7d2;
+  --popover: #ffffff;
   --popover-foreground: #191919;
   --primary: #082877;
-  --primary-foreground: #f9e7d2;
+  --primary-foreground: #ffffff;
   --secondary: #5a9cf4;
   --secondary-foreground: #001447;
-  --muted: #f9e7d2;
+  --muted: #e8e8e8;
   --muted-foreground: #001447;
-  --accent: #b8025d;
-  --accent-foreground: #f9e7d2;
+  --accent: #001447;
+  --accent-foreground: #e8e8e8;
   --destructive: #fc5c03;
   --border: #001447;
   --input: #001447;

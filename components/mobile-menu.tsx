@@ -78,11 +78,11 @@ function OpenButton({ hasBadge }: { hasBadge?: boolean }) {
   const { setOpen } = useSidebar();
   return (
     <Button
-      variant="outline"
+      variant="ghost"
       size="icon"
       aria-label="Abrir menú"
       onClick={() => setOpen(true)}
-      className="relative"
+      className="relative rounded-full bg-black/20 px-3 py-2 text-white shadow-sm backdrop-blur transition hover:bg-black/30 focus-visible:ring-2 focus-visible:ring-white/70"
     >
       <Menu className="h-5 w-5" />
       {hasBadge ? (

@@ -10,9 +10,14 @@ export type NewRequestStepperModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (newId?: string) => void;
+  initialAddress?: {
+    address: string;
+    lat?: number | null;
+    lon?: number | null;
+  };
 };
 
-export default function NewRequestStepperModal({ open, onOpenChange, onSuccess }: NewRequestStepperModalProps) {
+export default function NewRequestStepperModal({ open, onOpenChange, onSuccess, initialAddress }: NewRequestStepperModalProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -76,6 +81,7 @@ export default function NewRequestStepperModal({ open, onOpenChange, onSuccess }
         >
           <NewRequestStepper
             showStatus={false}
+            initialAddress={initialAddress}
             onSuccess={(newId) => {
               onSuccess?.(newId);
               onOpenChange(false);

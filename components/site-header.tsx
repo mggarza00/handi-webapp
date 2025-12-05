@@ -446,29 +446,22 @@ export default async function SiteHeader() {
 
         {/* Botones centrados (cliente y profesional) - desktop */}
         {role === "client" ? (
-          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
-            {/* Orden: Mis solicitudes (izq), Nueva Solicitud (der) */}
-            {rightLinks
-              .filter(
-                (l) =>
-                  l.label === "Mis solicitudes" ||
-                  l.label === "Nueva solicitud",
-              )
-              .sort((a, _b) => (a.label === "Mis solicitudes" ? -1 : 1))
-              .map((l) => (
-                <Button
-                  key={l.href}
-                  asChild
-                  size={l.size ?? "sm"}
-                  variant={l.variant ?? "outline"}
-                  className={[l.className, "w-[12.32rem] justify-center hover:bg-neutral-200"]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
+          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
+            <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
+              {/* Orden: Mis solicitudes (izq), Nueva Solicitud (der) */}
+              {rightLinks
+                .filter(
+                  (l) =>
+                    l.label === "Mis solicitudes" ||
+                    l.label === "Nueva solicitud",
+                )
+                .sort((a, _b) => (a.label === "Mis solicitudes" ? -1 : 1))
+                .map((l) => (
                   <Link
+                    key={l.href}
                     href={l.href}
                     data-testid={l.testId}
-                    className={`inline-flex items-center gap-2 whitespace-nowrap ${l.label === "Nueva solicitud" ? "pl-1" : ""}`}
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555] whitespace-nowrap ${l.label === "Nueva solicitud" ? "pl-1" : ""}`}
                   >
                     {l.label === "Mis solicitudes" ? (
                       <Image
@@ -489,8 +482,8 @@ export default async function SiteHeader() {
                     ) : null}
                     <span>{l.label}</span>
                   </Link>
-                </Button>
-              ))}
+                ))}
+            </div>
           </div>
         ) : null}
 

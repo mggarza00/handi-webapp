@@ -15,6 +15,7 @@ type Row = {
   lon?: number | null;
   times_used: number;
   last_used_at: string;
+  readOnly?: boolean;
 };
 
 function fmtDate(iso: string | null | undefined) {
@@ -35,6 +36,8 @@ export default function AddressesList({ initialItems }: { initialItems: Row[] })
   const [busy, setBusy] = useState<string | null>(null);
 
   async function handleDelete(id: string) {
+    const item = items.find((x) => x.id === id);
+    if (item?.readOnly) return;
     if (!confirm("¿Eliminar esta dirección?")) return;
     setBusy(id);
     try {
@@ -49,6 +52,7 @@ export default function AddressesList({ initialItems }: { initialItems: Row[] })
   }
 
   function startEdit(r: Row) {
+    if (r.readOnly) return;
     setEditingId(r.id);
     setForm({ id: r.id, address: r.address, city: r.city ?? '', postal_code: r.postal_code ?? '', label: r.label ?? '' });
   }
@@ -56,6 +60,12 @@ export default function AddressesList({ initialItems }: { initialItems: Row[] })
   async function saveEdit() {
     const id = editingId;
     if (!id) return;
+    const item = items.find((x) => x.id === id);
+    if (item?.readOnly) {
+      setEditingId(null);
+      setForm({});
+      return;
+    }
     setBusy(id);
     try {
       const payload: Record<string, unknown> = {};
@@ -121,12 +131,18 @@ export default function AddressesList({ initialItems }: { initialItems: Row[] })
                 {r.city ? <span>{r.city}</span> : null}
                 {r.postal_code ? <span>{r.city ? " · " : ""}{r.postal_code}</span> : null}
                 {r.label ? <span>{(r.city || r.postal_code) ? " · " : ""}{r.label}</span> : null}
+                {r.readOnly ? <span>{(r.city || r.postal_code || r.label) ? " · " : ""}Guardada automáticamente</span> : null}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">Usada {r.times_used} vez{r.times_used === 1 ? '' : 'es'} · {fmtDate(r.last_used_at)}</div>
-              <div className="mt-2 flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => startEdit(r)} disabled={busy === r.id}>Editar</Button>
-                <Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)} disabled={busy === r.id}>Eliminar</Button>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {fmtDate(r.last_used_at)}
+                {r.times_used > 0 ? ` · Usada ${r.times_used} vez${r.times_used === 1 ? '' : 'es'}` : ""}
               </div>
+              {r.readOnly ? null : (
+                <div className="mt-2 flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => startEdit(r)} disabled={busy === r.id}>Editar</Button>
+                  <Button size="sm" variant="destructive" onClick={() => handleDelete(r.id)} disabled={busy === r.id}>Eliminar</Button>
+                </div>
+              )}
             </div>
           )}
         </div>
