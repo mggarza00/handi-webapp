@@ -188,11 +188,11 @@ export default function Page({
   savedAddresses = [],
 }: LandingPageProps) {
   const isClientVariant = variant === "client";
-  const displayName =
-    (incomingName || "").toString().trim() ||
-    "Cliente";
-  const resolvedGreeting = (greetingText || "").trim() || `Bienvenido(a) ${displayName}`;
-  const [greetingFirstWord, ...greetingRestParts] = resolvedGreeting.split(/\s+/);
+  const displayName = (incomingName || "").toString().trim() || "Cliente";
+  const resolvedGreeting =
+    (greetingText || "").trim() || `Bienvenido(a) ${displayName}`;
+  const [greetingFirstWord, ...greetingRestParts] =
+    resolvedGreeting.split(/\s+/);
   const greetingRest = greetingRestParts.join(" ") || displayName;
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
   const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
@@ -202,6 +202,7 @@ export default function Page({
     LandingPageProps["savedAddresses"][number] | null
   >(savedAddresses?.[0] ?? null);
   const heroTitleRef = useRef<HTMLDivElement | null>(null);
+  const heroClientTitleRef = useRef<HTMLParagraphElement | null>(null);
   const heroSubtitleRef = useRef<HTMLParagraphElement | null>(null);
 
   // Rotating text and prefix slide removed
@@ -336,56 +337,68 @@ export default function Page({
   // Efecto de aparición por caracteres en el título del hero (similar a "Bienvenido a Handi")
   useEffect(() => {
     const run = async () => {
-      if (!heroTitleRef.current) return;
-      const root = heroTitleRef.current;
-      const anyRoot = root as HTMLElement & { dataset: Record<string, string> };
-      if (anyRoot.dataset?.heroSplitApplied) return;
-
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-        acceptNode: (node) =>
-          node.textContent && node.textContent.trim().length > 0
-            ? NodeFilter.FILTER_ACCEPT
-            : NodeFilter.FILTER_REJECT,
-      });
-
-      const textNodes: Text[] = [];
-      while (walker.nextNode()) {
-        textNodes.push(walker.currentNode as Text);
-      }
-
-      textNodes.forEach((tn) => {
-        const frag = document.createDocumentFragment();
-        const chars = tn.textContent || "";
-        for (const ch of Array.from(chars)) {
-          const span = document.createElement("span");
-          span.textContent = ch === " " ? "\u00A0" : ch;
-          span.className =
-            "hero-split inline-block align-baseline opacity-0 translate-y-6";
-          frag.appendChild(span);
+      const applySplit = (root: HTMLElement | null): HTMLElement[] => {
+        if (!root) return [];
+        const anyRoot = root as HTMLElement & {
+          dataset?: Record<string, string>;
+        };
+        if (anyRoot.dataset?.heroSplitApplied) {
+          return Array.from(root.querySelectorAll<HTMLElement>(".hero-split"));
         }
-        tn.parentNode?.replaceChild(frag, tn);
-      });
 
-      anyRoot.dataset.heroSplitApplied = "1";
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) =>
+            node.textContent && node.textContent.trim().length > 0
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_REJECT,
+        });
+
+        const textNodes: Text[] = [];
+        while (walker.nextNode()) {
+          textNodes.push(walker.currentNode as Text);
+        }
+
+        textNodes.forEach((tn) => {
+          const frag = document.createDocumentFragment();
+          const chars = tn.textContent || "";
+          for (const ch of Array.from(chars)) {
+            const span = document.createElement("span");
+            span.textContent = ch === " " ? "\u00A0" : ch;
+            span.className =
+              "hero-split inline-block align-baseline opacity-0 translate-y-6";
+            frag.appendChild(span);
+          }
+          tn.parentNode?.replaceChild(frag, tn);
+        });
+
+        if (anyRoot.dataset) {
+          anyRoot.dataset.heroSplitApplied = "1";
+        }
+
+        return Array.from(root.querySelectorAll<HTMLElement>(".hero-split"));
+      };
+
+      const titleChars = applySplit(heroTitleRef.current);
+      const clientChars = applySplit(heroClientTitleRef.current);
+
+      const allChars = [...titleChars, ...clientChars];
+      if (!allChars.length) return;
 
       const { gsap } = await import("gsap");
-      const chars = Array.from(
-        root.querySelectorAll<HTMLElement>(".hero-split"),
-      );
-      if (!chars.length) return;
+
       const subtitle = heroSubtitleRef.current;
       if (subtitle) {
         gsap.set(subtitle, { opacity: 0 });
       }
       const tl = gsap.timeline();
-      tl.to(chars, {
+      tl.to(allChars, {
         opacity: 1,
         y: 0,
         ease: "power3.out",
         duration: 0.6,
         stagger: 0.05,
       });
-      if (subtitle) {
+      if (subtitle && titleChars.length) {
         tl.to(
           subtitle,
           {
@@ -422,19 +435,31 @@ export default function Page({
 
         {!withImage ? (
           <div className="flex flex-col gap-2">
-            <h3 className="mb-2 font-semibold text-slate-900 line-clamp-2 text-balance">
+            <h3
+              className={`${stackSansMedium.className} mb-2.5 text-lg leading-snug text-[#001447] line-clamp-2 text-balance`}
+            >
               {title}
             </h3>
-            <p className="text-sm text-slate-600 line-clamp-4">{desc}</p>
+            <p
+              className={`${stackSansLight.className} text-xs leading-snug text-slate-600 line-clamp-6`}
+            >
+              {desc}
+            </p>
           </div>
         ) : (
           <div className="relative min-h-[196px] md:grid md:grid-cols-[minmax(0,0.58fr)_minmax(0,0.42fr)] md:items-stretch">
             {/* Texto a la izquierda */}
             <div className="min-w-0 pr-40 md:pr-0">
-              <h3 className="mb-2 font-semibold text-slate-900 line-clamp-2 text-balance">
+              <h3
+                className={`${stackSansMedium.className} mb-2.5 text-lg leading-snug text-[#001447] line-clamp-2 text-balance`}
+              >
                 {title}
               </h3>
-              <p className="text-sm text-slate-600 line-clamp-4">{desc}</p>
+              <p
+                className={`${stackSansLight.className} text-xs leading-snug text-slate-600 line-clamp-6`}
+              >
+                {desc}
+              </p>
             </div>
 
             {/* Mockup en móvil: abajo a la derecha, alineado al fondo (ligeramente más a la derecha) */}
@@ -482,10 +507,7 @@ export default function Page({
   }
 
   const heroGuest = (
-    <section
-      id="hero"
-      className="relative isolate overflow-hidden bg-slate-50"
-    >
+    <section id="hero" className="relative isolate overflow-hidden bg-slate-50">
       <div className="relative w-full">
         <div className="relative aspect-[16/9] w-full md:aspect-[21/9] lg:h-[620px] min-h-[600px]">
           <Image
@@ -579,6 +601,7 @@ export default function Page({
                 <div className="flex flex-col gap-6">
                   <p
                     className={`${stackSansMedium.className} max-w-2xl text-white`}
+                    ref={heroClientTitleRef}
                     style={{
                       fontFamily:
                         '"Stack Sans Text", system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -729,9 +752,7 @@ export default function Page({
             .slice(0, 9)
             .map((cat) => {
               const bg =
-                cat.color && cat.color.startsWith("#")
-                  ? cat.color
-                  : "#012A31";
+                cat.color && cat.color.startsWith("#") ? cat.color : "#012A31";
               return (
                 <Link
                   key={`cat-card-${cat.name}`}
@@ -782,10 +803,12 @@ export default function Page({
             <div className="mx-[calc(50%-50vw)] w-screen px-4 md:px-6">
               <div
                 className="marquee overflow-x-hidden overflow-y-visible pb-2"
-                style={{
-                  ["--marquee-duration" as string]: MARQUEE_DURATION,
-                  overflowY: "visible",
-                } as React.CSSProperties}
+                style={
+                  {
+                    ["--marquee-duration" as string]: MARQUEE_DURATION,
+                    overflowY: "visible",
+                  } as React.CSSProperties
+                }
               >
                 <div className="marquee__inner">
                   <div className="marquee__group overflow-visible relative">
@@ -887,24 +910,24 @@ export default function Page({
               />
             </div>
             <div className="flex flex-col justify-between gap-6 bg-[#114430] p-6 text-white sm:p-8">
-              <div className="space-y-5">
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#A6D234] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#114430]">
+              <div className="space-y-5 relative top-6 sm:top-8">
+                <div className="flex items-start gap-3">
                   <Image
-                    src="/icons/candado.png"
+                    src="/icons/candado_lima.svg"
                     alt="Candado"
-                    width={20}
-                    height={20}
-                    className="h-5 w-5"
+                    width={80}
+                    height={80}
+                    className="h-[4rem] w-[4rem] sm:h-[4.5rem] sm:w-[4.5rem] flex-shrink-0"
                   />
-                  Pagos 100% protegidos
-                </span>
-                <h3
-                  className={`${stackSansMedium.className} text-3xl leading-tight text-white sm:text-4xl`}
-                >
-                  Pagos 100% protegidos
-                </h3>
+                  <h3
+                    className={`${stackSansMedium.className} text-2xl leading-tight text-white sm:text-3xl`}
+                  >
+                    <span className="block">Pagos 100%</span>
+                    <span className="block">protegidos</span>
+                  </h3>
+                </div>
                 <p
-                  className={`${stackSansLight.className} text-base text-white/90 sm:text-lg`}
+                  className={`${stackSansLight.className} text-sm text-white/90 sm:text-base`}
                 >
                   Los pagos de los servicios se liberan a los profesionales
                   hasta que confirmes que el trabajo se realizó con éxito.

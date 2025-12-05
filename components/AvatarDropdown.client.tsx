@@ -63,7 +63,10 @@ export default function AvatarDropdown({
       // ignore
     }
   };
-  const setupLabel = role === "pro" || isClientPro ? "Configura tu perfil de profesional" : "Configura tu perfil";
+  const setupLabel =
+    role === "pro" || isClientPro
+      ? "Configura tu perfil de profesional"
+      : "Configura tu perfil";
   return (
     <details ref={detailsRef} className="group relative">
       <summary
@@ -71,35 +74,51 @@ export default function AvatarDropdown({
         data-testid="avatar"
       >
         <Avatar className="h-8 w-8">
-          {avatarSrc ? <AvatarImage src={avatarSrc} alt={fullName ?? "Usuario"} /> : null}
+          {avatarSrc ? (
+            <AvatarImage src={avatarSrc} alt={fullName ?? "Usuario"} />
+          ) : null}
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
       </summary>
       <div
-        className="absolute right-0 mt-2 w-56 rounded-md border bg-white shadow-md p-1 z-50
+        className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-black/30 text-white shadow-lg backdrop-blur-xl p-1 z-50
                    transition duration-150 ease-out
                    opacity-0 -translate-y-1 pointer-events-none
                    group-open:opacity-100 group-open:translate-y-0 group-open:pointer-events-auto"
       >
-        <div className="px-2 py-1.5 text-sm font-semibold">{fullName ?? "Cuenta"}</div>
+        <div className="px-2 py-1.5 text-sm font-semibold text-white">
+          {fullName ?? "Cuenta"}
+        </div>
         {/* Tipo de usuario y switch */}
         <UserTypeInfo currentRole={role} onAction={closeDropdown} />
-        <div className="my-1 h-px bg-neutral-200" />
-        <Link href="/me" onClick={closeDropdown} className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
+        <div className="my-1 h-px bg-white/20" />
+        <Link
+          href="/me"
+          onClick={closeDropdown}
+          className="block rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
+        >
           Mi perfil
         </Link>
-        <Link href="/profile/setup" onClick={closeDropdown} className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
+        <Link
+          href="/profile/setup"
+          onClick={closeDropdown}
+          className="block rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
+        >
           {setupLabel}
         </Link>
-        <Link href="/settings" onClick={closeDropdown} className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100">
+        <Link
+          href="/settings"
+          onClick={closeDropdown}
+          className="block rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
+        >
           Configuración
         </Link>
-        <div className="my-1 h-px bg-neutral-200" />
+        <div className="my-1 h-px bg-white/20" />
         <form action="/auth/sign-out" method="post">
           <button
             type="submit"
             onClick={closeDropdown}
-            className="w-full text-left block rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
+            className="w-full text-left block rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
           >
             Salir
           </button>

@@ -52,13 +52,17 @@ export default function UserTypeInfo({
     activeRole === "pro"
       ? "profesional"
       : activeRole === "client"
-      ? "cliente"
-      : activeRole === "admin"
-      ? "admin"
-      : "—";
+        ? "cliente"
+        : activeRole === "admin"
+          ? "admin"
+          : "—";
 
   async function onSwitch() {
-    try { onAction?.(); } catch { /* ignore */ }
+    try {
+      onAction?.();
+    } catch {
+      /* ignore */
+    }
     if (!other) {
       toast.error("No hay un tipo alternativo disponible");
       return;
@@ -73,21 +77,20 @@ export default function UserTypeInfo({
       });
       const j = await res.json().catch(() => null);
       if (!res.ok) throw new Error(j?.detail || j?.error || "switch_failed");
-      const nextRole = (
+      const nextRole =
         switchedTo === "profesional"
           ? "pro"
           : switchedTo === "cliente"
-          ? "client"
-          : ((j?.data?.role ?? null) as "client" | "pro" | "admin" | null)
-      );
+            ? "client"
+            : ((j?.data?.role ?? null) as "client" | "pro" | "admin" | null);
       if (nextRole) {
         setActiveRole(nextRole);
         setOther(
           nextRole === "pro"
             ? "cliente"
             : nextRole === "client"
-            ? "profesional"
-            : null,
+              ? "profesional"
+              : null,
         );
       }
       toast.success(
@@ -119,18 +122,21 @@ export default function UserTypeInfo({
   }
 
   return (
-    <div className="px-2 py-1.5 text-sm">
+    <div className="px-2 py-1.5 text-sm text-white">
       <div>
-        Tipo de usuario: <span className="font-medium">{currentLabel}</span>
+        Tipo de usuario:{" "}
+        <span className="font-medium text-white">{currentLabel}</span>
       </div>
       {!loading && canSwitch && other ? (
         <button
           type="button"
           disabled={submitting}
           onClick={onSwitch}
-          className="mt-1 w-full rounded px-2 py-1.5 text-sm hover:bg-neutral-100 flex items-center gap-2"
+          className="mt-1 w-full rounded px-2 py-1.5 text-sm text-white hover:bg-white/10 flex items-center gap-2 disabled:opacity-60"
         >
-          <span aria-hidden className="text-neutral-600">⇄</span>
+          <span aria-hidden className="text-white/70">
+            ⇄
+          </span>
           {`cambiar a ${other}`}
         </button>
       ) : null}
