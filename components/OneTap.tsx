@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import type { AuthError } from "@supabase/supabase-js";
 
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase";
@@ -24,7 +25,9 @@ type GoogleId = {
 };
 type GoogleGlobal = { accounts?: { id?: GoogleId } };
 declare global {
-  interface Window { google?: GoogleGlobal }
+  interface Window {
+    google?: GoogleGlobal;
+  }
 }
 
 const logOneTapError = (error: unknown) => {
@@ -74,6 +77,9 @@ export default function OneTap() {
     let active = true;
 
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
+    // TEMP: log clientId to verify it is set correctly
+    // eslint-disable-next-line no-console
+    console.log("[OneTap] clientId:", clientId);
     if (!clientId || typeof window === "undefined") return;
     const debug = (process.env.NEXT_PUBLIC_ONE_TAP_DEBUG || "").trim() === "1";
 
@@ -101,7 +107,9 @@ export default function OneTap() {
           .slice(0, len);
       } catch (error) {
         logOneTapError(error);
-        return Math.random().toString(36).slice(2, 2 + len);
+        return Math.random()
+          .toString(36)
+          .slice(2, 2 + len);
       }
     };
 
@@ -141,7 +149,14 @@ export default function OneTap() {
             try {
               // Log and back off re-prompting
               // eslint-disable-next-line no-console
-              console.error("OneTap signIn error", error);
+              console.error("[One Tap Error]", error);
+              // eslint-disable-next-line no-console
+              console.error("[One Tap Details]", {
+                name: (error as Partial<AuthError>).name,
+                message: (error as Partial<AuthError>).message,
+                status: (error as Partial<AuthError & { status?: number }>)
+                  .status,
+              });
               toast.error(
                 "No se pudo iniciar sesión con Google One Tap. Intentando con Google.",
               );
@@ -160,7 +175,9 @@ export default function OneTap() {
               }
               await supabase.auth.signInWithOAuth({
                 provider: "google",
-                options: { redirectTo: `${base}/auth/callback?next=${encodeURIComponent(nextPath)}` },
+                options: {
+                  redirectTo: `${base}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+                },
               });
             } catch (oauthError) {
               logOneTapError(oauthError);
@@ -171,13 +188,19 @@ export default function OneTap() {
         const parentId = containerRef.current?.id || "gsi-container";
         const nonce = randomString(32);
         // Decide FedCM usage: allow env override; avoid on preview hosts where it's often not authorized
-        const fedcmEnv = (process.env.NEXT_PUBLIC_GSI_USE_FEDCM || "auto").toLowerCase();
+        const fedcmEnv = (
+          process.env.NEXT_PUBLIC_GSI_USE_FEDCM || "auto"
+        ).toLowerCase();
         let useFedcmForPrompt: boolean | undefined;
         if (fedcmEnv === "true" || fedcmEnv === "1") useFedcmForPrompt = true;
-        else if (fedcmEnv === "false" || fedcmEnv === "0") useFedcmForPrompt = false;
+        else if (fedcmEnv === "false" || fedcmEnv === "0")
+          useFedcmForPrompt = false;
         else {
           const host = window.location.hostname;
-          const isPreviewHost = /\.vercel\.app$/i.test(host) || /\.netlify\.app$/i.test(host) || /\.onrender\.com$/i.test(host);
+          const isPreviewHost =
+            /\.vercel\.app$/i.test(host) ||
+            /\.netlify\.app$/i.test(host) ||
+            /\.onrender\.com$/i.test(host);
           // Disable FedCM by default on common preview hosts to avoid generic "Can't continue" errors
           useFedcmForPrompt = !isPreviewHost;
         }
@@ -197,51 +220,58 @@ export default function OneTap() {
 
         // Show the One Tap prompt unless user dismissed recently
         if (!dismissedStillActive()) {
-          window.google.accounts.id.prompt((notification?: PromptMomentNotification) => {
-            try {
-              if (!notification) return;
-              if (debug) {
-                const nd = notification.getNotDisplayedReason?.();
-                const dd = notification.getDismissedReason?.();
-                const sd = notification.getSkippedReason?.();
-                // eslint-disable-next-line no-console
-                console.debug("[OneTap] prompt notification", {
-                  isDisplayed: notification.isDisplayed?.(),
-                  isNotDisplayed: notification.isNotDisplayed?.(),
-                  notDisplayedReason: nd,
-                  isDismissed: notification.isDismissedMoment?.(),
-                  dismissedReason: dd,
-                  isSkipped: notification.isSkippedMoment?.(),
-                  skippedReason: sd,
-                  fedcm: useFedcmForPrompt,
-                  host: typeof window !== "undefined" ? window.location.host : undefined,
-                });
+          window.google.accounts.id.prompt(
+            (notification?: PromptMomentNotification) => {
+              try {
+                if (!notification) return;
+                if (debug) {
+                  const nd = notification.getNotDisplayedReason?.();
+                  const dd = notification.getDismissedReason?.();
+                  const sd = notification.getSkippedReason?.();
+                  // eslint-disable-next-line no-console
+                  console.debug("[OneTap] prompt notification", {
+                    isDisplayed: notification.isDisplayed?.(),
+                    isNotDisplayed: notification.isNotDisplayed?.(),
+                    notDisplayedReason: nd,
+                    isDismissed: notification.isDismissedMoment?.(),
+                    dismissedReason: dd,
+                    isSkipped: notification.isSkippedMoment?.(),
+                    skippedReason: sd,
+                    fedcm: useFedcmForPrompt,
+                    host:
+                      typeof window !== "undefined"
+                        ? window.location.host
+                        : undefined,
+                  });
+                }
+                if (notification.isDismissedMoment?.() === true) {
+                  setDismiss(DAY);
+                } else if (notification.isNotDisplayed?.() === true) {
+                  // Likely suppressed by user or blocked; back off a bit
+                  setDismiss(4 * HOUR);
+                } else if (notification.isSkippedMoment?.() === true) {
+                  setDismiss(12 * HOUR);
+                }
+              } catch (notificationError) {
+                logOneTapError(notificationError);
               }
-              if (notification.isDismissedMoment?.() === true) {
-                setDismiss(DAY);
-              } else if (notification.isNotDisplayed?.() === true) {
-                // Likely suppressed by user or blocked; back off a bit
-                setDismiss(4 * HOUR);
-              } else if (notification.isSkippedMoment?.() === true) {
-                setDismiss(12 * HOUR);
-              }
-            } catch (notificationError) {
-              logOneTapError(notificationError);
-            }
-          });
+            },
+          );
         }
 
         // Hide the prompt as soon as we get a session (e.g., via other login UI)
-        const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
-          if (session) {
-            try {
-              window.google?.accounts?.id?.cancel?.();
-              window.google?.accounts?.id?.disableAutoSelect?.();
-            } catch (cancelError) {
-              logOneTapError(cancelError);
+        const { data: listener } = supabase.auth.onAuthStateChange(
+          (_, session) => {
+            if (session) {
+              try {
+                window.google?.accounts?.id?.cancel?.();
+                window.google?.accounts?.id?.disableAutoSelect?.();
+              } catch (cancelError) {
+                logOneTapError(cancelError);
+              }
             }
-          }
-        });
+          },
+        );
         // expose unsubscribe for effect cleanup
         unsubscribe = () => listener.subscription.unsubscribe();
       } catch (e) {
