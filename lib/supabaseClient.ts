@@ -37,6 +37,7 @@ type NoopQuery = {
 
 function createNoopClient(): SupabaseClient {
   const noop: () => NoopResult = async () => ({ data: null, error: null });
+  const authNoop: () => NoopResult = async () => ({ data: null, error: null });
 
   const query: NoopQuery = {
     select: noop,
@@ -75,15 +76,15 @@ function createNoopClient(): SupabaseClient {
     auth: {
       getSession: async () => ({ data: { session: null }, error: null }),
       getUser: async () => ({ data: { user: null }, error: null }),
-      signInWithPassword: noop,
-      signOut: noop,
+      signInWithPassword: authNoop,
+      signOut: authNoop,
     },
   } as unknown as SupabaseClient;
 }
 
-export function supabaseClient() {
-  if (!isValidHttpUrl(url) || !anonKey) return createNoopClient();
-  return createClient(url, anonKey);
-}
+export const supabase: SupabaseClient =
+  isValidHttpUrl(url) && !!anonKey
+    ? createClient(url, anonKey)
+    : createNoopClient();
 
-export default supabaseClient;
+export default supabase;
