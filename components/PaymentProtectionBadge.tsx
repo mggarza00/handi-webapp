@@ -19,7 +19,9 @@ const stars = Array.from({ length: 5 });
 
 export default function PaymentProtectionBadge() {
   return (
-    <div className={`${styles["payment-badge"]} ${interRegular.className}`}>
+    <div
+      className={`${styles["payment-badge"]} payment-badge ${interRegular.className}`}
+    >
       <div className={styles["payment-badge-icon"]}>
         <Image
           src="/icons/candado_vo.png"

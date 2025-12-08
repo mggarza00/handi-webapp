@@ -668,7 +668,7 @@ body {
 
   /* Hero payment badge positioning (desktop only; mobile handled by module CSS) */
   @media (width >= 768px) {
-    .hero-payment-badge :global(.payment-badge) {
+    .hero-payment-badge .payment-badge {
       position: absolute;
       inset: 28% 40px auto auto;
       transform: translateY(-45%);
@@ -739,7 +739,7 @@ body {
   }
 
   /* Variant: force-disable any ::after halo on white glass */
-  .glass-white-nohalo::after {
+  .glass-white-no-halo::after {
     display: none !important;
   }
 
@@ -773,6 +773,7 @@ body {
     background-color: var(
       --color-primary
     ); /* moderno (matiz se aplica por util /90) */
+
     border-color: #001447; /* fallback */
     border-color: var(--color-primary); /* moderno */
 
