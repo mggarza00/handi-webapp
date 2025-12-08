@@ -25,6 +25,18 @@ module.exports = {
     // Requested adjustments
     "no-empty-source": null,
     "alpha-value-notation": "number",
+    "selector-pseudo-class-no-unknown": [
+      true,
+      {
+        ignorePseudoClasses: ["global"],
+      },
+    ],
+    "declaration-block-no-duplicate-properties": [
+      true,
+      {
+        ignore: ["consecutive-duplicates-with-different-values"],
+      },
+    ],
 
     // Reduce formatting churn
     "rule-empty-line-before": null,

@@ -1,5 +1,4 @@
-/* stylelint-disable selector-class-pattern */
-.paymentBadge {
+.payment-badge {
   position: absolute;
   right: 40px;
   top: 28%;
@@ -9,26 +8,34 @@
   gap: 16px;
   padding: 18px 22px;
   border-radius: 20px;
-  background-color: #00442F;
+  background-color: #00442f;
   box-shadow: 0 18px 45px rgb(0 0 0 / 0.35);
-  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  transition:
+    transform 0.2s ease-out,
+    box-shadow 0.2s ease-out;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   width: 260px;
   color: #fff;
   z-index: 5;
 }
 
-.paymentBadge:hover {
+.payment-badge:hover {
   transform: translateY(-50%) scale(1.02);
   box-shadow: 0 25px 60px rgb(0 0 0 / 0.45);
 }
 
-.paymentBadge__iconWrapper {
+.payment-badge-icon {
   flex-shrink: 0;
   width: 52px;
   height: 52px;
   border-radius: 50%;
-  background-color: #A1D301;
+  background-color: #a1d301;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -36,40 +43,40 @@
   padding-right: 2px;
 }
 
-.paymentBadge__text {
+.payment-badge-text {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.paymentBadge__title {
+.payment-badge-title {
   font-size: 16px;
   font-weight: 400;
   line-height: 1.2;
   margin: 0;
 }
 
-.paymentBadge__subtitle {
+.payment-badge-subtitle {
   font-size: 16px;
   font-weight: 300;
   line-height: 1.2;
   margin: 0;
 }
 
-.paymentBadge__stars {
+.payment-badge-stars {
   display: flex;
   gap: 4px;
   margin-top: 6px;
 }
 
-.paymentBadge__star {
+.payment-badge-star {
   width: 16px;
   height: 16px;
-  fill: #A1D301;
+  fill: #a1d301;
 }
 
 @media (width <= 768px) {
-  .paymentBadge {
+  .payment-badge {
     position: absolute;
     left: 12px;
     right: 12px;
@@ -80,35 +87,33 @@
     max-width: 280px;
     padding: 14px 18px;
     border-radius: 20px;
-    box-shadow: 0 14px 35px rgb(0 0 0 / 0.30);
+    box-shadow: 0 14px 35px rgb(0 0 0 / 0.3);
     gap: 12px;
   }
 
-  .paymentBadge__iconWrapper {
+  .payment-badge-icon {
     width: 44px;
     height: 44px;
   }
 
-  .paymentBadge__title {
+  .payment-badge-title {
     font-size: 15px;
   }
 
-  .paymentBadge__subtitle {
+  .payment-badge-subtitle {
     font-size: 14px;
   }
 
-  .paymentBadge__stars {
+  .payment-badge-stars {
     margin-top: 4px;
   }
 
-  .paymentBadge__star {
+  .payment-badge-star {
     width: 14px;
     height: 14px;
   }
 
-  .paymentBadge:hover {
+  .payment-badge:hover {
     transform: none;
   }
 }
-
-/* stylelint-enable selector-class-pattern */

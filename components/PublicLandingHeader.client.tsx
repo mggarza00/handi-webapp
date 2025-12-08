@@ -17,13 +17,17 @@ type Props = {
   loginHref: string;
 };
 
-export default function PublicLandingHeader({ items, logoHref, loginHref }: Props) {
+export default function PublicLandingHeader({
+  items,
+  logoHref,
+  loginHref,
+}: Props) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const toggleMobileMenu = () => setIsMobileMenuOpen((prev) => !prev);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
-    <div className="handi-header__public-content">
+    <div className="handi-header-public-content">
       <div className="handi-header-row handi-header-row--desktop">
         <div className="header-left">
           <Link href={logoHref} className="header-logo" aria-label="Handi">
@@ -46,7 +50,10 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
           </Link>
         </div>
         <div className="header-center">
-          <nav className="header-nav" aria-label="Navegación principal (pública)">
+          <nav
+            className="header-nav"
+            aria-label="Navegación principal (pública)"
+          >
             {items.map((item) => (
               <Link
                 key={item.href}
@@ -54,7 +61,13 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
                 className={`nav-pill ${item.isActive ? "nav-pill--active" : ""}`.trim()}
               >
                 <span className="nav-label">{item.label}</span>
-                <Image src={item.icon} alt="" className="nav-pill-icon" width={20} height={20} />
+                <Image
+                  src={item.icon}
+                  alt=""
+                  className="nav-pill-icon"
+                  width={20}
+                  height={20}
+                />
               </Link>
             ))}
           </nav>
@@ -62,7 +75,13 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
         <div className="header-right">
           <Link href={loginHref} className="login-pill">
             <span className="login-label">Iniciar sesión</span>
-            <Image src="/icons/Vector_inicio.svg" alt="" className="login-pill-icon" width={20} height={20} />
+            <Image
+              src="/icons/Vector_inicio.svg"
+              alt=""
+              className="login-pill-icon"
+              width={20}
+              height={20}
+            />
           </Link>
         </div>
       </div>
@@ -106,7 +125,13 @@ export default function PublicLandingHeader({ items, logoHref, loginHref }: Prop
         <div className="header-right">
           <Link href={loginHref} className="login-pill login-pill--mobile">
             <span className="login-label">Iniciar sesión</span>
-            <Image src="/icons/Vector_inicio.svg" alt="" className="login-pill-icon" width={20} height={20} />
+            <Image
+              src="/icons/Vector_inicio.svg"
+              alt=""
+              className="login-pill-icon"
+              width={20}
+              height={20}
+            />
           </Link>
         </div>
       </div>

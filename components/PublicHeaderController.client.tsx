@@ -13,7 +13,7 @@ export default function PublicHeaderController() {
     let observer: IntersectionObserver | null = null;
 
     const disable = () => {
-      header.classList.remove("handi-header--public-mode", "header--on-hero");
+      header.classList.remove("handi-header-public-mode", "header-on-hero");
       header.classList.add("header--default");
       if (observer) {
         observer.disconnect();
@@ -28,7 +28,7 @@ export default function PublicHeaderController() {
       };
     }
 
-    header.classList.add("handi-header--public-mode", "header--on-hero");
+    header.classList.add("handi-header-public-mode", "header-on-hero");
     header.classList.remove("header--default");
 
     const sentinel = document.getElementById("hero-sentinel");
@@ -42,11 +42,11 @@ export default function PublicHeaderController() {
       ([entry]) => {
         const onHero = entry?.isIntersecting ?? false;
         if (onHero) {
-          header.classList.add("header--on-hero");
+          header.classList.add("header-on-hero");
           header.classList.remove("header--default");
         } else {
           header.classList.add("header--default");
-          header.classList.remove("header--on-hero");
+          header.classList.remove("header-on-hero");
         }
       },
       { threshold: 0.1 },

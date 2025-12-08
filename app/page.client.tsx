@@ -305,10 +305,21 @@ export default function Page({
 
     void loadCatalog();
 
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     const loadTopCategories = async () => {
-      if (!categoryCards.length) return;
+      if (!categoryCards.length) {
+        setTopCategoryCards([]);
+        return;
+      }
       const sb = createSupabaseBrowser();
       const { data, error } = await sb.from("requests").select("category");
+      if (cancelled) return;
       if (error || !Array.isArray(data)) {
         setTopCategoryCards(categoryCards.slice(0, 8));
         return;
@@ -330,7 +341,7 @@ export default function Page({
     void loadTopCategories();
 
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
   }, [categoryCards]);
 
@@ -800,7 +811,7 @@ export default function Page({
             >
               Subcategorías
             </p>
-            <div className="mx-[calc(50%-50vw)] w-screen px-4 md:px-6">
+            <div className="max-w-5xl mx-auto px-4 md:px-6 bg-white rounded-3xl shadow-sm border border-slate-200">
               <div
                 className="marquee overflow-x-hidden overflow-y-visible pb-2"
                 style={
@@ -810,8 +821,8 @@ export default function Page({
                   } as React.CSSProperties
                 }
               >
-                <div className="marquee__inner">
-                  <div className="marquee__group overflow-visible relative">
+                <div className="marquee-inner">
+                  <div className="marquee-group overflow-visible relative">
                     {subcategories.map((s) => {
                       const emoji = s.icon?.trim() || null;
                       const iconSrc = !emoji
@@ -846,7 +857,7 @@ export default function Page({
                   </div>
                   {/* Duplicado para bucle continuo */}
                   <div
-                    className="marquee__group overflow-visible relative"
+                    className="marquee-group overflow-visible relative"
                     aria-hidden="true"
                   >
                     {subcategories.map((s) => {

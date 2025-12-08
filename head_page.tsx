@@ -16,12 +16,13 @@ const momoTrust = localFont({
   variable: "--font-momo-trust",
 });
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import SplitText from "@/components/SplitText";
 import MobileCarousel from "@/components/MobileCarousel";
 import SpotlightCard from "@/components/SpotlightCard";
 // import RotatingText from "@/components/RotatingText";
 // import ScrollStack, { ScrollStackItem } from "@/components/ScrollStack";
-import { useRouter } from "next/navigation";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
@@ -29,6 +30,9 @@ export default function Page() {
   const router = useRouter();
   const titleRef = useRef<HTMLSpanElement | null>(null);
   const [titleDoneSignal, setTitleDoneSignal] = useState(0);
+  const marqueeDurationStyle = {
+    "--marquee-duration": "150s",
+  } as React.CSSProperties;
   // Categorías dinámicas desde Supabase (tabla categories_subcategories)
   const [categories, setCategories] = useState<string[]>([]);
   type Subcat = { name: string; icon: string | null };
@@ -42,11 +46,16 @@ export default function Page() {
     (async () => {
       try {
         if (!titleRef.current) return;
-        const root = titleRef.current as HTMLElement & { dataset: any };
+        const root = titleRef.current as HTMLElement & {
+          dataset: DOMStringMap & { splitApplied?: string };
+        };
         if (root.dataset.splitApplied) return;
 
         const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-          acceptNode: (n) => (n.textContent && n.textContent.length ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+          acceptNode: (n) =>
+            n.textContent && n.textContent.length
+              ? NodeFilter.FILTER_ACCEPT
+              : NodeFilter.FILTER_REJECT,
         });
         const nodes: Text[] = [];
         while (walk.nextNode()) nodes.push(walk.currentNode as Text);
@@ -66,7 +75,9 @@ export default function Page() {
         const { gsap } = await import("gsap");
         const { ScrollTrigger } = await import("gsap/ScrollTrigger");
         gsap.registerPlugin(ScrollTrigger);
-        const chars = Array.from(root.querySelectorAll<HTMLElement>(".split-char"));
+        const chars = Array.from(
+          root.querySelectorAll<HTMLElement>(".split-char"),
+        );
         gsap.set(root, { visibility: "visible" });
         gsap.set(chars, { opacity: 0, y: 40 });
         gsap.to(chars, {
@@ -76,13 +87,15 @@ export default function Page() {
           duration: 0.8,
           stagger: 0.06,
           scrollTrigger: {
-            trigger: root.closest('section') || root,
-            start: 'top 85%',
+            trigger: root.closest("section") || root,
+            start: "top 85%",
             once: true,
           },
           onComplete: () => setTitleDoneSignal((v) => v + 1),
         });
-      } catch {}
+      } catch (error) {
+        void error;
+      }
     })();
   }, []);
 
@@ -99,7 +112,11 @@ export default function Page() {
           const j = await r.json();
           if (!r.ok || j?.ok === false)
             throw new Error(j?.detail || j?.error || "fetch_failed");
-          const rows: Array<{ category?: string | null; subcategory?: string | null; icon?: string | null }> = j?.data ?? [];
+          const rows: Array<{
+            category?: string | null;
+            subcategory?: string | null;
+            icon?: string | null;
+          }> = j?.data ?? [];
           const listCats = Array.from(
             new Set(
               (rows || [])
@@ -121,13 +138,15 @@ export default function Page() {
             setSubcategories(listSubs);
           }
           return;
-        } catch {
+        } catch (error) {
+          void error;
           // continúa al fallback
         }
 
         // 2) Fallback directo con cliente público (si RLS lo permite)
         try {
-          const sb = createSupabaseBrowser(); const { data, error } = await sb
+          const sb = createSupabaseBrowser();
+          const { data, error } = await sb
             .from("categories_subcategories")
             .select('"Categoría","Subcategoría","Activa","Ícono"');
           if (error) throw error;
@@ -170,7 +189,8 @@ export default function Page() {
             setCategories(listCats);
             setSubcategories(listSubs);
           }
-        } catch {
+        } catch (error) {
+          void error;
           if (!cancelled) {
             setCategories([]);
             setSubcategories([]);
@@ -228,7 +248,8 @@ export default function Page() {
             if (!cancelled) setPosterUrl(url);
           }
         }
-      } catch {
+      } catch (error) {
+        void error;
         // ignore; fallback poster will be used
       }
     })();
@@ -361,8 +382,16 @@ export default function Page() {
               <span ref={titleRef} className="align-baseline invisible">
                 Bienvenido a{" "}
                 <span className="inline-flex items-baseline gap-0">
-                  <span className={`${comfortaaBold.className} font-bold text-[#009377]`}>Hand</span>
-                  <span className={`${comfortaaBold.className} font-bold text-[#0B3949]`}>i</span>
+                  <span
+                    className={`${comfortaaBold.className} font-bold text-[#009377]`}
+                  >
+                    Hand
+                  </span>
+                  <span
+                    className={`${comfortaaBold.className} font-bold text-[#0B3949]`}
+                  >
+                    i
+                  </span>
                 </span>
               </span>
             </h1>
@@ -390,7 +419,9 @@ export default function Page() {
                 onClick={async (e) => {
                   try {
                     e.preventDefault();
-                  } catch {}
+                  } catch (error) {
+                    void error;
+                  }
                   try {
                     const sb = createSupabaseBrowser();
                     const { data } = await sb.auth.getSession();
@@ -398,9 +429,12 @@ export default function Page() {
                     if (data?.session) {
                       router.push(next);
                     } else {
-                      router.push(`/auth/sign-in?next=${encodeURIComponent(next)}&toast=new-request`);
+                      router.push(
+                        `/auth/sign-in?next=${encodeURIComponent(next)}&toast=new-request`,
+                      );
                     }
-                  } catch {
+                  } catch (error) {
+                    void error;
                     // Fallback: navega directo; /requests/new hará el gating
                     router.push("/requests/new");
                   }
@@ -415,7 +449,9 @@ export default function Page() {
                 onClick={async (e) => {
                   try {
                     e.preventDefault();
-                  } catch {}
+                  } catch (error) {
+                    void error;
+                  }
                   try {
                     const sb = createSupabaseBrowser();
                     const { data } = await sb.auth.getSession();
@@ -423,9 +459,12 @@ export default function Page() {
                     if (data?.session) {
                       router.push(next);
                     } else {
-                      router.push(`/auth/sign-in?next=${encodeURIComponent(next)}&toast=pro-apply`);
+                      router.push(
+                        `/auth/sign-in?next=${encodeURIComponent(next)}&toast=pro-apply`,
+                      );
                     }
-                  } catch {
+                  } catch (error) {
+                    void error;
                     router.push("/pro-apply");
                   }
                 }}
@@ -459,15 +498,32 @@ export default function Page() {
                   onClick={() => {
                     setShowControls(true);
                     try {
-                      videoRef.current?.play().catch(() => {});
-                    } catch {}
+                      videoRef.current?.play().catch((error) => {
+                        void error;
+                      });
+                    } catch (error) {
+                      void error;
+                    }
                   }}
                   aria-label="Reproducir video"
                   className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/30"
                 >
                   <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-md">
-                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon fill="currentColor" stroke="none" points="9,7 19,12 9,17" />
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="28"
+                      height="28"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polygon
+                        fill="currentColor"
+                        stroke="none"
+                        points="9,7 19,12 9,17"
+                      />
                     </svg>
                   </span>
                 </button>
@@ -489,7 +545,15 @@ export default function Page() {
 
           {/* Mobile carousel effect */}
           <div className="md:hidden -mx-4 overflow-x-hidden">
-            <MobileCarousel className="px-0 pt-6" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+            <MobileCarousel
+              className="px-0 pt-6"
+              gap={16}
+              padding={16}
+              autoplay
+              autoplayDelay={4000}
+              loop
+              pauseOnHover
+            >
               <StepCard
                 step="1"
                 title="Crea tu solicitud de servicio"
@@ -547,9 +611,12 @@ export default function Page() {
           {/* Categories marquee (opposite direction to subcategories) */}
           {categories.length > 0 && (
             <div className="mt-2">
-              <div className="marquee marquee--right" style={{ ["--marquee-duration" as any]: "150s" }}>
-                <div className="marquee__inner">
-                  <div className="marquee__group overflow-visible relative">
+              <div
+                className="marquee marquee-right"
+                style={marqueeDurationStyle}
+              >
+                <div className="marquee-inner">
+                  <div className="marquee-group overflow-visible relative">
                     {categories.map((c) => (
                       <Link
                         key={`cat-a-${c}`}
@@ -560,7 +627,10 @@ export default function Page() {
                       </Link>
                     ))}
                   </div>
-                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
+                  <div
+                    className="marquee-group overflow-visible relative"
+                    aria-hidden="true"
+                  >
                     {categories.map((c) => (
                       <Link
                         key={`cat-b-${c}`}
@@ -581,9 +651,9 @@ export default function Page() {
           {/* Subcategorías (carrusel) */}
           {subcategories.length > 0 && (
             <div className="mt-6">
-              <div className="marquee" style={{ ["--marquee-duration" as any]: "150s" }}>
-                <div className="marquee__inner">
-                  <div className="marquee__group overflow-visible relative">
+              <div className="marquee" style={marqueeDurationStyle}>
+                <div className="marquee-inner">
+                  <div className="marquee-group overflow-visible relative">
                     {subcategories.map((s) => (
                       <Link
                         key={`subcat-a-${s.name}`}
@@ -599,7 +669,9 @@ export default function Page() {
                               className="h-3.5 w-3.5 object-contain"
                             />
                           ) : (
-                            <span className="text-sm leading-none">{s.icon}</span>
+                            <span className="text-sm leading-none">
+                              {s.icon}
+                            </span>
                           )
                         ) : null}
                         <span>{s.name}</span>
@@ -607,7 +679,10 @@ export default function Page() {
                     ))}
                   </div>
                   {/* Duplicado para bucle continuo */}
-                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
+                  <div
+                    className="marquee-group overflow-visible relative"
+                    aria-hidden="true"
+                  >
                     {subcategories.map((s) => (
                       <Link
                         key={`subcat-b-${s.name}`}
@@ -623,7 +698,9 @@ export default function Page() {
                               className="h-3.5 w-3.5 object-contain"
                             />
                           ) : (
-                            <span className="text-sm leading-none">{s.icon}</span>
+                            <span className="text-sm leading-none">
+                              {s.icon}
+                            </span>
                           )
                         ) : null}
                         <span>{s.name}</span>
@@ -637,19 +714,23 @@ export default function Page() {
 
           {/* Nearby professionals carousel */}
           <NearbyCarousel />
-
-          
         </div>
       </section>
-
-      
 
       {/* Steps */}
       <section className="bg-slate-50 mt-8 md:mt-16">
         <div className="relative z-10 mx-auto max-w-5xl px-4 py-12">
           {/* Mobile carousel for features */}
           <div className="md:hidden -mx-4 overflow-x-hidden">
-            <MobileCarousel className="px-0" gap={16} padding={16} autoplay autoplayDelay={4000} loop pauseOnHover>
+            <MobileCarousel
+              className="px-0"
+              gap={16}
+              padding={16}
+              autoplay
+              autoplayDelay={4000}
+              loop
+              pauseOnHover
+            >
               <FeatureCard
                 icon={<PinIcon className="h-5 w-5" />}
                 title="Encuentra cerca de ti"
@@ -689,11 +770,14 @@ export default function Page() {
           <div className="mt-6">
             <SpotlightCard
               className="relative rounded-2xl border border-slate-200 p-6 shadow-sm"
-              style={{ backgroundColor: '#104008' }}
+              style={{ backgroundColor: "#104008" }}
             >
               <div
                 className="pointer-events-none absolute inset-0 z-0 bg-center bg-cover opacity-70"
-                style={{ backgroundImage: 'url("/images/modern-background-of-green-abstract-gradient-wallpaper-vector.jpg")' }}
+                style={{
+                  backgroundImage:
+                    'url("/images/modern-background-of-green-abstract-gradient-wallpaper-vector.jpg")',
+                }}
               />
               <div className="relative z-10 mx-auto w-fit max-w-full">
                 <div className="mb-1 inline-flex items-center gap-2">
@@ -704,12 +788,15 @@ export default function Page() {
                     height={24}
                     className="h-6 w-6"
                   />
-                  <h3 className={`${momoTrust.className} font-normal uppercase text-white text-xl md:text-2xl`}>
+                  <h3
+                    className={`${momoTrust.className} font-normal uppercase text-white text-xl md:text-2xl`}
+                  >
                     Pagos 100% protegidos
                   </h3>
                 </div>
                 <p className="text-sm text-white">
-                  Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                  Los pagos de los servicios se liberan a los profesionales
+                  hasta que confirmes que el trabajo se realizó con éxito.
                 </p>
               </div>
             </SpotlightCard>
@@ -744,7 +831,6 @@ export default function Page() {
           </div>
         </div>
       </section>
-
     </main>
   );
 }

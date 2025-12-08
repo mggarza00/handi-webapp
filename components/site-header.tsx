@@ -17,6 +17,7 @@ import type { Database } from "@/types/supabase";
 import ClientNoSessionOnly from "@/components/ClientNoSessionOnly.client";
 import PublicLandingHeader from "@/components/PublicLandingHeader.client";
 import HeaderLogoSwap from "@/components/HeaderLogoSwap.client";
+import CreateRequestButton from "@/components/requests/CreateRequestButton";
 
 type Role = "client" | "pro" | "admin";
 
@@ -39,7 +40,7 @@ async function getSessionInfo() {
     return {
       isAuth: false as const,
       role: null as null,
-  is_admin: false as const,
+      is_admin: false as const,
       avatar_url: null as null,
       full_name: null as null,
     };
@@ -55,7 +56,9 @@ async function getSessionInfo() {
     try {
       const profTable = supabase.from("profiles");
       type Insert = Database["public"]["Tables"]["profiles"]["Insert"];
-      const insert = profTable.insert as unknown as (values: Insert) => ReturnType<typeof profTable.insert>;
+      const insert = profTable.insert as unknown as (
+        values: Insert,
+      ) => ReturnType<typeof profTable.insert>;
       await insert({
         id: user.id,
         full_name: user.user_metadata?.full_name ?? null,
@@ -88,7 +91,11 @@ async function getSessionInfo() {
       .select("avatar_url, full_name")
       .eq("id", user.id)
       .maybeSingle();
-    proProfile = (proRaw as unknown as { avatar_url: string | null; full_name: string | null } | null) ?? null;
+    proProfile =
+      (proRaw as unknown as {
+        avatar_url: string | null;
+        full_name: string | null;
+      } | null) ?? null;
   }
   const role = (profile?.role ?? null) as Role | null;
   type UserMeta = { avatar_url?: string | null; full_name?: string | null };
@@ -101,8 +108,16 @@ async function getSessionInfo() {
     }
     return null;
   };
-  const avatarUrl = pickNonEmpty(profile?.avatar_url, proProfile?.avatar_url, meta.avatar_url);
-  const fullName = pickNonEmpty(profile?.full_name, proProfile?.full_name, meta.full_name);
+  const avatarUrl = pickNonEmpty(
+    profile?.avatar_url,
+    proProfile?.avatar_url,
+    meta.avatar_url,
+  );
+  const fullName = pickNonEmpty(
+    profile?.full_name,
+    proProfile?.full_name,
+    meta.full_name,
+  );
   return {
     isAuth: true as const,
     role,
@@ -122,10 +137,12 @@ async function getSessionInfoSafe() {
         process.env.NODE_ENV !== "production" || process.env.CI === "true";
       if (allowMock) {
         const c = cookies();
-        const mock = c.get("handi_role")?.value || c.get("handee_role")?.value || "guest";
+        const mock =
+          c.get("handi_role")?.value || c.get("handee_role")?.value || "guest";
         const m = mock as "guest" | "client" | "professional" | "admin";
         if (m !== "guest") {
-          const mappedRole: Role = m === "professional" ? "pro" : (m as "client" | "admin");
+          const mappedRole: Role =
+            m === "professional" ? "pro" : (m as "client" | "admin");
           return {
             isAuth: true as const,
             role: mappedRole,
@@ -175,14 +192,22 @@ export default async function SiteHeader() {
       >
         <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center">
-            <Image src="/images/Logo-Handi-v2.gif" alt="Handi" width={64} height={64} priority className="h-16 w-16 object-contain" />
+            <Image
+              src="/images/Logo-Handi-v2.gif"
+              alt="Handi"
+              width={64}
+              height={64}
+              priority
+              className="h-16 w-16 object-contain"
+            />
           </Link>
           <nav className="hidden md:flex items-center gap-2" />
         </div>
       </header>
     );
   }
-  const { isAuth, role, is_admin, is_client_pro, avatar_url, full_name } = await getSessionInfoSafe();
+  const { isAuth, role, is_admin, is_client_pro, avatar_url, full_name } =
+    await getSessionInfoSafe();
   const cookieStore = cookies();
   const proApply =
     cookieStore.get("handi_pro_apply")?.value === "1" ||
@@ -320,7 +345,8 @@ export default async function SiteHeader() {
       l.href.startsWith("/requests"),
     );
     if (!hasRequestsLink) {
-  const href = role === "admin" || is_admin ? "/requests" : "/requests?mine=1";
+      const href =
+        role === "admin" || is_admin ? "/requests" : "/requests?mine=1";
       rightLinks.push({
         href,
         label: "Mis solicitudes",
@@ -353,7 +379,10 @@ export default async function SiteHeader() {
     // Para clientes, ocultar "Nueva solicitud" y "Mis solicitudes" en el menú lateral móvil
     if (role === "client") {
       return base.filter(
-        (l) => l.href !== "/requests/new" && l.href !== "/requests?mine=1" && l.label !== "Mis solicitudes",
+        (l) =>
+          l.href !== "/requests/new" &&
+          l.href !== "/requests?mine=1" &&
+          l.label !== "Mis solicitudes",
       );
     }
     return base;
@@ -367,244 +396,284 @@ export default async function SiteHeader() {
         className={`${stackSansText.className} ${stackSansText.variable} handi-header header--default fixed top-0 left-0 right-0 z-50`}
         data-authenticated={isAuth ? "1" : "0"}
       >
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/8 to-transparent" aria-hidden="true" />
+        <div
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/20 via-black/8 to-transparent"
+          aria-hidden="true"
+        />
         <div className="relative mx-auto flex h-16 w-full max-w-6xl items-center px-6">
-          <div className="handi-header__public hidden w-full">
-            <PublicLandingHeader items={publicNavItems} logoHref={leftHref} loginHref="/auth/sign-in" />
-          </div>
-          <div className="handi-header__default relative flex h-16 w-full items-center justify-between">
-        {/* Lado izquierdo: botÃ³n menÃº mÃ³vil (solo autenticado) */}
-        {isAuth ? (
-          <div className="md:hidden">
-            <MobileMenu
-              links={mobileLinks}
-              isAuth={isAuth}
-              role={role}
-              avatarUrl={avatar_url}
-              fullName={full_name}
-              isClientPro={is_client_pro}
+          <div className="handi-header-public hidden w-full">
+            <PublicLandingHeader
+              items={publicNavItems}
+              logoHref={leftHref}
+              loginHref="/auth/sign-in"
             />
           </div>
-        ) : (
-          <div className="md:hidden" />
-        )}
-
-        {/* Logo: centrado en mÃ³vil, alineado a la izquierda en desktop */}
-        <HeaderLogoSwap
-          href={leftHref}
-          className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
-          width={128}
-          height={128}
-        />
-
-        {/* Navegacion publica centrada (solo invitado, desktop) */}
-        {!isAuth ? (
-          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
-            <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
-              <Link
-                href="/#servicios-populares"
-                className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
-              >
-                <Image
-                  src="/icons/servicios_icon.svg"
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+          <div className="handi-header__default relative flex h-16 w-full items-center justify-between">
+            {/* Lado izquierdo: botÃ³n menÃº mÃ³vil (solo autenticado) */}
+            {isAuth ? (
+              <div className="md:hidden">
+                <MobileMenu
+                  links={mobileLinks}
+                  isAuth={isAuth}
+                  role={role}
+                  avatarUrl={avatar_url}
+                  fullName={full_name}
+                  isClientPro={is_client_pro}
                 />
-                <span>Servicios</span>
-              </Link>
-              <Link
-                href="/#como-funciona"
-                className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
-              >
-                <Image
-                  src="/icons/engrane_icon.svg"
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
-                />
-                <span>Cómo funciona</span>
-              </Link>
-              <Link
-                href="/#profesionales-cerca-de-ti"
-                className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
-              >
-                <Image
-                  src="/icons/loc_icon.svg"
-                  alt=""
-                  width={18}
-                  height={18}
-                  className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
-                />
-                <span>Cerca de ti</span>
-              </Link>
-            </div>
-          </nav>
-        ) : null}
+              </div>
+            ) : (
+              <div className="md:hidden" />
+            )}
 
-        {/* Botones centrados (cliente y profesional) - desktop */}
-        {role === "client" ? (
-          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
-            <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
-              {/* Orden: Mis solicitudes (izq), Nueva Solicitud (der) */}
+            {/* Logo: centrado en mÃ³vil, alineado a la izquierda en desktop */}
+            <HeaderLogoSwap
+              href={leftHref}
+              className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
+              width={128}
+              height={128}
+            />
+
+            {/* Navegacion publica centrada (solo invitado, desktop) */}
+            {!isAuth ? (
+              <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
+                <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
+                  <Link
+                    href="/#servicios-populares"
+                    className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
+                  >
+                    <Image
+                      src="/icons/servicios_icon.svg"
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+                    />
+                    <span>Servicios</span>
+                  </Link>
+                  <Link
+                    href="/#como-funciona"
+                    className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
+                  >
+                    <Image
+                      src="/icons/engrane_icon.svg"
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+                    />
+                    <span>Cómo funciona</span>
+                  </Link>
+                  <Link
+                    href="/#profesionales-cerca-de-ti"
+                    className="group inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555]"
+                  >
+                    <Image
+                      src="/icons/loc_icon.svg"
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
+                    />
+                    <span>Cerca de ti</span>
+                  </Link>
+                </div>
+              </nav>
+            ) : null}
+
+            {/* Botones centrados (cliente y profesional) - desktop */}
+            {role === "client" ? (
+              <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
+                <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
+                  {/* Orden: Mis solicitudes (izq), Nueva Solicitud (der) */}
+                  {rightLinks
+                    .filter(
+                      (l) =>
+                        l.label === "Mis solicitudes" ||
+                        l.label === "Nueva solicitud",
+                    )
+                    .sort((a, _b) => (a.label === "Mis solicitudes" ? -1 : 1))
+                    .map((l) =>
+                      l.label === "Nueva solicitud" ? (
+                        <CreateRequestButton
+                          key={l.href}
+                          variant="ghost"
+                          size="sm"
+                          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555] whitespace-nowrap pl-1 h-auto min-h-0"
+                        >
+                          <Image
+                            src="/images/icono-nueva-solicitud.gif"
+                            alt=""
+                            width={32}
+                            height={32}
+                            className="h-8 w-8"
+                          />
+                          <span>{l.label}</span>
+                        </CreateRequestButton>
+                      ) : (
+                        <Link
+                          key={l.href}
+                          href={l.href}
+                          data-testid={l.testId}
+                          className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555] whitespace-nowrap"
+                        >
+                          {l.label === "Mis solicitudes" ? (
+                            <Image
+                              src="/images/icono-mis-solicitudes.gif"
+                              alt=""
+                              width={32}
+                              height={32}
+                              className="h-8 w-8"
+                            />
+                          ) : null}
+                          <span>{l.label}</span>
+                        </Link>
+                      ),
+                    )}
+                </div>
+              </div>
+            ) : null}
+
+            {role === "pro" ? (
+              <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
+                {rightLinks
+                  .filter(
+                    (l) =>
+                      l.href === "/requests/explore" ||
+                      l.href === "/pro/calendar" ||
+                      l.href === "/applied",
+                  )
+                  .map((l) => (
+                    <Button
+                      key={l.href}
+                      asChild
+                      size={l.size ?? "sm"}
+                      variant={l.variant ?? "ghost"}
+                      className={[l.className, "w-[12.32rem] justify-center"]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <Link
+                        href={l.href}
+                        data-testid={l.testId}
+                        className={`inline-flex items-center gap-2 whitespace-nowrap`}
+                      >
+                        {l.href === "/requests/explore" ? (
+                          <Image
+                            src="/images/icono-trabajos-disponibles.gif"
+                            alt=""
+                            width={32}
+                            height={32}
+                            className="h-8 w-8"
+                          />
+                        ) : l.href === "/pro/calendar" ? (
+                          <Image
+                            src="/images/icono-calendario.png"
+                            alt=""
+                            width={32}
+                            height={32}
+                            className="h-8 w-8"
+                          />
+                        ) : l.href === "/applied" ? (
+                          <Image
+                            src="/images/icono-trabajos-realizados.gif"
+                            alt=""
+                            width={32}
+                            height={32}
+                            className="h-8 w-8"
+                          />
+                        ) : null}
+                        <span>{l.label}</span>
+                      </Link>
+                    </Button>
+                  ))}
+              </div>
+            ) : null}
+
+            {/* NavegaciÃ³n derecha - desktop */}
+            <nav className="hidden md:flex items-center gap-2">
               {rightLinks
-                .filter(
-                  (l) =>
-                    l.label === "Mis solicitudes" ||
-                    l.label === "Nueva solicitud",
-                )
-                .sort((a, _b) => (a.label === "Mis solicitudes" ? -1 : 1))
-                .map((l) => (
-                  <Link
-                    key={l.href}
-                    href={l.href}
-                    data-testid={l.testId}
-                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555] whitespace-nowrap ${l.label === "Nueva solicitud" ? "pl-1" : ""}`}
-                  >
-                    {l.label === "Mis solicitudes" ? (
-                      <Image
-                        src="/images/icono-mis-solicitudes.gif"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : l.label === "Nueva solicitud" ? (
-                      <Image
-                        src="/images/icono-nueva-solicitud.gif"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : null}
-                    <span>{l.label}</span>
-                  </Link>
-                ))}
-            </div>
-          </div>
-        ) : null}
-
-        {role === "pro" ? (
-          <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
-            {rightLinks
-              .filter(
-                (l) =>
-                  l.href === "/requests/explore" ||
-                  l.href === "/pro/calendar" ||
-                  l.href === "/applied",
-              )
-              .map((l) => (
-                <Button
-                  key={l.href}
-                  asChild
-                  size={l.size ?? "sm"}
-                  variant={l.variant ?? "ghost"}
-                  className={[l.className, "w-[12.32rem] justify-center"]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <Link
-                    href={l.href}
-                    data-testid={l.testId}
-                    className={`inline-flex items-center gap-2 whitespace-nowrap`}
-                  >
-                    {l.href === "/requests/explore" ? (
-                      <Image
-                        src="/images/icono-trabajos-disponibles.gif"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : l.href === "/pro/calendar" ? (
-                      <Image
-                        src="/images/icono-calendario.png"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : l.href === "/applied" ? (
-                      <Image
-                        src="/images/icono-trabajos-realizados.gif"
-                        alt=""
-                        width={32}
-                        height={32}
-                        className="h-8 w-8"
-                      />
-                    ) : null}
-                    <span>{l.label}</span>
-                  </Link>
-                </Button>
-              ))}
-          </div>
-        ) : null}
-
-        {/* NavegaciÃ³n derecha - desktop */}
-  <nav className="hidden md:flex items-center gap-2">
-          {rightLinks
-            // Evitar duplicar los botones centrados del cliente y profesional
-            .filter((l) => {
-              if (
-                role === "client" &&
-                (l.label === "Mis solicitudes" || l.label === "Nueva solicitud")
-              ) {
-                return false;
-              }
-              if (
-                role === "pro" &&
-                (l.href === "/requests/explore" || l.href === "/pro/calendar" || l.href === "/applied")
-              ) {
-                return false;
-              }
-              return true;
-            })
-            .map((l) => {
-              const isRequests = l.href.startsWith("/requests") && !l.className;
-              const isLogin = l.testId === "btn-login";
-              const variant = l.variant ?? "outline";
-              const wantsGrayHover =
-                variant !== "default" && variant !== "destructive";
-              const grayHover = wantsGrayHover ? "hover:bg-neutral-200" : "";
-              const extra = isLogin
-                ? "rounded-full px-5 py-3.5 bg-black/20 text-white hover:bg-white hover:text-[#0C2555] backdrop-blur"
-                : l.className
+                // Evitar duplicar los botones centrados del cliente y profesional
+                .filter((l) => {
+                  if (
+                    role === "client" &&
+                    (l.label === "Mis solicitudes" ||
+                      l.label === "Nueva solicitud")
+                  ) {
+                    return false;
+                  }
+                  if (
+                    role === "pro" &&
+                    (l.href === "/requests/explore" ||
+                      l.href === "/pro/calendar" ||
+                      l.href === "/applied")
+                  ) {
+                    return false;
+                  }
+                  return true;
+                })
+                .map((l) => {
+                  const isRequests =
+                    l.href.startsWith("/requests") && !l.className;
+                  const isLogin = l.testId === "btn-login";
+                  const isNewRequest = l.label === "Nueva solicitud";
+                  const variant = l.variant ?? "outline";
+                  const wrapLogin = (node: React.ReactNode) =>
+                    l.testId === "btn-login" ? (
+                      <ClientNoSessionOnly key={l.href}>
+                        {node}
+                      </ClientNoSessionOnly>
+                    ) : (
+                      node
+                    );
+                  const wantsGrayHover =
+                    variant !== "default" && variant !== "destructive";
+                  const grayHover = wantsGrayHover
+                    ? "hover:bg-neutral-200"
+                    : "";
+                  const extra = l.className
                     ? `${l.className} ${grayHover}`.trim()
                     : [
                         grayHover,
-                        isRequests ? "!text-[#11304A] hover:!text-[#11304A]" : "",
+                        isRequests
+                          ? "!text-[#11304A] hover:!text-[#11304A]"
+                          : "",
                       ]
                         .filter(Boolean)
                         .join(" ");
-              // Si es el botÃ³n de login, renderiza normal y ocÃºltalo en cliente si ya hay sesiÃ³n
-              const wrapLogin = (node: React.ReactNode) =>
-                l.testId === "btn-login" ? <ClientNoSessionOnly key={l.href}>{node}</ClientNoSessionOnly> : node;
-              return (
-                wrapLogin(
-                  <Button
-                    key={l.href}
-                    asChild
-                    size={l.size ?? "sm"}
-                    variant={l.variant ?? "outline"}
-                    className={extra || undefined}
-                  >
-                    <Link
-                      href={l.href}
-                      data-testid={l.testId}
-                      className="inline-flex items-center gap-2"
-                    >
-                      {l.label === "Mis solicitudes" ? (
+                  if (isLogin) {
+                    const pillClass =
+                      "group inline-flex items-center gap-2 rounded-full bg-black/20 px-3.5 py-2 text-sm font-medium text-white backdrop-blur transition hover:bg-white hover:text-[#0C2555]";
+                    return wrapLogin(
+                      <Link
+                        key={l.href}
+                        href={l.href}
+                        data-testid={l.testId}
+                        className={pillClass}
+                      >
+                        <span>Iniciar sesión</span>
                         <Image
-                          src="/images/icono-mis-solicitudes.gif"
+                          src="/icons/Vector_inicio.svg"
                           alt=""
-                          width={32}
-                          height={32}
-                          className="h-8 w-8"
+                          width={16}
+                          height={16}
+                          className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(100%)] group-hover:[filter:brightness(0)_saturate(100%)_invert(17%)_sepia(51%)_saturate(2204%)_hue-rotate(195deg)_brightness(90%)_contrast(101%)]"
                         />
-                      ) : l.label === "Nueva solicitud" ? (
+                      </Link>,
+                    );
+                  }
+                  if (isNewRequest) {
+                    return (
+                      <CreateRequestButton
+                        key={l.href}
+                        variant={l.variant ?? "ghost"}
+                        size="sm"
+                        className={[
+                          "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white hover:bg-white hover:text-[#0C2555] whitespace-nowrap pl-1 h-auto min-h-0",
+                          extra,
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                      >
                         <Image
                           src="/images/icono-nueva-solicitud.gif"
                           alt=""
@@ -612,62 +681,108 @@ export default async function SiteHeader() {
                           height={32}
                           className="h-8 w-8"
                         />
-                      ) : null}
-                      <span>{l.label}</span>
-                      {isLogin ? (
-                        <Image
-                          src="/icons/Vector_inicio.svg"
-                          alt=""
-                          width={16}
-                          height={16}
-                          className="h-4 w-4"
-                        />
-                      ) : null}
+                        <span>{l.label}</span>
+                      </CreateRequestButton>
+                    );
+                  }
+                  // Si es el botÃ³n de login, renderiza normal y ocÃºltalo en cliente si ya hay sesiÃ³n
+                  return wrapLogin(
+                    <Button
+                      key={l.href}
+                      asChild
+                      size={l.size ?? "sm"}
+                      variant={l.variant ?? "outline"}
+                      className={extra || undefined}
+                    >
+                      <Link
+                        href={l.href}
+                        data-testid={l.testId}
+                        className="inline-flex items-center gap-2"
+                      >
+                        {l.label === "Mis solicitudes" ? (
+                          <Image
+                            src="/images/icono-mis-solicitudes.gif"
+                            alt=""
+                            width={32}
+                            height={32}
+                            className="h-8 w-8"
+                          />
+                        ) : l.label === "Nueva solicitud" ? (
+                          <Image
+                            src="/images/icono-nueva-solicitud.gif"
+                            alt=""
+                            width={32}
+                            height={32}
+                            className="h-8 w-8"
+                          />
+                        ) : null}
+                        <span>{l.label}</span>
+                        {isLogin ? (
+                          <Image
+                            src="/icons/Vector_inicio.svg"
+                            alt=""
+                            width={16}
+                            height={16}
+                            className="h-4 w-4"
+                          />
+                        ) : null}
+                      </Link>
+                    </Button>,
+                  );
+                })}
+
+              {/* Notificaciones se administran en /settings; se removió del header */}
+
+              {isAuth ? (
+                <AvatarDropdown
+                  avatarUrl={avatar_url}
+                  fullName={full_name}
+                  role={role}
+                  isClientPro={is_client_pro}
+                />
+              ) : null}
+              {/* BotÃ³n de menÃº a la derecha del avatar; solo autenticado */}
+              {isAuth ? (
+                <div className="ml-4">
+                  <HeaderMenu />
+                </div>
+              ) : null}
+            </nav>
+
+            {/* Lado derecho - mÃ³vil y CTA secundarios (sin botÃ³n de menÃº) */}
+            <div className="md:hidden flex items-center gap-2">
+              {!isAuth ? (
+                <ClientNoSessionOnly>
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href="/auth/sign-in"
+                      className="inline-flex items-center gap-2"
+                    >
+                      <span>Iniciar sesión</span>
+                      <Image
+                        src="/icons/Vector_inicio.svg"
+                        alt=""
+                        width={16}
+                        height={16}
+                        className="h-4 w-4"
+                      />
                     </Link>
-                  </Button>,
-                )
-              );
-            })}
-          
-          {/* Notificaciones se administran en /settings; se removió del header */}
-
-          {isAuth ? (
-            <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} isClientPro={is_client_pro} />
-          ) : null}
-          {/* BotÃ³n de menÃº a la derecha del avatar; solo autenticado */}
-          {isAuth ? (
-            <div className="ml-4">
-              <HeaderMenu />
+                  </Button>
+                </ClientNoSessionOnly>
+              ) : (
+                <AvatarDropdown
+                  avatarUrl={avatar_url}
+                  fullName={full_name}
+                  role={role}
+                  isClientPro={is_client_pro}
+                />
+              )}
             </div>
-          ) : null}
-        </nav>
-
-        {/* Lado derecho - mÃ³vil y CTA secundarios (sin botÃ³n de menÃº) */}
-        <div className="md:hidden flex items-center gap-2">
-          {!isAuth ? (
-            <ClientNoSessionOnly>
-              <Button asChild size="sm" variant="outline">
-                <Link href="/auth/sign-in" className="inline-flex items-center gap-2">
-                  <span>Iniciar sesión</span>
-                  <Image
-                    src="/icons/Vector_inicio.svg"
-                    alt=""
-                    width={16}
-                    height={16}
-                    className="h-4 w-4"
-                  />
-                </Link>
-              </Button>
-            </ClientNoSessionOnly>
-          ) : (
-            <AvatarDropdown avatarUrl={avatar_url} fullName={full_name} role={role} isClientPro={is_client_pro} />
-          )}
+          </div>
         </div>
-      </div>
-    </div>
-  </header>
-  {/* Pro mobile tabbar removed as requested */}
-  {isAuth && role === "pro" ? <ProMobileTabbar /> : null}
+      </header>
+      {/* Pro mobile tabbar removed as requested */}
+      {isAuth && role === "pro" ? <ProMobileTabbar /> : null}
     </>
   );
 }
