@@ -758,7 +758,7 @@ export default function Page({
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
           {(topCategoryCards.length > 0 ? topCategoryCards : categoryCards)
             .slice(0, 9)
             .map((cat) => {
