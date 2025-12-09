@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -59,7 +58,7 @@ export async function GET(
         { status: 404, headers: JSONH },
       );
     }
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("requests")
       .select("*")
@@ -73,7 +72,32 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    // Mask address for non-owners/non-assigned pros
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id || null;
+      let canSee = false;
+      if (uid && data && (data as any)?.created_by === uid) canSee = true;
+      if (!canSee && uid) {
+        // Check agreement link for assigned pro
+        const { data: agr } = await supabase
+          .from("agreements")
+          .select("id,status")
+          .eq("request_id", id.data)
+          .eq("professional_id", uid)
+          .limit(1);
+        if (Array.isArray(agr) && agr.length > 0) canSee = true;
+      }
+      if (!canSee) {
+        const { address_line, address_place_id, address_lat, address_lng, ...rest } = (data || {}) as Record<string, unknown>;
+        return NextResponse.json({ ok: true, data: rest }, { status: 200, headers: JSONH });
+      }
+    } catch {
+      const { address_line, address_place_id, address_lat, address_lng, ...rest } = (data || {}) as Record<string, unknown>;
+      return NextResponse.json({ ok: true, data: rest }, { status: 200, headers: JSONH });
+    }
+
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(
@@ -88,7 +112,7 @@ export async function PATCH(
   { params }: { params: { id: string } },
 ) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth.user?.id;
     if (!userId) {
@@ -207,7 +231,7 @@ export async function DELETE(
   { params }: { params: { id: string } },
 ) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const userId = auth.user?.id;
     if (!userId) {
@@ -226,9 +250,11 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase
+    // En lugar de borrar físicamente, marcar como cancelada para que aparezca en filtros "Canceladas"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("requests")
-      .delete()
+      .update({ status: "cancelled" })
       .eq("id", id.data)
       .eq("created_by", userId)
       .single();

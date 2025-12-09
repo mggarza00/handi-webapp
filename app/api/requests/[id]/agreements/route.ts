@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
         { error: error.message },
         { status: 400, headers: JSONH },
       );
-    return NextResponse.json({ ok: true, data: data ?? [] }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: data ?? [] }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(
@@ -39,4 +39,3 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

@@ -4,8 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { Menu, Settings as SettingsIcon } from "lucide-react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { buttonVariants } from "@/components/ui/button";
 
 function _MenuIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -67,7 +67,6 @@ function MessageIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-
 function ShareIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -114,6 +113,7 @@ export default function HeaderMenu() {
   const detailsRef = React.useRef<HTMLDetailsElement | null>(null);
   const [hasNotifs, setHasNotifs] = React.useState(false);
   const [hasNewMsgs, setHasNewMsgs] = React.useState(false);
+  const [unreadMsgCount, setUnreadMsgCount] = React.useState<number>(0);
   const [notifOpen, setNotifOpen] = React.useState(false);
   const pathname = usePathname();
   type Notif = {
@@ -124,7 +124,7 @@ export default function HeaderMenu() {
     created_at: string | null;
     read_at: string | null;
   };
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [me, setMe] = React.useState<string | null>(null);
 
   const [notifItems, setNotifItems] = React.useState<Notif[]>([]);
@@ -140,9 +140,13 @@ export default function HeaderMenu() {
         /* ignore */
       }
       try {
-        const res = await fetch("/api/me", { cache: "no-store", credentials: "include" });
+        const res = await fetch("/api/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
         const json = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok && json?.user?.id) setMe(json.user.id as string);
+        if (!cancelled && res.ok && json?.user?.id)
+          setMe(json.user.id as string);
       } catch {
         /* ignore */
       }
@@ -179,6 +183,22 @@ export default function HeaderMenu() {
         localStorage.getItem("handee_has_new_messages");
       setHasNotifs(n === "1" || n === "true");
       setHasNewMsgs(m === "1" || m === "true");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Initial load from localStorage for message count
+  React.useEffect(() => {
+    try {
+      const raw =
+        localStorage.getItem("handi_unread_messages_count") ??
+        localStorage.getItem("handee_unread_messages_count");
+      const n = raw ? Number(raw) : 0;
+      if (Number.isFinite(n)) {
+        setUnreadMsgCount(n);
+        setHasNewMsgs(n > 0);
+      }
     } catch {
       // ignore
     }
@@ -221,6 +241,74 @@ export default function HeaderMenu() {
     };
   }, [buildAuthHeaders]);
 
+  // Poll unread messages count periodically
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let aborted = false;
+    async function fetchMsgCount() {
+      try {
+        const headers = await buildAuthHeaders();
+        const res = await fetch("/api/chat/rooms", {
+          cache: "no-store",
+          credentials: "include",
+          headers,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as {
+          ok?: boolean;
+          data?: Array<{ unreadCount?: number }>;
+        };
+        const arr = Array.isArray(json?.data) ? json.data : [];
+        const count = arr.reduce(
+          (acc, it) =>
+            acc + (typeof it.unreadCount === "number" ? it.unreadCount : 0),
+          0,
+        );
+        if (!aborted) {
+          setUnreadMsgCount(count);
+          setHasNewMsgs(count > 0);
+        }
+        try {
+          localStorage.setItem("handi_unread_messages_count", String(count));
+          localStorage.setItem("handee_unread_messages_count", String(count));
+          localStorage.setItem("handi_has_new_messages", count > 0 ? "1" : "0");
+          localStorage.setItem(
+            "handee_has_new_messages",
+            count > 0 ? "1" : "0",
+          );
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void fetchMsgCount();
+    timer = setInterval(fetchMsgCount, 60000);
+    return () => {
+      aborted = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [buildAuthHeaders]);
+
+  // Refresh counts when tab gains focus
+  React.useEffect(() => {
+    const onFocus = () => {
+      try {
+        const raw = localStorage.getItem("handi_unread_messages_count");
+        const n = raw ? Number(raw) : 0;
+        if (Number.isFinite(n)) {
+          setUnreadMsgCount(n);
+          setHasNewMsgs(n > 0);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
   const loadNotifications = React.useCallback(async () => {
     setNotifLoading(true);
     try {
@@ -257,7 +345,9 @@ export default function HeaderMenu() {
         credentials: "include",
         headers,
       });
-      setNotifItems((prev) => prev.map((x) => ({ ...x, read_at: new Date().toISOString() })));
+      setNotifItems((prev) =>
+        prev.map((x) => ({ ...x, read_at: new Date().toISOString() })),
+      );
       setHasNotifs(false);
       try {
         localStorage.setItem("handi_has_notifications", "0");
@@ -274,7 +364,10 @@ export default function HeaderMenu() {
   React.useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!open) return;
-      if (detailsRef.current && !detailsRef.current.contains(e.target as Node)) {
+      if (
+        detailsRef.current &&
+        !detailsRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -296,10 +389,10 @@ export default function HeaderMenu() {
 
   async function onShare() {
     const url = typeof window !== "undefined" ? window.location.origin : "";
-    const text = "Únete a Homaid y conecta con expertos de confianza";
+    const text = "Únete a Handi y conecta con expertos de confianza";
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Homaid", text, url });
+        await navigator.share({ title: "Handi", text, url });
       } else {
         await navigator.clipboard.writeText(url);
         toast.success("Enlace copiado al portapapeles");
@@ -312,13 +405,17 @@ export default function HeaderMenu() {
   // Close menu utility (used when clicking any item)
   const closeMenu = React.useCallback(() => {
     setOpen(false);
-    try { if (detailsRef.current) detailsRef.current.open = false; } catch { /* ignore */ }
+    try {
+      if (detailsRef.current) detailsRef.current.open = false;
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   // Close menu on route change as a safety net
   React.useEffect(() => {
     if (open) closeMenu();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   return (
@@ -329,7 +426,12 @@ export default function HeaderMenu() {
       onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
     >
       <summary
-        className={`${buttonVariants({ variant: "outline", size: "icon" })} list-none cursor-pointer relative`}
+        className={buttonVariants({
+          variant: "ghost",
+          size: "icon",
+          className:
+            "list-none cursor-pointer relative flex h-10 w-10 items-center justify-center rounded-full bg-black/20 px-3 py-2 text-white shadow-sm backdrop-blur transition hover:bg-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white/70",
+        })}
         aria-label="Abrir menú"
       >
         <Menu className="h-5 w-5" />
@@ -337,12 +439,33 @@ export default function HeaderMenu() {
           <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
         )}
       </summary>
-      <div className="absolute right-0 mt-2 w-60 rounded-md border bg-white shadow-md p-1 z-50">
-  {/* Notificaciones */}
+      <div className="absolute right-0 mt-2 w-60 rounded-xl bg-black/30 text-white shadow-lg backdrop-blur-xl p-1 z-50">
+        {/* Notificaciones */}
         <button
           type="button"
-          onClick={() => setNotifOpen((v) => !v)}
-          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 relative"
+          onClick={async () => {
+            setNotifOpen((v) => !v);
+            // Clear notif badge immediately
+            setHasNotifs(false);
+            try {
+              localStorage.setItem("handi_has_notifications", "0");
+              localStorage.setItem("handee_has_notifications", "0");
+            } catch {
+              /* ignore */
+            }
+            // Best-effort: mark all as read in background
+            try {
+              const headers = await buildAuthHeaders();
+              await fetch("/api/me/notifications/mark-read", {
+                method: "POST",
+                credentials: "include",
+                headers,
+              });
+            } catch {
+              /* ignore */
+            }
+          }}
+          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-white hover:bg-white/10 relative"
         >
           <BellIcon />
           <span>Notificaciones</span>
@@ -353,7 +476,9 @@ export default function HeaderMenu() {
         {notifOpen ? (
           <div className="mb-1 rounded border bg-white p-1">
             <div className="mb-1 flex items-center justify-between px-1">
-              <span className="text-xs text-slate-600">Pendientes y recientes</span>
+              <span className="text-xs text-slate-600">
+                Pendientes y recientes
+              </span>
               <button
                 className="text-xs text-blue-600 hover:underline"
                 onClick={onMarkAllRead}
@@ -364,17 +489,34 @@ export default function HeaderMenu() {
             {notifLoading ? (
               <div className="px-2 py-1 text-xs text-slate-500">Cargando…</div>
             ) : notifItems.length === 0 ? (
-              <div className="px-2 py-1 text-xs text-slate-500">Sin notificaciones</div>
+              <div className="px-2 py-1 text-xs text-slate-500">
+                Sin notificaciones
+              </div>
             ) : (
               <ul className="max-h-64 overflow-auto">
                 {notifItems.map((n) => (
-                  <li key={n.id} className={`rounded px-2 py-1 text-xs hover:bg-neutral-50 ${!n.read_at ? "bg-orange-50" : ""}`}>
+                  <li
+                    key={n.id}
+                    className={`rounded px-2 py-1 text-xs hover:bg-neutral-50 ${!n.read_at ? "bg-orange-50" : ""}`}
+                  >
                     <div className="font-medium text-slate-900">{n.title}</div>
-                    {n.body ? <div className="text-slate-600">{n.body}</div> : null}
+                    {n.body ? (
+                      <div className="text-slate-600">{n.body}</div>
+                    ) : null}
                     <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-                      <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ""}</span>
+                      <span>
+                        {n.created_at
+                          ? new Date(n.created_at).toLocaleString()
+                          : ""}
+                      </span>
                       {n.link ? (
-                        <Link href={n.link} className="text-blue-600 hover:underline" onClick={closeMenu}>Abrir</Link>
+                        <Link
+                          href={n.link}
+                          className="text-blue-600 hover:underline"
+                          onClick={closeMenu}
+                        >
+                          Abrir
+                        </Link>
                       ) : null}
                     </div>
                   </li>
@@ -383,10 +525,10 @@ export default function HeaderMenu() {
             )}
           </div>
         ) : null}
-  {/* Cambiar tipo de usuario: movido solo al dropdown del avatar */}
+        {/* Cambiar tipo de usuario: movido solo al dropdown del avatar */}
         <Link
           href="/favorites"
-          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
+          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
           onClick={closeMenu}
         >
           <HeartIcon />
@@ -394,30 +536,53 @@ export default function HeaderMenu() {
         </Link>
         <Link
           href="/messages"
-          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 relative"
+          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-white hover:bg-white/10 relative"
           data-testid="open-messages-link"
-          onClick={closeMenu}
+          onClick={() => {
+            // Clear messages badge immediately
+            setUnreadMsgCount(0);
+            setHasNewMsgs(false);
+            try {
+              localStorage.setItem("handi_unread_messages_count", "0");
+              localStorage.setItem("handee_unread_messages_count", "0");
+              localStorage.setItem("handi_has_new_messages", "0");
+              localStorage.setItem("handee_has_new_messages", "0");
+            } catch {
+              /* ignore */
+            }
+            closeMenu();
+          }}
         >
-          <MessageIcon />
+          <span className="relative inline-flex items-center justify-center">
+            <MessageIcon />
+            {unreadMsgCount > 0 ? (
+              <span
+                aria-label={`${unreadMsgCount} mensajes sin leer`}
+                className="absolute -top-1 -right-2 min-w-[1rem] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center"
+              >
+                {unreadMsgCount > 99 ? "99+" : unreadMsgCount}
+              </span>
+            ) : null}
+          </span>
           <span>Mensajes</span>
-          {hasNewMsgs && (
-            <span className="ml-auto h-2.5 w-2.5 rounded-full bg-red-500" />
-          )}
         </Link>
-        <div className="my-1 h-px bg-neutral-200" />
+        <div className="my-1 h-px bg-white/20" />
         <Link
           href="/settings"
-          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
+          className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
           onClick={closeMenu}
         >
           <SettingsIcon className="h-4 w-4" />
           <span>Configuración</span>
         </Link>
-        <div className="my-1 h-px bg-neutral-200" />
+        <div className="my-1 h-px bg-white/20" />
         <button
           type="button"
-          onClick={() => { void onShare(); closeMenu(); }}
-          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
+          onClick={() => {
+            void onShare();
+            closeMenu();
+          }}
+          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
         >
           <ShareIcon />
           <span>Invita a un amigo</span>

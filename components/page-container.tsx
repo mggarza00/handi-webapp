@@ -15,7 +15,7 @@ export default function PageContainer({
   contentClassName,
 }: Props) {
   return (
-    <main className={cn("mx-auto max-w-5xl px-4 py-10", className)}>
+    <main className={cn("mx-auto max-w-6xl px-6 py-10", className)}>
       <div className={cn("max-w-3xl", contentClassName)}>{children}</div>
     </main>
   );

@@ -1,6 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Mapbox GL + Geocoder styles */
+@import url("https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css");
+@import url("https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1/mapbox-gl-geocoder.css");
+
+/* Google fonts for spotlight heading */
+@import url("https://fonts.googleapis.com/css2?family=Momo+Trust+Display&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&display=swap");
+
 @custom-variant dark (&:is(.dark *));
 
 @reference "tailwindcss";
@@ -9,39 +17,109 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ScrollStack globals */
+.scroll-stack-scroller {
+  position: relative;
+  height: 75vh;
+  overflow: hidden auto;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-stack-inner {
+  position: relative;
+  padding: 0 16px;
+}
+.scroll-stack-card {
+  will-change: transform, filter;
+  transform-origin: top center;
+  backface-visibility: hidden;
+}
+.scroll-stack-end {
+  height: 60vh;
+}
+
+/* Custom font helpers */
+.font-momo-trust {
+  font-family:
+    "Momo Trust Display",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+}
+.font-caveat {
+  font-family:
+    Caveat,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+}
+
+/* Spotlight card effect */
+.card-spotlight {
+  position: relative;
+  border-radius: var(--radius);
+  isolation: isolate;
+  overflow: hidden;
+}
+.card-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+    var(--spotlight-color, rgb(255 255 255 / 0.25)),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity 150ms ease;
+  z-index: 1;
+}
+.card-spotlight:hover::before,
+.card-spotlight:focus-visible::before {
+  opacity: 1;
+}
+
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #11304a; /* brand primary */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: #f9e7c9; /* brand secondary */
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: #fff;
+  --foreground: #001447;
+  --card: #fcfcff;
+  --card-foreground: #001447;
+  --popover: #fff;
+  --popover-foreground: #001447;
+  --primary: #082877;
+  --primary-foreground: #fff;
+  --secondary: #90aacd;
+  --secondary-foreground: #e8e8e8;
+  --muted: #e8e8e8;
+  --muted-foreground: #001447;
+  --accent: #d6e2fc;
+  --accent-foreground: #001447;
+  --destructive: #fc5c03;
+  --border: #e8e8e8;
+  --input: #001447;
+  --ring: #98a7bb;
+  --chart-1: #082877;
+  --chart-2: #5a9cf4;
+  --chart-3: #b8025d;
+  --chart-4: #fc5c03;
+  --chart-5: #03afbf;
+  --sidebar: #f9e7d2;
+  --sidebar-foreground: #001447;
+  --sidebar-primary: #082877;
+  --sidebar-primary-foreground: #f9e7d2;
+  --sidebar-accent: #a0adbd;
+  --sidebar-accent-foreground: #001447;
+  --sidebar-border: #001447;
+  --sidebar-ring: #5a9cf4;
 
   /*
     Gutter horizontal global (10% total en pantallas no muy grandes)
@@ -51,6 +129,80 @@
   --gutter-total: 10vw; /* 10% del viewport */
   --site-gutter: clamp(16px, 5vw, 48px);
   --gutter-x: var(--site-gutter);
+}
+
+/*
+  Legacy color fallback for browsers without OKLCH support (e.g., older iOS Safari).
+  We override the base tokens with broadly equivalent HEX values so that downstream
+  usages like `background-color: var(--color-background)` resolve to supported colors.
+*/
+@supports not (color: oklch(1 0 0)) {
+  :root {
+    --background: #f9e7d2;
+    --foreground: #191919;
+    --card: #f9e7d2;
+    --card-foreground: #191919;
+    --popover: #f9e7d2;
+    --popover-foreground: #191919;
+    --primary: #082877;
+    --primary-foreground: #f9e7d2;
+    --secondary: #5a9cf4;
+    --secondary-foreground: #001447;
+    --muted: #f9e7d2;
+    --muted-foreground: #001447;
+    --accent: #b8025d;
+    --accent-foreground: #f9e7d2;
+    --destructive: #fc5c03;
+    --border: #001447;
+    --input: #001447;
+    --ring: #5a9cf4;
+    --chart-1: #082877;
+    --chart-2: #5a9cf4;
+    --chart-3: #b8025d;
+    --chart-4: #fc5c03;
+    --chart-5: #03afbf;
+    --sidebar: #f9e7d2;
+    --sidebar-foreground: #001447;
+    --sidebar-primary: #082877;
+    --sidebar-primary-foreground: #f9e7d2;
+    --sidebar-accent: #5a9cf4;
+    --sidebar-accent-foreground: #001447;
+    --sidebar-border: #001447;
+    --sidebar-ring: #5a9cf4;
+  }
+  .dark {
+    --background: #191919;
+    --foreground: #f9e7d2;
+    --card: #001447;
+    --card-foreground: #f9e7d2;
+    --popover: #001447;
+    --popover-foreground: #f9e7d2;
+    --primary: #082877;
+    --primary-foreground: #f9e7d2;
+    --secondary: #5a9cf4;
+    --secondary-foreground: #001447;
+    --muted: #012a31;
+    --muted-foreground: #f9e7d2;
+    --accent: #b8025d;
+    --accent-foreground: #f9e7d2;
+    --destructive: #fc5c03;
+    --border: #5a9cf4;
+    --input: #082877;
+    --ring: #5a9cf4;
+    --chart-1: #082877;
+    --chart-2: #5a9cf4;
+    --chart-3: #b8025d;
+    --chart-4: #fc5c03;
+    --chart-5: #03afbf;
+    --sidebar: #001447;
+    --sidebar-foreground: #f9e7d2;
+    --sidebar-primary: #5a9cf4;
+    --sidebar-primary-foreground: #001447;
+    --sidebar-accent: #b8025d;
+    --sidebar-accent-foreground: #f9e7d2;
+    --sidebar-border: #5a9cf4;
+    --sidebar-ring: #5a9cf4;
+  }
 }
 
 html,
@@ -63,16 +215,78 @@ body {
   @apply bg-white text-neutral-900;
 }
 
+.btn-contratar {
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 9.17px;
+  padding: 7px 22px;
+  width: 150px;
+  height: 42px;
+  background: #9fd100;
+  border-radius: 9999px;
+  color: #001447;
+  font-family:
+    "Stack Sans Text",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 19px;
+  text-decoration: none;
+  box-shadow:
+    0 16px 36px -14px rgb(0 0 0 / 0.45),
+    0 6px 16px -12px rgb(0 0 0 / 0.35);
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease,
+    filter 140ms ease;
+}
+
+.btn-contratar:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+  box-shadow:
+    0 22px 42px -16px rgb(0 0 0 / 0.55),
+    0 10px 20px -10px rgb(0 0 0 / 0.35);
+}
+
+.btn-contratar:active {
+  transform: translateY(0);
+  filter: brightness(0.99);
+}
+
+.btn-contratar:focus-visible {
+  outline: 2px solid #a1d301;
+  outline-offset: 3px;
+  box-shadow: 0 16px 36px -14px rgb(0 0 0 / 0.45);
+}
+
+.btn-circle {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: #f9e7d2;
+}
+
 .dark body {
   @apply bg-neutral-950 text-neutral-100;
 }
 
 .text-brand {
-  color: #11304a; /* color de marca primario */
+  color: #082877; /* fallback */
+  color: var(--primary); /* moderno */
 }
 
 .bg-brand {
-  background-color: #11304a;
+  background-color: #082877; /* fallback */
+  background-color: var(--primary); /* moderno */
 }
 
 @theme inline {
@@ -114,47 +328,88 @@ body {
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #11304a; /* brand primary in dark as well */
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: #f9e7c9; /* brand secondary in dark as well */
-  --secondary-foreground: #11304a; /* ensure contrast on light secondary */
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 0.1);
-  --input: oklch(1 0 0 / 0.15);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 0.1);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #191919;
+  --foreground: #f9e7d2;
+  --card: #001447;
+  --card-foreground: #f9e7d2;
+  --popover: #001447;
+  --popover-foreground: #f9e7d2;
+  --primary: #082877;
+  --primary-foreground: #f9e7d2;
+  --secondary: #5a9cf4;
+  --secondary-foreground: #001447;
+  --muted: #012a31;
+  --muted-foreground: #f9e7d2;
+  --accent: #b8025d;
+  --accent-foreground: #f9e7d2;
+  --destructive: #fc5c03;
+  --border: #5a9cf4;
+  --input: #082877;
+  --ring: #5a9cf4;
+  --chart-1: #082877;
+  --chart-2: #5a9cf4;
+  --chart-3: #b8025d;
+  --chart-4: #fc5c03;
+  --chart-5: #03afbf;
+  --sidebar: #001447;
+  --sidebar-foreground: #f9e7d2;
+  --sidebar-primary: #5a9cf4;
+  --sidebar-primary-foreground: #001447;
+  --sidebar-accent: #b8025d;
+  --sidebar-accent-foreground: #f9e7d2;
+  --sidebar-border: #5a9cf4;
+  --sidebar-ring: #5a9cf4;
 }
 
 @layer base {
+  /* Baseline fallbacks: propiedad duplicada (HEX luego var/oklch) */
+  *,
+  *::before,
+  *::after {
+    border-color: #001447; /* fallback */
+    border-color: var(--color-border); /* moderno */
+  }
+
+  :root {
+    /* fallback */
+    background-color: #fff; /* fallback */
+    background-color: var(--background); /* moderno */
+    color: #111; /* fallback */
+    color: var(--foreground); /* moderno */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #fff; /* fallback */
+    background-color: var(--color-background); /* moderno */
+    color: #191919; /* fallback */
+    color: var(--color-foreground); /* moderno */
+
+    @apply bg-background text-foreground;
+  }
+
+  .dark body {
+    background-color: #191919; /* fallback */
+    background-color: var(--color-background); /* moderno (toma tokens dark) */
+    color: #f9e7d2; /* fallback */
+    color: var(--color-foreground); /* moderno */
+  }
+
+  /* Enlaces: color de marca con fallback */
+  a {
+    color: #082877; /* fallback */
+    color: var(--color-primary); /* moderno */
+  }
+  a:hover {
+    color: #001447; /* fallback aprox */
+    color: var(--color-primary); /* moderno (sistema aplica variantes) */
+  }
+
+  /* Modern baseline util */
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
-  
+
   /* Ajuste sutil de márgenes en desktop (versión web)
      Ensancha levemente contenedores comunes y reduce padding horizontal estándar */
   @media (width >= 768px) {
@@ -222,6 +477,12 @@ body {
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+  .line-clamp-4 {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 
   /* Oculta el ícono nativo del date picker cuando usemos un botón personalizado */
   .hide-native-calendar::-webkit-calendar-picker-indicator {
@@ -229,7 +490,7 @@ body {
     display: none;
   }
 
-  /* Animación sutil para la mascota de Homaid */
+  /* Animación sutil para la mascota de Handi */
   @keyframes homaid-bounce-subtle {
     0%,
     100% {
@@ -253,19 +514,47 @@ body {
       transform: translateX(-50%);
     }
   }
+
+  @keyframes marquee-right {
+    0% {
+      transform: translateX(-50%);
+    }
+    100% {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes scroll-left {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
   .marquee {
     overflow: hidden;
     position: relative;
   }
-  /* stylelint-disable-next-line selector-class-pattern */
-  .marquee__inner {
+  .subcat-marquee {
+    display: inline-flex;
+    min-width: max-content;
+    gap: 0.5rem;
+    animation: scroll-left 40s linear infinite;
+  }
+  .marquee-inner {
     display: flex;
     width: max-content;
     will-change: transform;
+    gap: 0.5rem; /* ensure equal spacing at group seam */
     animation: marquee-left var(--marquee-duration, 60s) linear infinite;
   }
-  /* stylelint-disable-next-line selector-class-pattern */
-  .marquee__group {
+
+  /* Variante para sentido contrario (derecha) */
+  .marquee.marquee-right .marquee-inner {
+    animation: marquee-right var(--marquee-duration, 60s) linear infinite;
+  }
+  .marquee-group {
     display: inline-flex;
     gap: 0.5rem; /* ~8px entre chips */
     white-space: nowrap;
@@ -286,14 +575,243 @@ body {
   }
 }
 
+@layer components {
+  .logo-white {
+    filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.25));
+  }
+
+  .handi-header {
+    font-family:
+      var(--font-stack-sans-text),
+      "Stack Sans Text",
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: 0;
+  }
+
+  .handi-header :is(a, button, span, p, strong, small, div, nav) {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+    letter-spacing: inherit;
+  }
+
+  /* Login pill: keep icon color in sync with text */
+  .handi-header-public .login-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #082877;
+    text-decoration: none;
+    transition:
+      color 0.2s ease,
+      opacity 0.2s ease;
+  }
+
+  .handi-header.header-on-hero .handi-header-public .login-pill {
+    color: #fff;
+  }
+
+  .handi-header-public .login-pill .login-pill-icon {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: brightness(0) saturate(100%) invert(17%) sepia(51%) saturate(2204%)
+      hue-rotate(195deg) brightness(90%) contrast(101%);
+    transition:
+      filter 0.2s ease,
+      opacity 0.2s ease;
+  }
+
+  .handi-header.header-on-hero
+    .handi-header-public
+    .login-pill
+    .login-pill-icon {
+    filter: brightness(0) saturate(100%) invert(100%);
+  }
+
+  .handi-header-public .login-pill:hover {
+    color: #0c2555;
+  }
+
+  .handi-header-public .login-pill:hover .login-pill-icon {
+    /* tinta similar al texto al hacer hover */
+    filter: brightness(0) saturate(100%) invert(16%) sepia(59%) saturate(1911%)
+      hue-rotate(191deg) brightness(90%) contrast(96%);
+  }
+
+  .handi-header.header-on-hero
+    .handi-header-public
+    .login-pill:hover
+    .login-pill-icon {
+    filter: brightness(0) saturate(100%) invert(95%);
+  }
+
+  /* Reusable glassmorphism card (spec exacta solicitada) */
+  .glass-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.5rem; /* rounded-3xl */
+    background: rgb(255 255 255 / 0.05);
+    backdrop-filter: blur(10px); /* frosted */
+    box-shadow: 0 10px 40px rgb(0 0 0 / 0.25);
+    border: 1px solid rgb(255 255 255 / 0.15);
+  }
+
+  /* Hero payment badge positioning (desktop only; mobile handled by module CSS) */
+  @media (width >= 768px) {
+    .hero-payment-badge .payment-badge {
+      position: absolute;
+      inset: 28% 40px auto auto;
+      transform: translateY(-45%);
+      margin: 0;
+      width: 260px;
+      max-width: none;
+    }
+  }
+
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.25),
+      rgb(255 255 255 / 0.05)
+    );
+    pointer-events: none;
+    opacity: 0.5; /* halo/borde suave */
+  }
+
+  /* Remove radial halo from base glass card */
+  .glass-card::after {
+    content: none;
+  }
+
+  /* Optional warm tint overlay helper */
+  .glass-tint-warm {
+    position: absolute;
+    inset: 0;
+    border-radius: 1.5rem; /* rounded-3xl to match glass-card */
+    background: rgb(121 85 72 / 0.06);
+    pointer-events: none;
+  }
+
+  /* Darker glass background variant for cards */
+  .glass-card-dark {
+    background: rgb(0 0 0 / 0.1);
+  }
+
+  /* Neutral white glass variant without halo */
+  .glass-white {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.5rem;
+    background: rgb(255 255 255 / 0.14);
+    backdrop-filter: blur(20px) saturate(150%);
+    box-shadow: 0 20px 60px -10px rgb(0 0 0 / 0.45);
+    border: 1px solid rgb(255 255 255 / 0.25);
+  }
+
+  /* gradiente lineal */
+  .glass-white::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.6),
+      rgb(255 255 255 / 0.15),
+      rgb(255 255 255 / 0.1)
+    );
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
+  /* Variant: force-disable any ::after halo on white glass */
+  .glass-white-no-halo::after {
+    display: none !important;
+  }
+
+  /* Optional: subtle frost noise overlay. Apply on a relative container. */
+  .glass-noise::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.02'/></svg>");
+    mix-blend-mode: overlay;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+  /* Primary button with legacy-safe fallbacks (propiedad duplicada) */
+  .btn-primary {
+    background-color: #082877; /* fallback */
+    background-color: var(--color-primary); /* moderno */
+    color: #f9e7d2; /* fallback */
+    color: var(--color-primary-foreground); /* moderno */
+    border-color: #082877; /* fallback */
+    border-color: var(--color-primary); /* moderno */
+
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border;
+    @apply bg-primary text-primary-foreground border-primary;
+  }
+
+  .btn-primary:hover {
+    background-color: #001447; /* fallback */
+    background-color: var(
+      --color-primary
+    ); /* moderno (matiz se aplica por util /90) */
+
+    border-color: #001447; /* fallback */
+    border-color: var(--color-primary); /* moderno */
+
+    @apply hover:bg-primary/90;
+  }
+
+  .btn-primary:disabled,
+  .btn-primary[aria-disabled="true"] {
+    background-color: #f9e7d2; /* fallback */
+    background-color: var(--color-muted); /* moderno aprox */
+    border-color: #f9e7d2; /* fallback */
+    border-color: var(--color-muted); /* moderno */
+    color: #191919; /* fallback */
+    color: var(--color-foreground); /* moderno aprox */
+
+    @apply opacity-60 cursor-not-allowed;
+  }
+}
+
 /* Respeta preferencias de movimiento reducido */
 @media (prefers-reduced-motion: reduce) {
   .animate-bounce-subtle {
     animation: none !important;
   }
-  /* stylelint-disable-next-line selector-class-pattern */
-  .marquee__inner {
+  .marquee-inner {
     animation: none !important;
     transform: none !important;
   }
+}
+
+/* (Conservar) Fallback de tokens cuando no hay OKLCH: ya definido arriba para :root/.dark */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Espacio de offset al hacer scroll a anclas (debajo del header) */
+section[id],
+#profesionales-cerca-de-ti {
+  scroll-margin-top: 110px;
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
+import { createServerClient } from "@/lib/supabase";
 
 import type { Database } from "@/types/supabase";
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() }, { status: 422, headers: JSONH });
     const body = parsed.data;
 
-    const db = createRouteHandlerClient<Database>({ cookies });
+    const db = getRouteClient();
     const { data: auth } = await db.auth.getUser();
     if (!auth?.user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
@@ -44,7 +44,8 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (reqErr || !reqRow)
       return NextResponse.json({ ok: false, error: "REQUEST_NOT_FOUND" }, { status: 404, headers: JSONH });
-    if (reqRow.created_by !== auth.user.id)
+    const reqOwner = (reqRow as unknown as { created_by?: string }).created_by || null;
+    if (reqOwner !== auth.user.id)
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
     const professionalId = (body.professional_id || body.to_user_id) as string | undefined;
@@ -52,7 +53,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "MISSING_PROFESSIONAL" }, { status: 400, headers: JSONH });
 
     // Ensure conversation exists between customer and professional for this request
-    const up = await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const up = await (db as any)
       .from("conversations")
       .upsert(
         [
@@ -87,7 +89,8 @@ export async function POST(req: Request) {
       serviceDateIso = d.toISOString();
     }
 
-    const { data: offer, error } = await db
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: offer, error } = await (db as any)
       .from("offers")
       .insert({
         conversation_id: conversationId,
@@ -105,6 +108,26 @@ export async function POST(req: Request) {
     if (error || !offer)
       return NextResponse.json({ ok: false, error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
 
+    // In-app notification for the professional
+    try {
+      const admin = createServerClient();
+      const formatted = new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(Number(offer.amount || 0));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (admin as any).from("user_notifications").insert({
+        user_id: professionalId,
+        type: "offer",
+        title: "Oferta de contratación",
+        body: `${title} por ${formatted}`,
+        link: `/mensajes/${encodeURIComponent(conversationId)}`,
+      });
+    } catch { /* ignore */ }
+
+    // Notificar por correo al profesional: "Oferta enviada" (además del trigger de DB que crea el mensaje)
+    try {
+      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+      await notifyChatMessageByConversation({ conversationId, senderId: auth.user.id, text: 'Oferta enviada' });
+    } catch { /* ignore notify errors */ }
+
     return NextResponse.json({ ok: true, offer, conversationId }, { status: 201, headers: JSONH });
   } catch (e) {
     const message = e instanceof Error ? e.message : "UNKNOWN";
@@ -115,4 +138,3 @@ export async function POST(req: Request) {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

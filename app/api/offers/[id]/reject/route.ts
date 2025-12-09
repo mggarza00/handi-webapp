@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import type { Database } from "@/types/supabase";
 
@@ -13,7 +12,7 @@ const BodySchema = z.object({
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user?.id)
       return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
@@ -39,11 +38,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       );
     const reason = payload.data.reason?.trim() || null;
 
-    const { data: offer, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sel: any = await (supabase as any)
       .from("offers")
       .select("*")
       .eq("id", offerId)
       .single();
+    const offer = sel?.data as unknown as { professional_id?: string; status?: string; id?: string } | null;
+    const error = sel?.error || null;
 
     if (error || !offer)
       return NextResponse.json({ ok: false, error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
@@ -51,20 +53,26 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (offer.professional_id !== auth.user.id)
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
-    if (offer.status !== "pending")
+    const currentStatus = String(offer.status || '').toLowerCase();
+    if (!['pending', 'sent'].includes(currentStatus))
       return NextResponse.json({ ok: false, error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
 
-    const { data: updated, error: upErr } = await supabase
+    // Use the exact current enum value to avoid casting issues when 'pending' is not part of the enum in some envs
+    const currentEnum = (offer as any).status as string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const upd: any = await (supabase as any)
       .from("offers")
       .update({ status: "rejected", reject_reason: reason })
       .eq("id", offer.id)
       .eq("professional_id", auth.user.id)
-      .eq("status", "pending")
+      .eq("status", currentEnum)
       .select("*")
       .single();
 
+    const upErr = upd?.error || null;
+    const updated = upd?.data || null;
     if (upErr || !updated)
-      return NextResponse.json({ ok: false, error: upErr?.message || "OFFER_UPDATE_FAILED" }, { status: 400, headers: JSONH });
+      return NextResponse.json({ ok: false, error: String(upErr?.message || "OFFER_UPDATE_FAILED") }, { status: 400, headers: JSONH });
 
     return NextResponse.json({ ok: true, offer: updated }, { status: 200, headers: JSONH });
   } catch (err) {

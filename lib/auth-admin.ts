@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { NextResponse } from "next/server";
 
-import type { Database } from "@/types/supabase";
+import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 
 export const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -21,10 +20,20 @@ export async function assertAdminOrJson(): Promise<
   | { ok: true; userId: string }
   | { ok: false; res: NextResponse<{ ok: false; error: string }> }
 > {
-  const supa = createRouteHandlerClient<Database>({ cookies });
+  const supa = createSupabaseServerClient();
   const { data: auth } = await supa.auth.getUser();
   const user = auth?.user;
+
+  // DEV/CI bypass: permite cookie 'handi_role' con rol de admin en entornos no productivos
   if (!user) {
+    const allowDev = process.env.NODE_ENV !== "production" || process.env.CI === "true";
+    if (allowDev) {
+      const role = (cookies().get("handi_role")?.value || "").toLowerCase();
+      const allowed = new Set(["owner", "admin", "ops", "finance", "support", "reviewer"]);
+      if (role && allowed.has(role)) {
+        return { ok: true, userId: "dev-admin" };
+      }
+    }
     return {
       ok: false,
       res: NextResponse.json(

@@ -1,13 +1,34 @@
 {
+  "version": 2,
+  "framework": "nextjs",
+  "env": {
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "rewrites": [
+    {
+      "source": "/favicon.ico",
+      "destination": "/images/handifav_sinfondo.png"
+    }
+  ],
   "redirects": [
     {
-      "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www.homaid.mx" }],
-      "destination": "https://homaid.mx/$1",
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.homaid.mx"
+        }
+      ],
+      "destination": "https://homaid.mx/:path*",
       "permanent": true
     }
   ],
-  "rewrites": [
-    { "source": "/favicon.ico", "destination": "/icons/Homaid-favicon.gif" }
+  "crons": [
+    {
+      "path": "/api/cron/runner",
+      "schedule": "0 0 * * *"
+    }
   ]
 }

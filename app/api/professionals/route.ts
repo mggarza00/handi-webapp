@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 // import { z } from "zod";
 import { getUserOrThrow } from "@/lib/_supabase-server";
+import { filterProfessionalsByRequest, toNames } from "@/lib/professionals/filter";
+import { clearRequestProAlert, queueRequestProAlert } from "@/lib/request-pro-alerts";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
 import { ProfileUpsertSchema } from "@/lib/validators/profiles";
 import type { Database } from "@/types/supabase";
@@ -20,11 +21,45 @@ export async function GET(req: Request) {
     const wantDebug = searchParams.get("debug") === "1";
     const includeIncomplete = searchParams.get("include_incomplete") === "1";
     const page = Math.max(1, Number(searchParams.get("page") || "1"));
-    const limit = 20;
+    const requestId = searchParams.get("request_id")?.trim() || null;
+    const limit = 60;
     const offset = (page - 1) * limit;
 
     // Público: no requerir sesión para explorar profesionales
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
+    let requestOwnerId: string | null = null;
+    let requestMeta:
+      | {
+          city: string | null;
+          category: string | null;
+          subcategories: unknown;
+          title: string | null;
+        }
+      | null = null;
+    if (requestId) {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const userId = auth?.user?.id ?? null;
+        if (userId) {
+          const { data: req } = await supabase
+            .from("requests")
+            .select("id, created_by, title, city, category, subcategories")
+            .eq("id", requestId)
+            .maybeSingle();
+          if (req && typeof req.created_by === "string" && req.created_by === userId) {
+            requestOwnerId = userId;
+            requestMeta = {
+              city: (req.city as string | null) ?? null,
+              category: (req.category as string | null) ?? null,
+              subcategories: req.subcategories ?? null,
+              title: (req.title as string | null) ?? null,
+            };
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
     // Trae profesionales activos con campos necesarios; city se filtra en BD por ciudad exacta
     const query = supabase
       .from("professionals_with_profile")
@@ -67,7 +102,7 @@ export async function GET(req: Request) {
         const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
         // Si falla el fallback admin (p. ej. falta SERVICE_ROLE), no interrumpir: responde vacío.
         const payload = { ok: true, data: [] as unknown[], meta: wantDebug ? { source: "admin_error", error: msg } : undefined };
-        return NextResponse.json(payload, { headers: JSONH });
+        return NextResponse.json(payload, { status: 200, headers: JSONH });
       }
     }
 
@@ -76,153 +111,53 @@ export async function GET(req: Request) {
     // - Array de strings u objetos { name }
     // - Cadena JSON serializada de lo anterior
     // - Cadena separada por comas
-    const toArray = (v: unknown): unknown[] => {
-      if (Array.isArray(v)) return v;
-      if (typeof v === "string") {
-        const s = v.trim();
-        // Intentar parse JSON si parece JSON
-        if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith("{") && s.endsWith("}"))) {
-          try {
-            const parsed = JSON.parse(s);
-            if (Array.isArray(parsed)) return parsed as unknown[];
-          } catch {
-            /* fall through */
-          }
+    const filtered = filterProfessionalsByRequest(list, {
+      city,
+      category,
+      subcategory,
+      includeIncomplete,
+    });
+
+    if (requestId && requestOwnerId) {
+      try {
+        if (filtered.length === 0) {
+          await queueRequestProAlert({
+            requestId,
+            userId: requestOwnerId,
+            requestTitle: requestMeta?.title ?? null,
+            city: requestMeta?.city ?? city,
+            category: requestMeta?.category ?? category,
+            subcategory,
+            subcategories: requestMeta?.subcategories,
+          });
+        } else {
+          await clearRequestProAlert(requestId);
         }
-        // Fallback: separar por comas
-        if (s.includes(",")) {
-          return s
-            .split(",")
-            .map((x) => x.trim())
-            .filter((x) => x.length > 0);
-        }
-        // Último recurso: cadena única como elemento
-        return s ? [s] : [];
+      } catch {
+        /* ignore queue errors */
       }
-      return [];
-    };
+    }
 
-    const toNames = (v: unknown): string[] => {
-      const arr = toArray(v);
-      return arr
-        .map((x) =>
-          typeof x === "string"
-            ? x
-            : x && typeof x === "object"
-              ? (x as Record<string, unknown>).name
-              : null,
-        )
-        .filter((s): s is string => typeof s === "string" && s.length > 0)
-        .map((s) => s.trim());
-    };
-
-    const toNorm = (v: unknown) =>
-      String(v ?? "")
-        .toLowerCase()
-        .normalize("NFD")
-        // remove accents
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim();
-
-    const normCity = city ? toNorm(city) : null;
-    const normCategory = category ? toNorm(category) : null;
-    const normSub = subcategory ? toNorm(subcategory) : null;
-
-    const filtered = list
-      .filter((row) => {
-        const r = row as Record<string, unknown>;
-        if (r.active === false) return false;
-
-        // Ocultar perfiles incompletos (sin nombre) salvo que se pida explícitamente
-        if (!includeIncomplete) {
-          const name = typeof r.full_name === "string" ? r.full_name.trim() : "";
-          if (!name) return false;
-        }
-
-        // City match: exact city OR cities array contains
-        if (normCity) {
-          const cNorm = toNorm(r.city);
-          const citiesArrNorm = toNames(r.cities).map(toNorm);
-          const cityOk =
-            cNorm === normCity ||
-            citiesArrNorm.includes(normCity) ||
-            // relaxed contains for cases like "monterrey, nl"
-            (cNorm && cNorm.includes(normCity));
-          if (!cityOk) return false;
-        }
-
-        // Category match (if provided)
-        if (normCategory) {
-          const catsNorm = toNames(r.categories).map(toNorm);
-          const catOk = catsNorm.includes(normCategory);
-          if (!catOk) return false;
-        }
-
-        // Subcategory match (if provided)
-        if (normSub) {
-          const subsNorm = toNames(r.subcategories).map(toNorm);
-          const subOk = subsNorm.includes(normSub);
-          if (!subOk) return false;
-        }
-
-        return true;
-      })
-      // Reordenar similar al RPC
-      .sort((a, b) => {
-        const aa = a as Record<string, unknown>;
-        const bb = b as Record<string, unknown>;
-        // is_featured desc
-  const f1 = aa.is_featured ? 1 : 0;
-  const f2 = bb.is_featured ? 1 : 0;
-        if (f1 !== f2) return f2 - f1;
-        // rating desc (nulls last)
-        const r1 = typeof aa.rating === "number" ? (aa.rating as number) : -1;
-        const r2 = typeof bb.rating === "number" ? (bb.rating as number) : -1;
-        if (r1 !== r2) return r2 - r1;
-        // last_active_at desc (nulls last)
-        const d1 = aa.last_active_at ? Date.parse(String(aa.last_active_at)) : 0;
-        const d2 = bb.last_active_at ? Date.parse(String(bb.last_active_at)) : 0;
-        return d2 - d1;
-      });
-
-    // Pagina el resultado final
-    // Si no hubo resultados estrictos, intenta sugerencias relajadas (misma ciudad OR categoría OR subcategoría)
-    const relaxed = (() => {
-      if (filtered.length > 0) return filtered;
-      if (!normCity && !normCategory && !normSub) return filtered;
-      const pass = list.filter((row) => {
-        const r = row as Record<string, unknown>;
-        if (r.active === false) return false;
-        if (!includeIncomplete) {
-          const name = typeof r.full_name === "string" ? r.full_name.trim() : "";
-          if (!name) return false;
-        }
-        const cNorm = toNorm(r.city);
-        const citiesArrNorm = toNames(r.cities).map(toNorm);
-        const catsNorm = toNames(r.categories).map(toNorm);
-        const subsNorm = toNames(r.subcategories).map(toNorm);
-        const cityOk = normCity
-          ? cNorm === normCity || citiesArrNorm.includes(normCity) || (cNorm && cNorm.includes(normCity))
-          : false;
-        const catOk = normCategory ? catsNorm.includes(normCategory) : false;
-        const subOk = normSub ? subsNorm.includes(normSub) : false;
-        return cityOk || catOk || subOk;
-      });
-      return pass;
-    })();
-
-    const pageItems = relaxed.slice(offset, offset + limit);
+    const totalCount = filtered.length;
+    const pageItems = filtered.slice(offset, offset + limit);
     // Mapea solo campos necesarios al cliente
-    const mapped = pageItems.map((r) => {
+    let mapped = pageItems.map((r) => {
       const x = r as Record<string, unknown>;
+      const rawRating = x.rating as unknown;
+      let rating: number | null = null;
+      if (typeof rawRating === 'number') {
+        rating = rawRating;
+      } else if (typeof rawRating === 'string') {
+        const n = Number(rawRating);
+        rating = Number.isFinite(n) ? n : null;
+      }
       return {
         id: String(x.id ?? ""),
         full_name: (x.full_name as string | null) ?? null,
         avatar_url: (x.avatar_url as string | null) ?? null,
         headline: (x.headline as string | null) ?? null,
         bio: (x.bio as string | null) ?? null,
-        rating:
-          typeof x.rating === "number" ? (x.rating as number) : null,
+        rating,
         // Extra fields useful for client cards
         categories: toNames(x.categories),
         subcategories: toNames(x.subcategories),
@@ -230,13 +165,63 @@ export async function GET(req: Request) {
       } as const;
     });
 
+    // Fallback: if rating is null, compute average from public.ratings
+    try {
+      const missingIds = mapped.filter((m) => m.rating === null).map((m) => m.id);
+      if (missingIds.length) {
+        // Prefer public client (RLS allows select) to avoid depending on SERVICE_ROLE
+        let agg: Array<{ to_user_id: string; avg: unknown }> | null = null;
+        try {
+          const pub = createClient() as any;
+          const r = await pub
+            .from('ratings')
+            .select('to_user_id, avg:avg(stars)')
+            .in('to_user_id', missingIds)
+            .group('to_user_id');
+          if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
+        } catch {
+          // fall back to service role below
+        }
+        if (!agg) {
+          try {
+            const admin = createServiceClient() as any;
+            const r = await admin
+              .from('ratings')
+              .select('to_user_id, avg:avg(stars)')
+              .in('to_user_id', missingIds)
+              .group('to_user_id');
+            if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
+          } catch {
+            // ignore
+          }
+        }
+        if (agg && agg.length) {
+          const map = new Map<string, number>();
+          for (const row of agg) {
+            const n = Number((row as any).avg);
+            if (Number.isFinite(n)) map.set(String((row as any).to_user_id), n);
+          }
+          mapped = mapped.map((m) => (m.rating === null && map.has(m.id) ? { ...m, rating: map.get(m.id)! } : m));
+        }
+      }
+    } catch {
+      // ignore fallback errors; keep mapped as-is
+    }
+
+    const metaCommon = {
+      total: totalCount,
+      page,
+      limit,
+    } as const;
+
     const payload = wantDebug
       ? {
           ok: true,
           data: mapped,
           meta: {
+            ...metaCommon,
             source,
-            total: list.length,
+            totalAll: list.length,
             strict: filtered.length,
             returned: pageItems.length,
             city,
@@ -244,8 +229,8 @@ export async function GET(req: Request) {
             subcategory,
           },
         }
-      : { ok: true, data: mapped };
-    return NextResponse.json(payload, { headers: JSONH });
+      : { ok: true, data: mapped, meta: metaCommon };
+    return NextResponse.json(payload, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(
@@ -266,7 +251,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { user } = await getUserOrThrow(supabase);
     const parsed = ProfileUpsertSchema.safeParse(await req.json());
     if (!parsed.success) {

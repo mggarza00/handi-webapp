@@ -1,8 +1,8 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -21,7 +21,7 @@ export default function AntiFlashLoginButton({ href, label = "Iniciar sesión", 
     let active = true;
     (async () => {
       try {
-        const supabase = createClientComponentClient();
+        const supabase = createSupabaseBrowser();
         const { data } = await supabase.auth.getSession();
         const hasSession = !!data?.session;
         if (!active) return;
@@ -46,4 +46,3 @@ export default function AntiFlashLoginButton({ href, label = "Iniciar sesión", 
     </Button>
   );
 }
-

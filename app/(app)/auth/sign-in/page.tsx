@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export default function SignInPage() {
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseBrowser();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +19,8 @@ export default function SignInPage() {
   const [error, setError] = useState<string | null>(null);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [facebookLoading, setFacebookLoading] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const sp = useSearchParams();
   // Surface OAuth errors (e.g., over_request_rate_limit) from /auth/callback redirect
   useEffect(() => {
@@ -32,7 +35,16 @@ export default function SignInPage() {
       }
     }
   }, [sp]);
-  const next = useMemo(() => {
+  // Optional toast guidance for flows arriving from CTA (only when not authenticated)
+  useEffect(() => {
+  if (!sessionChecked || hasSession) return;
+  const t = sp?.get("toast");
+  if (t === "new-request") {
+    toast.info("Inicia sesión para crear una solicitud de servicio");
+  } else if (t === "pro-apply") {
+    toast.info("Inicia sesión para postularte como profesional");
+  }
+}, [sp, sessionChecked, hasSession]);  const next = useMemo(() => {
     const n = sp?.get("next");
     if (n && n.startsWith("/")) return n;
     if (typeof window !== "undefined") {
@@ -48,10 +60,27 @@ export default function SignInPage() {
 
   const resolveBaseUrl = () => window.location.origin.replace(/\/$/, "");
 
-  const handleGoogle = async () => {
+  // If already authenticated, skip this page and go to `next`
+    // If already authenticated, skip this page and go to `next`; mark session state
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const authed = !!data?.session;
+        setHasSession(authed);
+        setSessionChecked(true);
+        if (authed) {
+          router.replace(next);
+          router.refresh();
+        }
+      } catch {
+        setSessionChecked(true);
+      }
+    })();
+  }, [next, router, supabase]);  const handleGoogle = async () => {
     setError(null);
     setGoogleLoading(true);
-    const base = resolveBaseUrl();
+    const base = window.location.origin.replace(/\/$/, "");
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -59,8 +88,7 @@ export default function SignInPage() {
       },
     });
   };
-
-  const handleFacebook = async () => {
+const handleFacebook = async () => {
     setError(null);
     setFacebookLoading(true);
     const base = resolveBaseUrl();
@@ -106,7 +134,7 @@ export default function SignInPage() {
           ? err.message
           : typeof err === "string"
           ? err
-          : "Error al iniciar sesion",
+          : "Error al iniciar sesión",
       );
     } finally {
       setSending(false);
@@ -116,9 +144,9 @@ export default function SignInPage() {
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-6">
       <div className="w-full max-w-md rounded-2xl shadow p-6 border bg-white dark:bg-neutral-900">
-        <h1 className="text-2xl font-semibold mb-2">Iniciar sesion</h1>
+        <h1 className="text-2xl font-semibold mb-2">Iniciar sesión</h1>
         <p className="text-sm text-neutral-500 mb-6">
-          Entra con Google o Facebook, o recibe un enlace magico por correo.
+          Entra con Google o Facebook, o recibe un enlace mágico por correo.
         </p>
 
         <Button
@@ -174,7 +202,7 @@ export default function SignInPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contrasena (opcional)"
+              placeholder="Contraseña (opcional)"
               className="w-full rounded-xl border px-4 py-2"
               autoComplete="current-password"
             />
@@ -190,7 +218,7 @@ export default function SignInPage() {
                   <span>Enviando</span>
                 </>
               ) : password.trim().length > 0 ? (
-                "Iniciar sesion"
+                "Iniciar sesión"
               ) : (
                 "Enviar enlace"
               )}
@@ -202,7 +230,7 @@ export default function SignInPage() {
 
         <div className="mt-6 border-t pt-4 text-xs text-neutral-500">
           <div className="flex items-center justify-between">
-            <span>(c) {new Date().getFullYear()} Homaid</span>
+            <span>(c) {new Date().getFullYear()} Handi</span>
             <a href="/" className="hover:underline">Inicio</a>
           </div>
         </div>
@@ -210,3 +238,9 @@ export default function SignInPage() {
     </div>
   );
 }
+
+
+
+
+
+

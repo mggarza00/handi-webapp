@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getStripe } from "@/lib/stripe";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
+import { createClient as createServerClient } from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -11,7 +11,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const offerId = (params?.id || "").trim();
     if (!offerId) return NextResponse.json({ ok: false, error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
 
-    const db = createRouteHandlerClient<Database>({ cookies });
+    const db = createServerClient();
     const { data: auth } = await db.auth.getUser();
     const userId = auth?.user?.id || null;
     if (!userId) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
@@ -44,10 +44,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     let receiptUrl: string | null = null;
     try {
-      const key = process.env.STRIPE_SECRET_KEY;
       const piId = (offer as any)?.payment_intent_id as string | null;
-      if (key && piId) {
-        const stripe = new Stripe(key, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
+      const stripe = await getStripe();
+      if (stripe && piId) {
         const pi = await stripe.paymentIntents.retrieve(piId, { expand: ["latest_charge"] });
         const anyCharge: any = (pi as any)?.latest_charge || null;
         const rec = typeof anyCharge?.receipt_url === "string" ? anyCharge.receipt_url : null;
@@ -58,6 +57,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const payload: Record<string, unknown> = { offer_id: offerId, status: "paid" };
     if (receiptUrl) payload.receipt_url = receiptUrl;
     await db.from("messages").insert({ conversation_id: convId, sender_id: offer.client_id, body: "Pago realizado. Servicio agendado.", message_type: "system", payload });
+    // Aviso por email
+    try { await notifyChatMessageByConversation({ conversationId: convId, senderId: offer.client_id, text: "Pago realizado. Servicio agendado." }); } catch {}
 
     return NextResponse.json({ ok: true, created: true, receiptUrl }, { status: 200, headers: JSONH });
   } catch (err) {
@@ -68,4 +69,3 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

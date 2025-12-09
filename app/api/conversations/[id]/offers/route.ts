@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { z } from "zod";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
+import getRouteClient from "@/lib/supabase/route-client";
+import type { Database } from "@/types/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
 import { validateOfferFields } from "@/lib/safety/offer-guard";
-import type { Database } from "@/types/supabase";
+import { getDevUserFromHeader, getUserFromRequestOrThrow, getDbClientForRequest } from "@/lib/auth-route";
+import { createServerClient as createServiceClient } from "@/lib/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -25,12 +26,13 @@ type BodyInput = z.infer<typeof BodySchema>;
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user)
-      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+    // Resolve user via cookies/Bearer or dev header fallback
+    let usedDevFallback = false;
+    let { user } = (await getDevUserFromHeader(req)) ?? { user: null as any };
+    if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
+    // Use service role when in dev-fallback, otherwise a DB client bound to the request/session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase: any = usedDevFallback ? createServiceClient() : await getDbClientForRequest(req);
 
     const rate = await assertRateLimit("offer.create", 60, 5);
     if (!rate.ok)
@@ -118,6 +120,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (error || !offer)
       return NextResponse.json({ error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
 
+    // Best-effort: in-app notification for the professional
+    try {
+      const adminSrv = createServiceClient();
+      const formatted = new Intl.NumberFormat("es-MX", { style: "currency", currency: (offer.currency || "MXN").toUpperCase() }).format(Number(offer.amount || 0));
+      const link = `/mensajes/${encodeURIComponent(conversationId)}`;
+      // user_notifications has RLS insert.self; use service role
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (adminSrv as any).from("user_notifications").insert({
+        user_id: professionalId,
+        type: "offer",
+        title: "Oferta de contratación",
+        body: `${offer.title || "Oferta"} por ${formatted}`,
+        link,
+      });
+    } catch { /* ignore notification errors */ }
+
+    // Email notification to the pro (same path as new message)
+    try {
+      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
+      await notifyChatMessageByConversation({ conversationId, senderId: user.id, text: 'Oferta enviada' });
+    } catch { /* ignore email errors */ }
+
     return NextResponse.json({ ok: true, offer }, { status: 201, headers: JSONH });
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN";
@@ -128,7 +152,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 // GET /api/conversations/:id/offers?status=sent
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     const conversationId = params.id;
     if (!conversationId)
       return NextResponse.json({ ok: false, error: "MISSING_CONVERSATION" }, { status: 400, headers: JSONH });

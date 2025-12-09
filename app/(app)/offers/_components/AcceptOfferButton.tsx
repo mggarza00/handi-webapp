@@ -4,6 +4,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 
 import { Button } from "@/components/ui/button";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 const BankAccountGateModal = dynamic(() => import("./BankAccountGateModal"), { ssr: false });
 
@@ -21,6 +22,26 @@ export default function AcceptOfferButton({ offerId, conversationId, onAccepted,
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
+
+  async function getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { "Content-Type": "application/json; charset=utf-8" };
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token || null;
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+        headers["x-access-token"] = token;
+      }
+    } catch { /* ignore */ }
+    try {
+      const r = await fetch('/api/me', { cache: 'no-store', credentials: 'include' });
+      const j = await r.json().catch(() => ({}));
+      const uid = (j?.user?.id as string | undefined) ?? undefined;
+      if (uid) headers["x-user-id"] = uid;
+    } catch { /* ignore */ }
+    return headers;
+  }
 
   async function acceptNow() {
     if (!offerId || busy) return;
@@ -31,33 +52,35 @@ export default function AcceptOfferButton({ offerId, conversationId, onAccepted,
       let json: { ok?: boolean; error?: string; checkoutUrl?: string | null } = {};
       // Preferir aceptar por conversacion cuando la tenemos (más robusto frente a ids inconsistentes)
       if (conversationId) {
+        const headers = await getAuthHeaders();
         res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/offers/accept`, {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json; charset=utf-8" },
+          headers,
         });
         json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; checkoutUrl?: string | null };
-        if (res.status === 404) {
+        if (!res.ok) {
           // Fallback: intenta por id de oferta
           res = await fetch(`/api/offers/${encodeURIComponent(offerId)}/accept`, {
             method: "POST",
             credentials: "include",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
+            headers,
           });
           json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; checkoutUrl?: string | null };
         }
       } else {
+        const headers = await getAuthHeaders();
         res = await fetch(`/api/offers/${encodeURIComponent(offerId)}/accept`, {
           method: "POST",
           credentials: "include",
-          headers: { "Content-Type": "application/json; charset=utf-8" },
+          headers,
         });
         json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; checkoutUrl?: string | null };
         if (res.status === 404 && conversationId) {
           res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/offers/accept`, {
             method: "POST",
             credentials: "include",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
+            headers,
           });
           json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; checkoutUrl?: string | null };
         }

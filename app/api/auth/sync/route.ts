@@ -1,36 +1,33 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-export async function POST() {
+export async function POST(req: Request) {
+  // Construye la respuesta de éxito por defecto
+  const res = NextResponse.json({ ok: true }, { headers: JSONH });
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
-    const {
-      data: { session },
-      error,
-    } = await supabase.auth.getSession();
+    const supabase = getRouteClient();
 
-    if (error) {
-      return NextResponse.json(
-        { ok: false, error: error.message },
-        { status: 401, headers: JSONH },
-      );
+    const body = await req.json().catch(() => null) as
+      | { access_token?: string; refresh_token?: string }
+      | null;
+
+    if (body?.access_token && body?.refresh_token) {
+      const { error } = await supabase.auth.setSession({
+        access_token: body.access_token,
+        refresh_token: body.refresh_token,
+      });
+      if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 401, headers: JSONH });
+      // Cookies ya aplicadas en `res` por setAll; devolver el mismo response
+      return res;
     }
 
-    const user = session?.user ?? null;
-
-    return NextResponse.json(
-      {
-        ok: Boolean(user),
-        user,
-        session: session ? { expires_at: session.expires_at } : null,
-      },
-      { headers: JSONH },
-    );
+    // Si no se envían tokens, intenta obtener sesión de cookies actuales
+    const { error } = await supabase.auth.getSession();
+    if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 401, headers: JSONH });
+    return res;
   } catch (e) {
     const message = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(

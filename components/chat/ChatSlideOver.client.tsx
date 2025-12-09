@@ -14,7 +14,11 @@ type Props = {
 export default function ChatSlideOver({ open, onOpenChange, conversationId, userId }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="sm:max-w-md p-0">
+      <SheetContent
+        side="right"
+        className="sm:max-w-md p-0 h-[100dvh]"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="sr-only">
           <SheetTitle>Chat</SheetTitle>
         </SheetHeader>

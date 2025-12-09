@@ -2,10 +2,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-import { Button } from "@/components/ui/button";
 import ChatPanel from "@/components/chat/ChatPanel";
+import { Button } from "@/components/ui/button";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = {
   requestId: string;
@@ -17,7 +17,7 @@ type ApplicationRow = Record<string, unknown>;
 
 export default function ChatClient({ requestId, createdBy, initialTitle }: Props) {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseBrowser();
   const [apps, setApps] = React.useState<ApplicationRow[]>([]);
   const [peerId, setPeerId] = React.useState<string>("");
   const [me, setMe] = React.useState<string | null>(null);

@@ -1,9 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
+import { z } from "zod";
+import webpush from "web-push";
+
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader } from "@/lib/auth-route";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -84,7 +88,7 @@ export async function POST(req: Request) {
       const normalizePath = (p: string): string => {
         if (!p) return p as unknown as string;
         p = p.split(String.fromCharCode(92)).join("/");
-        if (p.startsWith("chat-attachments/")) p = p.slice("chat-attachments/".length);
+        if (p.startsWith("message-attachments/")) p = p.slice("message-attachments/".length);
         return p;
       };
       // Tamaño máximo por archivo: 20MB
@@ -158,6 +162,82 @@ export async function POST(req: Request) {
       .from("conversations")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", conversationId);
+
+    // Enviar push al otro participante (no bloqueante; ignora errores)
+    try {
+      const senderId = user.id as string;
+      const customerId = (conv.data as any)?.customer_id as string | undefined;
+      const proId = (conv.data as any)?.pro_id as string | undefined;
+      const recipientId = senderId === customerId ? proId : customerId;
+      if (recipientId && typeof recipientId === 'string') {
+        const fnUrlDirect = process.env.SUPABASE_FUNCTIONS_URL;
+        const supaUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const fnBase = fnUrlDirect || (supaUrl ? `${supaUrl.replace(/\/$/, '')}/functions/v1` : null);
+        const srk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (fnBase && srk) {
+          const urlPath = `/mensajes/${conversationId}`;
+          const fnUrl = `${fnBase.replace(/\/$/, '')}/push-notify`;
+          const previewText = (body || '').trim().slice(0, 140) || 'Tienes un mensaje nuevo en Handi';
+          const fnRes = await fetch(fnUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json; charset=utf-8',
+              Authorization: `Bearer ${srk}`,
+            },
+            body: JSON.stringify({
+              toUserId: recipientId,
+              payload: {
+                title: 'Nuevo mensaje',
+                body: previewText,
+                url: urlPath,
+                tag: `thread:${conversationId}`,
+                icon: '/icons/icon-192.png',
+                badge: '/icons/badge-72.png',
+              },
+            }),
+          }).catch(() => undefined as unknown as Response);
+
+          // Fallback: if Edge fails or returns non-2xx, send directly from Node using web-push
+          if (!fnRes || !fnRes.ok) {
+            const VAPID_PUBLIC = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+            const VAPID_PRIVATE = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+            const VAPID_SUBJECT = process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:soporte@handi.mx';
+            if (VAPID_PUBLIC && VAPID_PRIVATE) {
+              try {
+                webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+                const admin = getAdminSupabase();
+                const { data: subs } = await admin
+                  .from('web_push_subscriptions')
+                  .select('id, endpoint, keys, p256dh, auth')
+                  .eq('user_id', recipientId);
+                const payload = JSON.stringify({
+                  title: 'Nuevo mensaje',
+                  body: previewText,
+                  url: urlPath,
+                  tag: `thread:${conversationId}`,
+                  icon: '/icons/icon-192.png',
+                  badge: '/icons/badge-72.png',
+                });
+                for (const s of subs || []) {
+                  const rawKeys: any = (s as any).keys ?? { p256dh: (s as any).p256dh, auth: (s as any).auth };
+                  if (!rawKeys?.p256dh || !rawKeys?.auth) continue;
+                  const subscription = { endpoint: (s as any).endpoint, keys: { p256dh: rawKeys.p256dh, auth: rawKeys.auth } } as any;
+                  try { await webpush.sendNotification(subscription, payload); } catch { /* ignore per sub */ }
+                }
+              } catch { /* ignore fallback errors */ }
+            }
+          }
+        }
+      }
+    } catch {
+      // ignore push errors
+    }
+
+    // Email al otro participante con el contenido del mensaje y link al chat (no bloqueante)
+    try {
+      const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
+      await notifyChatMessageByConversation({ conversationId, senderId: user.id, text: body || "", attachments: attachLite });
+    } catch { /* ignore email notify errors */ }
 
     return NextResponse.json(
       { ok: true, data: ins.data },

@@ -4,19 +4,20 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 // import Image from "next/image"; // replaced by Avatar
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { createClient } from "@supabase/supabase-js";
+import createClient from "@/utils/supabase/server";
+import { createClient as createSupabaseJs } from "@supabase/supabase-js";
 // Internal SSR helpers and client components
 import { getRequestWithClient } from "../_lib/getRequestWithClient";
 import ChatStartPro from "./chat-start-pro.client";
 // Cross-app SSR helper
 import { getConversationIdForRequest } from "@/app/(app)/mensajes/_lib/getConversationForRequest";
-import { Card } from "@/components/ui/card";
-import PhotoGallery from "@/components/ui/PhotoGallery";
-import type { Database } from "@/types/supabase";
-import { mapConditionToLabel } from "@/lib/conditions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card } from "@/components/ui/card";
 import RatingStars from "@/components/ui/RatingStars";
+import PhotoGallery from "@/components/ui/PhotoGallery";
+import { normalizeAvatarUrl } from "@/lib/avatar";
+import { mapConditionToLabel } from "@/lib/conditions";
+import { UI_STATUS_LABELS } from "@/lib/request-status";
 
 // Helpers para normalizar/mostrar fechas como dd-mm-aaaa
 function normalizeDateInput(input?: string | null): string {
@@ -61,7 +62,7 @@ function getBaseUrl() {
 export const dynamic = "force-dynamic";
 
 export default async function ProRequestDetailPage({ params }: Params) {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -130,7 +131,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
       let href = (typeof f.url === "string" ? f.url : undefined) as string | undefined;
       if (!href && typeof f.path === "string" && url && serviceRole) {
         try {
-          const admin = createClient(url, serviceRole);
+          const admin = createSupabaseJs(url, serviceRole);
           const s = await admin.storage
             .from("requests")
             .createSignedUrl(f.path as string, 60 * 60);
@@ -161,7 +162,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const clientId = clientFromAdmin?.id ?? ((d as { created_by?: string }).created_by ?? null);
 
   // Cargar perfil básico del cliente
-  const supabaseS = createServerComponentClient<Database>({ cookies });
+  const supabaseS = createClient();
   let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null; rating: number | null } | null = clientFromAdmin
     ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url, rating: (clientFromAdmin as { rating?: number | null }).rating ?? null }
     : null;
@@ -170,7 +171,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
       .from("profiles")
       .select("id, full_name, avatar_url, rating")
       .eq("id", clientId)
-      .maybeSingle<{ id: string; full_name: string | null; avatar_url: string | null; rating: number | null }>();
+      .maybeSingle();
     clientProfile = cp ?? null;
   }
   // Log temporal para QA
@@ -213,6 +214,11 @@ export default async function ProRequestDetailPage({ params }: Params) {
     /* ignore */
   }
 
+  const statusLabel =
+    status && Object.hasOwn(UI_STATUS_LABELS, status)
+      ? UI_STATUS_LABELS[status as keyof typeof UI_STATUS_LABELS]
+      : status;
+
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <nav className="text-sm text-slate-600">
@@ -239,6 +245,42 @@ export default async function ProRequestDetailPage({ params }: Params) {
               ))}
             </div>
           ) : null}
+          {/* Cliente: en mobile mostrar debajo del título */}
+          <Card className="p-4 md:hidden">
+            <h2 className="font-medium">Cliente</h2>
+            <div className="flex items-center gap-3 mt-3">
+              <Avatar className="h-12 w-12">
+                {clientProfile?.avatar_url ? (
+                  <AvatarImage src={normalizeAvatarUrl(clientProfile.avatar_url) || "/images/Favicon-v1-jpeg.jpg"} alt={nombre} />
+                ) : (
+                  <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
+                )}
+              </Avatar>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="font-medium leading-none truncate">{nombre}</div>
+                  {(clientProfile?.id ?? clientId) ? (
+                    <Link
+                      href={`/clients/${clientProfile?.id ?? clientId}`}
+                      className="text-xs underline hover:no-underline text-slate-600"
+                    >
+                      ver perfil y reseñas
+                    </Link>
+                  ) : null}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {typeof clientProfile?.rating === "number" ? (
+                    <RatingStars value={clientProfile.rating} className="text-[12px]" />
+                  ) : (
+                    <span>Calificación: —</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="pt-2">
+              <ChatStartPro requestId={String(d.id ?? params.id)} initialConversationId={initialConversationId} />
+            </div>
+          </Card>
           {/* Info en tarjetas (mismo diseño que /requests/[id]) */}
           <div className="space-y-4">
             <Card className="p-4">
@@ -246,7 +288,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
             </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-4">
-                <Field label="Estado" value={status} />
+                <Field label="Estado" value={statusLabel} />
               </Card>
               <Card className="p-4">
                 <Field label="Ciudad" value={city} />
@@ -283,13 +325,13 @@ export default async function ProRequestDetailPage({ params }: Params) {
         </div>
 
         <aside className="space-y-4">
-          <Card className="p-4 space-y-3">
+          <Card className="p-4 space-y-3 hidden md:block">
             <h2 className="font-medium">Cliente</h2>
             <div className="flex items-center gap-3">
               <Avatar className="h-12 w-12">
                 {clientProfile?.avatar_url ? (
                   <AvatarImage
-                    src={clientProfile.avatar_url}
+                    src={normalizeAvatarUrl(clientProfile.avatar_url) || "/images/Favicon-v1-jpeg.jpg"}
                     alt={nombre}
                   />
                 ) : (

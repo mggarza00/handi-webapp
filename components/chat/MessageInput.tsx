@@ -12,12 +12,13 @@ type MessageInputProps = {
   disabled?: boolean;
   autoFocus?: boolean;
   onTyping?: () => void;
+  onFocus?: () => void;
   dataPrefix?: string; // e2e: chat | request-chat
   onPickFiles?: () => void;
   onPickCamera?: () => void;
 };
 
-export default function MessageInput({ onSend, disabled, autoFocus, onTyping, dataPrefix = "chat", onPickFiles, onPickCamera }: MessageInputProps) {
+export default function MessageInput({ onSend, disabled, autoFocus, onTyping, onFocus, dataPrefix = "chat", onPickFiles, onPickCamera }: MessageInputProps) {
   const [text, setText] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -62,6 +63,7 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping, da
             setText(event.target.value);
             onTyping?.();
           }}
+          onFocus={() => onFocus?.()}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
@@ -109,7 +111,6 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping, da
     </div>
   );
 }
-
 
 
 

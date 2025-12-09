@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 import { z } from "zod";
 
 import type { Database } from "@/types/supabase";
@@ -14,6 +13,8 @@ const BodySchema = z.object({
   height: z.number().int().positive().optional(),
 });
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json().catch(() => ({}));
@@ -21,17 +22,17 @@ export async function POST(req: NextRequest) {
     if (!body.success) {
       return NextResponse.json(
         { error: body.error.flatten() },
-        { status: 400 },
+        { status: 400, headers: JSONH },
       );
     }
 
     const { request_id, path, thumb_path, size_bytes, width, height } = body.data;
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
 
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user)
-      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
 
     const insertPayload: Database["public"]["Tables"]["request_photos"]["Insert"] = {
       request_id,
@@ -42,14 +43,15 @@ export async function POST(req: NextRequest) {
       height: height ?? null,
     };
 
-    const { data: row, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: row, error } = await (supabase as any)
       .from("request_photos")
-      .insert(insertPayload)
+      .insert(insertPayload as any)
       .select("*")
       .single();
 
     if (error)
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.message }, { status: 400, headers: JSONH });
 
     const expiresIn = 3600;
     const signed: { url?: string; thumbUrl?: string } = {};
@@ -65,9 +67,9 @@ export async function POST(req: NextRequest) {
       if (!thumbErr) signed.thumbUrl = thumbSigned?.signedUrl;
     }
 
-    return NextResponse.json({ ok: true, data: { row, ...signed, expiresIn } });
+    return NextResponse.json({ ok: true, data: { row, ...signed, expiresIn } }, { status: 200, headers: JSONH });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: msg }, { status: 500, headers: JSONH });
   }
 }

@@ -12,6 +12,7 @@ type Opts = {
   viewerId?: string | null; // para llave de localStorage
   storageKeyPrefix?: string; // default: reviewed
   openOnCompleted?: boolean; // default: true
+  setCompletedOnSubmit?: boolean; // default: true
 };
 
 type UseCompletionReview = {
@@ -41,6 +42,7 @@ export default function useCompletionReview(opts: Opts): UseCompletionReview {
     viewerId,
     storageKeyPrefix = "reviewed",
     openOnCompleted = true,
+    setCompletedOnSubmit = true,
   } = opts;
 
   const [open, setOpen] = React.useState(false);
@@ -83,9 +85,20 @@ export default function useCompletionReview(opts: Opts): UseCompletionReview {
         // ignore
       }
     }
+    // Best-effort: marcar completado al enviar reseña
+    if (setCompletedOnSubmit && requestId) {
+      try {
+        void fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json; charset=utf-8' },
+          body: JSON.stringify({ nextStatus: 'completed' }),
+          credentials: 'include',
+        });
+      } catch { /* ignore */ }
+    }
     setOpen(false);
     setHasShown(true);
-  }, [storageKey]);
+  }, [storageKey, requestId, setCompletedOnSubmit]);
 
   const handleCompletionResponse = React.useCallback(
     (json: unknown) => {

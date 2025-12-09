@@ -1,5 +1,5 @@
 /**
- * Stylelint configuration for Homaid (Tailwind v4)
+ * Stylelint configuration for Handi (Tailwind v4)
  * - Uses standard rules + Tailwind-specific adjustments
  */
 module.exports = {
@@ -25,6 +25,18 @@ module.exports = {
     // Requested adjustments
     "no-empty-source": null,
     "alpha-value-notation": "number",
+    "selector-pseudo-class-no-unknown": [
+      true,
+      {
+        ignorePseudoClasses: ["global"],
+      },
+    ],
+    "declaration-block-no-duplicate-properties": [
+      true,
+      {
+        ignore: ["consecutive-duplicates-with-different-values"],
+      },
+    ],
 
     // Reduce formatting churn
     "rule-empty-line-before": null,

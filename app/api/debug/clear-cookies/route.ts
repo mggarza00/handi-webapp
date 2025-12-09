@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function GET() {
   if (process.env.NODE_ENV === 'production') {
-    return NextResponse.json({ error: 'Disabled in production' }, { status: 403 })
+    return NextResponse.json({ error: 'Disabled in production' }, { status: 403, headers: JSONH })
   }
 
   const store = cookies()
@@ -12,7 +14,7 @@ export async function GET() {
     cleared: all.map((c) => c.name),
     count: all.length,
     note: 'Clears cookies by expiring them; dev-only endpoint.'
-  })
+  }, { headers: JSONH })
 
   // Expire each cookie at root path
   for (const c of all) {
@@ -25,4 +27,3 @@ export async function GET() {
 export async function POST() {
   return GET()
 }
-

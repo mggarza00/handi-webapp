@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import { ApiError, getUserOrThrow } from "@/lib/_supabase-server";
 import type { Database } from "@/types/supabase";
@@ -10,7 +9,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 type CtxP = { params: { id: string } };
 
 export async function GET(_req: Request, { params }: CtxP) {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient();
 
   try {
     await getUserOrThrow(supabase);
@@ -41,7 +40,7 @@ export async function GET(_req: Request, { params }: CtxP) {
         { status: 404, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch {
     return new NextResponse(
       JSON.stringify({ ok: false, error: "INTERNAL_ERROR" }),

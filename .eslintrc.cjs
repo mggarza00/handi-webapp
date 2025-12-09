@@ -30,6 +30,7 @@ module.exports = {
     "public/",
     "artifacts/",
     "dist/",
+    "app/api/**",
     // Temporarily ignore due to TS parser issue on Windows newlines/BOM
     "app/page.tsx",
   ],

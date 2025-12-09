@@ -1,11 +1,10 @@
 // lib/_supabase-server.ts
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
+import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
 
-type DBClient = SupabaseClient<Database, "public", "public">;
+type DBClient = SupabaseClient<Database>;
 
 export type AuthContext = {
   supabase: DBClient;
@@ -25,7 +24,7 @@ export class ApiError extends Error {
 }
 
 export function getSupabaseServer(): DBClient {
-  return createRouteHandlerClient<Database>({ cookies });
+  return getServerClient() as unknown as DBClient;
 }
 
 export const supabaseServer = getSupabaseServer;

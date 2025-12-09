@@ -39,7 +39,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       );
     }
     const supa = createServerClient();
-    const up = await supa
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const q: any = supa as any;
+    const up = await q
       .from("agreements")
       .update(updates)
       .eq("id", parsedId.data)
@@ -50,7 +52,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         { ok: false, error: up.error.message },
         { status: 400, headers: JSONH },
       );
-    return NextResponse.json({ ok: true, data: up.data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: up.data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     return NextResponse.json(
@@ -62,4 +64,3 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

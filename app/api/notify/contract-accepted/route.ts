@@ -126,15 +126,15 @@ export async function POST(req: Request) {
       }
       if (phone) {
         const smsBody = serviceDate
-          ? `Homaid: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN (dia ${serviceDate}). Completa el pago: ${checkout_url}`
-          : `Homaid: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN. Completa el pago: ${checkout_url}`;
+          ? `Handi: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN (dia ${serviceDate}). Completa el pago: ${checkout_url}`
+          : `Handi: ${proName ?? "Tu profesional"} acepto la oferta por $${amount_mxn} MXN. Completa el pago: ${checkout_url}`;
         await sendSms({ to: phone, body: smsBody }).catch(() => null);
       }
     } catch {
       // ignore sms errors
     }
 
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     const anyE = e as { status?: number } | null;

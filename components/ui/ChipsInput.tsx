@@ -3,6 +3,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 
 import { Input } from "./input";
+
 import { toTitleCase, CONDITION_SUGGESTIONS, type ConditionOption } from "@/lib/conditions";
 
 export default function ChipsInput({

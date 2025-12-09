@@ -1,4 +1,4 @@
-# Homaid Webapp
+# Handi Webapp
 
 > Repositorio: https://github.com/mggarza00/homaid-webapp
 
@@ -19,10 +19,32 @@ https://homaid-webapp-woad.vercel.app
 
 Next.js 14 (App Router) + Supabase + Google Sheets (Service Account).
 
+## Admin MVP (/admin)
+
+- Requisitos: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` y (opcional) `NEXT_PUBLIC_APP_URL=http://localhost:3000`, `ADMIN_EMAILS`.
+- Migrar/seed:
+  - `npm run db:migrate`
+  - `npm run db:seed:admin`
+- Dev: `npm run dev` y abre `/admin`.
+- Más detalles: `docs/ADMIN_MVP.md`.
+
+### Estados de Solicitud y Calendario del Pro
+
+- Estados (UI → BD):
+  - `active`/`pending` → Activa
+  - `scheduled` → Agendada
+  - `in_process` → En proceso
+  - `completed`/`finished` → Finalizada
+  - `canceled`/`cancelled` → Cancelada
+
+- Stripe Webhook: al pagar, marca `scheduled`, oculta de Explore y upsert en `pro_calendar_events`.
+- Calendario del pro (`/pro/calendar`): consume `GET /api/pro/calendar` con `revalidateTag('pro-calendar')` para refresco tras webhook y cambios de estado.
+- `PATCH /api/requests/:id/status`: sincroniza `pro_calendar_events.status` y revalida `/pro/calendar`, `/requests/:id` y `/mensajes/:id`.
+
 ## Documentación
 
-- Documento Maestro (actualizado con separación de profesionales): docs/Handi_Documento_Maestro_Unificado_FULL.md
-- Trazabilidad de Tablas (fuente de verdad de flujos y buckets): docs/Handi_Documento_Maestro_Trazabilidad.md
+- Documento Maestro (actualizado con separación de profesionales): docs/homaid_Documento_Maestro_Unificado_FULL.md
+- Trazabilidad de Tablas (fuente de verdad de flujos y buckets): docs/homaid_Documento_Maestro_Trazabilidad.md
 - Migraciones SQL: supabase/migrations
 
 ## Requisitos
@@ -40,7 +62,22 @@ Copia `.env.example` a `.env.local` y rellena:
 - `PRIVATE_KEY` (usar `\n` en una sola línea si el código hace `replace(/\\n/g, '\n')`)
 - `SHEET_ID`
 
-## Handee Webapp · Arranque y Debug
+### Web Push (VAPID)
+
+- Claves VAPID (generar): `npx web-push generate-vapid-keys`
+- Variables requeridas (server):
+  - `WEB_PUSH_VAPID_PUBLIC_KEY`
+  - `WEB_PUSH_VAPID_PRIVATE_KEY`
+  - `WEB_PUSH_VAPID_SUBJECT=mailto:soporte@handi.mx` (corregido)
+- Exposición al cliente: `NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY` (configurada en `next.config.mjs`).
+
+Notas iOS: Web Push requiere iOS 16.4+ con Safari y “Añadir a pantalla de inicio”. Si el permiso está denegado, el botón muestra un tip para habilitarlo desde el candado de la barra de direcciones.
+
+Endpoints canónicos para Web Push:
+- Canonical: `/api/push/*` (`/api/push/subscribe`, `/api/push/send`)
+- Compatibilidad: `/api/web-push/*` re-exporta a `/api/push/*`
+
+## Handi Webapp · Arranque y Debug
 
 ### Next.js (recomendado)
 - Desarrollo: `npm run dev` (VS Code: F5 → "Debug Next.js (npm run dev)")
@@ -59,11 +96,17 @@ Copia `.env.example` a `.env.local` y rellena:
 - Cuando termines, deten los servicios con `npx supabase stop`.
 
 ## Revisión automática de CSS/UI
-- Ejecuta typecheck + lint + capturas responsivas + Lighthouse:
-  - `npm run review:ui` (sirve en dev si no hay `BASE_URL`)
-  - Variables opcionales: `BASE_URL` o `PREVIEW_URL` para apuntar a un entorno ya levantado
-- Capturas: `snapshots/*`
-- Reportes Lighthouse: `artifacts/lhci/*.html` (configurable en `lighthouserc.cjs`)
+- `npm run review:ui`: typecheck + lint (soft-fail) + capturas con Playwright + Lighthouse.
+- Capturas: `snapshots/*.png` y resumen `snapshots/ui-review.json`.
+- Rutas por defecto: home (guest), requests y mensajes (client), dashboard pro y admin, `/design-check`.
+- Config por archivo: `scripts/ui-revision.targets.json` (rutas/roles/viewports); override rápido con `ROUTES`, `VIEWPORTS`, `BASE_URL`/`PREVIEW_URL`.
+- Variables: `BASE_URL`/`PREVIEW_URL` para usar un entorno existente, `ROUTES=",/extra"` para forzar rutas custom (guest), `VIEWPORTS="430,1024,1440"` para tamaños, `SNAPSHOT_STRICT=true` para fallar si hay errores.
+- Reportes Lighthouse: `artifacts/lhci/*.html` (config en `lighthouserc.cjs`).
+
+## Revisión UI asistida (artefactos para agente)
+- Configura targets en `scripts/ui-revision.targets.json`.
+- Genera PNG + HTML por target: `npm run ui:revise` o `npm run ui:revise -- --target=home-guest`.
+- Artefactos: `artifacts/ui-revision/<target>/iter-<n>/`. Ver docs en `docs/REVISION_UI_AUTOMATION.md`.
 
 ## E2E con Playwright (dev/CI)
 - Ruta de **mock de rol** (solo dev/CI): `/api/test-auth/:role` con `role` en `guest|client|professional|admin`.
@@ -319,3 +362,94 @@ El bloque anterior replica la configuración local dentro del contenedor; ajusta
 > Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://homaid.mx`) a los argumentos.
 
 Si alguna herramienta falta, abre la paleta (`Ctrl/Cmd+Shift+P`) y ejecuta `Agents: Reload MCP Servers`. Los prompts `STRIPE_SECRET_KEY` y `PAYPAL_BEARER` quedan guardados como entradas secretas, y `STRIPE_ACCOUNT` como entrada opcional; limpia o reemplaza sus valores desde `Settings → MCP Inputs` si necesitas regenerarlos.
+# Handi Webapp
+## Admin MVP · Scripts
+
+- `pnpm dev` / `npm run dev`: inicia Next.js en dev.
+- `pnpm build` / `npm run build`: build de producción.
+- `pnpm start` / `npm start`: sirve build.
+- `pnpm db:migrate` / `npm run db:migrate`: aplica migraciones (Supabase CLI).
+- `pnpm db:seed` / `npm run db:seed`: ejecuta `db/seed/seed.sql` (básico).
+- `pnpm db:seed:large` / `npm run db:seed:large`: seed grande para demo (webhooks/pagos/jobs).
+- `pnpm lint` / `npm run lint`: lint de JS/TS + CSS.
+- `pnpm format` / `npm run format`: Prettier.
+- `pnpm test` / `npm run test`: E2E (Playwright) base.
+- `pnpm check:admin`: typecheck + lint scope admin.
+
+## Requisitos
+
+- Node 18+
+- Supabase CLI vinculado al proyecto.
+- Variables en `.env.local`:
+  - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - `SUPABASE_SERVICE_ROLE_KEY` (server-only)
+  - `ADMIN_EMAILS` (opcional, correos con acceso admin)
+
+## Instalación
+
+```bash
+pnpm i
+# (opcional) Inicializar shadcn/ui si partes desde cero
+pnpm dlx shadcn-ui@latest init || true
+pnpm dev
+```
+
+### Google One Tap (GIS)
+
+- Define `NEXT_PUBLIC_GOOGLE_CLIENT_ID` en tus variables de entorno (local y Vercel).
+- En Google Cloud Console:
+  - Coloca el estado de la pantalla de consentimiento en Producción o añade tu usuario como tester.
+  - En el cliente OAuth 2.0 (tipo Web) añade tus dominios en "Authorized JavaScript origins" (ej.: `http://localhost:3000`, `https://homaid.mx`). Los dominios de preview (`*.vercel.app`) no aceptan comodines; agrégalos explícitamente o deshabilita FedCM en previews.
+- En Supabase Auth → Providers → Google, agrega el Web Client ID en "Authorized client IDs" para permitir `signInWithIdToken`.
+- Debug opcional: `NEXT_PUBLIC_ONE_TAP_DEBUG=1` imprimirá razones de `prompt()` en consola. Puedes forzar/desactivar FedCM con `NEXT_PUBLIC_GSI_USE_FEDCM=true|false`.
+
+## Configurar Supabase + Migraciones + Seed
+
+```bash
+# Vincula el proyecto (una sola vez)
+supabase link
+
+# Aplica migraciones
+pnpm db:migrate
+
+# Seed básico o grande
+pnpm db:seed
+# o
+pnpm db:seed:large
+```
+
+## Usuarios de prueba
+
+- Crea usuarios con email/password en Supabase Auth y asigna roles en `profiles.role`:
+  - `owner`, `admin`, `ops`, `finance`, `support`, `reviewer` → acceso a /admin.
+- Alternativa dev/CI: `GET /api/test-auth/admin` setea cookie `handi_role=admin` (bypass middleware en no-producción).
+
+## Configuración (Comisiones/IVA)
+
+- Ve a `/admin/settings` y guarda (usa `PUT /api/config`).
+- Ver efecto en UI: KPIs del Dashboard y flujos de pagos (mock) reflejan los cambios; se registra en `audit_log`.
+
+## Criterios de aceptación (MVP)
+
+- Acceso a `/admin` redirige a `/auth/sign-in` si no hay sesión (o usa cookie dev `handi_role`).
+- Roles permitidos ven sidebar/topbar y páginas del MVP.
+- Dashboard: 4+ KPI cards, 1 gráfica de líneas (solicitudes/pagos 30 días), 1 sección de pendientes (KYC/Disputas).
+- Solicitudes: lista con filtros y paginación; detalle muestra datos coherentes (base preparada; ver `/api/requests/[id]`).
+- Profesionales: tabs por KYC (pendientes/aprobados/observados) y acciones de Aprobar/Rechazar/Pedir info (base en endpoints admin; UI en progreso).
+- Pagos: lista read-only con estados y totales; export CSV.
+- Configuración: guarda comisiones/IVA en `config` y registra en `audit_log`.
+- Sistema: muestra `webhooks_log` y `audit_log` con filtros básicos (endpoints listos).
+- Seed de datos permite navegar sin errores.
+
+## Entregables
+
+- Código y rutas del MVP (/admin + APIs), componentes admin (sidebar/topbar/KPIs/tabla reutilizable).
+- Migraciones SQL en `supabase/migrations/` y seed en `supabase/seed_admin_large.sql` / `db/seed/seed.sql`.
+- README con instrucciones para correr local y validar el MVP.
+## Dev: limpiar cookies legacy de Supabase (temporal)
+
+Si notas sesiones inconsistentes tras la migración a cookies base64, ejecuta una vez en dev:
+
+1. Limpia datos del sitio en tu navegador (Chrome → Application → Storage → Clear site data).
+2. Crea temporalmente una Server Action que llame a `await expireLegacyAuthCookie()` de `lib/supabase/expire-legacy-auth-cookie.ts` y luego elimínala.
+3. Reinicia el servidor de Next.js.

@@ -1,13 +1,8 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getUserOrThrow } from "@/lib/_supabase-server";
-// ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
-import ConfirmAndReview from "@/components/services/ConfirmAndReview.client";
-import JobPhotosUploader from "@/components/services/JobPhotosUploader.client";
 import Breadcrumbs from "@/components/breadcrumbs";
+import { getUserOrThrow } from "@/lib/_supabase-server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +13,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Database } from "@/types/supabase";
+// ConfirmServiceButton se usa a través de ConfirmAndReview (client wrapper)
+import ConfirmAndReview from "@/components/services/ConfirmAndReview.client";
+import JobPhotosUploader from "@/components/services/JobPhotosUploader.client";
+import createClient from "@/utils/supabase/server";
 
 type Params = { params: { id: string } };
 
@@ -127,7 +126,7 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 export default async function ServiceDetailPage({ params }: Params) {
-  const client = createServerComponentClient<Database>({ cookies });
+  const client = createClient();
   const { supabase, user } = await getUserOrThrow(client).catch(() => {
     redirect(`/login?next=/services/${params.id}`);
   });
@@ -319,4 +318,3 @@ export default async function ServiceDetailPage({ params }: Params) {
     </main>
 );
 }
-

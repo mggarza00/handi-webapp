@@ -9,10 +9,33 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        homaid: {
-          primary: '#11304A',
-          green: '#3e9554',
+        handi: {
+          primary: "#082877",
+          green: "#00452E",
         },
+        brand: {
+          primary: "#001447",
+          accent: "#5A9CF4",
+          gray900: "#191919",
+          gray500: "#F9E7D2",
+        },
+      },
+      keyframes: {
+        'fade-pulse': {
+          '0%': { opacity: '0.6', transform: 'scale(1)' },
+          '20%': { opacity: '1', transform: 'scale(1.01)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        popIn: {
+          '0%': { opacity: '0', transform: 'scale(0.98)' },
+          '40%': { opacity: '1', transform: 'scale(1.01)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+      },
+      animation: {
+        'fade-pulse': 'fade-pulse 1.2s ease-out 1',
+        // Class name requested: animate-popIn_1.2s_ease_1
+        'popIn_1.2s_ease_1': 'popIn 1.2s ease 1',
       },
       fontFamily: {
         sans: ["var(--font-nunito)", "system-ui", "sans-serif"],

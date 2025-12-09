@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+
+import createClient from "@/utils/supabase/server";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } as const;
+
+type ProfileRow = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "role" | "is_client_pro" | "full_name"
+>;
+
+type BankAccountRow = Pick<
+  Database["public"]["Tables"]["bank_accounts"]["Row"],
+  "id" | "bank_name" | "clabe" | "status" | "created_at" | "verified_at" | "profile_id" | "updated_at" | "account_holder_name"
+>;
 
 function onlyDigits(s: string): string { return (s || "").replace(/\D+/g, ""); }
 function isValidClabe(clabe: string): boolean {
@@ -17,7 +28,7 @@ function isValidClabe(clabe: string): boolean {
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
@@ -26,8 +37,9 @@ export async function GET() {
       .from("profiles")
       .select("role, is_client_pro, full_name")
       .eq("id", user.id)
-      .maybeSingle();
-    const isPro = (profile?.role as unknown as string) === "professional" || Boolean((profile as unknown as { is_client_pro?: boolean })?.is_client_pro);
+      .maybeSingle<ProfileRow>();
+    const role = profile?.role ?? null;
+    const isPro = role === "professional" || profile?.is_client_pro === true;
     if (!isPro) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
 
     const { data: rows, error: listErr } = await supabase
@@ -38,23 +50,23 @@ export async function GET() {
     if (listErr) return NextResponse.json({ error: listErr.message }, { status: 400, headers: JSONH });
 
     const items = (rows ?? []).map((r) => {
-      const raw = onlyDigits((r as any).clabe || "");
+      const raw = onlyDigits(r.clabe || "");
       const first3 = raw.slice(0, 3);
       const last4 = raw.slice(-4);
       const stars = raw ? "*".repeat(Math.max(0, raw.length - 7)) : "";
       const clabe_masked = raw ? `${first3}${stars}${last4}` : null;
-      const status = (r as any).status as string | null;
+      const status = r.status ?? null;
       return {
-        id: (r as any).id as string,
-        bank_name: (r as any).bank_name as string | null,
+        id: r.id,
+        bank_name: r.bank_name ?? null,
         clabe_masked,
         status,
         is_default: status === "confirmed",
-        created_at: (r as any).created_at as string | null,
+        created_at: r.created_at ?? null,
       };
     });
     return NextResponse.json(
-      { full_name: (profile as unknown as { full_name?: string | null })?.full_name ?? null, items },
+      { full_name: profile?.full_name ?? null, items },
       { headers: JSONH },
     );
   } catch (e) {
@@ -69,7 +81,7 @@ export async function PUT(req: Request) {
     if (!ct.includes("application/json"))
       return NextResponse.json({ error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
 
-    const supabase = createRouteHandlerClient({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     const user = auth?.user ?? null;
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
@@ -79,10 +91,11 @@ export async function PUT(req: Request) {
       .from("profiles")
       .select("role, is_client_pro, full_name")
       .eq("id", user.id)
-      .maybeSingle();
-    const isPro = (profile?.role as unknown as string) === "professional" || Boolean((profile as unknown as { is_client_pro?: boolean })?.is_client_pro);
+      .maybeSingle<ProfileRow>();
+    const role = profile?.role ?? null;
+    const isPro = role === "professional" || profile?.is_client_pro === true;
     if (!isPro) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers: JSONH });
-    const fullName = String((profile as unknown as { full_name?: string | null })?.full_name || "").trim();
+    const fullName = String(profile?.full_name || "").trim();
     if (!fullName)
       return NextResponse.json({ error: "MISSING_FULL_NAME" }, { status: 422, headers: JSONH });
 
@@ -104,7 +117,7 @@ export async function PUT(req: Request) {
 
     let targetId: string | null = null;
     if (existing?.data?.id) {
-      const upd = await supabase
+        const upd = await supabase
         .from("bank_accounts")
         .update({
           account_holder_name: fullName,

@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { z } from "zod";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { NextResponse } from "next/server";
 
-import type { Database } from "@/types/supabase";
-import { createServerClient } from "@/lib/supabase";
+import { z } from "zod";
+
 import { getDevUserFromHeader } from "@/lib/auth-route";
+import { createServerClient } from "@/lib/supabase";
+import { createClient as createServerClientUtil } from "@/utils/supabase/server";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
     }
     const { request_id } = parsed.data;
 
-    const routeClient = createRouteHandlerClient<Database>({ cookies });
+    const routeClient = createServerClientUtil();
     const {
       data: { user },
     } = await routeClient.auth.getUser();
@@ -83,18 +84,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const payload = {
+    const payload: Database["public"]["Tables"]["applications"]["Insert"] = {
       request_id,
       professional_id: actingUserId,
       // status omitted → DB default 'pending' or CHECK constraint handles
-    } as Database["public"]["Tables"]["applications"]["Insert"];
+    };
 
     const admin = createServerClient();
     const client = preferAdmin ? admin : routeClient;
 
-    // Try insert; handle duplicate (23505)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const up: any = await client
+    const up = await client
       .from("applications")
       .insert([payload])
       .select("id")
@@ -104,14 +103,13 @@ export async function POST(req: Request) {
       const code = up.error.code as string | undefined;
       if (code === "23505") {
         // find existing row id
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const existing: any = await admin
+        const existing = await admin
           .from("applications")
           .select("id")
           .eq("request_id", request_id)
           .eq("professional_id", actingUserId)
           .maybeSingle();
-        const id = existing?.data?.id ?? null;
+        const id = existing.data?.id ?? null;
         return NextResponse.json(
           { ok: true, id, duplicate: true },
           { status: 200, headers: JSONH },

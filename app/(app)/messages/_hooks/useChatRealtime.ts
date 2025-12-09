@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type RealtimeMessage = {
   id: string;
@@ -42,13 +43,19 @@ export type Handlers = {
 export function useChatRealtime(conversationId: string, h: Handlers) {
   React.useEffect(() => {
     if (!conversationId) return;
-    const sb = createClientComponentClient();
+    const sb = createSupabaseBrowser();
     const channel = sb
       .channel(`chat:${conversationId}:rt`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-        (payload) => h.onMessageInsert?.(payload.new as RealtimeMessage),
+        (payload) => {
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.debug("rt message insert", conversationId, (payload.new as { id?: string })?.id);
+          }
+          h.onMessageInsert?.(payload.new as RealtimeMessage);
+        },
       )
       .on(
         "postgres_changes",
@@ -84,6 +91,21 @@ export function useChatRealtime(conversationId: string, h: Handlers) {
               "rt dev raw att insert",
               (payload.new as { conversation_id?: string })?.conversation_id,
               (payload.new as { message_id?: string })?.message_id,
+              (payload.new as { id?: string })?.id,
+            );
+          }
+        },
+      )
+      // DEV-only broad listener (no filter) to verify any insert visibility
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.debug(
+              "rt dev raw msg insert",
+              (payload.new as { conversation_id?: string })?.conversation_id,
               (payload.new as { id?: string })?.id,
             );
           }

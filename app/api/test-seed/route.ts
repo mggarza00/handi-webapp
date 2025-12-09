@@ -3,6 +3,8 @@ import { createClient, type PostgrestError } from "@supabase/supabase-js";
 
 import type { Database, Json } from "@/types/supabase";
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 function assertDev() {
   const allowed =
     process.env.NODE_ENV !== "production" || process.env.CI === "true";
@@ -112,7 +114,7 @@ export async function GET(req: Request) {
       const code = (error as PostgrestError | { code?: string })?.code || null;
       return NextResponse.json(
         { ok: false, action, step, code, error: msg, ...(extra || {}) },
-        { status: 500 },
+        { status: 500, headers: JSONH },
       );
     };
 
@@ -147,9 +149,9 @@ export async function GET(req: Request) {
         if (pro?.id) await supa.auth.admin.deleteUser(pro.id);
       } catch (e) {
         // no bloquea el reset; devolvemos warning
-        return NextResponse.json({ ok: true, action, warn: "auth_delete_failed", detail: String((e as Error).message || e) });
+        return NextResponse.json({ ok: true, action, warn: "auth_delete_failed", detail: String((e as Error).message || e) }, { headers: JSONH });
       }
-      return NextResponse.json({ ok: true, action });
+      return NextResponse.json({ ok: true, action }, { status: 200, headers: JSONH });
     }
 
     if (action === "seed") {
@@ -266,17 +268,17 @@ export async function GET(req: Request) {
         } catch (e) {
           // best-effort: don't fail seed if this user cannot be created
           // but return a warning payload to aid debugging
-          return NextResponse.json({ ok: true, action, request_id: REQ_ID, warn: "ensure_test_login_failed", detail: String((e as Error).message || e) });
+          return NextResponse.json({ ok: true, action, request_id: REQ_ID, warn: "ensure_test_login_failed", detail: String((e as Error).message || e) }, { headers: JSONH });
         }
       }
 
-      return NextResponse.json({ ok: true, action, request_id: REQ_ID });
+      return NextResponse.json({ ok: true, action, request_id: REQ_ID }, { status: 200, headers: JSONH });
     }
 
     if (action === "apply-twice") {
       // Para garantizar estabilidad del test en entornos donde aún no se aplicó el índice único,
       // devolvemos explícitamente el código de duplicado simulado.
-      return NextResponse.json({ ok: true, dupCode: "23505" });
+      return NextResponse.json({ ok: true, dupCode: "23505" }, { status: 200, headers: JSONH });
     }
 
     if (action === "seed-e2e-users") {
@@ -304,16 +306,16 @@ export async function GET(req: Request) {
         } catch {
           // ignore if table doesn't exist in this snapshot
         }
-        return NextResponse.json({ ok: true, client_id: client.id, pro_id: pro.id });
+        return NextResponse.json({ ok: true, client_id: client.id, pro_id: pro.id }, { status: 200, headers: JSONH });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+        return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
       }
     }
 
     return NextResponse.json(
       { ok: false, error: "UNKNOWN_ACTION" },
-      { status: 400 },
+      { status: 400, headers: JSONH },
     );
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
@@ -323,6 +325,6 @@ export async function GET(req: Request) {
         : msg === "MISSING_SUPABASE_ENV"
           ? 500
           : 500;
-    return NextResponse.json({ ok: false, error: msg }, { status });
+    return NextResponse.json({ ok: false, error: msg }, { status, headers: JSONH });
   }
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
@@ -13,7 +12,7 @@ type CtxP = { params: { id: string } };
 const IdParam = z.string().uuid();
 
 export async function GET(_req: Request, { params }: CtxP) {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient();
   await getUserOrThrow(supabase);
 
   const { id: reqId } = params;
@@ -44,5 +43,5 @@ export async function GET(_req: Request, { params }: CtxP) {
     );
   }
 
-  return NextResponse.json({ ok: true, data: data ?? [] }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: data ?? [] }, { status: 200, headers: JSONH });
 }

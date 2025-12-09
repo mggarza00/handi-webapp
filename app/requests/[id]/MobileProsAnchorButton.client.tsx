@@ -1,14 +1,14 @@
 "use client";
 import * as React from "react";
+
 import { Button } from "@/components/ui/button";
 
-export default function MobileProsAnchorButton({
-  category,
-  subcategory,
-}: {
+type Props = {
   category?: string | null;
   subcategory?: string | null;
-}) {
+};
+
+export default function MobileProsAnchorButton(_props: Props) {
   // Ícono inicial removido: mantenemos botón simple con texto.
   return (
     <div className="md:hidden flex justify-center mt-5">

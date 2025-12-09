@@ -2,11 +2,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ReactNode } from "react";
 import MessagesShell from "./_components/MessagesShell.client";
+import RealtimeProvider from "@/components/messages/RealtimeProvider";
 import type { ChatSummary } from "./_components/types";
 import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseJs } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
       !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
       !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!hasEnv) return [];
-    const supabase = createServerComponentClient<Database>({ cookies });
+    const supabase = createClient() as any;
     const { data: auth } = await supabase.auth.getUser();
     const user = auth.user;
     if (!user) {
@@ -30,7 +31,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
         if (!email || !url || !key) return [];
-        const admin = createClient<Database>(url, key, {
+        const admin = createSupabaseJs<Database>(url, key, {
           auth: { persistSession: false, autoRefreshToken: false },
         });
         // Find user id by email (paginate best-effort)
@@ -71,19 +72,32 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
         );
         const otherNames = new Map<string, string | null>();
         const otherAvatars = new Map<string, string | null>();
+        const otherLastActive = new Map<string, string | null>();
         if (otherIds.length) {
           const [{ data: profs }, { data: pros }] = await Promise.all([
-            admin.from("profiles").select("id, full_name, avatar_url").in("id", otherIds),
-            admin.from("professionals").select("id, full_name, avatar_url").in("id", otherIds),
+            admin
+              .from("profiles")
+              .select("id, full_name, avatar_url, last_active_at")
+              .in("id", otherIds),
+            admin
+              .from("professionals")
+              .select("id, full_name, avatar_url, last_active_at")
+              .in("id", otherIds),
           ]);
           for (const p of profs || []) {
             otherNames.set((p as any).id, ((p as any).full_name as string) || null);
             otherAvatars.set((p as any).id, ((p as any).avatar_url as string) || null);
+            const lastActive = (p as any).last_active_at
+              ? String((p as any).last_active_at)
+              : null;
+            otherLastActive.set((p as any).id, lastActive);
           }
           for (const p of pros || []) {
             const id = (p as any).id as string;
             otherNames.set(id, ((p as any).full_name as string) || otherNames.get(id) || null);
             otherAvatars.set(id, ((p as any).avatar_url as string) || otherAvatars.get(id) || null);
+            const lastActive = (p as any).last_active_at ? String((p as any).last_active_at) : null;
+            otherLastActive.set(id, lastActive || otherLastActive.get(id) || null);
           }
         }
 
@@ -117,9 +131,12 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
             .limit(Math.min(300, convIds.length * 3));
           for (const m of msgs || []) {
             const cid = ((m as any).conversation_id ?? "") as string;
+            const bodyStr = String(((m as any).body ?? (m as any).text ?? "") as string).trim();
+            const isLongPayment = /el pago está en custodia/i.test(bodyStr);
+            if (isLongPayment) continue;
             if (!previews.has(cid)) {
               previews.set(cid, {
-                body: String(((m as any).body ?? (m as any).text ?? "") as string),
+                body: bodyStr,
                 sender_id: String((m as any).sender_id ?? ""),
                 created_at: String((m as any).created_at ?? ""),
                 read_by: Array.isArray((m as any).read_by)
@@ -145,6 +162,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
           const requestId = ((c as any).request_id as string | null) ?? null;
           const rawRequestTitle = requestId && requestTitles.has(requestId) ? requestTitles.get(requestId) ?? null : null;
           const requestTitle = rawRequestTitle && rawRequestTitle.trim().length > 0 ? rawRequestTitle : null;
+          const otherLastActiveAt = otherId ? otherLastActive.get(otherId) ?? null : null;
           return {
             id: (c as any).id as string,
             title,
@@ -153,6 +171,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
             unread,
             avatarUrl,
             requestTitle,
+            otherLastActiveAt,
           };
         });
         return items;
@@ -161,11 +180,27 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
       }
     }
 
-    const { data: convs } = await supabase
+    const { data: initialConvs, error: convsError } = await supabase
       .from("conversations")
       .select("id, customer_id, pro_id, request_id, last_message_at")
       .or(`customer_id.eq.${user.id},pro_id.eq.${user.id}`)
       .order("last_message_at", { ascending: false });
+    let convs = initialConvs;
+
+    // Fallback: si RLS bloquea o no hay resultados, intenta con Service Role
+    if ((!convs || convs.length === 0 || convsError) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const admin = getAdminSupabase();
+        const alt = await admin
+          .from("conversations")
+          .select("id, customer_id, pro_id, request_id, last_message_at")
+          .or(`customer_id.eq.${user.id},pro_id.eq.${user.id}`)
+          .order("last_message_at", { ascending: false });
+        if (!alt.error && Array.isArray(alt.data)) convs = alt.data as any[];
+      } catch {
+        /* ignore */
+      }
+    }
 
     // Determinar el otro participante por conversacin
     const otherIds = Array.from(
@@ -183,20 +218,31 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
     );
     const otherNames = new Map<string, string | null>();
     const otherAvatars = new Map<string, string | null>();
+    const otherLastActive = new Map<string, string | null>();
     if (otherIds.length) {
       // Carga perfiles genéricos
       const [{ data: profs }, { data: pros }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, avatar_url").in("id", otherIds),
-        supabase.from("professionals").select("id, full_name, avatar_url").in("id", otherIds),
+        supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, last_active_at")
+          .in("id", otherIds),
+        supabase
+          .from("professionals")
+          .select("id, full_name, avatar_url, last_active_at")
+          .in("id", otherIds),
       ]);
       for (const p of profs || []) {
         otherNames.set(p.id!, (p.full_name as string) || null);
         otherAvatars.set(p.id!, (p.avatar_url as string) || null);
+        const lastActive = p.last_active_at ? String(p.last_active_at) : null;
+        otherLastActive.set(p.id!, lastActive);
       }
       // Si existe un registro en professionals, preferir sus valores (suelen estar más completos)
       for (const p of pros || []) {
         otherNames.set(p.id!, (p.full_name as string) || otherNames.get(p.id!) || null);
         otherAvatars.set(p.id!, (p.avatar_url as string) || otherAvatars.get(p.id!) || null);
+        const lastActive = (p as any).last_active_at ? String((p as any).last_active_at) : null;
+        otherLastActive.set(p.id!, lastActive || otherLastActive.get(p.id!) || null);
       }
       // Si faltan nombres/avatares por RLS, intenta con admin (solo servidor)
       const missing = otherIds.filter((id) => !otherNames.get(id));
@@ -204,18 +250,28 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
         try {
           const admin = getAdminSupabase();
           const [{ data: profs2 }, { data: pros2 }] = await Promise.all([
-            admin.from("profiles").select("id, full_name, avatar_url").in("id", missing),
-            admin.from("professionals").select("id, full_name, avatar_url").in("id", missing),
+            admin
+              .from("profiles")
+              .select("id, full_name, avatar_url, last_active_at")
+              .in("id", missing),
+            admin
+              .from("professionals")
+              .select("id, full_name, avatar_url, last_active_at")
+              .in("id", missing),
           ]);
           for (const p of profs2 || []) {
             const id = (p as any).id as string;
             otherNames.set(id, ((p as any).full_name as string) || otherNames.get(id) || null);
             otherAvatars.set(id, ((p as any).avatar_url as string) || otherAvatars.get(id) || null);
+            const lastActive = (p as any).last_active_at ? String((p as any).last_active_at) : null;
+            otherLastActive.set(id, lastActive || otherLastActive.get(id) || null);
           }
           for (const p of pros2 || []) {
             const id = (p as any).id as string;
             otherNames.set(id, ((p as any).full_name as string) || otherNames.get(id) || null);
             otherAvatars.set(id, ((p as any).avatar_url as string) || otherAvatars.get(id) || null);
+            const lastActive = (p as any).last_active_at ? String((p as any).last_active_at) : null;
+            otherLastActive.set(id, lastActive || otherLastActive.get(id) || null);
           }
         } catch {
           // ignore
@@ -244,17 +300,35 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
       { body: string; sender_id: string; created_at: string; read_by: string[] }
     >();
     if (convIds.length) {
-      const { data: msgs } = await supabase
+      const { data: initialMsgs, error: msgsErr } = await supabase
         .from("messages")
         .select("id, conversation_id, sender_id, body, text, created_at, read_by")
         .in("conversation_id", convIds)
         .order("created_at", { ascending: false })
         .limit(Math.min(300, convIds.length * 3));
+      let msgs = initialMsgs;
+      if ((!msgs || msgs.length === 0 || msgsErr) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+        try {
+          const admin = getAdminSupabase();
+          const alt = await admin
+            .from("messages")
+            .select("id, conversation_id, sender_id, body, text, created_at, read_by")
+            .in("conversation_id", convIds)
+            .order("created_at", { ascending: false })
+            .limit(Math.min(300, convIds.length * 3));
+          if (!alt.error && Array.isArray(alt.data)) msgs = alt.data as any[];
+        } catch {
+          /* ignore */
+        }
+      }
       for (const m of msgs || []) {
         const cid = (m as any).conversation_id as string;
+        const bodyStr = String(((m as any).body ?? (m as any).text ?? "") as string).trim();
+        const isLongPayment = /el pago está en custodia/i.test(bodyStr);
+        if (isLongPayment) continue;
         if (!previews.has(cid)) {
           previews.set(cid, {
-            body: String(((m as any).body ?? (m as any).text ?? "") as string),
+            body: bodyStr,
             sender_id: String((m as any).sender_id ?? ""),
             created_at: String((m as any).created_at ?? ""),
             read_by: Array.isArray((m as any).read_by)
@@ -285,6 +359,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
           : null;
       const requestTitle =
         rawRequestTitle && rawRequestTitle.trim().length > 0 ? rawRequestTitle : null;
+      const otherLastActiveAt = otherId ? otherLastActive.get(otherId) ?? null : null;
       return {
         id: c.id!,
         title,
@@ -294,6 +369,7 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
         unread,
         avatarUrl,
         requestTitle,
+        otherLastActiveAt,
       };
     });
     return items;
@@ -305,7 +381,11 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
 
 export default async function MensajesLayout({ children }: { children: ReactNode }) {
   const chats = await getChatSummaries();
-  return <MessagesShell chats={chats}>{children}</MessagesShell>;
+  return (
+    <RealtimeProvider>
+      <MessagesShell chats={chats}>{children}</MessagesShell>
+    </RealtimeProvider>
+  );
 }
 /* eslint-disable import/order */
 /* eslint-disable @typescript-eslint/no-explicit-any */

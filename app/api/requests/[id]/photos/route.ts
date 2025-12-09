@@ -84,7 +84,7 @@ export async function POST(req: Request, { params }: Ctx) {
     }
 
     try { revalidateTag(`profile:${user.id}`); } catch (_e) { void _e; }
-    return NextResponse.json({ ok: true, count: rows.length }, { headers: JSONH });
+    return NextResponse.json({ ok: true, count: rows.length }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(

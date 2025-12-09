@@ -1,0 +1,50 @@
+            <FeatureCard
+              icon={<StarIcon className="h-5 w-5" />}
+              title="Calificaciones reales"
+              desc="Retroalimentación de contratantes como tú."
+            />
+          </div>
+          <div className="mt-6">
+            <SpotlightCard
+              className="relative rounded-2xl border border-slate-200 p-6 shadow-sm"
+              style={{ backgroundColor: '#104008' }}
+            >
+              <div
+                className="pointer-events-none absolute inset-0 z-0 bg-center bg-cover opacity-70"
+                style={{ backgroundImage: 'url("/images/modern-background-of-green-abstract-gradient-wallpaper-vector.jpg")' }}
+              />
+              <div className="relative z-10 mx-auto w-fit max-w-full">
+                <div className="mb-1 inline-flex items-center gap-2">
+                  <Image
+                    src="/images/icono-pago-seguro.png"
+                    alt="Pagos 100% protegidos"
+                    width={24}
+                    height={24}
+                    className="h-6 w-6"
+                  />
+                  <h3 className={`${momoTrust.className} font-normal uppercase text-white text-xl md:text-2xl`}>
+                    Pagos 100% protegidos
+                  </h3>
+                </div>
+                <p className="text-sm text-white">
+                  Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                </p>
+              </div>
+            </SpotlightCard>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust badges */}
+      <section className="border-t border-slate-200 bg-[#041645]">
+        <div className="mx-auto max-w-5xl px-4 py-10">
+          <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
+            <div className="text-center md:text-left">
+              <p className="text-sm font-medium text-white">
+                Confianza y transparencia
+              </p>
+              <p className="text-sm text-white">
+                Política de bajas automáticas ante calificaciones bajas
+                recurrentes.
+              </p>
+            </div>

@@ -212,7 +212,7 @@ async function leaveReview(page: Page, requestId: string, professionalId: string
   }
 }
 
-test.describe("Handee flujo E2E completo", () => {
+test.describe("Handi flujo E2E completo", () => {
   test.setTimeout(120_000);
   test.beforeAll(async ({ baseURL, request }) => {
     // Asegurar usuarios E2E

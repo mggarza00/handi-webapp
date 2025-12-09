@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
 export async function GET(
   req: Request,
   { params }: { params: { role: string } },
@@ -9,7 +11,7 @@ export async function GET(
   if (!allowed) {
     return NextResponse.json(
       { ok: false, error: "FORBIDDEN_IN_PROD" },
-      { status: 403 },
+      { status: 403, headers: JSONH },
     );
   }
 
@@ -18,7 +20,7 @@ export async function GET(
   if (!["guest", "client", "professional", "admin"].includes(role)) {
     return NextResponse.json(
       { ok: false, error: "INVALID_ROLE" },
-      { status: 400 },
+      { status: 400, headers: JSONH },
     );
   }
 

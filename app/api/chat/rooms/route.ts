@@ -18,7 +18,7 @@ export async function GET(req: Request) {
         // Unauthenticated: return empty list instead of 401 to avoid UX break
         const status = (e as any)?.status;
         if (status === 401) {
-          return NextResponse.json({ ok: true, data: [] }, { headers: JSONH });
+          return NextResponse.json({ ok: true, data: [] }, { status: 200, headers: JSONH });
         }
         throw e;
       }
@@ -57,9 +57,12 @@ export async function GET(req: Request) {
         .limit(Math.min(300, convIds.length * 3));
       for (const m of msgs || []) {
         const cid = m.conversation_id as string;
+        const bodyStr = String((m.body ?? m.text ?? "") as string).trim();
+        const isLongPayment = /el pago está en custodia/i.test(bodyStr);
+        if (isLongPayment) continue;
         if (!previews.has(cid)) {
           previews.set(cid, {
-            body: String((m.body ?? m.text ?? "") as string),
+            body: bodyStr,
             sender_id: String(m.sender_id ?? ""),
             created_at: String(m.created_at ?? ""),
             read_by: Array.isArray(m.read_by) ? (m.read_by as unknown[]).map((x) => String(x)) : [],
@@ -84,7 +87,7 @@ export async function GET(req: Request) {
       };
     });
 
-    return NextResponse.json({ ok: true, data: items }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: items }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     const anyE = e as any;

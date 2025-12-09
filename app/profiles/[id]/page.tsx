@@ -1,21 +1,25 @@
 import * as React from "react";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import PublicProfileHeader from "@/components/profiles/PublicProfileHeader";
+import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
 import MetricCard from "@/components/profiles/MetricCard";
 import CertChip from "@/components/profiles/CertChip";
 import PhotoMasonry from "@/components/profiles/PhotoMasonry";
+import CompletedWorks from "@/components/profiles/CompletedWorks";
 import ExpandableText from "@/components/profiles/ExpandableText.client";
 import ReviewsListClient from "@/components/profiles/ReviewsList.client";
 
 import type { Database } from "@/types/supabase";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import { getProfessionalOverview, getPortfolio as loadPortfolio, getReviews as loadReviews } from "@/lib/profiles/data";
+import { getProJobsWithPhotos } from "@/lib/profiles/jobs";
+import createClient from "@/utils/supabase/server";
 
 type Ctx = { params: { id: string } };
 
@@ -51,31 +55,31 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     const firstLine = rawBio.split(/\r?\n/)[0] || "";
     const bioText = firstLine;
     const titleName = `${name} Perfil profesional`;
-    const desc = bioText.length > 160 ? `${bioText.slice(0, 157)}…` : bioText || "Perfil profesional en Homaid";
+    const desc = bioText.length > 160 ? `${bioText.slice(0, 157)}…` : bioText || "Perfil profesional en Handi";
 
     // Prefer avatar as OG if available, else fallback
     let imageUrl = (((ov.pro as any)?.profiles?.avatar_url as string) || (ov.pro as any)?.avatar_url || `${base}/avatar.png`) as string;
 
     return {
-      title: `${titleName} · Homaid`,
+      title: `${titleName} · Handi`,
       description: desc,
       openGraph: {
-        title: `${titleName} · Homaid`,
+        title: `${titleName} · Handi`,
         description: desc,
         url: `${base}/profiles/${params.id}`,
         images: [imageUrl],
-        siteName: "Homaid",
+        siteName: "Handi",
         type: "profile",
       },
       twitter: {
         card: "summary_large_image",
-        title: `${titleName} · Homaid`,
+        title: `${titleName} · Handi`,
         description: desc,
         images: [imageUrl],
       },
     };
   } catch {
-    return { title: "Perfil · Homaid" };
+    return { title: "Perfil · Handi" };
   }
 }
 
@@ -86,7 +90,19 @@ export default async function PublicProfilePage({ params }: Ctx) {
   // 1) Perfil + métricas
   const overview = await getProfessionalOverview(supa, proId);
   const pro = overview.pro;
-  if (!pro) return notFound();
+  if (!pro) {
+    // Si no existe perfil público y el usuario autenticado es el dueño, redirige a setup
+    try {
+      const rls = createClient();
+      const { data: auth } = await rls.auth.getUser();
+      if (auth?.user?.id === proId) {
+        redirect("/profile/setup");
+      }
+    } catch {
+      // ignore
+    }
+    return notFound();
+  }
 
   // Small helpers to normalize arrays stored as JSON/string
   const toArray = (v: unknown): unknown[] => {
@@ -173,8 +189,28 @@ export default async function PublicProfilePage({ params }: Ctx) {
 
   const [portfolio, reviewsData] = await Promise.all([
     loadPortfolio(supa, proId, 18),
-    loadReviews(supa, proId, 10),
+    loadReviews(supa, proId, 5),
   ]);
+
+  // Jobs with photos list (distinct requests completed by this pro)
+  const jobsWithPhotos = await getProJobsWithPhotos(supa, proId, 6);
+
+  // Determine if viewer should see Favorite button: only for logged-in clients viewing other profiles
+  const rls = createClient();
+  const { data: auth } = await rls.auth.getUser();
+  let showFavorite = false;
+  if (auth?.user) {
+    const uid = auth.user.id;
+    if (uid !== proId) {
+      const { data: viewerProfile } = await rls
+        .from("profiles")
+        .select("id, role")
+        .eq("id", uid)
+        .maybeSingle<any>();
+      const vrole = ((viewerProfile as any)?.role as null | "client" | "pro" | "admin") ?? null;
+      showFavorite = vrole === "client";
+    }
+  }
 
   // Jobs done (completed agreements)
   const jobsDone = overview.jobsDone;
@@ -227,6 +263,8 @@ export default async function PublicProfilePage({ params }: Ctx) {
         yearsExperience={typeof (pro as any)?.years_experience === 'number' ? ((pro as any)?.years_experience as number) : undefined}
         jobsDone={typeof jobsDone === 'number' ? jobsDone : undefined}
         categories={(categories.length ? categories : subcategories).join(", ")}
+        serviceCities={overview.cities}
+        actions={showFavorite ? <FavoriteProButton proId={proId} /> : null}
       />
 
       {/* Quick metrics */}
@@ -250,6 +288,18 @@ export default async function PublicProfilePage({ params }: Ctx) {
         </Card>
       ) : null}
 
+      {/* Trabajos realizados (por solicitud, con fotos) */}
+      <Card className="p-4">
+        <h2 className="mb-2 font-medium">Trabajos realizados</h2>
+        <CompletedWorks
+          items={jobsWithPhotos.map((j) => ({
+            request_id: j.request_id,
+            title: j.request_title || "Solicitud",
+            photos: j.photos.slice(0, 6).map((u, i) => ({ id: `${j.request_id}-${i}`, url: u, alt: `Foto del trabajo: ${j.request_title || "Solicitud"}` })),
+          }))}
+        />
+      </Card>
+
       {/* Certificaciones */}
       <Card className="p-4">
         <h2 className="mb-2 font-medium">Certificaciones</h2>
@@ -264,10 +314,10 @@ export default async function PublicProfilePage({ params }: Ctx) {
         )}
       </Card>
 
-      {/* Portfolio */}
+      {/* Galería de trabajos (portafolio de fotos) */}
       {portfolio && portfolio.length ? (
         <Card className="p-4">
-          <h2 className="mb-2 font-medium">Trabajos realizados</h2>
+          <h2 className="mb-2 font-medium">Galería de trabajos</h2>
           <PhotoMasonry photos={portfolio} />
         </Card>
       ) : (

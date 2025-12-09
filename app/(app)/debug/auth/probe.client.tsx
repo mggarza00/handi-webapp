@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 import type { Session } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
@@ -23,7 +23,7 @@ export default function ClientSessionProbe({
   serverUserId,
   serverUserEmail,
 }: Props) {
-  const supabase = useMemo(() => createClientComponentClient<Database>(), []);
+  const supabase = useMemo(() => createSupabaseBrowser<Database>(), []);
   const [origin, setOrigin] = useState<string>("");
   const [clientCookies, setClientCookies] = useState<string[]>([]);
   const [clientUserEmail, setClientUserEmail] = useState<string | null>(null);

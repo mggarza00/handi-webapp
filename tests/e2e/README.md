@@ -1,4 +1,4 @@
-﻿E2E Handee Flow
+﻿E2E Handi Flow
 
 Cómo correr
 - npm run e2e (usa playwright.local.config.ts y ejecuta los specs en tests/e2e)

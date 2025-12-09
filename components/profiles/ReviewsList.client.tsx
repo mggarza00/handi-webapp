@@ -13,21 +13,28 @@ export type ReviewDTO = {
   clientAvatarUrl?: string;
 };
 
+type ReviewApiRow = {
+  id: string | number;
+  rating?: number | string | null;
+  comment?: string | null;
+  created_at?: string | null;
+  client_name?: string | null;
+  client_avatar?: string | null;
+};
+
 export default function ReviewsListClient({ professionalId, initial, nextCursor, total }: { professionalId: string; initial: ReviewDTO[]; nextCursor: string | null; total: number }) {
   const [items, setItems] = React.useState<ReviewDTO[]>(initial);
   const [cursor, setCursor] = React.useState<string | null>(nextCursor);
   const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
 
   const load = async () => {
     if (!cursor || loading) return;
     setLoading(true);
-    setError(null);
     try {
-      const res = await fetch(`/api/professionals/${professionalId}/reviews?limit=10&cursor=${encodeURIComponent(cursor)}`);
-      const j = await res.json().catch(() => null);
-      if (res.ok && j?.ok) {
-        const more: ReviewDTO[] = (j.data as any[]).map((r) => ({
+      const res = await fetch(`/api/professionals/${professionalId}/reviews?limit=5&cursor=${encodeURIComponent(cursor)}`);
+      const j = (await res.json().catch(() => null)) as { ok?: boolean; data?: ReviewApiRow[]; nextCursor?: string | null } | null;
+      if (res.ok && j?.ok && Array.isArray(j.data)) {
+        const more: ReviewDTO[] = j.data.map((r) => ({
           id: String(r.id),
           stars: Number(r.rating ?? 0),
           comment: (r.comment as string | null) || undefined,
@@ -36,9 +43,9 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
           clientAvatarUrl: (r.client_avatar as string | null) || undefined,
         }));
         setItems((prev) => [...prev, ...more]);
-        setCursor((j.nextCursor as string | null) ?? null);
+        setCursor(j.nextCursor ?? null);
       } else {
-        setError("No se pudo cargar más reseñas.");
+        // Silenciar error como solicitado; no mostrar mensaje
       }
     } finally {
       setLoading(false);
@@ -52,7 +59,7 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
       {items.map((r) => (
         <ReviewItem key={r.id} stars={r.stars} comment={r.comment} createdAt={r.createdAt} clientName={r.clientName} clientAvatarUrl={r.clientAvatarUrl} />
       ))}
-      {(cursor || items.length < total) && (
+      {(total > 5 && items.length < total) && (
         <div className="pt-1">
           <button
             type="button"
@@ -61,10 +68,8 @@ export default function ReviewsListClient({ professionalId, initial, nextCursor,
           >
             {loading ? "Cargando…" : "Ver más reseñas"}
           </button>
-          {error ? <p className="text-xs text-red-600">{error}</p> : null}
         </div>
       )}
     </div>
   );
 }
-

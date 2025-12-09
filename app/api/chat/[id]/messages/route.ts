@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader } from "@/lib/auth-route";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -79,7 +80,7 @@ export async function GET(req: Request, { params }: Ctx) {
     }
     const enriched = mapped.map((m: any) => ({ ...m, attachments: byMessage[m.id] || [] }));
     const nextCursor = enriched.length ? enriched[enriched.length - 1].created_at : null;
-    return NextResponse.json({ ok: true, data: enriched, nextCursor }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: enriched, nextCursor }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     const anyE = e as any;
@@ -188,6 +189,12 @@ export async function POST(req: Request, { params }: Ctx) {
     }
 
     await db.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", id);
+
+    // Fire-and-forget: email al otro participante con el contenido y link al chat
+    try {
+      const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
+      await notifyChatMessageByConversation({ conversationId: id, senderId: user.id, text: content || "", attachments: attachLite });
+    } catch { /* ignore notify errors */ }
     return NextResponse.json({ ok: true, data: ins.data }, { status: 201, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";

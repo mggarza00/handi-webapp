@@ -1,4 +1,4 @@
-# Guía de Estilos: Colores y Tipografías (Homaid)
+# Guía de Estilos: Colores y Tipografías (Handi)
 
 Esta guía define los colores y tipografías de la web para mantener consistencia. Se apoya en Tailwind y variables CSS ya declaradas en `app/globals.css` (OKLCH), más utilidades de shadcn/ui.
 
@@ -15,14 +15,14 @@ Las variables están mapeadas a tokens de Tailwind vía `@theme inline` en `app/
 
 ## Marca
 
-- Color de marca (primario): `#11304A`
+- Color de marca (primario): `#082877`
   - Texto: clase utilitaria `.text-brand`
   - Fondo: clase utilitaria `.bg-brand`
   - Uso: botones y CTAs primarios, titulares discretos, logotipo. Evitar grandes bloques de texto con color de marca.
 
-- Color secundario: `#F9E7C9`
+- Color secundario: `#F9E7D2`
   - Uso: superficies suaves (chips, badges, secciones destacadas ligeras), `variant="secondary"` en botones.
-  - Contraste en dark: texto sobre secundario usa `--secondary-foreground` ajustado a `#11304A`.
+  - Contraste en dark: texto sobre secundario usa `--secondary-foreground` ajustado a `#001447`.
 
 ## Header (tinte gris translúcido)
 

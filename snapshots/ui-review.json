@@ -1,0 +1,654 @@
+{
+  "baseUrl": "http://localhost:3000",
+  "generatedAt": "2025-12-03T18:44:54.725Z",
+  "viewports": [
+    390,
+    768,
+    1280
+  ],
+  "screens": [
+    {
+      "name": "home-guest",
+      "path": "/",
+      "role": "guest",
+      "results": [
+        {
+          "width": 390,
+          "height": 844,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\home-guest__390.png",
+          "ok": true
+        },
+        {
+          "width": 768,
+          "height": 1024,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\home-guest__768.png",
+          "ok": true
+        },
+        {
+          "width": 1280,
+          "height": 900,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\home-guest__1280.png",
+          "ok": true
+        }
+      ],
+      "consoleErrors": [
+        {
+          "type": "warning",
+          "text": "Image with src \"/icons/candado_vo.png\" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: \"auto\"' or 'height: \"auto\"' to maintain the aspect ratio."
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Perfiles verificados.webp\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Encuentra cerca de ti.png\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Calificaciones reales.jpg\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Provider's accounts list is empty."
+        },
+        {
+          "type": "error",
+          "text": "Access to image at 'https://i.pravatar.cc/256?img=52' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_FAILED"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/icons/candado_vo.png\" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: \"auto\"' or 'height: \"auto\"' to maintain the aspect ratio."
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Encuentra cerca de ti.png\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Perfiles verificados.webp\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Calificaciones reales.jpg\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Not signed in with the identity provider."
+        },
+        {
+          "type": "error",
+          "text": "Access to image at 'https://i.pravatar.cc/256?img=52' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_FAILED"
+        },
+        {
+          "type": "error",
+          "text": "Access to image at 'https://static.vecteezy.com/system/resources/thumbnails/058/475/355/small/a-hispanic-male-construction-worker-in-a-yellow-hard-hat-looking-confidently-at-the-camera-amidst-construction-machinery-photo.jpg' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_FAILED"
+        },
+        {
+          "type": "error",
+          "text": "[GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token."
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/icons/candado_vo.png\" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: \"auto\"' or 'height: \"auto\"' to maintain the aspect ratio."
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Encuentra cerca de ti.png\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Perfiles verificados.webp\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "warning",
+          "text": "Image with src \"/images/Calificaciones reales.jpg\" has \"fill\" but is missing \"sizes\" prop. Please add it to improve page performance. Read more: https://nextjs.org/docs/api-reference/next/image#sizes"
+        },
+        {
+          "type": "error",
+          "text": "Access to image at 'https://static.vecteezy.com/system/resources/thumbnails/058/475/355/small/a-hispanic-male-construction-worker-in-a-yellow-hard-hat-looking-confidently-at-the-camera-amidst-construction-machinery-photo.jpg' from origin 'http://localhost:3000' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_FAILED"
+        }
+      ],
+      "httpErrors": []
+    },
+    {
+      "name": "design-check",
+      "path": "/design-check",
+      "role": "guest",
+      "results": [
+        {
+          "width": 390,
+          "height": 844,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\design-check__390.png",
+          "ok": true
+        },
+        {
+          "width": 768,
+          "height": 1024,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\design-check__768.png",
+          "ok": true
+        },
+        {
+          "width": 1280,
+          "height": 900,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\design-check__1280.png",
+          "ok": true
+        }
+      ],
+      "consoleErrors": [
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Provider's accounts list is empty."
+        }
+      ],
+      "httpErrors": []
+    },
+    {
+      "name": "requests-client",
+      "path": "/requests",
+      "role": "client",
+      "results": [
+        {
+          "width": 390,
+          "height": 844,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\requests-client__390.png",
+          "ok": true
+        },
+        {
+          "width": 768,
+          "height": 1024,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\requests-client__768.png",
+          "ok": true
+        },
+        {
+          "width": 1280,
+          "height": 900,
+          "error": "page.goto: net::ERR_ABORTED at http://localhost:3000/requests\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/requests\", waiting until \"networkidle\"\u001b[22m\n"
+        }
+      ],
+      "consoleErrors": [
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Provider's accounts list is empty."
+        },
+        {
+          "type": "error",
+          "text": "[GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to fetch RSC payload for http://localhost:3000/requests?mine=1. Falling back to browser navigation. TypeError: Failed to fetch\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:66:29)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:33:33)\n    at fastRefreshReducerImpl (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/reducers/fast-refresh-reducer.js:33:67)\n    at clientReducer (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/router-reducer.js:41:67)\n    at Object.eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:161:57)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at Object.eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at Object.eval [as action] (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:165:29)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:64:40)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at runAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:52:23)\n    at runRemainingActions (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:34:13)\n    at handleResult (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:74:13)"
+        },
+        {
+          "type": "warning",
+          "text": "[Fast Refresh] performing full reload\n\nFast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.\nYou might have a file which exports a React component but also exports a value that is imported by a non-React component file.\nConsider migrating the non-React component export to a separate file and importing it into both files.\n\nIt is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.\nFast Refresh requires at least one parent function component in your React tree."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "pageerror",
+          "text": "Invalid or unexpected token"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        }
+      ]
+    },
+    {
+      "name": "messages-client",
+      "path": "/mensajes",
+      "role": "client",
+      "results": [
+        {
+          "width": 390,
+          "height": 844,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\messages-client__390.png",
+          "ok": true
+        },
+        {
+          "width": 768,
+          "height": 1024,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\messages-client__768.png",
+          "ok": true
+        },
+        {
+          "width": 1280,
+          "height": 900,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\messages-client__1280.png",
+          "ok": true
+        }
+      ],
+      "consoleErrors": [
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Provider's accounts list is empty."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to fetch RSC payload for http://localhost:3000/mensajes. Falling back to browser navigation. TypeError: Failed to fetch\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:66:29)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at _fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:113:33)\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:33:33)\n    at fastRefreshReducerImpl (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/reducers/fast-refresh-reducer.js:33:67)\n    at clientReducer (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/router-reducer.js:41:67)\n    at Object.eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:161:57)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at Object.eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at Object.eval [as action] (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:165:29)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:64:40)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at _runAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:87:23)\n    at runAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:52:23)\n    at dispatchAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:123:9)\n    at Object.dispatch (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:155:40)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/use-reducer-with-devtools.js:130:21)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/app-router.js:308:25)\n    at startTransition (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/compiled/react/cjs/react.development.js:2597:25)\n    at Object.fastRefresh (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/app-router.js:307:48)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:277:28)\n    at startTransition (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/compiled/react/cjs/react.development.js:2597:25)\n    at processMessage (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:276:44)\n    at WebSocket.handler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:395:17)"
+        },
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Not signed in with the identity provider."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to fetch RSC payload for http://localhost:3000/mensajes. Falling back to browser navigation. TypeError: Failed to fetch\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:66:29)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at _fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:113:33)\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:33:33)\n    at fastRefreshReducerImpl (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/reducers/fast-refresh-reducer.js:33:67)\n    at clientReducer (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/router-reducer/router-reducer.js:41:67)\n    at Object.eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:161:57)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at Object.eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at Object.eval [as action] (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:165:29)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:64:40)\n    at Generator.next (<anonymous>)\n    at asyncGeneratorStep (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:8:28)\n    at _next (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:25:17)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:32:13)\n    at new Promise (<anonymous>)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/@swc+helpers@0.5.5/node_modules/@swc/helpers/esm/_async_to_generator.js:21:16)\n    at _runAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:87:23)\n    at runAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:52:23)\n    at dispatchAction (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:123:9)\n    at Object.dispatch (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/shared/lib/router/action-queue.js:155:40)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/use-reducer-with-devtools.js:130:21)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/app-router.js:308:25)\n    at startTransition (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/compiled/react/cjs/react.development.js:2597:25)\n    at Object.fastRefresh (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/app-router.js:307:48)\n    at eval (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:277:28)\n    at startTransition (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/compiled/react/cjs/react.development.js:2597:25)\n    at processMessage (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:276:44)\n    at WebSocket.handler (webpack-internal:///(app-pages-browser)/./node_modules/.pnpm/next@14.2.10_@playwright+te_f9feb47dde950b65ca82d8047e0900cc/node_modules/next/dist/client/components/react-dev-overlay/app/hot-reloader-client.js:395:17)"
+        },
+        {
+          "type": "pageerror",
+          "text": "Invalid or unexpected token"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        }
+      ]
+    },
+    {
+      "name": "pro-dashboard",
+      "path": "/pro",
+      "role": "professional",
+      "results": [
+        {
+          "width": 390,
+          "height": 844,
+          "error": "page.goto: Timeout 40000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/pro\", waiting until \"networkidle\"\u001b[22m\n"
+        },
+        {
+          "width": 768,
+          "height": 1024,
+          "error": "page.goto: Timeout 40000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/pro\", waiting until \"networkidle\"\u001b[22m\n"
+        },
+        {
+          "width": 1280,
+          "height": 900,
+          "error": "page.goto: Timeout 40000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://localhost:3000/pro\", waiting until \"networkidle\"\u001b[22m\n"
+        }
+      ],
+      "consoleErrors": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Provider's accounts list is empty."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "[GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token."
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+        }
+      ],
+      "httpErrors": [
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 401,
+          "url": "http://localhost:3000/api/profile/can-switch"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        },
+        {
+          "status": 500,
+          "url": "http://localhost:3000/api/chat/rooms"
+        }
+      ]
+    },
+    {
+      "name": "admin-dashboard",
+      "path": "/admin",
+      "role": "admin",
+      "results": [
+        {
+          "width": 390,
+          "height": 844,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\admin-dashboard__390.png",
+          "ok": true
+        },
+        {
+          "width": 768,
+          "height": 1024,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\admin-dashboard__768.png",
+          "ok": true
+        },
+        {
+          "width": 1280,
+          "height": 900,
+          "file": "C:\\dev\\handi-webapp\\snapshots\\admin-dashboard__1280.png",
+          "ok": true
+        }
+      ],
+      "consoleErrors": [
+        {
+          "type": "warning",
+          "text": "[GSI_LOGGER]: Your client application uses one of the Google One Tap prompt UI status methods that may stop functioning when FedCM becomes mandatory. Refer to the migration guide to update your code accordingly and opt-in to FedCM to test your changes. Learn more: https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#display_moment and https://developers.google.com/identity/gsi/web/guides/fedcm-migration?s=dc#skipped_moment"
+        },
+        {
+          "type": "error",
+          "text": "Provider's accounts list is empty."
+        },
+        {
+          "type": "warning",
+          "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+        },
+        {
+          "type": "warning",
+          "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+        },
+        {
+          "type": "error",
+          "text": "[GSI_LOGGER]: FedCM get() rejects with NetworkError: Error retrieving a token."
+        },
+        {
+          "type": "pageerror",
+          "text": "Invalid or unexpected token"
+        },
+        {
+          "type": "warning",
+          "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+        },
+        {
+          "type": "warning",
+          "text": "The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+        }
+      ],
+      "httpErrors": []
+    }
+  ]
+}

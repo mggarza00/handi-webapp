@@ -1,0 +1,74 @@
+[
+  {
+    "url": "http://localhost:3000/",
+    "isRepresentativeRun": false,
+    "htmlPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci--2025_12_03_18_48_35.html",
+    "jsonPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci--2025_12_03_18_48_35.html",
+    "summary": {
+      "performance": 0.27,
+      "accessibility": 0.92,
+      "best-practices": 0.96,
+      "seo": 1
+    }
+  },
+  {
+    "url": "http://localhost:3000/",
+    "isRepresentativeRun": false,
+    "htmlPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci--2025_12_03_18_49_02.html",
+    "jsonPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci--2025_12_03_18_49_02.html",
+    "summary": {
+      "performance": 0.27,
+      "accessibility": 0.92,
+      "best-practices": 0.96,
+      "seo": 1
+    }
+  },
+  {
+    "url": "http://localhost:3000/design-check",
+    "isRepresentativeRun": false,
+    "htmlPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci-design_check-2025_12_03_18_49_46.html",
+    "jsonPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci-design_check-2025_12_03_18_49_46.html",
+    "summary": {
+      "performance": 0.38,
+      "accessibility": 1,
+      "best-practices": 0.96,
+      "seo": 1
+    }
+  },
+  {
+    "url": "http://localhost:3000/design-check",
+    "isRepresentativeRun": false,
+    "htmlPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci-design_check-2025_12_03_18_50_03.html",
+    "jsonPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci-design_check-2025_12_03_18_50_03.html",
+    "summary": {
+      "performance": 0.28,
+      "accessibility": 1,
+      "best-practices": 0.96,
+      "seo": 1
+    }
+  },
+  {
+    "url": "http://localhost:3000/",
+    "isRepresentativeRun": true,
+    "htmlPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci--2025_12_03_18_48_09.html",
+    "jsonPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci--2025_12_03_18_48_09.html",
+    "summary": {
+      "performance": 0.27,
+      "accessibility": 0.92,
+      "best-practices": null,
+      "seo": 1
+    }
+  },
+  {
+    "url": "http://localhost:3000/design-check",
+    "isRepresentativeRun": true,
+    "htmlPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci-design_check-2025_12_03_18_49_28.html",
+    "jsonPath": "C:\\dev\\handi-webapp\\artifacts\\lhci\\lhci-design_check-2025_12_03_18_49_28.html",
+    "summary": {
+      "performance": 0.33,
+      "accessibility": 1,
+      "best-practices": 0.96,
+      "seo": 1
+    }
+  }
+]

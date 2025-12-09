@@ -36,7 +36,7 @@ export async function DELETE(req: Request, { params }: Ctx) {
     if (del.error)
       return NextResponse.json({ ok: false, error: del.error.message }, { status: 400, headers: JSONH });
 
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
     const anyE = e as any;
@@ -44,4 +44,3 @@ export async function DELETE(req: Request, { params }: Ctx) {
     return NextResponse.json({ ok: false, error: msg }, { status, headers: JSONH });
   }
 }
-

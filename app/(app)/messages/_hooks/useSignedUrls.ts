@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export function useSignedUrls(
   bucket: string,
@@ -9,7 +10,7 @@ export function useSignedUrls(
   options: { expireSeconds?: number; refreshMarginSeconds?: number } = {},
 ) {
   const { expireSeconds = 600, refreshMarginSeconds = 60 } = options;
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [urls, setUrls] = React.useState<Record<string, string>>({});
   const [loading, setLoading] = React.useState(false);
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,4 +50,3 @@ export function useSignedUrls(
 
   return { urls, loading, refresh } as const;
 }
-

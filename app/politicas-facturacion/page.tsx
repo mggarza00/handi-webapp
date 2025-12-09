@@ -4,9 +4,9 @@ import type { Metadata } from "next";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Políticas de Facturación | Homaid México",
+  title: "Políticas de Facturación | Handi México",
   description:
-    "Políticas de facturación para México (SAT): emisión de CFDI, datos requeridos, responsabilidades y comisiones. Conoce cómo Homaid gestiona la generación de facturas de servicios.",
+    "Políticas de facturación para México (SAT): emisión de CFDI, datos requeridos, responsabilidades y comisiones. Conoce cómo Handi gestiona la generación de facturas de servicios.",
   robots: {
     index: true,
     follow: true,
@@ -29,7 +29,7 @@ export default function PoliticasFacturacionPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Políticas de facturación  Homaid</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Políticas de facturación  Handi</h1>
         <p className="mt-1 text-sm text-slate-600">Ámbito: México (SAT). Última actualización: {lastUpdated}</p>
       </header>
 
@@ -41,7 +41,7 @@ export default function PoliticasFacturacionPage() {
             <ul className="space-y-1 text-sm">
               <li><a className="hover:underline" href="#modelo">1) Modelo de facturación</a></li>
               <li><a className="hover:underline" href="#comisiones">2) Esquema de comisiones</a></li>
-              <li><a className="hover:underline" href="#factura-homaid">3) Factura de la comisión de Homaid</a></li>
+              <li><a className="hover:underline" href="#factura-homaid">3) Factura de la comisión de Handi</a></li>
               <li><a className="hover:underline" href="#factura-servicio">4) Factura del servicio del Profesional</a></li>
               <li><a className="hover:underline" href="#actualizacion">5) Actualización de datos fiscales</a></li>
               <li><a className="hover:underline" href="#plazos">6) Plazos y solicitudes</a></li>
@@ -56,7 +56,7 @@ export default function PoliticasFacturacionPage() {
         {/* Contenido principal */}
         <section className="prose prose-slate max-w-none dark:prose-invert lg:col-span-8">
           <p>
-            En Homaid buscamos transparencia al momento de facturar servicios y comisiones. Esta página explica quién
+            En Handi buscamos transparencia al momento de facturar servicios y comisiones. Esta página explica quién
             factura qué, plazos, requisitos y casos frecuentes para clientes y profesionales en México.
           </p>
           <p className="text-xs text-slate-600">Aviso: Este contenido es informativo y no constituye asesoría fiscal.</p>
@@ -64,17 +64,17 @@ export default function PoliticasFacturacionPage() {
           <h2 id="modelo" className="scroll-mt-24 text-xl font-semibold">1) Modelo de facturación</h2>
           <ul className="list-disc pl-5">
             <li>El servicio lo factura el Profesional al Cliente.</li>
-            <li>Homaid no factura el servicio (mano de obra/insumo) del profesional.</li>
+            <li>Handi no factura el servicio (mano de obra/insumo) del profesional.</li>
           </ul>
           <ul className="list-disc pl-5 mt-2">
-            <li>Homaid factura únicamente su comisión de plataforma.</li>
+            <li>Handi factura únicamente su comisión de plataforma.</li>
             <li>
-              El Cliente recibe factura por la comisión de Homaid y, por separado, factura del Profesional por el servicio.
+              El Cliente recibe factura por la comisión de Handi y, por separado, factura del Profesional por el servicio.
             </li>
           </ul>
           <p className="mt-2">
-            <strong>Nota:</strong> Si un Profesional aún no puede facturar (sin RFC/CSD), Homaid no emite factura del servicio en su
-            nombre. En ese caso, el Cliente solo recibe la factura de la comisión de Homaid y un comprobante simple/recibo
+            <strong>Nota:</strong> Si un Profesional aún no puede facturar (sin RFC/CSD), Handi no emite factura del servicio en su
+            nombre. En ese caso, el Cliente solo recibe la factura de la comisión de Handi y un comprobante simple/recibo
             del servicio, hasta que el Profesional esté en condiciones de facturar.
           </p>
 
@@ -126,9 +126,9 @@ export default function PoliticasFacturacionPage() {
             </table>
           </div>
 
-          <h2 id="factura-homaid" className="scroll-mt-24 text-xl font-semibold">3) Factura de la comisión de Homaid</h2>
+          <h2 id="factura-homaid" className="scroll-mt-24 text-xl font-semibold">3) Factura de la comisión de Handi</h2>
           <ul className="list-disc pl-5">
-            <li><strong>Emisor:</strong> Homaid.</li>
+            <li><strong>Emisor:</strong> Handi.</li>
             <li><strong>Receptor:</strong> Cliente (datos fiscales completos).</li>
             <li><strong>CFDI:</strong> Se emite al pagar la comisión.</li>
             <li>
@@ -154,10 +154,10 @@ export default function PoliticasFacturacionPage() {
             </li>
           </ul>
           <p className="mt-2">
-            <strong>Si el Profesional no puede facturar:</strong> Homaid no emite factura por el servicio. El Cliente podrá:
+            <strong>Si el Profesional no puede facturar:</strong> Handi no emite factura por el servicio. El Cliente podrá:
           </p>
           <ul className="list-disc pl-5">
-            <li>Recibir factura solo de la comisión de Homaid.</li>
+            <li>Recibir factura solo de la comisión de Handi.</li>
             <li>Solicitar al Profesional su factura cuando éste cuente con RFC/CSD y pueda emitirla.</li>
           </ul>
 
@@ -177,7 +177,7 @@ export default function PoliticasFacturacionPage() {
               lo que ocurra primero.
             </li>
             <li>
-              Factura global al público en general: Homaid puede emitirla por comisiones cuando no se solicite nominativa a tiempo.
+              Factura global al público en general: Handi puede emitirla por comisiones cuando no se solicite nominativa a tiempo.
             </li>
             <li>
               Factura nominativa posterior a global: solo si la normativa y el plazo del SAT lo permiten (puede requerir cancelación de la global y reemisión).
@@ -188,7 +188,7 @@ export default function PoliticasFacturacionPage() {
           <ul className="list-disc pl-5">
             <li>Si procede un reembolso del servicio, el Profesional gestiona la nota de crédito/cancelación correspondiente.</li>
             <li>
-              Si procede un reembolso de comisión, Homaid gestionará la cancelación o nota de crédito de su CFDI conforme a la operación.
+              Si procede un reembolso de comisión, Handi gestionará la cancelación o nota de crédito de su CFDI conforme a la operación.
             </li>
           </ul>
 
@@ -205,7 +205,7 @@ export default function PoliticasFacturacionPage() {
             <div>
               <h3 className="text-base font-medium">¿Puedo deducir el servicio si el Profesional no factura?</h3>
               <p className="mt-1 text-slate-700">
-                Puedes deducir la comisión de Homaid (si solicitas CFDI a tiempo). El servicio requerirá CFDI del Profesional para efectos fiscales.
+                Puedes deducir la comisión de Handi (si solicitas CFDI a tiempo). El servicio requerirá CFDI del Profesional para efectos fiscales.
               </p>
             </div>
             <div>
@@ -224,7 +224,7 @@ export default function PoliticasFacturacionPage() {
 
           <h2 id="contacto" className="scroll-mt-24 text-xl font-semibold">10) Contacto</h2>
           <p>
-            Soporte Homaid: <a className="underline" href="mailto:soporte@homaid.com">soporte@homaid.com</a> (ejemplo)
+            Soporte Handi: <a className="underline" href="mailto:soporte@homaid.com">soporte@homaid.com</a> (ejemplo)
           </p>
           <p>Horario: LV, 9:00–18:00 (CDMX)</p>
 

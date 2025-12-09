@@ -50,6 +50,29 @@ export async function POST(
           active: true,
           last_active_at: new Date().toISOString(),
         };
+        // Determine avatar to ensure professionals.avatar_url is always populated
+        let desiredAvatarUrl: string | null = null;
+        try {
+          const pr = await admin
+            .from("profiles")
+            .select("avatar_url")
+            .eq("id", uid)
+            .maybeSingle<{ avatar_url: string | null }>();
+          const base =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_SITE_URL ||
+            "http://localhost:3000";
+          const fallback = `${base}/images/Happy Construction Helper.png`;
+          const fromProfile = (pr.data?.avatar_url || "").trim();
+          desiredAvatarUrl = fromProfile || fallback;
+        } catch {
+          // If anything fails, still set a safe fallback
+          const base =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_SITE_URL ||
+            "http://localhost:3000";
+          desiredAvatarUrl = `${base}/images/Happy Construction Helper.png`;
+        }
         if (app) {
           if (app.full_name) patch.full_name = app.full_name;
           if ((app as unknown as { rfc?: string | null }).rfc)
@@ -124,15 +147,17 @@ export async function POST(
         // Upsert professionals row with id = user_id (1:1)
         const existing = await admin
           .from("professionals")
-          .select("id")
+          .select("id, avatar_url")
           .eq("id", uid)
-          .maybeSingle();
+          .maybeSingle<{ id: string; avatar_url: string | null }>();
         if (existing.data) {
-          await admin.from("professionals").update(patch).eq("id", uid);
+          const updatePatch: Record<string, unknown> = { ...patch };
+          if (!existing.data.avatar_url) updatePatch.avatar_url = desiredAvatarUrl;
+          await admin.from("professionals").update(updatePatch).eq("id", uid);
         } else {
           await admin
             .from("professionals")
-            .insert([{ id: uid, ...patch } as Record<string, unknown>]);
+            .insert([{ id: uid, ...patch, avatar_url: desiredAvatarUrl } as Record<string, unknown>]);
         }
         // Sync profiles.full_name si viene en la solicitud
         try {
@@ -198,7 +223,7 @@ export async function POST(
     } catch {
       // ignore email errors
     }
-    return NextResponse.json({ ok: true, data: upd.data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: upd.data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

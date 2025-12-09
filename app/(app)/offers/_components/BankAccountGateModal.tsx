@@ -2,16 +2,16 @@
 
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = {
   open: boolean;
@@ -32,7 +32,7 @@ function isValidClabe(input: string): boolean {
 }
 
 export default function BankAccountGateModal({ open, onOpenChange, onAcceptOffer }: Props) {
-  const supabaseAuth = createClientComponentClient();
+  const supabaseAuth = createSupabaseBrowser();
   const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
     const headers: Record<string, string> = { "Content-Type": "application/json; charset=utf-8" };
     try {

@@ -1,11 +1,8 @@
-/* eslint-disable import/order */
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { z } from "zod";
 
-import type { Database } from "@/types/supabase";
 import { getAdminSupabase } from "../../../../../../lib/supabase/admin";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -16,7 +13,7 @@ const Schema = z.object({
 async function assertIsAdmin(): Promise<
   { ok: true; userId: string } | { ok: false; res: NextResponse }
 > {
-  const supa = createRouteHandlerClient<Database>({ cookies });
+  const supa = createClient();
   const { data: auth } = await supa.auth.getUser();
   if (!auth?.user) {
     return {
@@ -34,7 +31,7 @@ async function assertIsAdmin(): Promise<
     .maybeSingle();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
-    prof?.role === "admin" ||
+    (prof?.role ?? null) === "admin" ||
     (allowEmail && auth.user.email?.toLowerCase() === allowEmail.toLowerCase());
   if (!isAdmin) {
     return {
@@ -77,7 +74,7 @@ export async function POST(
       { status: 500, headers: JSONH },
     );
   }
-  return NextResponse.json({ ok: true, data: upd.data }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: upd.data }, { status: 200, headers: JSONH });
 }
 
 export function GET() {

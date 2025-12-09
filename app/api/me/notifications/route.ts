@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import { createBearerClient } from "@/lib/supabase";
 import type { Database } from "@/types/supabase";
@@ -10,7 +9,7 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 export const dynamic = "force-dynamic";
 
 async function getClientAndUser(req: Request) {
-  const supa = createRouteHandlerClient<Database>({ cookies });
+  const supa = getRouteClient();
   const authHeader = (req.headers.get("authorization") || req.headers.get("Authorization") || "").trim();
   const match = authHeader.match(/^Bearer\s+(.+)$/i);
   const token = match?.[1] || (req.headers.get("x-access-token") || "").trim();
@@ -41,7 +40,7 @@ export async function GET(req: Request) {
   if (!hasEnv) {
     const url = new URL(req.url);
     const _limit = Math.max(1, Math.min(50, Number(url.searchParams.get("limit") || 20)));
-    return NextResponse.json({ ok: true, items: [] }, { headers: JSONH });
+    return NextResponse.json({ ok: true, items: [] }, { status: 200, headers: JSONH });
   }
 
   const { client, userId } = await getClientAndUser(req);
@@ -62,7 +61,7 @@ export async function GET(req: Request) {
     if (onlyUnread) q = q.is("read_at", null);
     const { data, error } = await q;
     if (error) throw error;
-    return NextResponse.json({ ok: true, items: data ?? [] }, { headers: JSONH });
+    return NextResponse.json({ ok: true, items: data ?? [] }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });

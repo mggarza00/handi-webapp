@@ -1,4 +1,4 @@
-﻿# Estado de Implementacion vs Documento Maestro - Homaid Webapp
+﻿# Estado de Implementacion vs Documento Maestro - Handi Webapp
 <!-- Renombrado desde *_Handee_* a *_Handi_* -->
 
 **Ultima actualizacion:** 2025-09-17 (America/Monterrey)

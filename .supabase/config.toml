@@ -25,4 +25,4 @@ enable_confirmations = true
 secure_password_change = false
 max_frequency = "1m0s"
 otp_length = 6
-otp_expiry = 86400
+otp_expiry = 900

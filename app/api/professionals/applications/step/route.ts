@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 import { z } from "zod";
 
 import { getUserOrThrow, supabaseServer } from "@/lib/_supabase-server";
@@ -14,7 +13,7 @@ const BodySchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = getRouteClient();
     await supabaseServer();
     await getUserOrThrow(supabase);
     const json = await req.json().catch(() => ({}));
@@ -29,7 +28,7 @@ export async function POST(req: Request) {
             message: i.message,
           })),
         },
-        { status: 400 },
+        { status: 400, headers: JSONH },
       );
     }
 
@@ -39,14 +38,15 @@ export async function POST(req: Request) {
         error: "Not implemented",
         detail: "Transiciones de estado pendientes (accept/reject/complete)",
       },
-      { status: 501 },
+      { status: 501, headers: JSONH },
     );
   } catch (e: unknown) {
     const message = getErrorMessage(e);
     const isAuth = /auth|session|jwt/i.test(message);
     return NextResponse.json(
       { ok: false, error: message },
-      { status: isAuth ? 401 : 500 },
+      { status: isAuth ? 401 : 500, headers: JSONH },
     );
   }
 }
+const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;

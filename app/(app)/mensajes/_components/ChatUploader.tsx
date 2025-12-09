@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { sanitizeForStorageFilename, joinStoragePath } from "@/lib/storage-sanitize";
 
 type UploadItem = {
@@ -98,7 +99,7 @@ export default function ChatUploader({
   onReady,
   showButton = true,
 }: ChatUploaderProps) {
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const cameraRef = React.useRef<HTMLInputElement | null>(null);
   const [items, setItems] = React.useState<UploadItem[]>([]);
@@ -163,7 +164,7 @@ export default function ChatUploader({
             const extToMime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword' };
             // Si file.type es "", trátalo como application/octet-stream (Windows)
             const chosenMime = (f.type === '' ? 'application/octet-stream' : (f.type || extToMime[ext] || 'application/octet-stream'));
-            const { error: upErr } = await supabase.storage.from('chat-attachments').upload(path, f, { contentType: chosenMime, upsert: false });
+            const { error: upErr } = await supabase.storage.from('message-attachments').upload(path, f, { contentType: chosenMime, upsert: false });
             if (upErr) { setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'error', error: upErr.message, progress: 0 } : p)); continue; }
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 70, storagePath: path } : p));
             uploaded.push({ filename: f.name, mime_type: chosenMime, byte_size: f.size, storage_path: path, width: size?.width ?? null, height: size?.height ?? null });
@@ -200,7 +201,7 @@ export default function ChatUploader({
             const ext = (f.name.split('.').pop() || '').toLowerCase();
             const extToMime: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', pdf: 'application/pdf', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword' };
             const chosenMime = (f.type === '' ? 'application/octet-stream' : (f.type || extToMime[ext] || 'application/octet-stream'));
-            const { error: upErr } = await supabase.storage.from('chat-attachments').upload(path, f, { contentType: chosenMime, upsert: false });
+            const { error: upErr } = await supabase.storage.from('message-attachments').upload(path, f, { contentType: chosenMime, upsert: false });
             if (upErr) { setItems(prev => prev.map(p => p.id === it.id ? { ...p, status: 'error', error: upErr.message, progress: 0 } : p)); continue; }
             setItems(prev => prev.map(p => p.id === it.id ? { ...p, progress: 70, storagePath: path } : p));
             uploaded.push({ filename: f.name, mime_type: chosenMime, byte_size: f.size, storage_path: path, width: size?.width ?? null, height: size?.height ?? null });

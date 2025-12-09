@@ -52,6 +52,19 @@ export default async function Professionals({
   });
   const j = await res.json().catch(() => ({ ok: false }));
   const items: Pro[] = res.ok && Array.isArray(j?.data) ? (j.data as Pro[]) : [];
+  const pageSize: number = typeof j?.meta?.limit === "number" ? j.meta.limit : 60;
+  const total: number = typeof j?.meta?.total === "number" ? j.meta.total : items.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  function pageHref(n: number) {
+    const params = new URLSearchParams();
+    if (city) params.set("city", city);
+    if (category) params.set("category", category);
+    if (subcategory) params.set("subcategory", subcategory);
+    if (n > 1) params.set("page", String(n));
+    const qs2 = params.toString();
+    return `/professionals${qs2 ? `?${qs2}` : ""}`;
+  }
 
   // Fetch categories/subcategories for dropdowns
   const catRes = await fetch(`${base}/api/catalog/categories`, {
@@ -86,6 +99,10 @@ export default async function Professionals({
                       src={p.avatar_url || "/avatar.png"}
                       alt={p.full_name || "Avatar"}
                       className="h-10 w-10 rounded-full object-cover border"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -105,6 +122,39 @@ export default async function Professionals({
               </Link>
             ))}
           </div>
+          {/* Pagination */}
+          <nav className="mt-4 flex items-center justify-center gap-2" aria-label="Paginación">
+            <Link
+              href={pageHref(Math.max(1, page - 1))}
+              aria-disabled={page <= 1}
+              className={`rounded border px-3 py-1 text-sm ${page <= 1 ? "pointer-events-none text-slate-400 border-slate-200" : "hover:bg-slate-50"}`}
+            >
+              Anterior
+            </Link>
+            {Array.from({ length: pageCount }).slice(0, 10).map((_, i) => {
+              const n = i + 1;
+              return (
+                <Link
+                  key={n}
+                  href={pageHref(n)}
+                  aria-current={n === page ? "page" : undefined}
+                  className={`rounded border px-3 py-1 text-sm ${n === page ? "bg-black text-white border-black" : "hover:bg-slate-50"}`}
+                >
+                  {n}
+                </Link>
+              );
+            })}
+            {pageCount > 10 && (
+              <span className="text-sm text-slate-500">…</span>
+            )}
+            <Link
+              href={pageHref(Math.min(pageCount, page + 1))}
+              aria-disabled={page >= pageCount}
+              className={`rounded border px-3 py-1 text-sm ${page >= pageCount ? "pointer-events-none text-slate-400 border-slate-200" : "hover:bg-slate-50"}`}
+            >
+              Siguiente
+            </Link>
+          </nav>
         </div>
       )}
     </div>

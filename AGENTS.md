@@ -1,19 +1,27 @@
----
+﻿---
 codex:
-  approval_mode: "auto" # "auto" = no pide confirmación
+  approval_mode: "auto"               # No pide confirmación
   auto_approve:
-    - file_write # crear/editar/borrar archivos
-    - run_command # ejecutar comandos de terminal
-    - install_dependencies # npm/pnpm/yarn install
-    - modify_config # editar .env, config, linters (sin exponer secretos)
+    - file_write                       # Crear/editar/borrar archivos
+    - run_command                      # Ejecutar comandos en terminal
+    - install_dependencies             # npm/pnpm/yarn install
+    - modify_config                    # Editar .env, linters, settings (sin exponer secretos)
+    - read_file                        # Leer archivos
+    - search_in_repo                   # Buscar dentro del repo
+    - read_config
+    - apply_patch
+    - manage_files
+    - format_code
   guardrails:
-    max_files: 50 # tope de archivos por tarea
-    max_runtime_minutes: 20 # tope de minutos por tarea
-    disallowed: # SIEMPRE prohibido
+    max_files: 200                     # Seguro pero amplio
+    max_runtime_minutes: 30            # Tareas largas permitidas
+    disallowed:
       - "git push --force"
       - "rm -rf /"
       - "vercel env pull --environment=production"
       - "openssl rsautl -decrypt"
+      - "gh auth login"
+      - "docker system prune -a"
 ---
 
 # Repository Guidelines
@@ -51,10 +59,10 @@ codex:
 
 ## Commit & Pull Request Guidelines
 
-- Commits: Convención corta (ej.: `feat:`, `fix:`, `chore(api):`).
-- PRs: Descripción clara, issues vinculados, screenshots de UI, y checklist:
-  - Corrí `npm run check` y `npm run build`.
-  - Agregué/actualicé tests según aplique.
+- Commits: ConvenciÃ³n corta (ej.: `feat:`, `fix:`, `chore(api):`).
+- PRs: DescripciÃ³n clara, issues vinculados, screenshots de UI, y checklist:
+  - CorrÃ­ `npm run check` y `npm run build`.
+  - AgreguÃ©/actualicÃ© tests segÃºn aplique.
   - Ejemplos de API incluyen `-H "Content-Type: application/json; charset=utf-8"`.
 
 ## Security & Configuration
@@ -63,3 +71,4 @@ codex:
 - Preferir SSR con cookies de Supabase; RLS en DB y validar inputs en server con Zod.
 - Evitar rutas duplicadas; endpoints en `app/api/*`.
 - Fuente de verdad: `docs/Handi_Documento_Maestro_Unificado_FULL.md` y `docs/Estado_de_Implementacion_vs_DM_Handi_Webapp.md`.
+

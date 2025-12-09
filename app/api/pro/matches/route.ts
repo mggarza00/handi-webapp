@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import { getUserOrThrow } from "@/lib/_supabase-server";
 import type { Database } from "@/types/supabase";
@@ -80,7 +79,7 @@ function parseStringList(input: unknown): string[] {
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient<Database, "public">({ cookies });
+    const supabase = getRouteClient();
     const { user: authUser } = await getUserOrThrow(supabase);
 
     const { data: profile, error: profileError } = await supabase
@@ -92,31 +91,42 @@ export async function GET() {
       .maybeSingle();
 
     if (profileError) throw profileError;
+    const prof = (profile as unknown as {
+      id: string;
+      full_name?: string | null;
+      headline?: string | null;
+      active?: boolean | null;
+      city?: string | null;
+      cities?: unknown;
+      categories?: unknown;
+      subcategories?: unknown;
+      last_active_at?: string | null;
+    }) || null;
 
-    if (!profile || profile.active === false) {
+    if (!prof || prof.active === false) {
       const payload: MatchesPayload = {
         matches: [],
-        profile: profile
+        profile: prof
           ? {
-              id: profile.id,
-              full_name: profile.full_name ?? null,
-              headline: profile.headline ?? null,
-              active: profile.active ?? null,
-              city: profile.city ?? null,
-              last_active_at: profile.last_active_at ?? null,
+              id: prof.id,
+              full_name: prof.full_name ?? null,
+              headline: prof.headline ?? null,
+              active: prof.active ?? null,
+              city: prof.city ?? null,
+              last_active_at: prof.last_active_at ?? null,
               filters: { cities: 0, categories: 0, subcategories: 0 },
             }
           : null,
       };
-      return NextResponse.json({ ok: true, data: payload }, { headers: JSONH });
+      return NextResponse.json({ ok: true, data: payload }, { status: 200, headers: JSONH });
     }
 
     const proCities = uniq([
-      ...(parseStringList(profile.cities as unknown)),
-      ...(profile.city ? [profile.city] : []),
+      ...(parseStringList(prof.cities as unknown)),
+      ...(prof.city ? [prof.city] : []),
     ]);
-    const proCategories = parseNameList(profile.categories as unknown);
-    const proSubcategories = parseNameList(profile.subcategories as unknown);
+    const proCategories = parseNameList(prof.categories as unknown);
+    const proSubcategories = parseNameList(prof.subcategories as unknown);
 
     const citySet = new Set(proCities.map(normalize));
     const categorySet = new Set(proCategories.map(normalize));
@@ -136,10 +146,23 @@ export async function GET() {
 
     if (requestsError) throw requestsError;
 
+    // Tipado explícito de las filas seleccionadas para evitar inferencia a `never`
+    type RequestLite = {
+      id: string;
+      title: string | null;
+      city: string | null;
+      category: string | null;
+      subcategories: unknown;
+      created_at: string | null;
+      status: "active" | "in_process" | "completed" | "cancelled" | null;
+      created_by: string;
+    };
+
     const now = Date.now();
     const matches: MatchItem[] = [];
 
-    for (const request of requests ?? []) {
+    const requestRows: RequestLite[] = (requests ?? []) as unknown as RequestLite[];
+    for (const request of requestRows) {
       if (!request) continue;
       let keep = true;
       const reasons: string[] = [];
@@ -209,12 +232,12 @@ export async function GET() {
     const payload: MatchesPayload = {
       matches: limited,
       profile: {
-        id: profile.id,
-        full_name: profile.full_name ?? null,
-        headline: profile.headline ?? null,
-        active: profile.active ?? null,
-        city: profile.city ?? null,
-        last_active_at: profile.last_active_at ?? null,
+        id: prof!.id,
+        full_name: prof!.full_name ?? null,
+        headline: prof!.headline ?? null,
+        active: prof!.active ?? null,
+        city: prof!.city ?? null,
+        last_active_at: prof!.last_active_at ?? null,
         filters: {
           cities: citySet.size,
           categories: categorySet.size,
@@ -223,7 +246,7 @@ export async function GET() {
       },
     };
 
-    return NextResponse.json({ ok: true, data: payload }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data: payload }, { status: 200, headers: JSONH });
   } catch (e: unknown) {
     const msg = errorMessage(e);
     const status = msg === "UNAUTHORIZED" ? 401 : 500;

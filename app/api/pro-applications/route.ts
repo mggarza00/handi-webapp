@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
 import type { Database } from "@/types/supabase";
@@ -52,6 +51,8 @@ const PayloadSchema = z
       company_csf_url: z.string().url().optional(),
       company_rep_id_front_url: z.string().url().optional(),
       company_rep_id_back_url: z.string().url().optional(),
+      // bancario (opcional)
+      bank_cover_url: z.string().url().optional(),
       // firma (se mantiene)
       signature_url: z.string().url().optional(),
     }),
@@ -93,7 +94,7 @@ export async function POST(req: Request) {
     const body: unknown = await req.json().catch(() => null);
 
     // Obtener usuario actual para permitir default de full_name desde profiles
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user) {
       return NextResponse.json(
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
     // Si no viene full_name en el payload, intentar tomarlo del perfil
     let defaultFullName: string | null = null;
     try {
-      const { data: prof } = await supabase
+      const { data: prof } = await (supabase as any)
         .from("profiles")
         .select("full_name")
         .eq("id", auth.user.id)
@@ -136,37 +137,95 @@ export async function POST(req: Request) {
     }
 
     const p = parsed.data;
-    // Persist registro (auditoría mínima)
-    try {
-      const admin = getAdminSupabase();
-      await admin.from("pro_applications").insert({
+    // Persist registro (auditoría) – asegurar inserción aunque no haya SERVICE_ROLE
+    const admin = (() => {
+      try {
+        return getAdminSupabase();
+      } catch {
+        return null;
+      }
+    })();
+    const record = {
+      user_id: auth.user.id,
+      full_name: p.full_name,
+      phone: p.phone,
+      email: p.email,
+      rfc: p.rfc,
+      empresa: p.empresa ?? false,
+      is_company: p.empresa ?? false,
+      company_legal_name: p.company_legal_name ?? null,
+      company_industry: p.company_industry ?? null,
+      company_employees_count: p.company_employees_count ?? null,
+      company_website: p.company_website ?? null,
+      company_doc_incorporation_url: (p.uploads as Record<string, unknown>).company_doc_incorporation_url ?? null,
+      company_csf_url: (p.uploads as Record<string, unknown>).company_csf_url ?? null,
+      company_rep_id_front_url: (p.uploads as Record<string, unknown>).company_rep_id_front_url ?? null,
+      company_rep_id_back_url: (p.uploads as Record<string, unknown>).company_rep_id_back_url ?? null,
+      services_desc: p.services_desc,
+      cities: p.cities,
+      categories: p.categories,
+      subcategories: p.subcategories ?? null,
+      years_experience: p.years_experience,
+      refs: p.references,
+      uploads: p.uploads,
+      status: "pending",
+    } as Record<string, unknown>;
+
+    let inserted = false;
+    let insertErr: unknown = null;
+    // Try full record (admin → user)
+    if (admin) {
+      const { error } = await (admin as any)
+        .from("pro_applications")
+        .insert([record]);
+      if (!error) inserted = true; else insertErr = error;
+    }
+    if (!inserted) {
+      const { error } = await (supabase as any)
+        .from("pro_applications")
+        .insert([record]);
+      if (!error) inserted = true; else insertErr = insertErr || error;
+    }
+    // If failed, try minimal backward-compatible payload (older schemas)
+    if (!inserted) {
+      const minimal = {
         user_id: auth.user.id,
         full_name: p.full_name,
         phone: p.phone,
         email: p.email,
-        rfc: p.rfc,
-        empresa: p.empresa ?? false,
-        is_company: p.empresa ?? false,
-        company_legal_name: p.company_legal_name ?? null,
-        company_industry: p.company_industry ?? null,
-        company_employees_count: p.company_employees_count ?? null,
-        company_website: p.company_website ?? null,
-        company_doc_incorporation_url: (p.uploads as Record<string, unknown>).company_doc_incorporation_url ?? null,
-        company_csf_url: (p.uploads as Record<string, unknown>).company_csf_url ?? null,
-        company_rep_id_front_url: (p.uploads as Record<string, unknown>).company_rep_id_front_url ?? null,
-        company_rep_id_back_url: (p.uploads as Record<string, unknown>).company_rep_id_back_url ?? null,
         services_desc: p.services_desc,
         cities: p.cities,
         categories: p.categories,
-  subcategories: p.subcategories ?? null,
         years_experience: p.years_experience,
-  refs: p.references,
+        refs: p.references,
         uploads: p.uploads,
         status: "pending",
-      } as never);
-      // In-app notifications for admins
+      } as Record<string, unknown>;
+      if (admin) {
+        const { error } = await (admin as any)
+          .from("pro_applications")
+          .insert([minimal]);
+        if (!error) inserted = true; else insertErr = insertErr || error;
+      }
+      if (!inserted) {
+        const { error } = await (supabase as any)
+          .from("pro_applications")
+          .insert([minimal]);
+        if (!error) inserted = true; else insertErr = insertErr || error;
+      }
+    }
+    if (!inserted) {
+      const detail = (insertErr as { message?: string } | null)?.message || "insert_failed";
+      try { console.error("pro_applications insert failed:", insertErr); } catch {}
+      return NextResponse.json(
+        { ok: false, error: "INSERT_FAILED", detail },
+        { status: 500, headers: JSONH },
+      );
+    }
+
+    // In-app notifications para admins (best-effort)
+    if (admin) {
       try {
-        // Find admin users by is_admin flag or legacy role
         type AdminProfile = { id: string; role: string | null; is_admin: boolean | null };
         const { data: admins } = await admin
           .from("profiles")
@@ -194,22 +253,19 @@ export async function POST(req: Request) {
       } catch {
         // ignore if notifications table is missing
       }
-      // Also mark the user in `profiles` with boolean flags for roles (is_client, is_professional)
+      // Marcar flags auxiliares en profiles (best-effort; ignorable en dev)
       try {
-        // Upsert minimal row to set boolean flags; this won't remove other profile fields
         await admin
           .from("profiles")
           .upsert({ id: auth.user.id, is_professional: true, is_client: true }, { onConflict: "id" });
       } catch {
-        // ignore if column/table missing or permission issues
+        /* ignore */
       }
-    } catch {
-      // no-op si aún no existe la tabla
     }
   const adminTo =
       process.env.HANDEE_ADMIN_EMAIL ||
       process.env.MAIL_DEFAULT_TO ||
-      "hola@homaid.mx";
+      "hola@handi.mx";
     const base =
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
@@ -253,14 +309,28 @@ export async function POST(req: Request) {
         ${Array.isArray(p.uploads.letters_urls) ? p.uploads.letters_urls.map((u: string) => `<li>Carta: <a href="${u}">${u}</a></li>`).join("") : ''}
         ${p.uploads.id_front_url ? `<li>Identificación (frente): <a href="${p.uploads.id_front_url}">${p.uploads.id_front_url}</a></li>` : ''}
         ${p.uploads.id_back_url ? `<li>Identificación (reverso): <a href="${p.uploads.id_back_url}">${p.uploads.id_back_url}</a></li>` : ''}
+        ${p.uploads.bank_cover_url ? `<li>Carátula bancaria: <a href="${p.uploads.bank_cover_url}">${p.uploads.bank_cover_url}</a></li>` : ''}
         ${p.uploads.signature_url ? `<li>Firma: <a href="${p.uploads.signature_url}">${p.uploads.signature_url}</a></li>` : ''}
       </ul>
-      ` : ''}
+      ` : `
+      <ul>
+        ${p.uploads.company_doc_incorporation_url ? `<li>Acta: <a href="${p.uploads.company_doc_incorporation_url}">${p.uploads.company_doc_incorporation_url}</a></li>` : ''}
+        ${p.uploads.company_csf_url ? `<li>CSF: <a href="${p.uploads.company_csf_url}">${p.uploads.company_csf_url}</a></li>` : ''}
+        ${p.uploads.company_rep_id_front_url ? `<li>ID Rep (frente): <a href="${p.uploads.company_rep_id_front_url}">${p.uploads.company_rep_id_front_url}</a></li>` : ''}
+        ${p.uploads.company_rep_id_back_url ? `<li>ID Rep (reverso): <a href="${p.uploads.company_rep_id_back_url}">${p.uploads.company_rep_id_back_url}</a></li>` : ''}
+        ${p.uploads.bank_cover_url ? `<li>Carátula bancaria: <a href="${p.uploads.bank_cover_url}">${p.uploads.bank_cover_url}</a></li>` : ''}
+        ${p.uploads.signature_url ? `<li>Firma: <a href="${p.uploads.signature_url}">${p.uploads.signature_url}</a></li>` : ''}
+      </ul>
+      `}
       <p><a href="${profileUrl}">Ver perfil</a></p>
     `;
 
-    await sendEmail({ to: adminTo, subject, html });
-    return NextResponse.json({ ok: true }, { headers: JSONH });
+    const mailRes = await sendEmail({ to: adminTo, subject, html });
+    if (!mailRes.ok) {
+      // Log para diagnóstico en Vercel sin interrumpir el flujo
+      console.warn('[email] pro-application notify failed', { error: mailRes.error, hint: mailRes.hint });
+    }
+    return NextResponse.json({ ok: true, emailOk: mailRes.ok }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

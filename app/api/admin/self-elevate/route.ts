@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 import { getAdminSupabase } from "@/lib/supabase/admin";
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -17,7 +15,7 @@ export async function POST(req: Request) {
     // Permite override por query ?email=... si se desea explícitamente
     const emailOverride = url.searchParams.get("email") || undefined;
 
-    const supa = createRouteHandlerClient<Database>({ cookies });
+    const supa = getRouteClient();
     const { data: auth } = await supa.auth.getUser();
     const user = auth.user;
     if (!user)
@@ -50,7 +48,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

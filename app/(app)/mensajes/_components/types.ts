@@ -7,5 +7,5 @@ export type ChatSummary = {
   avatarUrl?: string | null;
   requestTitle?: string | null;
   unreadCount?: number;
+  otherLastActiveAt?: string | null;
 };
-

@@ -1,10 +1,8 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { z } from "zod";
 
-
 import { notifyAgreementUpdated } from "@/lib/notifications";
+import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 
 const JSON_HEADERS = {
@@ -18,7 +16,6 @@ const BodySchema = z.object({
 type AgreementsTable = Database["public"]["Tables"]["agreements"];
 type AgreementRow = AgreementsTable["Row"];
 type AgreementUpdate = AgreementsTable["Update"];
-type RequestRow = Database["public"]["Tables"]["requests"]["Row"];
 type Actor = z.infer<typeof BodySchema>["actor"];
 type WaitingFor = "cliente" | "profesional" | null;
 
@@ -135,7 +132,7 @@ export async function handleServiceCompletion(
       );
     }
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth?.user) {
       return NextResponse.json(
@@ -150,7 +147,21 @@ export async function handleServiceCompletion(
         "id, request_id, professional_id, amount, status, completed_by_pro, completed_by_client, completed_at, created_at, updated_at",
       )
       .eq("id", idParse.data)
-      .maybeSingle();
+      .maybeSingle<
+        Pick<
+          Database["public"]["Tables"]["agreements"]["Row"],
+          | "id"
+          | "request_id"
+          | "professional_id"
+          | "amount"
+          | "status"
+          | "completed_by_pro"
+          | "completed_by_client"
+          | "completed_at"
+          | "created_at"
+          | "updated_at"
+        >
+      >();
 
     if (agreementError) {
       return NextResponse.json(
@@ -204,8 +215,7 @@ export async function handleServiceCompletion(
         );
       }
 
-      const requestRow = request as RequestRow | null;
-      if (!requestRow || requestRow.created_by !== userId) {
+      if (!request || request.created_by !== userId) {
         return NextResponse.json(
           { ok: false, error: "FORBIDDEN" },
           { status: 403, headers: JSON_HEADERS },
@@ -255,6 +265,7 @@ export async function handleServiceCompletion(
         .select(
           "id, request_id, professional_id, amount, status, completed_by_pro, completed_by_client, completed_at, created_at, updated_at",
         )
+        .returns<AgreementRow>()
         .maybeSingle();
 
       if (updateError) {
@@ -264,15 +275,14 @@ export async function handleServiceCompletion(
         );
       }
 
-      const updatedRow = updated as AgreementRow | null;
-      if (!updatedRow) {
+      if (!updated) {
         return NextResponse.json(
           { ok: false, error: "UPDATE_NOT_FOUND" },
           { status: 500, headers: JSON_HEADERS },
         );
       }
 
-      updatedAgreement = updatedRow;
+      updatedAgreement = updated;
 
       if (update.status !== undefined && update.status !== agreement.status && update.status) {
         try {

@@ -1,6 +1,6 @@
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
+import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 
 type RateLimitResult =
@@ -8,7 +8,7 @@ type RateLimitResult =
   | { ok: false; status: number; message: string };
 
 export async function assertRateLimit(action: string, windowSec: number, maxCount: number): Promise<RateLimitResult> {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient() as SupabaseClient<Database>;
   const {
     data: { user },
   } = await supabase.auth.getUser();

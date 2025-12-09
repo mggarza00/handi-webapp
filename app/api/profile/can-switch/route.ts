@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -10,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user)
       return NextResponse.json(
@@ -19,7 +18,7 @@ export async function GET() {
       );
 
     const uid = auth.user.id;
-    const { data: profile } = await supabase
+    const { data: profile } = await (supabase as any)
       .from("profiles")
       .select("role, is_client_pro")
       .eq("id", uid)

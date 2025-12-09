@@ -23,6 +23,9 @@ export const RequestCreateSchema = z.object({
   description: z.string().min(10).max(2000).optional(),
   city: z.string().min(2).max(80),
   category: z.string().min(2).max(80).optional(),
+  // Optional AI-assisted IDs (forward-compatible)
+  category_id: z.string().uuid().optional().nullable(),
+  subcategory_id: z.string().uuid().optional().nullable(),
   subcategories: z
     .array(SubcatInput)
     .max(6)
@@ -47,16 +50,52 @@ export const RequestCreateSchema = z.object({
     .array(z.union([AttachmentUrl, AttachmentPath]))
     .max(5)
     .optional(),
+  // Dirección (opcional en creación), place id y coordenadas
+  address_line: z.string().max(500).optional(),
+  address_place_id: z.string().max(200).optional(),
+  address_lat: z.number().optional(),
+  address_lng: z.number().optional(),
+  address_postcode: z.string().max(40).optional(),
+  address_state: z.string().max(120).optional(),
+  address_country: z.string().max(120).optional(),
+  address_context: z.any().optional(),
+  // AI metadata (optional)
+  ai_confidence: z.number().min(0).max(1).optional().nullable(),
+  ai_model: z.string().max(120).optional().nullable(),
+  ai_overridden: z.boolean().optional().nullable(),
 });
 
 export type RequestCreateInput = z.infer<typeof RequestCreateSchema>;
 
 // GET /api/requests query params
+const ALLOWED_STATUSES = [
+  "active",
+  "in_process",
+  "completed",
+  "cancelled",
+  // Compat: sinónimos que puede devolver la base
+  "canceled",
+  "finished",
+] as const;
+
 export const RequestListQuerySchema = z.object({
   mine: z
     .enum(["1", "true", "0", "false"]) // aceptamos 1/true/0/false
     .optional(),
-  status: z.enum(["active", "in_process", "completed", "cancelled"]).optional(),
+  // Permite 1 o múltiples estatus en CSV (e.g., "active,in_process")
+  status: z
+    .string()
+    .optional()
+    .refine(
+      (s) =>
+        !s ||
+        s
+          .split(",")
+          .map((x) => x.trim().toLowerCase())
+          .filter(Boolean)
+          .every((x) => (ALLOWED_STATUSES as readonly string[]).includes(x)),
+      { message: "Invalid status" },
+    ),
   city: z.string().min(2).max(80).optional(),
   category: z.string().min(2).max(80).optional(),
   // Paginación simple: limit/offset

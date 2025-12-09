@@ -6,6 +6,12 @@ type LayoutOpts = {
 
 export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
   const safePre = preheader ? preheader.replace(/</g, "&lt;") : "";
+  const rawBase =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://handi.mx');
+  const siteBase = rawBase.replace(/\/$/, "");
+  const logoUrl = `${siteBase}/images/LOGO_HANDI_DB.png`;
   return `<!doctype html>
 <html lang="es">
   <head>
@@ -28,8 +34,8 @@ export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
   <body>
     <span class="preheader">${safePre}</span>
     <div class="container">
-      <div style="margin: 0 0 12px;">
-        <a class="brand" href="https://homaid.local">Homaid</a>
+      <div style="margin: 0 0 12px; text-align:center;">
+        <a href="${siteBase}"><img src="${logoUrl}" alt="Handi" height="80" style="height:80px" /></a>
       </div>
       <div class="card">
         ${childrenHtml}
@@ -50,7 +56,7 @@ export function applicationCreatedHtml(opts: {
   const body = `
     <h1>${title}</h1>
     <p>Recibiste una nueva postulación en: <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
-    <p>Ingresa a Homaid para revisar el perfil y crear un acuerdo.</p>
+    <p>Ingresa a Handi para revisar el perfil y crear un acuerdo.</p>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir solicitud</a></p>` : ""}
   `;
   return emailLayout({
@@ -106,15 +112,16 @@ export function agreementUpdatedHtml(opts: {
 
 export function messageReceivedHtml(opts: {
   requestTitle?: string;
+  senderName?: string | null;
   preview: string;
   linkUrl?: string;
 }) {
   const title = "Nuevo mensaje";
   const body = `
     <h1>${title}</h1>
-    <p>Recibiste un nuevo mensaje en: <strong>${opts.requestTitle ?? ""}</strong>.</p>
+    <p>Recibiste un nuevo mensaje de <strong>${opts.senderName ?? "usuario"}</strong> para: <strong>${opts.requestTitle ?? ""}</strong>.</p>
     <blockquote>${opts.preview}</blockquote>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir conversación</a></p>` : ""}
+    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}" style="background:#0B3949;color:#ffffff">Abrir conversación</a></p>` : ""}
   `;
   return emailLayout({
     title,
@@ -123,11 +130,31 @@ export function messageReceivedHtml(opts: {
   });
 }
 
-export function proApplicationAcceptedHtml(opts: { linkUrl?: string }) {
+export function firstProfessionalAvailableHtml(opts: {
+  requestTitle?: string | null;
+  professionalName?: string | null;
+  linkUrl?: string;
+}) {
+  const title = "Encontramos un profesional para tu solicitud";
+  const body = `
+    <h1>${title}</h1>
+    <p>${opts.professionalName ? `<strong>${opts.professionalName}</strong>` : "Un profesional"} está listo para apoyarte en <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
+    <p>Entra a Handi para revisar su perfil y continuar con el proceso.</p>
+    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ver solicitud</a></p>` : ""}
+  `;
+  return emailLayout({
+    title,
+    preheader: "Ya tenemos un profesional disponible para tu solicitud",
+    childrenHtml: body,
+  });
+}
+
+export function proApplicationAcceptedHtml(opts: { linkUrl?: string; imageUrl?: string }) {
   const title = "¡Has sido aceptado como profesional!";
   const body = `
     <h1>${title}</h1>
-    <p>Tu solicitud para unirte como profesional en Homaid fue <strong>aceptada</strong>.</p>
+    ${opts.imageUrl ? `<p style="margin:12px 0 16px;"><img src="${opts.imageUrl}" alt="Solicitud aceptada" style="max-width:100%; border-radius:12px; display:block;" /></p>` : ""}
+    <p>Tu solicitud para unirte como profesional en Handi fue <strong>aceptada</strong>.</p>
     <p>Ya puedes completar tu perfil y comenzar a recibir oportunidades.</p>
     ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ir a mi perfil</a></p>` : ""}
   `;

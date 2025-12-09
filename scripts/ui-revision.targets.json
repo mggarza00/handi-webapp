@@ -1,0 +1,40 @@
+{
+  "viewports": [390, 768, 1280],
+  "screens": [
+    {
+      "id": "home-guest",
+      "path": "/",
+      "role": "guest",
+      "waitAfterMs": 500,
+      "notes": "Hero CTA visible en mobile y desktop."
+    },
+    {
+      "id": "design-check",
+      "path": "/design-check",
+      "role": "guest"
+    },
+    {
+      "id": "requests-client",
+      "path": "/requests",
+      "role": "client",
+      "successCriteria": ["Listado visible sin romper layout", "CTA principal visible en viewport inicial"]
+    },
+    {
+      "id": "messages-client",
+      "path": "/mensajes",
+      "role": "client"
+    },
+    {
+      "id": "pro-dashboard",
+      "path": "/pro",
+      "role": "professional",
+      "waitAfterMs": 800
+    },
+    {
+      "id": "admin-dashboard",
+      "path": "/admin",
+      "role": "admin",
+      "waitAfterMs": 600
+    }
+  ]
+}

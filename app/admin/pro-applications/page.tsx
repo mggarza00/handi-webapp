@@ -1,13 +1,13 @@
-/* eslint-disable import/order */
-/* eslint-disable import/order */
- import Link from "next/link";
-import { cookies } from "next/headers";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import Link from "next/link";
+
+import { getAdminSupabase } from "../../../lib/supabase/admin";
 
 import AdminActions from "./AdminActions.client";
 
 import type { Database } from "@/types/supabase";
-import { getAdminSupabase } from "../../../lib/supabase/admin";
+import createClient from "@/utils/supabase/server";
+
+type ProfileRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "role" | "is_admin">;
 
 type Search = {
   searchParams: {
@@ -24,14 +24,14 @@ export const dynamic = "force-dynamic";
 export default async function AdminProApplicationsPage({
   searchParams,
 }: Search) {
-  const supa = createServerComponentClient<Database>({ cookies });
+  const supa = createClient();
   const { data: auth } = await supa.auth.getUser();
   if (!auth?.user) return unauth();
   const { data: prof } = await supa
     .from("profiles")
     .select("role, is_admin")
     .eq("id", auth.user.id)
-    .maybeSingle();
+    .maybeSingle<ProfileRow>();
   const allowEmail = process.env.SEED_ADMIN_EMAIL as string | undefined;
   const isAdmin =
     prof?.is_admin === true ||
@@ -94,7 +94,7 @@ export default async function AdminProApplicationsPage({
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="Buscar por nombre, correo, telÃ©fono o user id"
+          placeholder="Buscar por nombre, correo, teléfono o user id"
           className="w-64 rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <select
@@ -103,7 +103,7 @@ export default async function AdminProApplicationsPage({
           className="rounded border border-slate-300 px-3 py-2 text-sm"
         >
           <option value="">Todas</option>
-          <option value="pending">En revisiÃ³n</option>
+          <option value="pending">En revisión</option>
           <option value="accepted">Aceptadas</option>
           <option value="rejected">Rechazadas</option>
         </select>
@@ -131,7 +131,7 @@ export default async function AdminProApplicationsPage({
               <th className="px-3 py-2">ID</th>
               <th className="px-3 py-2">Nombre</th>
               <th className="px-3 py-2">Correo</th>
-              <th className="px-3 py-2">TelÃ©fono</th>
+              <th className="px-3 py-2">Teléfono</th>
               <th className="px-3 py-2">Empresa</th>
               <th className="px-3 py-2">Estado</th>
               <th className="px-3 py-2">Creada</th>
@@ -147,7 +147,7 @@ export default async function AdminProApplicationsPage({
                 <td className="px-3 py-2">{r.full_name}</td>
                 <td className="px-3 py-2">{r.email}</td>
                 <td className="px-3 py-2">{r.phone}</td>
-                <td className="px-3 py-2">{(("empresa" in (r as unknown as Record<string, unknown>) && (r as unknown as { empresa?: boolean | null }).empresa) ? "Sí" : "No")}</td>
+                <td className="px-3 py-2">{r.empresa ? "Sí" : "No"}</td>
                 <td className="px-3 py-2">{labelStatus(r.status)}</td>
                 <td className="px-3 py-2">
                   {new Date(r.created_at || "").toLocaleString()}
@@ -163,7 +163,7 @@ export default async function AdminProApplicationsPage({
 
       <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
         <div>
-          PÃ¡gina {page} de {pages} Â· {total} resultados
+          Página {page} de {pages} · {total} resultados
         </div>
         <div className="flex items-center gap-2">
           {page > 1 ? (
@@ -199,7 +199,7 @@ function labelStatus(s: string | null) {
     case "rejected":
       return "Rechazada";
     default:
-      return "En revisiÃ³n";
+      return "En revisión";
   }
 }
 
@@ -213,7 +213,7 @@ function qs(obj: Record<string, string>) {
 
 function unauth() {
   return (
-    <main className="mx-auto max-w-3xl px-4 py-12">Debes iniciar sesiÃ³n.</main>
+    <main className="mx-auto max-w-3xl px-4 py-12">Debes iniciar sesión.</main>
   );
 }
 function forbidden() {
@@ -224,5 +224,3 @@ function forbidden() {
 function problem(msg: string) {
   return <main className="mx-auto max-w-3xl px-4 py-12">Error: {msg}</main>;
 }
-
-

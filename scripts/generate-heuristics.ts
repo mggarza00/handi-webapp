@@ -14,6 +14,7 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "../types/supabase";
 
 function norm(s: unknown): string {
   return String(s ?? "")
@@ -93,7 +94,7 @@ async function main() {
     console.error("Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY");
     process.exit(1);
   }
-  const admin = createClient(url, service, { auth: { persistSession: false } });
+  const admin = createClient<Database>(url, service, { auth: { persistSession: false } });
   const { data, error } = await admin
     .from("categories_subcategories")
     .select('"Categoría","Subcategoría","Descripción","Activa","Ícono","Tipo de servicio","Nivel de especialización"');
@@ -144,4 +145,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

@@ -1,0 +1,100 @@
+                    {categories.map((c) => (
+                      <Link
+                        key={`cat-a-${c}`}
+                        href={`/requests/new?category=${encodeURIComponent(c)}`}
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                      >
+                        {c}
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="marquee__group overflow-visible relative" aria-hidden="true">
+                    {categories.map((c) => (
+                      <Link
+                        key={`cat-b-${c}`}
+                        href={`/requests/new?category=${encodeURIComponent(c)}`}
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                      >
+                        {c}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Desktop rotating text removed */}
+
+          {/* Subcategorías (carrusel) */}
+          {subcategories.length > 0 && (
+            <div className="mt-6">
+            <div className="grid overflow-hidden rounded-3xl border border-slate-200 shadow-xl md:grid-cols-[1.05fr_0.95fr]">
+              <div className="relative min-h-[280px] md:min-h-[360px]">
+                <Image
+                  src="/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg"
+                  alt="Profesional Handi listo para trabajar"
+                  fill
+                  className="object-cover"
+                  sizes="(min-width: 1024px) 40vw, (min-width: 768px) 50vw, 100vw"
+                />
+              </div>
+              <div className="flex flex-col justify-between gap-6 bg-[#114430] p-6 text-white sm:p-8">
+                <div className="space-y-5">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-[#A6D234] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#114430]">
+                    <Image src="/icons/candado.png" alt="Candado" width={20} height={20} className="h-5 w-5" />
+                    Pagos 100% protegidos
+                  </span>
+                  <h3 className="${stackSansMedium.className} text-3xl leading-tight text-white sm:text-4xl">
+                    Pagos 100% protegidos
+                  </h3>
+                  <p className="${stackSansLight.className} text-base text-white/90 sm:text-lg">
+                    Los pagos de los servicios se liberan a los profesionales hasta que confirmes que el trabajo se realizó con éxito.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="lg"
+                  className="${stackSansMedium.className} h-auto rounded-full bg-[#A6D234] px-8 py-3 text-base text-[#114430] transition hover:bg-[#9bc32f]"
+                >
+                  Cómo funciona
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust badges */}
+      <section className="border-t border-slate-200 bg-[#041645]">
+        <div className="mx-auto max-w-5xl px-4 py-10">
+          <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
+            <div className="text-center md:text-left">
+              <p className="text-sm font-medium text-white">
+                Confianza y transparencia
+              </p>
+              <p className="text-sm text-white">
+                Política de bajas automáticas ante calificaciones bajas
+                recurrentes.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-slate-500">
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#041645]">
+                Identidad verificada
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#041645]">
+                Referencias
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[#041645]">
+                Historial y reseñas
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  );
+}
+
+// Components

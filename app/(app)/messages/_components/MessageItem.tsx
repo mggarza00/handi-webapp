@@ -3,7 +3,8 @@
 import * as React from "react";
 // Prefer plain <img> to avoid remote domain config for Next/Image
 // eslint-disable-next-line @next/next/no-img-element
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type Attachment = {
   id?: string;
@@ -15,8 +16,10 @@ export type Attachment = {
   storage_path: string; // e.g. conversation/<convId>/<any>/<file>
 };
 
-function isImage(mime: string): boolean {
-  return /^image\//i.test(mime);
+function isImage(mime: string, filename?: string): boolean {
+  if (/^image\//i.test(mime)) return true;
+  const name = filename || "";
+  return /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)$/i.test(name);
 }
 
 type MessageItemProps = {
@@ -27,7 +30,7 @@ type MessageItemProps = {
 };
 
 export default function MessageItem({ body, attachments = [], createdAt, isMine = false }: MessageItemProps) {
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [urls, setUrls] = React.useState<Array<{ key: string; url: string; att: Attachment }>>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
 
@@ -44,7 +47,7 @@ export default function MessageItem({ body, attachments = [], createdAt, isMine 
         for (const att of attachments) {
           try {
             const { data, error } = await supabase.storage
-              .from("chat-attachments")
+              .from("message-attachments")
               .createSignedUrl(att.storage_path, 60 * 10); // 10 minutes
             if (error || !data?.signedUrl) continue;
             out.push({ key: att.storage_path, url: data.signedUrl, att });
@@ -95,7 +98,7 @@ function humanSize(bytes?: number | null): string | null {
 }
 
 function AttachmentPreview({ url, att }: { url: string; att: Attachment }) {
-  const img = isImage(att.mime_type);
+  const img = isImage(att.mime_type, att.filename);
   const size = humanSize(att.byte_size ?? null);
   if (img) {
     return (
@@ -130,4 +133,3 @@ function AttachmentPreview({ url, att }: { url: string; att: Attachment }) {
     </a>
   );
 }
-

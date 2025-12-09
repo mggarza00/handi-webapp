@@ -1,12 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-if (!url) throw new Error("Falta NEXT_PUBLIC_SUPABASE_URL");
-if (!anon) throw new Error("Falta NEXT_PUBLIC_SUPABASE_ANON_KEY");
-
-export const supabaseClient = () => createClient(url, anon);
+import { supabase } from "@/lib/supabaseClient";
 
 /**
  * Sube un archivo al bucket de Supabase y devuelve la URL pública
@@ -19,8 +11,6 @@ export async function uploadToBucket(
   file: File | Blob,
   path?: string,
 ) {
-  const supabase = supabaseClient();
-
   const filePath = path || `${Date.now()}-${(file as File).name || "upload"}`;
 
   const { error } = await supabase.storage

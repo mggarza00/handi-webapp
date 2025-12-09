@@ -1,25 +1,80 @@
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import Link from "next/link";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 
-import type { Database } from "@/types/supabase";
-
-type RequestRow = {
-  id: string;
-  title: string;
-  city: string | null;
-  category: string | null;
-  status: string | null;
-  created_at: string | null;
-  attachments?: unknown;
-};
-
-const DEFAULT_REQUEST_IMAGE = "/images/default-requests-image.png";
+import ExploreFilters from "@/app/requests/explore/ExploreFilters.client";
+import Pagination from "@/components/explore/Pagination";
+import RequestsList from "@/components/explore/RequestsList.client";
+import { fetchExploreRequests } from "@/lib/db/requests";
+import getServerClient from "@/lib/supabase/server-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExploreRequestsPage() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+const PER_PAGE = 20;
+
+type CatalogApiRow = {
+  category?: string | null;
+  subcategory?: string | null;
+  icon?: string | null;
+};
+
+type CatalogResponse = {
+  ok?: boolean;
+  data: CatalogApiRow[];
+};
+
+type CatalogPair = {
+  category: string;
+  subcategory: string | null;
+  icon?: string | null;
+};
+
+function getBaseUrl() {
+  const h = headers();
+  const host = h.get("x-forwarded-host") || h.get("host");
+  const proto = h.get("x-forwarded-proto") || "http";
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (host ? `${proto}://${host}` : "http://localhost:3000")
+  );
+}
+
+function parseCatalogResponse(payload: unknown): CatalogResponse | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidateData = (payload as { data?: unknown }).data;
+  if (!Array.isArray(candidateData)) {
+    return null;
+  }
+
+  const isValidRow = (value: unknown): value is CatalogApiRow => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+    const row = value as Record<string, unknown>;
+    const validateField = (key: string) =>
+      !(key in row) || typeof row[key] === "string" || row[key] == null;
+    return ["category", "subcategory", "icon"].every(validateField);
+  };
+
+  if (!candidateData.every(isValidRow)) {
+    return null;
+  }
+
+  return {
+    ok: (payload as { ok?: boolean }).ok,
+    data: candidateData,
+  };
+}
+
+export default async function ExploreRequestsPage({
+  searchParams,
+}: {
+  searchParams?: { page?: string; city?: string; category?: string; subcategory?: string };
+}) {
+  const supabase = getServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -64,10 +119,7 @@ export default async function ExploreRequestsPage() {
     typeof profile?.city === "string" && profile.city.length > 0
       ? [profile.city]
       : [];
-  const allCities = Array.from(new Set([...
-    cities,
-    ...mainCity,
-  ]));
+  const allCities = Array.from(new Set([...cities, ...mainCity]));
 
   const categoryNames = Array.isArray(profile?.categories)
     ? (profile?.categories as unknown[])
@@ -116,107 +168,88 @@ export default async function ExploreRequestsPage() {
     );
   }
 
-  // Query de solicitudes activas en las ciudades y categorías del profesional
-  let query = supabase
-    .from("requests")
-    .select(
-      "id, title, city, category, status, created_at, attachments, subcategories",
-    )
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(30);
+  // URL params with defaults (SSR state)
+  const paramCity = (searchParams?.city ?? "Todas").trim();
+  const paramCategory = (searchParams?.category ?? "Todas").trim();
+  const paramSubcategory = (searchParams?.subcategory ?? "Todas").trim();
+  const page = Math.max(1, Number(searchParams?.page || "1"));
 
-  if (allCities.length > 0) query = query.in("city", allCities);
-  if (categoryNames.length > 0) query = query.in("category", categoryNames);
-
-  const { data: rows, error } = await query;
-  if (error) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <h1 className="text-2xl font-semibold mb-2">Trabajos disponibles</h1>
-        <p className="text-sm text-red-600">Error: {error.message}</p>
-      </div>
-    );
+  // Catálogo oficial desde Supabase: categories_subcategories
+  const base = getBaseUrl();
+  // Forward raw cookies for SSR fetch
+  const ck = headers();
+  const cookie = ck.get("cookie");
+  let catalogPairs: CatalogPair[] = [];
+  try {
+    const res = await fetch(`${base}/api/catalog/categories`, {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        ...(cookie ? { cookie } : {}),
+      },
+      cache: "no-store",
+    });
+    const parsed = parseCatalogResponse(await res.json().catch(() => null));
+    if (res.ok && parsed?.ok && Array.isArray(parsed.data)) {
+      catalogPairs = parsed.data.map((row) => ({
+        category: String(row.category || "").trim(),
+        subcategory: (row.subcategory ? String(row.subcategory) : "").trim() || null,
+        icon: (row.icon ? String(row.icon) : "").trim() || null,
+      }));
+    }
+  } catch {
+    /* ignore */
   }
 
-  // Filtrar por subcategorías (intersección) solo si el profesional configuró subcategorías
-  const items: RequestRow[] = ((rows ?? []) as Array<Record<string, unknown>>)
-    .filter((r) => {
-      if (subcategoryNames.length === 0) return true; // sin filtro por subcategoría
-      const subs = r.subcategories as unknown;
-      const names: string[] = Array.isArray(subs)
-        ? subs
-            .map((x) =>
-              x && typeof x === "object" && (x as Record<string, unknown>).name
-                ? String((x as Record<string, unknown>).name)
-                : typeof x === "string"
-                  ? x
-                  : null,
-            )
-            .filter((s): s is string => !!s && s.length > 0)
-        : [];
-      if (names.length === 0) return false; // la solicitud no tiene subcategorías
-      return names.some((n) => subcategoryNames.includes(n));
-    }) as unknown as RequestRow[];
+  // Filtrar catálogo a las categorías/subcategorías activas del profesional
+  const filteredPairs = catalogPairs.filter((p) => {
+    const inCategory = categoryNames.includes(p.category);
+    if (!inCategory) return false;
+    // Si el profesional no tiene subcategorías declaradas, no ofrecemos ninguna subcategoría
+    if (!subcategoryNames || subcategoryNames.length === 0) return false;
+    // Mantener sólo subcategorías activas para ese profesional
+    return !!p.subcategory && subcategoryNames.includes(p.subcategory);
+  });
+
+  // Fetch results via util (DB-level paginate and favorites join)
+  const { items, total, page: safePage, pageSize } = await fetchExploreRequests(user.id, {
+    city: paramCity,
+    category: paramCategory,
+    subcategory: paramSubcategory,
+    page,
+    pageSize: PER_PAGE,
+  });
+
+  // Build subcategory -> icon map for cards (lowercased key)
+  const subcategoryIconMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter((p) => typeof p.subcategory === "string" && !!p.subcategory && typeof p.icon === "string" && !!p.icon)
+      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)])
+  );
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
-      <div className="mb-3">
+    <div className="mx-auto max-w-5xl px-4 py-6 space-y-4">
+      <div className="mb-1">
         <h1 className="text-2xl font-semibold">Trabajos disponibles</h1>
-        <p className="text-xs text-slate-600 mt-1">
-          {allCities.join(", ")} · Categorías: {categoryNames.join(", ")}
-        </p>
       </div>
 
-      <ul className="space-y-3 mt-3">
-        {items.length > 0 ? (
-          items.map((it) => {
-            let thumb: string | null = null;
-            const atts = (it as { attachments?: unknown }).attachments as unknown;
-            if (Array.isArray(atts)) {
-              const first = atts.find(
-                (a) => a && typeof a === "object" && (a as Record<string, unknown>).url,
-              );
-              if (first) {
-                const rawUrl = (first as Record<string, unknown>).url;
-                thumb = typeof rawUrl === "string" ? rawUrl.trim() : String(rawUrl ?? "");
-              }
-            }
-            const thumbSrc = thumb && thumb.length > 0 ? thumb : DEFAULT_REQUEST_IMAGE;
-            return (
-              <li key={it.id}>
-                <a href={`/requests/explore/${it.id}`} className="block">
-                  <div className="rounded-2xl border p-3 hover:bg-slate-50 transition">
-                    <div className="flex items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={thumbSrc}
-                        alt={it.title}
-                        className="h-16 w-16 rounded-md object-cover border"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{it.title}</p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {it.city ?? "—"} · {it.status ?? "active"} · {it.created_at?.slice(0, 10) ?? ""}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              </li>
-            );
-          })
-        ) : (
-          <li className="p-3 text-sm text-gray-600">
-            <div className="rounded-2xl border p-4">
-              <p className="font-medium">No encontramos solicitudes para tus filtros</p>
-              <p className="text-xs text-slate-600 mt-1">
-                Prueba ampliando tus ciudades o categorías en tu perfil.
-              </p>
-            </div>
-          </li>
-        )}
-      </ul>
+      <ExploreFilters
+        // Ciudades: sólo las del profesional (incluyendo su ciudad principal)
+        cities={allCities}
+        // Categorías: sólo las activas del profesional
+        categories={categoryNames}
+        // Pairs restringidos a subcategorías activas del profesional
+        pairs={filteredPairs}
+        selected={{
+          city: paramCity,
+          category: paramCategory,
+          subcategory: paramSubcategory,
+          page: String(page),
+        }}
+      />
+
+      <RequestsList proId={user.id} initialItems={items} subcategoryIconMap={subcategoryIconMap} />
+
+      <Pagination page={safePage} pageSize={pageSize} total={total} />
     </div>
   );
 }

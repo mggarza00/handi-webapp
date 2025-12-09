@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import Stripe from "stripe";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { getStripe } from "@/lib/stripe";
+import type Stripe from "stripe";
+import { createClient as createSSRClient } from "@/utils/supabase/server";
 
 import { createBearerClient, createServerClient } from "@/lib/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
@@ -15,14 +15,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   let stripeSession: Stripe.Checkout.Session | null = null;
   try {
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    const stripeConfigured = Boolean(STRIPE_SECRET_KEY);
-    const stripe = stripeConfigured
-      ? new Stripe(STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] })
-      : null;
+    const stripe = await getStripe();
 
     // Resolve acting user (prefer bearer token, fallback cookie, finally x-user-id for dev)
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createSSRClient();
     let actingUserId: string | null = null;
     const authHeader = (req.headers.get("authorization") || req.headers.get("Authorization") || "").trim();
     const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
@@ -101,7 +97,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (!(normalized === "pending" || normalized === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
         // Lock
         const lockTime = new Date().toISOString();
-        const { data: locked, error: lockErr } = await admin
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const lockRes: any = await (admin as any)
           .from("offers")
           .update({ accepting_at: lockTime })
           .eq("id", row.id)
@@ -109,15 +106,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           .in("status", ["pending", "sent"]) // allow legacy
           .select("*")
           .single();
+        const lockErr = lockRes?.error || null;
+        const locked = lockRes?.data || null;
         if (lockErr || !locked) {
           // Check if lock is stale or status changed
-          const { data: current } = await admin
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const curRes: any = await (admin as any)
             .from("offers")
             .select("id,status,accepting_at,currency,amount,title,description,conversation_id,professional_id")
             .eq("id", row.id)
             .maybeSingle();
+          const current = curRes?.data as unknown as { status?: string } | null;
           if (!current) return NextResponse.json({ error: "OFFER_NOT_FOUND" }, { status: 404, headers: JSONH });
-          if (!(current.status === "pending" || current.status === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
+          const st = String(current.status || "").toLowerCase();
+          if (!(st === "pending" || st === "sent")) return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
           // En entornos sin columna 'accepting_at', evitamos lock y procedemos directo a actualizar estado más abajo
         }
         // Stripe session
@@ -131,10 +133,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
               ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
               : 0;
             const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
-            stripeSession = await stripe.checkout.sessions.create({
-              mode: "payment",
-              success_url: `${APP_URL}/offers/${row.id}?status=success`,
-              cancel_url: `${APP_URL}/offers/${row.id}?status=cancel`,
+        stripeSession = await stripe.checkout.sessions.create({
+          mode: "payment",
+          success_url: `${APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&cid=${row.conversation_id}`,
+          cancel_url: `${APP_URL}/offers/${row.id}?status=cancel`,
               line_items: [
                 {
                   quantity: 1,
@@ -152,12 +154,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           }
         }
         // Update status to accepted
-        const { data: updatedRows, error: upErr } = await admin
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const upd2: any = await (admin as any)
           .from("offers")
           .update({ status: "accepted", checkout_url: stripeSession?.url ?? null })
           .eq("id", row.id)
           .select("*");
-        if (upErr) return NextResponse.json({ error: upErr.message || "UPDATE_FAILED" }, { status: 409, headers: JSONH });
+        const upErr = upd2?.error || null;
+        const updatedRows = upd2?.data || null;
+        if (upErr) return NextResponse.json({ error: String(upErr.message || "UPDATE_FAILED") }, { status: 409, headers: JSONH });
         const updated = (Array.isArray(updatedRows) ? updatedRows[0] : (updatedRows as OfferRow | null)) ?? null;
         if (!updated) return NextResponse.json({ error: "UPDATE_NO_ROWS" }, { status: 409, headers: JSONH });
         // Notify
@@ -198,7 +203,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     if (stripe && offer) {
       stripeSession = await stripe.checkout.sessions.create({
         mode: "payment",
-        success_url: `${APP_URL}/offers/${offer.id}?status=success`,
+        success_url: `${APP_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&cid=${offer.conversation_id}`,
         cancel_url: `${APP_URL}/offers/${offer.id}?status=cancel`,
         line_items: [
           {

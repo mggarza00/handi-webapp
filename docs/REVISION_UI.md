@@ -1,34 +1,36 @@
-Revisión UI (CSS/Accesibilidad/Visual)
+Revision UI (CSS/Accesibilidad/Visual)
 
 Local
 
-- Lint estilos: `npm run lint`
-- Snapshots (necesita app corriendo en :3000 o PREVIEW_URL): `npm run snap`
-- Lighthouse: `npx lhci autorun`
+- Lint estilos: `npm run lint`.
+- Snapshots con Playwright (requiere app corriendo en :3000 o PREVIEW_URL/BASE_URL): `npm run snap`.
+- Lighthouse: `npx lhci autorun`.
+- Targets de snapshots: `scripts/ui-review.targets.json` (rutas, roles y viewports). Puedes sobrescribir con `ROUTES`, `VIEWPORTS`, `BASE_URL`/`PREVIEW_URL`.
 
 CI
 
 - Cada PR corre:
-  - Lint de estilos (ESLint/Stylelint)
-  - Lighthouse (perf, a11y, SEO)
-  - Screenshots Playwright (390/768/1280)
+  - Lint de estilos (ESLint/Stylelint).
+  - Lighthouse (perf, a11y, SEO).
+  - Screenshots Playwright (390/768/1280 por defecto, se ajusta con `VIEWPORTS`).
 
 Artefactos
 
-- Ver en pestaña "Actions" → Job `ui-checks` → artefacto `snapshots`.
+- `snapshots/*.png` y `snapshots/ui-review.json`.
+- Actions → Job `ui-checks` → artefacto `snapshots`.
 
-PREVIEW_URL
+Config rapida
 
-- Define `PREVIEW_URL` en GitHub → Settings → Secrets → Actions.
-- Ejemplo: URL de Vercel Preview del PR.
-- Si no se define, el workflow hace fallback a local (`next build && next start` en `http://localhost:3000`).
+- `PREVIEW_URL`/`BASE_URL`: URL del entorno ya desplegado (si no, usa localhost).
+- `ROUTES="..."`: lista separada por comas para forzar rutas guest en snapshots.
+- `VIEWPORTS="430,1024,1440"`: anchuras custom.
+- `SNAPSHOT_STRICT=true`: marca error si alguna captura falla.
 
-Rutas de revisión
+Rutas por defecto
 
-- Script de snapshots: `scripts/snapshots.js`. Edita `ROUTES` por defecto o usa `ROUTES=",/otra" npm run snap`.
-- Página: `/design-check`. Agrega más links en `app/design-check/page.tsx`.
+- Home (guest), `/design-check` (guest), `/requests` y `/mensajes` (client), `/pro` (professional), `/admin` (admin). Agrega links recordatorios en `app/design-check/page.tsx` si los necesitas.
 
-Instalación inicial
+Instalacion inicial
 
 - Requiere Node 20+ y navegadores Playwright.
 - Instala browsers: `npx playwright install --with-deps`.

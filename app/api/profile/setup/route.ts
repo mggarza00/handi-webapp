@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 import { ProfileUpsertSchema } from "@/lib/validators/profiles";
@@ -18,7 +17,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
     error: authErr,
@@ -50,6 +49,13 @@ export async function POST(req: Request) {
 
   const input = parsed.data;
 
+  // Comprobar si ya existe el profesional para no desactivar a aprobados
+  const { data: existing } = await (supabase as any)
+    .from("professionals")
+    .select("id, active")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const payload: Database["public"]["Tables"]["professionals"]["Insert"] = {
     id: user.id,
     full_name: input.full_name ?? null,
@@ -70,12 +76,13 @@ export async function POST(req: Request) {
       (input.subcategories as unknown as Database["public"]["Tables"]["professionals"]["Insert"]["subcategories"]) ??
       undefined,
     last_active_at: new Date().toISOString(),
-    active: true,
+    // Si NO existe fila previa, inicializar como inactivo; si ya existe, no tocar 'active'
+    ...(existing?.id ? {} : { active: false }),
   } as Database["public"]["Tables"]["professionals"]["Insert"];
 
   // Si el usuario está registrándose como profesional, eleva su rol a "pro"
   try {
-    const { data: curr } = await supabase
+    const { data: curr } = await (supabase as any)
       .from("profiles")
       .select("role")
       .eq("id", user.id)
@@ -95,7 +102,7 @@ export async function POST(req: Request) {
   }
 
   // Upsert por id (RLS: id debe ser = auth.uid()) en professionals
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from("professionals")
     .upsert(payload, { onConflict: "id" })
     .select(
@@ -114,7 +121,7 @@ export async function POST(req: Request) {
   // Mantener sincronizado el nombre visible del perfil base
   try {
     if (typeof input.full_name === "string" && input.full_name.trim().length >= 2) {
-      await supabase
+      await (supabase as any)
         .from("profiles")
         .update({ full_name: input.full_name.trim() })
         .eq("id", user.id);

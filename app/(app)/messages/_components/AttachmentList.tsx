@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { useSignedUrls } from "@/app/(app)/messages/_hooks/useSignedUrls";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export type Attachment = {
   id?: string;
@@ -17,12 +18,16 @@ export type Attachment = {
   storage_path: string;
 };
 
-function isImage(mime: string): boolean {
-  return /^image\//i.test(mime);
+function isImage(mime: string, filename?: string): boolean {
+  // Primary: MIME type
+  if (/^image\//i.test(mime)) return true;
+  // Fallback: common image extensions when MIME is missing or generic
+  const name = filename || "";
+  return /\.(png|jpe?g|gif|webp|bmp|heic|heif|svg)$/i.test(name);
 }
 
 function normalizeKey(storagePath: string, bucket: string): string {
-  // Accept keys that mistakenly include the bucket name (e.g., "chat-attachments/<key>")
+  // Accept keys that mistakenly include the bucket name (e.g., "message-attachments/<key>")
   let key = storagePath.replace(/^\/+/, "");
   const prefix = `${bucket}/`;
   if (key.startsWith(prefix)) key = key.slice(prefix.length);
@@ -38,46 +43,105 @@ function humanSize(bytes?: number | null): string | null {
 
 export function AttachmentList({
   items,
-  bucket = "chat-attachments",
+  bucket = "message-attachments",
   signedSeconds = 600, // 10 minutes
   imageMaxWidth = 300,
   className,
+  resolveLightboxUrl,
 }: {
   items: Attachment[];
   bucket?: string;
   signedSeconds?: number;
   imageMaxWidth?: number;
   className?: string;
+  resolveLightboxUrl?: (att: Attachment, signedUrl: string) => string;
 }) {
   const keys = React.useMemo(() => (items || []).map((a) => normalizeKey(a.storage_path, bucket)), [items, bucket]);
   const { urls: signed, loading } = useSignedUrls(bucket, keys, { expireSeconds: signedSeconds });
+  const [lightbox, setLightbox] = React.useState<{ url: string; alt: string } | null>(null);
+  const [lbLoading, setLbLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (lightbox?.url) setLbLoading(true);
+    else setLbLoading(false);
+  }, [lightbox?.url]);
 
   if (!items || items.length === 0) return null;
 
   return (
-    <div className={className || "flex flex-wrap gap-2"}>
-      {(items || []).map((att) => {
-        const key = normalizeKey(att.storage_path, bucket);
-        const url = signed[key];
-        if (!url) return null;
-        return <AttachmentPreview key={`${att.storage_path}:${att.filename}`} url={url} att={att} imageMaxWidth={imageMaxWidth} />;
-      })}
-      {loading ? <div className="text-xs text-muted-foreground">Cargando adjuntos…</div> : null}
-    </div>
+    <>
+      <div className={className || "flex flex-wrap gap-2"}>
+        {(items || []).map((att) => {
+          const key = normalizeKey(att.storage_path, bucket);
+          const url = signed[key];
+          if (!url) return null;
+          return (
+            <AttachmentPreview
+              key={`${att.storage_path}:${att.filename}`}
+              url={url}
+              att={att}
+              imageMaxWidth={imageMaxWidth}
+              onOpenLightbox={(u, alt) => {
+                const finalUrl = resolveLightboxUrl ? resolveLightboxUrl(att, u) : u;
+                setLightbox({ url: finalUrl, alt });
+              }}
+            />
+          );
+        })}
+        {loading ? <div className="text-xs text-muted-foreground">Cargando adjuntos…</div> : null}
+      </div>
+      <Dialog open={!!lightbox} onOpenChange={(o) => { if (!o) setLightbox(null); }}>
+        <DialogContent showCloseButton={false} className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent">
+          {lightbox?.url ? (
+            <div>
+              <div className="relative" aria-busy={lbLoading}>
+                {lbLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="size-8 animate-spin rounded-full border-2 border-white/70 border-t-transparent" aria-label="Cargando" />
+                  </div>
+                ) : null}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={lightbox.url}
+                  alt={lightbox.alt || "Imagen"}
+                  className="h-auto w-full rounded object-contain"
+                  onLoad={() => setLbLoading(false)}
+                  onError={() => setLbLoading(false)}
+                />
+              </div>
+              {!lbLoading ? (
+                <div className="flex justify-end px-3 py-2">
+                  <a
+                    href={lightbox.url}
+                    download
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center rounded bg-black/60 px-2 py-1 text-xs text-white hover:bg-black/70"
+                    title="Descargar"
+                  >
+                    Descargar
+                  </a>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-function AttachmentPreview({ url, att, imageMaxWidth }: { url: string; att: Attachment; imageMaxWidth: number }) {
-  const img = isImage(att.mime_type);
+function AttachmentPreview({ url, att, imageMaxWidth, onOpenLightbox }: { url: string; att: Attachment; imageMaxWidth: number; onOpenLightbox: (url: string, alt: string) => void }) {
+  const img = isImage(att.mime_type, att.filename);
   const size = humanSize(att.byte_size ?? null);
   if (img) {
     return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        type="button"
+        onClick={() => onOpenLightbox(url, att.filename)}
         className="block overflow-hidden rounded-md border hover:opacity-90"
         title={att.filename}
+        aria-label={`Abrir imagen ${att.filename}`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -86,7 +150,7 @@ function AttachmentPreview({ url, att, imageMaxWidth }: { url: string; att: Atta
           className="block max-h-56 object-cover"
           style={{ maxWidth: imageMaxWidth }}
         />
-      </a>
+      </button>
     );
   }
   return (

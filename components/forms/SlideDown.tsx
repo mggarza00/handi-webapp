@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -51,4 +52,3 @@ export default function SlideDown({ open, children, id, className }: Props) {
     </div>
   );
 }
-

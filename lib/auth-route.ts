@@ -1,18 +1,17 @@
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import type { Database } from "@/types/supabase";
 import { ApiError } from "@/lib/_supabase-server";
 import { createPublicClient, createBearerClient } from "@/lib/supabase";
+import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
+import type { Database } from "@/types/supabase";
 
-type DBClient = SupabaseClient<Database, "public", "public">;
+type DBClient = SupabaseClient<Database>;
 
 export async function getRouteUserOrThrow(): Promise<{
   supabase: DBClient;
   user: User;
 }> {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
   const user = data.user ?? null;
   if (!user) throw new ApiError(401, "UNAUTHORIZED");
@@ -24,7 +23,7 @@ export async function getUserFromRequestOrThrow(req: Request): Promise<{
   user: User;
 }> {
   try {
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createSupabaseServerClient();
     const { data } = await supabase.auth.getUser();
     if (data.user) return { user: data.user };
   } catch {
@@ -60,7 +59,7 @@ export async function getDevUserFromHeader(req: Request): Promise<{ user: User }
 // Devuelve un Supabase client enlazado al request: primero cookies; si no, Bearer token
 export async function getDbClientForRequest(req: Request): Promise<DBClient> {
   try {
-    const rc = createRouteHandlerClient<Database>({ cookies });
+    const rc = createSupabaseServerClient();
     const { data } = await rc.auth.getUser();
     if (data.user) return rc as unknown as DBClient;
   } catch {

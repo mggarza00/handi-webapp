@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import getRouteClient from "@/lib/supabase/route-client";
 
 import type { Database } from "@/types/supabase";
 
@@ -70,7 +69,7 @@ export async function GET(_req: Request, { params }: CtxP) {
       }),
   );
 
-  return NextResponse.json({ ok: true, data: items }, { headers: JSONH });
+  return NextResponse.json({ ok: true, data: items }, { status: 200, headers: JSONH });
 }
 
 export async function DELETE(req: Request, { params }: CtxP) {
@@ -95,7 +94,7 @@ export async function DELETE(req: Request, { params }: CtxP) {
       { status: 403, headers: JSONH },
     );
 
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = getRouteClient();
   const { data: auth } = await supabase.auth.getUser();
   const uid = auth.user?.id ?? null;
   if (!uid || uid !== parsed.data)
@@ -122,6 +121,5 @@ export async function DELETE(req: Request, { params }: CtxP) {
       { ok: false, error: error.message },
       { status: 400, headers: JSONH },
     );
-  return NextResponse.json({ ok: true }, { headers: JSONH });
+  return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
 }
-

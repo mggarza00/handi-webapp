@@ -1,6 +1,14 @@
 # Husky v9+/v10 compatible (sin shebang ni husky.sh)
 set -e
 
-echo "í´ Running lint & typecheck..."
-npm run -s lint -- --max-warnings=0
-npm run -s typecheck
+echo "ğŸ” Running lint-staged on staged files..."
+ npx --no-install lint-staged
+
+# Optional repository checks
+if [ -f package.json ]; then
+  echo "ğŸ” Verificando usos de clientes Supabase..."
+  npm run -s check:supabase-clients || exit 1
+  npm run -s verify:supabase || exit 1
+fi
+
+echo "âœ… Pre-commit checks finished"

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
@@ -27,7 +28,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       );
     }
 
-    const supabase = createClient(supaUrl, serviceRole, { auth: { persistSession: false } });
+    const supabase = createClient<Database>(supaUrl, serviceRole, { auth: { persistSession: false } });
     const offerId = (params?.id || "").trim();
     if (!offerId) {
       return NextResponse.json({ error: "MISSING_OFFER" }, { status: 400, headers: JSONH });
@@ -52,39 +53,34 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409, headers: JSONH });
     }
 
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-    const stripeConfigured = Boolean(STRIPE_SECRET_KEY);
-    if (!stripeConfigured) {
+    const stripe = await getStripe();
+    if (!stripe) {
       // Stripe no configurado: retorna sin URL, no es error
       return NextResponse.json({ ok: true, checkoutUrl: null }, { status: 200, headers: JSONH });
     }
-    const stripe = new Stripe(STRIPE_SECRET_KEY as string, { apiVersion: "2024-06-20" as Stripe.StripeConfig["apiVersion"] });
 
     const amount = Number(row.amount ?? NaN);
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: "INVALID_AMOUNT" }, { status: 400, headers: JSONH });
     }
 
-    // Compute total: servicio + comisión + IVA
+    // Compute total: servicio + comisión + IVA (all in cents to avoid rounding drift)
     const baseAmount = Number(row.amount ?? NaN);
-    const fee = Number.isFinite(baseAmount) && baseAmount > 0
-      ? Math.min(1500, Math.max(50, Math.round((baseAmount * 0.05 + Number.EPSILON) * 100) / 100))
-      : 0;
-    const iva = Number.isFinite(baseAmount)
-      ? Math.round((((baseAmount + fee) * 0.16) + Number.EPSILON) * 100) / 100
-      : 0;
-    const total = Number.isFinite(baseAmount) ? baseAmount + fee + iva : 0;
+    const baseCents = Number.isFinite(baseAmount) && baseAmount > 0 ? Math.round(baseAmount * 100) : 0;
+    const feeCents = baseCents > 0 ? Math.min(150000, Math.max(5000, Math.round(baseCents * 0.05))) : 0; // 50–1500 MXN
+    const ivaCents = baseCents > 0 ? Math.round((baseCents + feeCents) * 0.16) : 0;
+    const totalCents = baseCents + feeCents + ivaCents;
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      success_url: `${APP_URL}/offers/${row.id}?status=success`,
-      cancel_url: `${APP_URL}/offers/${row.id}?status=cancel`,
+      success_url: `${APP_URL.replace(/\/$/, '')}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${APP_URL.replace(/\/$/, '')}/payments/cancel`,
       line_items: [
         {
           quantity: 1,
           price_data: {
             currency: (row.currency || "MXN").toLowerCase(),
-            unit_amount: Math.round(total * 100),
+            unit_amount: totalCents,
             product_data: {
               name: row.title || "Servicio",
               description: row.description || undefined,
@@ -92,7 +88,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           },
         },
       ],
-      metadata: { offer_id: row.id, conversation_id: row.conversation_id || "" },
+      metadata: {
+        offer_id: row.id,
+        conversation_id: row.conversation_id || "",
+        base_cents: String(baseCents),
+        commission_cents: String(feeCents),
+        iva_cents: String(ivaCents),
+        total_cents: String(totalCents),
+      },
     });
 
     const checkoutUrl = session.url || null;

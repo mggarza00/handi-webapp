@@ -13,16 +13,23 @@ export default function MessagesShell({ chats, children }: { chats: ChatSummary[
   return (
     <div className="mx-auto max-w-6xl p-4">
       <div className="mb-3">
-        {onDetail ? (
-          <Link
-            href="/mensajes"
-            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-neutral-50"
-          >
-            <span aria-hidden>←</span> Mensajes
-          </Link>
-        ) : (
+        {/* Mobile: show back button on detail; title otherwise */}
+        <div className="md:hidden">
+          {onDetail ? (
+            <Link
+              href="/mensajes"
+              className="inline-flex items-center gap-1 rounded border px-2 py-1 text-sm hover:bg-neutral-50"
+            >
+              <span aria-hidden>←</span> Mensajes
+            </Link>
+          ) : (
+            <h1 className="text-xl font-semibold">Mensajes</h1>
+          )}
+        </div>
+        {/* Desktop: always show title; hide back button */}
+        <div className="hidden md:block">
           <h1 className="text-xl font-semibold">Mensajes</h1>
-        )}
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4">
         {/* Sidebar chat list: hide on mobile when on detail */}

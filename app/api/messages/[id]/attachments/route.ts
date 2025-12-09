@@ -65,7 +65,7 @@ export async function POST(req: Request, { params }: Ctx) {
       // backslash -> slash
       p = p.split(String.fromCharCode(92)).join("/");
       // quita prefijo del bucket si viene
-      if (p.startsWith("chat-attachments/")) p = p.slice("chat-attachments/".length);
+      if (p.startsWith("message-attachments/")) p = p.slice("message-attachments/".length);
       return p;
     };
 

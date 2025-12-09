@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import RatingStars from "@/components/ui/RatingStars";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
+import ChatPanel from "@/components/chat/ChatPanel";
+import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 
 type Professional = {
   id: string;
@@ -25,6 +27,8 @@ export type ProfessionalsListProps = {
   subcategory?: string | null;
   city?: string | null;
   className?: string;
+  // Cuando se especifica, muestra únicamente este profesional
+  onlyProfessionalId?: string | null;
 };
 
 export default function ProfessionalsList({
@@ -33,6 +37,7 @@ export default function ProfessionalsList({
   subcategory,
   city,
   className,
+  onlyProfessionalId,
 }: ProfessionalsListProps) {
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -40,9 +45,12 @@ export default function ProfessionalsList({
   // redirección a /mensajes/{id} reemplaza el panel embebido
   const [startingFor, setStartingFor] = React.useState<string | null>(null);
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const supabase = createSupabaseBrowser();
   const [meId, setMeId] = React.useState<string | null>(null);
   const [mounted, setMounted] = React.useState(false);
+  const [chatOpen, setChatOpen] = React.useState(false);
+  const [conversationId, setConversationId] = React.useState<string | null>(null);
+  const [requestBudget, setRequestBudget] = React.useState<number | null>(null);
 
   // Lazy-load ChatPanel only when needed to avoid pulling its chunk during initial hydration
   // const ChatPanel = React.useMemo(() => dynamic<ChatPanelProps>(() => import("@/components/chat/ChatPanel").then((m) => m.default), { ssr: false, loading: () => null }), []);
@@ -68,6 +76,30 @@ export default function ProfessionalsList({
     return () => ac.abort();
   }, []);
 
+  // Load request budget so ChatPanel can prefill offer amount
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/requests/${requestId}`, {
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          cache: "no-store",
+          credentials: "include",
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!cancelled && r.ok) {
+          const b = Number(j?.data?.budget ?? NaN);
+          if (Number.isFinite(b)) setRequestBudget(b);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestId]);
+
   React.useEffect(() => {
     setMounted(true);
   }, []);
@@ -79,9 +111,13 @@ export default function ProfessionalsList({
       setError(null);
       try {
         const qs = new URLSearchParams();
-        if (category) qs.set("category", category);
-        if (subcategory) qs.set("subcategory", subcategory);
-        if (city) qs.set("city", city);
+        qs.set("request_id", requestId);
+        // Si se especifica un profesional concreto, omitir filtros para asegurar que aparezca
+        if (!onlyProfessionalId) {
+          if (category) qs.set("category", category);
+          if (subcategory) qs.set("subcategory", subcategory);
+          if (city) qs.set("city", city);
+        }
         const url = `/api/professionals${qs.toString() ? `?${qs.toString()}` : ""}`;
         const res = await fetch(url, {
           headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -98,7 +134,7 @@ export default function ProfessionalsList({
         }
         const j = (await res.json()) as { ok?: boolean; data?: unknown };
         const data = (Array.isArray(j?.data) ? j?.data : []) as unknown[];
-        const mapped: Professional[] = data
+        let mapped: Professional[] = data
           .map((x) => x as Record<string, unknown>)
           .map((r) => ({
             id: String(r.id ?? ""),
@@ -109,6 +145,9 @@ export default function ProfessionalsList({
             rating: typeof r.rating === "number" ? (r.rating as number) : null,
           }))
           .filter((p) => p.id);
+        if (onlyProfessionalId) {
+          mapped = mapped.filter((p) => p.id === onlyProfessionalId);
+        }
         if (!abort) setItems(mapped);
       } catch (e) {
         if (!abort) setError(e instanceof Error ? e.message : String(e));
@@ -120,22 +159,26 @@ export default function ProfessionalsList({
     return () => {
       abort = true;
     };
-  }, [category, subcategory, city]);
+  }, [category, subcategory, city, onlyProfessionalId, requestId]);
 
   if (!mounted) return <div className={className}>Cargando…</div>;
   if (loading) return <div className={className}>Cargando profesionales…</div>;
-  if (error)
+  if (error) {
+    if (onlyProfessionalId) return null;
     return (
       <div className={className}>
-        No se encuentran profesionales disponibles para esta solicitud.
+        No se encuentran profesionales disponibles para esta solicitud por el momento, te notificaremos cuando se presente uno.
       </div>
     );
-  if (items.length === 0)
+  }
+  if (items.length === 0) {
+    if (onlyProfessionalId) return null;
     return (
       <div className={className}>
-        No se encuentran profesionales disponibles para esta solicitud.
+        No se encuentran profesionales disponibles para esta solicitud por el momento, te notificaremos cuando se presente uno.
       </div>
     );
+  }
 
   return (
     <div className={"space-y-3 " + (className ?? "")}> 
@@ -157,11 +200,10 @@ export default function ProfessionalsList({
             }
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <AvatarWithSkeleton
             src={p.avatar_url || "/avatar.png"}
-            alt={p.full_name || "Avatar"}
-            className="size-12 rounded-full object-cover border"
+            alt={p.full_name || "Profesional"}
+            sizeClass="size-12"
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
@@ -189,6 +231,14 @@ export default function ProfessionalsList({
                   event.stopPropagation();
                   try {
                     setStartingFor(p.id);
+                    // Ensure we know current user id so ChatPanel can pass x-user-id to API
+                    if (!meId) {
+                      try {
+                        const rMe = await fetch(`/api/me`, { cache: "no-store", credentials: "include" });
+                        const jMe = await rMe.json().catch(() => ({}));
+                        if (rMe.ok && jMe?.user?.id) setMeId(jMe.user.id as string);
+                      } catch { /* ignore */ }
+                    }
                     const { data: { session } } = await supabase.auth.getSession();
                     const res = await fetch(`/api/chat/start`, {
                       method: "POST",
@@ -213,7 +263,10 @@ export default function ProfessionalsList({
                     }
                     if (!res.ok) throw new Error(j?.error || "start_failed");
                     const convId: string | undefined = j?.data?.id ?? j?.conversation?.id;
-                    if (convId) router.push(`/mensajes/${convId}`);
+                    if (convId) {
+                      setConversationId(convId);
+                      setChatOpen(true);
+                    }
                   } catch (e) {
                     const msg = e instanceof Error ? e.message : "No se pudo iniciar el chat";
                     toast.error(msg);
@@ -229,7 +282,17 @@ export default function ProfessionalsList({
           </div>
         </Card>
       ))}
-      {/* Redirección a /mensajes/{id} sustituye el panel embebido */}
+      {chatOpen && conversationId ? (
+        <ChatPanel
+          key={`${conversationId}:${meId ?? ''}`}
+          conversationId={conversationId}
+          onClose={() => setChatOpen(false)}
+          userId={meId}
+          requestId={requestId}
+          requestBudget={requestBudget}
+          dataPrefix="request-chat"
+        />
+      ) : null}
     </div>
   );
 }

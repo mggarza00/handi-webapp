@@ -44,7 +44,7 @@ export async function GET(req: Request) {
           type: "magiclink",
           redirect_to: redirectTo,
         },
-        { headers: JSONH },
+        { status: 200, headers: JSONH },
       );
       }
     }
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     // Dev fallback: set cookie directly so browser sessions can be established via GET
     const res = NextResponse.json(
       { ok: true, email, role, fallback: "cookie" },
-      { headers: JSONH },
+      { status: 200, headers: JSONH },
     );
     res.cookies.set(
       "e2e_session",
@@ -68,7 +68,7 @@ export async function GET(req: Request) {
       const role = (searchParams.get("role") || "client").toLowerCase();
       const res = NextResponse.json(
         { ok: true, email, role, fallback: "cookie" },
-        { headers: JSONH },
+        { status: 200, headers: JSONH },
       );
       res.cookies.set(
         "e2e_session",

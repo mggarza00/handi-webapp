@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
 
@@ -24,7 +23,7 @@ export async function POST(req: Request) {
         { status: 400, headers: JSONH },
       );
 
-    const supabase = createRouteHandlerClient<Database>({ cookies });
+    const supabase = createClient();
     const { data: auth } = await supabase.auth.getUser();
     if (!auth?.user)
       return NextResponse.json(
@@ -34,7 +33,7 @@ export async function POST(req: Request) {
 
     // Map Spanish to existing DB role enum
     const role = to === "cliente" ? "client" : "pro";
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("profiles")
       .update({ role } as Database["public"]["Tables"]["profiles"]["Update"])
       .eq("id", auth.user.id)
@@ -47,7 +46,7 @@ export async function POST(req: Request) {
         { status, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data }, { headers: JSONH });
+    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

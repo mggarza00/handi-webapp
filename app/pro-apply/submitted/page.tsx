@@ -9,8 +9,8 @@ export default function ProApplySubmittedPage() {
     <main className="mx-auto max-w-2xl px-4 py-16 text-center">
       <div className="mx-auto mb-6 h-16 w-16">
         <Image
-          src="/Logo-Homaid-v1.gif"
-          alt="Homaid"
+          src="/images/LOGO_HANDI_DB.png"
+          alt="Handi"
           width={64}
           height={64}
           className="mx-auto rounded"
@@ -20,7 +20,7 @@ export default function ProApplySubmittedPage() {
         Tu postulación está en revisión
       </h1>
       <p className="mx-auto mb-2 max-w-prose text-slate-700">
-        Gracias por registrarte como profesional en Homaid. Nuestro equipo
+        Gracias por registrarte como profesional en Handi. Nuestro equipo
         revisará tu información y documentos.
       </p>
       <p className="mx-auto mb-6 max-w-prose text-slate-600">

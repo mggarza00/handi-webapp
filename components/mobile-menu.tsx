@@ -5,8 +5,8 @@ import { Menu, Bell, MessageSquare, Heart, Settings, HelpCircle, FileText, Share
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -74,11 +74,20 @@ function MenuLinks({ items, className }: { items: NavLink[]; className?: string 
   );
 }
 
-function OpenButton() {
+function OpenButton({ hasBadge }: { hasBadge?: boolean }) {
   const { setOpen } = useSidebar();
   return (
-    <Button variant="outline" size="icon" aria-label="Abrir menú" onClick={() => setOpen(true)}>
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label="Abrir menú"
+      onClick={() => setOpen(true)}
+      className="relative rounded-full bg-black/20 px-3 py-2 text-white shadow-sm backdrop-blur transition hover:bg-black/30 focus-visible:ring-2 focus-visible:ring-white/70"
+    >
       <Menu className="h-5 w-5" />
+      {hasBadge ? (
+        <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white" />
+      ) : null}
     </Button>
   );
 }
@@ -110,11 +119,11 @@ function MobileMenuDrawer({
   const { open, setOpen } = useSidebar();
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [hasNotifs, setHasNotifs] = React.useState(false);
-  const [hasNewMsgs, setHasNewMsgs] = React.useState(false);
   const [notifItems, setNotifItems] = React.useState<Notif[]>([]);
   const [notifLoading, setNotifLoading] = React.useState(false);
-  const supabase = React.useMemo(() => createClientComponentClient(), []);
+  const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [me, setMe] = React.useState<string | null>(null);
+  const [unreadMsgCount, setUnreadMsgCount] = React.useState<number>(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -162,11 +171,12 @@ function MobileMenuDrawer({
       const n =
         localStorage.getItem("handi_has_notifications") ??
         localStorage.getItem("handee_has_notifications");
-      const m =
-        localStorage.getItem("handi_has_new_messages") ??
-        localStorage.getItem("handee_has_new_messages");
+      const raw =
+        localStorage.getItem("handi_unread_messages_count") ??
+        localStorage.getItem("handee_unread_messages_count");
       setHasNotifs(n === "1" || n === "true");
-      setHasNewMsgs(m === "1" || m === "true");
+      const ncount = raw ? Number(raw) : 0;
+      if (Number.isFinite(ncount)) setUnreadMsgCount(ncount);
     } catch {
       // ignore
     }
@@ -202,6 +212,46 @@ function MobileMenuDrawer({
     }
     void fetchCount();
     timer = setInterval(fetchCount, 60000);
+    return () => {
+      aborted = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [isAuth, buildAuthHeaders]);
+
+  // Poll unread messages count periodically
+  React.useEffect(() => {
+    if (!isAuth) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let aborted = false;
+    async function fetchMsgCount() {
+      try {
+        const headers = await buildAuthHeaders();
+        const res = await fetch("/api/chat/rooms", {
+          cache: "no-store",
+          credentials: "include",
+          headers,
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as { ok?: boolean; data?: Array<{ unreadCount?: number }> };
+        const arr = Array.isArray(json?.data) ? json.data : [];
+        const count = arr.reduce((acc, it) => acc + (typeof it.unreadCount === 'number' ? it.unreadCount : 0), 0);
+        if (!aborted) {
+          setUnreadMsgCount(count);
+        }
+        try {
+          localStorage.setItem("handi_unread_messages_count", String(count));
+          localStorage.setItem("handee_unread_messages_count", String(count));
+          localStorage.setItem("handi_has_new_messages", count > 0 ? "1" : "0");
+          localStorage.setItem("handee_has_new_messages", count > 0 ? "1" : "0");
+        } catch {
+          // ignore
+        }
+      } catch {
+        // ignore
+      }
+    }
+    void fetchMsgCount();
+    timer = setInterval(fetchMsgCount, 60000);
     return () => {
       aborted = true;
       if (timer) clearInterval(timer);
@@ -265,10 +315,10 @@ function MobileMenuDrawer({
 
   const onShare = React.useCallback(async () => {
     const url = typeof window !== "undefined" ? window.location.origin : "";
-    const text = "Asnete a Homaid y conecta con expertos de confianza";
+    const text = "Asnete a Handi y conecta con expertos de confianza";
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Homaid", text, url });
+        await navigator.share({ title: "Handi", text, url });
       } else {
         await navigator.clipboard.writeText(url);
         toast.success("Enlace copiado al portapapeles");
@@ -293,16 +343,26 @@ function MobileMenuDrawer({
 
   return (
     <>
-      <OpenButton />
+      <OpenButton hasBadge={hasNotifs || unreadMsgCount > 0} />
       <Sidebar side="left" width={320}>
-        <SidebarHeader className="text-xl font-semibold">Homaid</SidebarHeader>
+        <SidebarHeader className="text-xl font-semibold">Handi</SidebarHeader>
         <SidebarContent className="mt-4 gap-4">
           <div className="flex flex-col gap-2">
             <Button
               type="button"
               variant="ghost"
               className="w-full justify-start text-base"
-              onClick={() => setNotifOpen((v) => !v)}
+              onClick={() => {
+                setNotifOpen((v) => !v);
+                // Clear notif badge immediately
+                setHasNotifs(false);
+                try {
+                  localStorage.setItem("handi_has_notifications", "0");
+                  localStorage.setItem("handee_has_notifications", "0");
+                } catch { /* ignore */ }
+                // Best-effort: mark all as read in background
+                void onMarkAllRead();
+              }}
             >
               <span className="inline-flex items-center gap-2">
                 <Bell className="h-8 w-8" />
@@ -353,7 +413,17 @@ function MobileMenuDrawer({
                 )}
               </div>
             ) : null}
-            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => setOpen(false)}>
+            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => {
+              // Clear messages badge immediately
+              setUnreadMsgCount(0);
+              try {
+                localStorage.setItem("handi_unread_messages_count", "0");
+                localStorage.setItem("handee_unread_messages_count", "0");
+                localStorage.setItem("handi_has_new_messages", "0");
+                localStorage.setItem("handee_has_new_messages", "0");
+              } catch { /* ignore */ }
+              setOpen(false);
+            }}>
               <Link href="/favorites" className="inline-flex items-center gap-2">
                 <Heart className="h-8 w-8" />
                 <span>Favoritos</span>
@@ -361,9 +431,18 @@ function MobileMenuDrawer({
             </Button>
             <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => setOpen(false)}>
               <Link href="/messages" className="inline-flex items-center gap-2">
-                <MessageSquare className="h-8 w-8" />
+                <span className="relative inline-flex items-center justify-center">
+                  <MessageSquare className="h-8 w-8" />
+                  {unreadMsgCount > 0 ? (
+                    <span
+                      aria-label={`${unreadMsgCount} mensajes sin leer`}
+                      className="absolute -top-1 -right-1 min-w-[1rem] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4 text-center"
+                    >
+                      {unreadMsgCount > 99 ? "99+" : unreadMsgCount}
+                    </span>
+                  ) : null}
+                </span>
                 <span>Mensajes</span>
-                {hasNewMsgs ? <span className="ml-2 block h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
               </Link>
             </Button>
           </div>

@@ -1,10 +1,10 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+
+import createClient from "@/utils/supabase/server";
 
 export default async function TopBar() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -13,7 +13,7 @@ export default async function TopBar() {
     <header className="w-full sticky top-0 z-40 border-b bg-white/80 dark:bg-neutral-900/80 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
         <Link href="/" className="font-semibold">
-          Homaid
+          Handi
         </Link>
 
         {!user ? (

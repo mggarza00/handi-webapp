@@ -1,14 +1,11 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
-import type { Database } from "@/types/supabase";
+import getRouteClient from "@/lib/supabase/route-client";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const supabase = createRouteHandlerClient<Database>({ cookies });
+  const supabase = getRouteClient();
   await supabase.auth.signOut();
-  const url = new URL("/", req.url);
-  return NextResponse.redirect(url, { status: 303 });
+  return NextResponse.redirect(new URL("/", req.url), { status: 303 });
 }
