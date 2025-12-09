@@ -16,6 +16,7 @@ export async function getProProfile(userId: string): Promise<{
   city: string | null;
   state: string | null;
   is_company: boolean;
+  subcategories: string[];
 }> {
   try {
     const supa = createClient();
@@ -37,23 +38,62 @@ export async function getProProfile(userId: string): Promise<{
     const avg_rating =
       typeof prof?.rating === "number" ? (prof.rating as number) : 0;
     const avatar_url = (prof?.avatar_url as string | null) ?? null;
-    const city = (prof?.city as string | null) ?? null;
     const state = (prof?.state as string | null) ?? null;
+    let proCity: string | null = null;
+    let proSubcategories: string[] = [];
+
+    const toSubcategoryNames = (value: unknown): string[] => {
+      if (!value) return [];
+      if (Array.isArray(value)) {
+        return value
+          .map((v) =>
+            typeof v === "string" ? v : (v as { name?: string })?.name || "",
+          )
+          .map((v) => v?.toString().trim())
+          .filter((v): v is string => Boolean(v));
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return [];
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) return toSubcategoryNames(parsed);
+        } catch {
+          /* ignore JSON parse errors */
+        }
+        return [trimmed];
+      }
+      return [];
+    };
+
     let is_company = false;
     try {
       const { data: proMeta } = await (supa as any)
         .from("professionals")
-        .select("is_company")
+        .select("is_company, city, subcategories")
         .eq("id", userId)
         .maybeSingle();
-      if (proMeta && typeof proMeta.is_company !== "undefined") {
-        is_company = Boolean(
-          (proMeta as { is_company?: boolean | null }).is_company,
+      if (proMeta) {
+        if (typeof proMeta.is_company !== "undefined") {
+          is_company = Boolean(
+            (proMeta as { is_company?: boolean | null }).is_company,
+          );
+        }
+        if (typeof proMeta.city !== "undefined") {
+          proCity = (proMeta as { city?: string | null }).city ?? null;
+        }
+        proSubcategories = toSubcategoryNames(
+          (proMeta as { subcategories?: unknown }).subcategories ?? null,
         );
       }
     } catch {
       is_company = false;
+      proCity = null;
+      proSubcategories = [];
     }
+    const city =
+      (proCity as string | null) ?? (prof?.city as string | null) ?? null;
+    const subcategories = proSubcategories;
 
     return {
       id: (prof?.id as string | null) ?? userId,
@@ -65,6 +105,7 @@ export async function getProProfile(userId: string): Promise<{
       city,
       state,
       is_company,
+      subcategories,
     };
   } catch {
     return {
@@ -77,6 +118,7 @@ export async function getProProfile(userId: string): Promise<{
       city: null,
       state: null,
       is_company: false,
+      subcategories: [],
     };
   }
 }

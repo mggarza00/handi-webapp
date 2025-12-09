@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import localFont from "next/font/local";
 import {
   BarChart3,
   CalendarRange,
@@ -19,6 +19,7 @@ import {
 import createClient from "@/utils/supabase/server";
 import SectionCard from "@/components/pro/SectionCard";
 import EarningsPanel from "@/components/pro/EarningsPanel.client";
+import SubcategoryChips from "@/components/pro/SubcategoryChips";
 import KpiCard from "@/components/pro/KpiCard";
 import {
   getProProfile,
@@ -34,8 +35,99 @@ import {
   extractFirstName,
   type Profile,
 } from "@/lib/profile";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+
+const stackSansHeading = localFont({
+  src: "../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
+  weight: "600",
+  display: "swap",
+});
+
+const pickValue = (
+  rec: Record<string, unknown>,
+  keys: string[],
+): string | null => {
+  for (const key of keys) {
+    const val = rec?.[key];
+    if (val === undefined || val === null) continue;
+    const str = val.toString().trim();
+    if (str.length > 0) return str;
+  }
+  return null;
+};
+
+const normalizeKey = (value: string | null | undefined) =>
+  (value ?? "")
+    .toString()
+    .trim()
+    .replace(/^["']+|["']+$/g, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+async function getSubcategoryColorMap() {
+  type SubcatRow = {
+    categories_subcategories_id?: string | null;
+    Subcategoría?: string | null;
+    Subcategoria?: string | null;
+    subcategoría?: string | null;
+    subcategoria?: string | null;
+    subcategory?: string | null;
+    Subcategory?: string | null;
+    color?: string | null;
+    Color?: string | null;
+    COLOR?: string | null;
+    color_hex?: string | null;
+    "Color hex"?: string | null;
+    colorHex?: string | null;
+    ColorHex?: string | null;
+  };
+  try {
+    const supa = getAdminSupabase();
+    const { data, error } = await supa
+      .from("categories_subcategories")
+      .select("*");
+    if (error) throw error;
+    const map = new Map<string, string>();
+    const colorKeys = [
+      "color",
+      "Color",
+      "COLOR",
+      "color_hex",
+      "Color hex",
+      "colorHex",
+      "ColorHex",
+    ];
+    const rows = (data as SubcatRow[] | null | undefined) ?? [];
+    rows.forEach((row) => {
+      const rec = row as Record<string, unknown>;
+      const name = pickValue(rec, [
+        "Subcategoría",
+        "Subcategoria",
+        "subcategoría",
+        "subcategoria",
+        "subcategory",
+        "Subcategory",
+      ]);
+      const color = pickValue(rec, colorKeys);
+      const key = normalizeKey(name);
+      const rawName = (name ?? "").toString().trim();
+      const id = pickValue(rec, ["categories_subcategories_id"]);
+      if (key) map.set(key, color || "");
+      if (rawName) map.set(rawName, color || "");
+      if (id) {
+        const idKey = normalizeKey(id);
+        if (idKey) map.set(idKey, color || "");
+        map.set(id, color || "");
+      }
+    });
+    return map;
+  } catch {
+    return new Map<string, string>();
+  }
+}
 
 function SkeletonBar({ className = "" }: { className?: string }) {
   return (
@@ -83,13 +175,6 @@ async function HeaderGreeting({
   const location =
     [profile.city, profile.state].filter(Boolean).join(", ") ||
     "Ubicación no disponible";
-  const initials = rawName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase();
   const greetingPref = await ensureGreetingPreferenceForProfile({
     id: profile.id,
     full_name: profile.full_name,
@@ -100,41 +185,49 @@ async function HeaderGreeting({
     greetingPref === "neutral" ? "bienvenido" : greetingPref,
     greetingName,
   );
+  const colorMap = await getSubcategoryColorMap();
+  const getColor = (value: string) => {
+    const norm = normalizeKey(value);
+    const trimmed = value?.toString().trim() || "";
+    return (
+      colorMap.get(norm) ||
+      colorMap.get(trimmed) ||
+      colorMap.get(trimmed.toLowerCase()) ||
+      null
+    );
+  };
+  const subcategoryChips = (profile.subcategories || []).map((name) => {
+    const label = name?.toString().trim() || "";
+    return {
+      name: label,
+      color: getColor(label),
+    };
+  });
 
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_4px_12px_rgba(0,0,0,0.06)]">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative h-16 w-16 overflow-hidden rounded-full bg-[#082877]/10 text-[#082877]">
-            {profile.avatar_url ? (
-              <Image
-                src={profile.avatar_url}
-                alt={rawName}
-                fill
-                className="object-cover"
-                sizes="64px"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-lg font-semibold">
-                {initials || "H"}
-              </div>
-            )}
-          </div>
-          <div className="space-y-1">
+        <div className="flex items-start gap-4">
+          <div className="space-y-2">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <h1 className="text-2xl font-semibold text-[#082877]">
-                {greetingText}
+              <h1
+                className={`${stackSansHeading.className} text-3xl font-semibold text-[#082877]`}
+              >
+                {greetingText.replace(/^(\s*Bienvenido)(\b)/i, "$1,")}
               </h1>
             </div>
             <p className="flex items-center gap-1 text-sm text-[#6B7280]">
               <MapPin size={16} />
               {location}
             </p>
-            <p className="flex items-center gap-1 text-xs font-semibold text-[#082877]">
-              <Star size={14} className="text-[#082877]" />
-              {Number(profile.avg_rating || 0).toFixed(1)} / 5.0 · Panel
-              profesional
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-semibold text-[#082877]">
+                Especialidades
+              </p>
+              <div className="max-w-3xl rounded-xl bg-white px-3 py-2">
+                <SubcategoryChips items={subcategoryChips} />
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
