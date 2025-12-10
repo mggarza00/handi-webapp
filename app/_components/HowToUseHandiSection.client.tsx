@@ -5,12 +5,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 
 type CardType = "client" | "pro";
 
 export default function HowToUseHandiSection() {
   const router = useRouter();
   const [hoveredCard, setHoveredCard] = useState<CardType | null>(null);
+  const { toast } = useToast();
 
   return (
     <section className="bg-[#F5F7FA] py-12 md:py-16">
@@ -39,13 +41,16 @@ export default function HowToUseHandiSection() {
 
             <button
               type="button"
-              onClick={() => router.push("/requests/new")}
-              className="inline-flex items-center justify-center rounded-full px-6 py-2.5 text-xs font-medium text-white md:text-sm translate-y-3"
+              onClick={() => {
+                toast({
+                  description: "Inicia sesión para solicitar tu servicio.",
+                });
+                router.push("/auth/sign-in?role=client");
+              }}
+              className="btn-contratar inline-flex items-center justify-center rounded-full px-6 py-2.5 text-xs font-medium md:text-sm translate-y-3"
               style={{
-                backgroundColor: "#082877",
                 fontFamily:
                   '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                transform: "scale(0.85)",
               }}
             >
               Solicitar servicio
