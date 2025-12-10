@@ -1,0 +1,12 @@
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+@media (width <= 768px) {
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+}

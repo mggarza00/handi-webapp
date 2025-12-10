@@ -568,14 +568,14 @@ export default function Page({
   );
 
   const heroClient = (
-    <div style={{ marginTop: heroMarginTop }} className="px-[2.625rem]">
+    <div style={{ marginTop: heroMarginTop }} className="px-4 sm:px-[2.625rem]">
       <div className="mx-auto max-w-6xl rounded-3xl bg-white shadow-sm overflow-hidden px-0">
         <section
           id="hero-client"
           className="relative isolate overflow-hidden bg-slate-900 text-white"
         >
           <div className="relative w-full">
-            <div className="relative aspect-[16/9] w-full md:aspect-[21/9] min-h-[420px] md:min-h-[480px] lg:min-h-[520px] xl:min-h-[560px]">
+            <div className="relative aspect-[10/12] w-full min-h-[520px] sm:aspect-[16/9] sm:min-h-[480px] md:aspect-[21/9] md:min-h-[520px] lg:min-h-[560px] xl:min-h-[600px] md:min-h-[520px] sm:min-h-[520px] min-h-screen max-h-[900px]">
               <Image
                 src="/images/ac305e5695416fe62abbe78d5ed7297e99cebbfa (1).jpg"
                 alt="Cliente Handi en casa"
@@ -585,18 +585,18 @@ export default function Page({
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/45 to-black/20" />
-              <div className="absolute left-6 top-2 max-w-xl md:left-[96px] md:top-[60px] lg:top-[70px]">
+              <div className="absolute left-6 top-6 max-w-xl md:left-[96px] md:top-[60px] lg:top-[70px]">
                 <h1
-                  className={`${stackSansMedium.className} text-3xl leading-tight sm:text-4xl`}
+                  className={`${stackSansMedium.className} text-2xl leading-tight sm:text-4xl`}
                 >
                   <span
-                    className={`${stackSansExtraLight.className} leading-tight text-[26px] sm:text-[32px] tracking-[-0.02em] font-light text-white`}
+                    className={`${stackSansExtraLight.className} leading-tight text-[22px] sm:text-[32px] tracking-[-0.02em] font-light text-white`}
                     style={{ fontFamily: '"Stack Sans Text", sans-serif' }}
                   >
                     {greetingFirstWord}
                   </span>
                   <span
-                    className={`${interLight.className} text-[26px] sm:text-[32px] leading-tight tracking-[-0.02em] font-light`}
+                    className={`${interLight.className} text-[22px] sm:text-[32px] leading-tight tracking-[-0.02em] font-light`}
                   >
                     ,
                   </span>{" "}
@@ -608,20 +608,18 @@ export default function Page({
                   </span>
                 </h1>
               </div>
-              <div className="absolute left-6 top-32 max-w-xl md:left-[96px] md:top-[210px] lg:top-[230px]">
+              <div className="absolute left-6 top-36 max-w-xl md:left-[96px] md:top-[210px] lg:top-[230px]">
                 <div className="flex flex-col gap-6">
                   <p
-                    className={`${stackSansMedium.className} max-w-2xl text-white`}
                     ref={heroClientTitleRef}
                     style={{
                       fontFamily:
                         '"Stack Sans Text", system-ui, -apple-system, "Segoe UI", sans-serif',
                       fontWeight: 400,
                       fontStyle: "normal",
-                      fontSize: "50px",
-                      lineHeight: "106%",
                       letterSpacing: "0%",
                     }}
+                    className={`${stackSansMedium.className} max-w-2xl text-white text-[38px] sm:text-[50px] leading-[1.06]`}
                   >
                     <span
                       className={`${stackSansLight.className} block leading-[1.06] font-thin`}
