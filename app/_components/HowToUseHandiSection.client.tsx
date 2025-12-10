@@ -5,14 +5,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/components/ui/use-toast";
 
 type CardType = "client" | "pro";
 
 export default function HowToUseHandiSection() {
   const router = useRouter();
   const [hoveredCard, setHoveredCard] = useState<CardType | null>(null);
-  const { toast } = useToast();
 
   return (
     <section className="bg-[#F5F7FA] py-12 md:py-16">
