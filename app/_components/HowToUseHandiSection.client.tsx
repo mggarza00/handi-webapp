@@ -46,11 +46,10 @@ export default function HowToUseHandiSection() {
                 });
                 router.push("/auth/sign-in?role=client");
               }}
-              className="inline-flex items-center justify-center rounded-full px-6 py-2.5 text-xs font-medium text-white md:text-sm translate-y-3 bg-[#082877] shadow-[0_16px_36px_-14px_rgba(0,0,0,0.45),0_6px_16px_-12px_rgba(0,0,0,0.35)] transition-[transform,box-shadow,filter] duration-150 ease-out hover:-translate-y-[1px] hover:shadow-[0_22px_42px_-16px_rgba(0,0,0,0.55),0_10px_20px_-10px_rgba(0,0,0,0.35)] hover:brightness-105 active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5A9EF6]"
+              className="inline-flex items-center justify-center rounded-full px-6 py-2.5 text-xs font-medium text-white md:text-sm translate-y-3 bg-[#082877] shadow-[0_16px_36px_-14px_rgba(0,0,0,0.45),0_6px_16px_-12px_rgba(0,0,0,0.35)] transition-[transform,box-shadow,filter] duration-150 ease-out transform scale-[0.85] hover:-translate-y-[1px] hover:shadow-[0_22px_42px_-16px_rgba(0,0,0,0.55),0_10px_20px_-10px_rgba(0,0,0,0.35)] hover:brightness-105 active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5A9EF6]"
               style={{
                 fontFamily:
                   '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                transform: "scale(0.85)",
               }}
             >
               Solicitar servicio
