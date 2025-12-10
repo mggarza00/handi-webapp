@@ -24,7 +24,8 @@ function formatRel(ts?: string | null) {
 }
 
 function resolveUnreadCount(chat: ChatSummary): number {
-  if (typeof chat.unreadCount === "number") return Math.max(0, chat.unreadCount);
+  if (typeof chat.unreadCount === "number")
+    return Math.max(0, chat.unreadCount);
   return chat.unread ? 1 : 0;
 }
 
@@ -64,44 +65,87 @@ function ChatListItem({
         ? chat.preview
         : "";
   const secondaryLine = typing ? "Escribiendo" : fallbackPreview;
-  const secondaryText = typeof secondaryLine === "string" ? secondaryLine.trim() : "";
+  const secondaryText =
+    typeof secondaryLine === "string" ? secondaryLine.trim() : "";
   const showSecondary = secondaryText.length > 0;
   const secondaryClasses = cn(
     "text-xs mt-0.5 line-clamp-1",
     typing ? "text-blue-600 font-medium" : "text-muted-foreground",
   );
   const secondaryTestId = typing ? "chat-thread-typing" : undefined;
+  const lastMessageAt = chat.lastMessageAt ?? null;
   const unreadCount = resolveUnreadCount(chat);
   const isUnread = unreadCount > 0;
   const unreadLabel = `${unreadCount} ${unreadCount === 1 ? "mensaje no leído" : "mensajes no leídos"}`;
-  const lastMessageAt = chat.lastMessageAt ?? null;
-  const presence = formatPresence(chat.otherLastActiveAt ?? null);
+  // Heurística: si last_active_at parece obsoleto frente al último mensaje, usar el timestamp del mensaje.
+  const presenceIso = React.useMemo(() => {
+    const la = chat.otherLastActiveAt ?? null;
+    const lm = chat.lastMessageAt ?? null;
+    if (!la && lm) return lm;
+    if (!la) return null;
+    const laMs = Date.parse(la);
+    const lmMs = lm ? Date.parse(lm) : NaN;
+    if (!Number.isFinite(laMs)) {
+      return Number.isFinite(lmMs) ? lm : null;
+    }
+    if (Number.isFinite(lmMs)) {
+      const diff = lmMs - laMs;
+      const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
+      if (diff > TWO_DAYS) {
+        return lm; // last_active_at demasiado viejo comparado con los mensajes
+      }
+    }
+    return la;
+  }, [chat.otherLastActiveAt, chat.lastMessageAt]);
+
+  const presence = formatPresence(presenceIso);
   const presenceClasses = "text-[11px] text-slate-400 mt-0.5";
 
   // Resolve avatar URL: sign Supabase storage paths; allow external URLs and proxy paths
   const supabase = React.useMemo(() => createSupabaseBrowser(), []);
-  const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() => normalizeAvatarUrl(avatarUrl));
+  const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() =>
+    normalizeAvatarUrl(avatarUrl),
+  );
   React.useEffect(() => {
     const url = avatarUrl;
     const norm = normalizeAvatarUrl(url);
-    if (!url) { setAvatarSrc(null); return; }
+    if (!url) {
+      setAvatarSrc(null);
+      return;
+    }
     // Pass through external URLs and API proxy
-    if (/^https?:\/\//i.test(url) || url.startsWith('/api/avatar/')) { setAvatarSrc(url); return; }
+    if (/^https?:\/\//i.test(url) || url.startsWith("/api/avatar/")) {
+      setAvatarSrc(url);
+      return;
+    }
     // If normalize produced a full absolute URL, use it and do not attempt to sign
-    if (norm && /^https?:\/\//i.test(norm)) { setAvatarSrc(norm); return; }
+    if (norm && /^https?:\/\//i.test(norm)) {
+      setAvatarSrc(norm);
+      return;
+    }
     // Try to sign (supports '/storage/v1/object/public/<bucket>/<key>' and '<bucket>/<key>' and 'public/<bucket>/<key>')
     const parsed = parseSupabaseStoragePath(url);
-    if (!parsed) { setAvatarSrc(norm); return; }
+    if (!parsed) {
+      setAvatarSrc(norm);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        const { data, error } = await supabase.storage.from(parsed.bucket).createSignedUrl(parsed.key, 600);
-        if (!cancelled) setAvatarSrc(!error && data?.signedUrl ? data.signedUrl : (norm || null));
+        const { data, error } = await supabase.storage
+          .from(parsed.bucket)
+          .createSignedUrl(parsed.key, 600);
+        if (!cancelled)
+          setAvatarSrc(
+            !error && data?.signedUrl ? data.signedUrl : norm || null,
+          );
       } catch {
         if (!cancelled) setAvatarSrc(norm || null);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [avatarUrl, supabase]);
 
   return (
@@ -125,7 +169,9 @@ function ChatListItem({
           className="flex items-center justify-between gap-3 w-full"
         >
           <div className="min-w-0 flex items-center gap-3">
-            <div className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}>
+            <div
+              className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}
+            >
               <AvatarWithSkeleton
                 src={avatarSrc || "/images/Favicon-v1-jpeg.jpg"}
                 alt={displayTitle}
@@ -145,7 +191,12 @@ function ChatListItem({
             </div>
             <div className="min-w-0">
               <div className="text-sm truncate flex items-center gap-2">
-                <span className={`truncate ${isUnread ? "font-semibold text-slate-900" : "font-medium"}`} data-testid="chat-thread-title">{displayTitle}</span>
+                <span
+                  className={`truncate ${isUnread ? "font-semibold text-slate-900" : "font-medium"}`}
+                  data-testid="chat-thread-title"
+                >
+                  {displayTitle}
+                </span>
               </div>
               {showSecondary ? (
                 <div className={secondaryClasses} data-testid={secondaryTestId}>
@@ -155,7 +206,9 @@ function ChatListItem({
               <div className={presenceClasses}>{presence}</div>
             </div>
           </div>
-          <div className="text-[11px] text-muted-foreground shrink-0 ml-2">{formatRel(lastMessageAt)}</div>
+          <div className="text-[11px] text-muted-foreground shrink-0 ml-2">
+            {formatRel(lastMessageAt)}
+          </div>
         </Link>
         {editing ? (
           <button
