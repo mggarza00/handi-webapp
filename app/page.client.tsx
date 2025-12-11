@@ -220,9 +220,10 @@ export default function Page({
     if (!isClientVariant) return;
     if (typeof window === "undefined") return;
     const STORAGE_KEY = "handi:auto-open-request-wizard";
-    const alreadyShown = window.sessionStorage.getItem(STORAGE_KEY);
-    if (alreadyShown === "1") return;
-    window.sessionStorage.setItem(STORAGE_KEY, "1");
+    const shouldAutoOpen =
+      window.sessionStorage.getItem(STORAGE_KEY) === "pending";
+    if (!shouldAutoOpen) return;
+    window.sessionStorage.removeItem(STORAGE_KEY);
     const timer = window.setTimeout(() => {
       openCreateRequestWizard();
     }, 400);
@@ -644,9 +645,7 @@ export default function Page({
                       >
                         Profesionales
                       </span>
-                      <span className="block leading-[1.06]">
-                        a tu alcance
-                      </span>
+                      <span className="block leading-[1.06]">a tu alcance</span>
                     </p>
                     <div className="mt-[70px] md:mt-12">
                       <HeroClientActions

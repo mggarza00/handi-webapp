@@ -12,6 +12,7 @@ type CardType = "client" | "pro";
 export default function HowToUseHandiSection() {
   const router = useRouter();
   const [hoveredCard, setHoveredCard] = useState<CardType | null>(null);
+  const STORAGE_KEY = "handi:auto-open-request-wizard";
 
   return (
     <section className="bg-[#F5F7FA] py-12 md:py-16">
@@ -41,6 +42,9 @@ export default function HowToUseHandiSection() {
             <button
               type="button"
               onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.sessionStorage.setItem(STORAGE_KEY, "pending");
+                }
                 toast({
                   description: "Inicia sesión para solicitar tu servicio.",
                 });
