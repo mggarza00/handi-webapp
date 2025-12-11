@@ -3,8 +3,14 @@ import createClient from "@/utils/supabase/server";
 
 // import { z } from "zod";
 import { getUserOrThrow } from "@/lib/_supabase-server";
-import { filterProfessionalsByRequest, toNames } from "@/lib/professionals/filter";
-import { clearRequestProAlert, queueRequestProAlert } from "@/lib/request-pro-alerts";
+import {
+  filterProfessionalsByRequest,
+  toNames,
+} from "@/lib/professionals/filter";
+import {
+  clearRequestProAlert,
+  queueRequestProAlert,
+} from "@/lib/request-pro-alerts";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
 import { ProfileUpsertSchema } from "@/lib/validators/profiles";
 import type { Database } from "@/types/supabase";
@@ -28,14 +34,12 @@ export async function GET(req: Request) {
     // Público: no requerir sesión para explorar profesionales
     const supabase = createClient();
     let requestOwnerId: string | null = null;
-    let requestMeta:
-      | {
-          city: string | null;
-          category: string | null;
-          subcategories: unknown;
-          title: string | null;
-        }
-      | null = null;
+    let requestMeta: {
+      city: string | null;
+      category: string | null;
+      subcategories: unknown;
+      title: string | null;
+    } | null = null;
     if (requestId) {
       try {
         const { data: auth } = await supabase.auth.getUser();
@@ -46,7 +50,11 @@ export async function GET(req: Request) {
             .select("id, created_by, title, city, category, subcategories")
             .eq("id", requestId)
             .maybeSingle();
-          if (req && typeof req.created_by === "string" && req.created_by === userId) {
+          if (
+            req &&
+            typeof req.created_by === "string" &&
+            req.created_by === userId
+          ) {
             requestOwnerId = userId;
             requestMeta = {
               city: (req.city as string | null) ?? null,
@@ -64,7 +72,7 @@ export async function GET(req: Request) {
     const query = supabase
       .from("professionals_with_profile")
       .select(
-        "id, full_name, avatar_url, headline, bio, rating, is_featured, last_active_at, city, cities, categories, subcategories, active, empresa",
+        "id, full_name, avatar_url, headline, bio, rating, years_experience, is_featured, last_active_at, city, cities, categories, subcategories, active, empresa",
       )
       .or("active.is.true,active.is.null")
       .order("is_featured", { ascending: false })
@@ -83,7 +91,7 @@ export async function GET(req: Request) {
         const r = await admin
           .from("professionals_with_profile")
           .select(
-            "id, full_name, avatar_url, headline, bio, rating, is_featured, last_active_at, city, cities, categories, subcategories, active, empresa",
+            "id, full_name, avatar_url, headline, bio, rating, years_experience, is_featured, last_active_at, city, cities, categories, subcategories, active, empresa",
           )
           .or("active.is.true,active.is.null")
           .order("is_featured", { ascending: false })
@@ -101,7 +109,11 @@ export async function GET(req: Request) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "INTERNAL_ERROR";
         // Si falla el fallback admin (p. ej. falta SERVICE_ROLE), no interrumpir: responde vacío.
-        const payload = { ok: true, data: [] as unknown[], meta: wantDebug ? { source: "admin_error", error: msg } : undefined };
+        const payload = {
+          ok: true,
+          data: [] as unknown[],
+          meta: wantDebug ? { source: "admin_error", error: msg } : undefined,
+        };
         return NextResponse.json(payload, { status: 200, headers: JSONH });
       }
     }
@@ -143,11 +155,14 @@ export async function GET(req: Request) {
     // Mapea solo campos necesarios al cliente
     let mapped = pageItems.map((r) => {
       const x = r as Record<string, unknown>;
-      const rawRating = x.rating as unknown;
+      const rawRating =
+        (x.rating as unknown) ??
+        (x as any)?.profiles?.rating ??
+        (x as any)?.profile?.rating;
       let rating: number | null = null;
-      if (typeof rawRating === 'number') {
+      if (typeof rawRating === "number") {
         rating = rawRating;
-      } else if (typeof rawRating === 'string') {
+      } else if (typeof rawRating === "string") {
         const n = Number(rawRating);
         rating = Number.isFinite(n) ? n : null;
       }
@@ -159,25 +174,68 @@ export async function GET(req: Request) {
         bio: (x.bio as string | null) ?? null,
         rating,
         // Extra fields useful for client cards
+        years_experience:
+          typeof x.years_experience === "number" &&
+          Number.isFinite(x.years_experience)
+            ? (x.years_experience as number)
+            : null,
         categories: toNames(x.categories),
         subcategories: toNames(x.subcategories),
         city: (x.city as string | null) ?? null,
+        jobsDone: null as number | null,
       } as const;
     });
 
+    // Prefer rating de profiles.rating cuando falte
+    try {
+      const missingIds = mapped
+        .filter((m) => m.rating === null)
+        .map((m) => m.id);
+      if (missingIds.length) {
+        const profileRatings = new Map<string, number>();
+        try {
+          const admin = createServiceClient();
+          const pr = await admin
+            .from("profiles")
+            .select("id, rating")
+            .in("id", missingIds);
+          if (!pr.error && Array.isArray(pr.data)) {
+            for (const row of pr.data as any[]) {
+              const id = String((row as any).id ?? "");
+              const rt = Number((row as any).rating);
+              if (id && Number.isFinite(rt)) profileRatings.set(id, rt);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        if (profileRatings.size) {
+          mapped = mapped.map((m) =>
+            m.rating === null && profileRatings.has(m.id)
+              ? { ...m, rating: profileRatings.get(m.id) ?? null }
+              : m,
+          );
+        }
+      }
+    } catch {
+      /* ignore profile rating errors */
+    }
+
     // Fallback: if rating is null, compute average from public.ratings
     try {
-      const missingIds = mapped.filter((m) => m.rating === null).map((m) => m.id);
+      const missingIds = mapped
+        .filter((m) => m.rating === null)
+        .map((m) => m.id);
       if (missingIds.length) {
         // Prefer public client (RLS allows select) to avoid depending on SERVICE_ROLE
         let agg: Array<{ to_user_id: string; avg: unknown }> | null = null;
         try {
           const pub = createClient() as any;
           const r = await pub
-            .from('ratings')
-            .select('to_user_id, avg:avg(stars)')
-            .in('to_user_id', missingIds)
-            .group('to_user_id');
+            .from("ratings")
+            .select("to_user_id, avg:avg(stars)")
+            .in("to_user_id", missingIds)
+            .group("to_user_id");
           if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
         } catch {
           // fall back to service role below
@@ -186,10 +244,10 @@ export async function GET(req: Request) {
           try {
             const admin = createServiceClient() as any;
             const r = await admin
-              .from('ratings')
-              .select('to_user_id, avg:avg(stars)')
-              .in('to_user_id', missingIds)
-              .group('to_user_id');
+              .from("ratings")
+              .select("to_user_id, avg:avg(stars)")
+              .in("to_user_id", missingIds)
+              .group("to_user_id");
             if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
           } catch {
             // ignore
@@ -201,11 +259,66 @@ export async function GET(req: Request) {
             const n = Number((row as any).avg);
             if (Number.isFinite(n)) map.set(String((row as any).to_user_id), n);
           }
-          mapped = mapped.map((m) => (m.rating === null && map.has(m.id) ? { ...m, rating: map.get(m.id)! } : m));
+          mapped = mapped.map((m) =>
+            m.rating === null && map.has(m.id)
+              ? { ...m, rating: map.get(m.id)! }
+              : m,
+          );
         }
       }
     } catch {
       // ignore fallback errors; keep mapped as-is
+    }
+
+    // Servicios completados (agreements pagados o completados; fallback ratings count)
+    const fetchJobsDone = async (ids: string[]) => {
+      const map = new Map<string, number>();
+      if (!ids.length) return map;
+      try {
+        const admin = createServiceClient();
+        const a = await admin
+          .from("agreements")
+          .select("professional_id, count:count(*)")
+          .in("professional_id", ids)
+          .in("status", ["completed", "paid"])
+          .group("professional_id");
+        if (!a.error && Array.isArray(a.data)) {
+          for (const row of a.data as any[]) {
+            const id = String((row as any).professional_id ?? "");
+            const c = Number((row as any).count ?? 0);
+            if (id) map.set(id, c);
+          }
+        }
+        if (map.size === 0) {
+          const r = await admin
+            .from("ratings")
+            .select("to_user_id, count:count(*)")
+            .in("to_user_id", ids)
+            .group("to_user_id");
+          if (!r.error && Array.isArray(r.data)) {
+            for (const row of r.data as any[]) {
+              const id = String((row as any).to_user_id ?? "");
+              const c = Number((row as any).count ?? 0);
+              if (id) map.set(id, c);
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      return map;
+    };
+
+    try {
+      const ids = mapped.map((m) => m.id).filter(Boolean);
+      const jobsMap = await fetchJobsDone(ids);
+      if (jobsMap.size) {
+        mapped = mapped.map((m) =>
+          jobsMap.has(m.id) ? { ...m, jobsDone: jobsMap.get(m.id) ?? null } : m,
+        );
+      }
+    } catch {
+      // ignore job count errors
     }
 
     const metaCommon = {
@@ -324,9 +437,15 @@ export async function POST(req: Request) {
       }
       // Best-effort: sync profiles.full_name when provided
       try {
-        if (typeof input.full_name === "string" && input.full_name.trim().length >= 2) {
+        if (
+          typeof input.full_name === "string" &&
+          input.full_name.trim().length >= 2
+        ) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from("profiles").update({ full_name: input.full_name.trim() }).eq("id", user.id);
+          await (supabase as any)
+            .from("profiles")
+            .update({ full_name: input.full_name.trim() })
+            .eq("id", user.id);
         }
       } catch {
         // ignore
@@ -339,15 +458,24 @@ export async function POST(req: Request) {
 
     // Best-effort: sync profiles.full_name when provided
     try {
-      if (typeof input.full_name === "string" && input.full_name.trim().length >= 2) {
+      if (
+        typeof input.full_name === "string" &&
+        input.full_name.trim().length >= 2
+      ) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).from("profiles").update({ full_name: input.full_name.trim() }).eq("id", user.id);
+        await (supabase as any)
+          .from("profiles")
+          .update({ full_name: input.full_name.trim() })
+          .eq("id", user.id);
       }
     } catch {
       // ignore
     }
 
-    return NextResponse.json({ ok: true, id: upd?.id }, { status: 200, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, id: upd?.id },
+      { status: 200, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNAUTHORIZED";
     return NextResponse.json(

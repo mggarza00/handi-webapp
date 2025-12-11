@@ -71,6 +71,9 @@ export type ChatPanelProps = {
   requestBudget?: number | null;
   dataPrefix?: string; // e2e: chat | request-chat
   hideClientCtas?: boolean;
+  openOfferDialogSignal?: number;
+  offerPrefillTitle?: string | null;
+  offerPrefillAmount?: number | null;
 };
 const JSON_HEADER = {
   "Content-Type": "application/json; charset=utf-8",
@@ -171,6 +174,9 @@ export default function ChatPanel({
   requestBudget: requestBudgetProp,
   dataPrefix = "chat",
   hideClientCtas = false,
+  openOfferDialogSignal,
+  offerPrefillTitle,
+  offerPrefillAmount,
 }: ChatPanelProps): JSX.Element {
   const supabaseAuth = createSupabaseBrowser();
   const [open, setOpen] = React.useState(true);
@@ -223,6 +229,33 @@ export default function ChatPanel({
   const [offerSubmitting, setOfferSubmitting] = React.useState(false);
   // Pro: Quote (cotización formal)
   const [quoteOpen, setQuoteOpen] = React.useState(false);
+  const offerSignalRef = React.useRef<number | undefined>(
+    openOfferDialogSignal,
+  );
+  React.useEffect(() => {
+    if (openOfferDialogSignal === undefined) return;
+    if (offerSignalRef.current === openOfferDialogSignal) return;
+    offerSignalRef.current = openOfferDialogSignal;
+    const title =
+      (offerPrefillTitle && offerPrefillTitle.trim()) ||
+      (requestTitle && requestTitle.trim()) ||
+      "";
+    if (title) setOfferTitle(title);
+    if (
+      typeof offerPrefillAmount === "number" &&
+      Number.isFinite(offerPrefillAmount)
+    ) {
+      setOfferAmount(String(offerPrefillAmount));
+      setOfferAmountLocked(false);
+    }
+    setOfferCurrency("MXN");
+    setOfferDialogOpen(true);
+  }, [
+    offerPrefillAmount,
+    offerPrefillTitle,
+    openOfferDialogSignal,
+    requestTitle,
+  ]);
   // Pro: Onsite quote request
   const [onsiteOpen, setOnsiteOpen] = React.useState(false);
   const [onsiteDate, setOnsiteDate] = React.useState<string>("");
