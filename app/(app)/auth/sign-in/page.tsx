@@ -28,8 +28,20 @@ export default function SignInPage() {
     const code = sp?.get("code");
     const status = sp?.get("status");
     if (err) {
-      if (code === "over_request_rate_limit" || status === "429" || /rate limit/i.test(err)) {
-        setError("Demasiados intentos al iniciar sesión. Espera 1–2 minutos e inténtalo de nuevo, o usa el enlace por correo.");
+      if (err === "missing_oauth_params") {
+        setError(
+          "El enlace que usaste es inválido o ya fue utilizado. Solicita un nuevo enlace para continuar.",
+        );
+        return;
+      }
+      if (
+        code === "over_request_rate_limit" ||
+        status === "429" ||
+        /rate limit/i.test(err)
+      ) {
+        setError(
+          "Demasiados intentos al iniciar sesión. Espera 1–2 minutos e inténtalo de nuevo, o usa el enlace por correo.",
+        );
       } else {
         setError(err);
       }
@@ -37,14 +49,15 @@ export default function SignInPage() {
   }, [sp]);
   // Optional toast guidance for flows arriving from CTA (only when not authenticated)
   useEffect(() => {
-  if (!sessionChecked || hasSession) return;
-  const t = sp?.get("toast");
-  if (t === "new-request") {
-    toast.info("Inicia sesión para crear una solicitud de servicio");
-  } else if (t === "pro-apply") {
-    toast.info("Inicia sesión para postularte como profesional");
-  }
-}, [sp, sessionChecked, hasSession]);  const next = useMemo(() => {
+    if (!sessionChecked || hasSession) return;
+    const t = sp?.get("toast");
+    if (t === "new-request") {
+      toast.info("Inicia sesión para crear una solicitud de servicio");
+    } else if (t === "pro-apply") {
+      toast.info("Inicia sesión para postularte como profesional");
+    }
+  }, [sp, sessionChecked, hasSession]);
+  const next = useMemo(() => {
     const n = sp?.get("next");
     if (n && n.startsWith("/")) return n;
     if (typeof window !== "undefined") {
@@ -61,7 +74,7 @@ export default function SignInPage() {
   const resolveBaseUrl = () => window.location.origin.replace(/\/$/, "");
 
   // If already authenticated, skip this page and go to `next`
-    // If already authenticated, skip this page and go to `next`; mark session state
+  // If already authenticated, skip this page and go to `next`; mark session state
   useEffect(() => {
     (async () => {
       try {
@@ -77,7 +90,8 @@ export default function SignInPage() {
         setSessionChecked(true);
       }
     })();
-  }, [next, router, supabase]);  const handleGoogle = async () => {
+  }, [next, router, supabase]);
+  const handleGoogle = async () => {
     setError(null);
     setGoogleLoading(true);
     const base = window.location.origin.replace(/\/$/, "");
@@ -88,7 +102,7 @@ export default function SignInPage() {
       },
     });
   };
-const handleFacebook = async () => {
+  const handleFacebook = async () => {
     setError(null);
     setFacebookLoading(true);
     const base = resolveBaseUrl();
@@ -109,10 +123,12 @@ const handleFacebook = async () => {
       const base = resolveBaseUrl();
       const pwd = password.trim();
       if (pwd.length > 0) {
-        const { error: passwordError } = await supabase.auth.signInWithPassword({
-          email,
-          password: pwd,
-        });
+        const { error: passwordError } = await supabase.auth.signInWithPassword(
+          {
+            email,
+            password: pwd,
+          },
+        );
         if (passwordError) throw passwordError;
         setPassword("");
         router.replace(next);
@@ -133,8 +149,8 @@ const handleFacebook = async () => {
         err instanceof Error
           ? err.message
           : typeof err === "string"
-          ? err
-          : "Error al iniciar sesión",
+            ? err
+            : "Error al iniciar sesión",
       );
     } finally {
       setSending(false);
@@ -173,7 +189,9 @@ const handleFacebook = async () => {
           ) : (
             <Image src="/icons/facebook.svg" width={18} height={18} alt="" />
           )}
-          <span>{facebookLoading ? "Redirigiendo" : "Ingresar con Facebook"}</span>
+          <span>
+            {facebookLoading ? "Redirigiendo" : "Ingresar con Facebook"}
+          </span>
         </Button>
 
         <div className="text-xs uppercase tracking-wide text-neutral-400 text-center my-4">
@@ -231,16 +249,12 @@ const handleFacebook = async () => {
         <div className="mt-6 border-t pt-4 text-xs text-neutral-500">
           <div className="flex items-center justify-between">
             <span>(c) {new Date().getFullYear()} Handi</span>
-            <a href="/" className="hover:underline">Inicio</a>
+            <a href="/" className="hover:underline">
+              Inicio
+            </a>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-
-
-
-
-

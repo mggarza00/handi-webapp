@@ -13,7 +13,8 @@ export async function GET(req: Request) {
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
-  const next = url.searchParams.get("next") || "/";
+  const rawNext = url.searchParams.get("next") || "/";
+  const next = rawNext.startsWith("/") ? rawNext : "/";
   // Preparar una respuesta donde se apliquen cookies (mirroring en redirect)
   const supabase = getRouteClient();
 
@@ -32,7 +33,12 @@ export async function GET(req: Request) {
       throw new Error("missing_oauth_params");
     }
 
-    await ensureProfile(supabase);
+    const role = await ensureProfile(supabase);
+    if (!role) {
+      const onboardingUrl = new URL("/onboarding/elige-rol", env.appUrl);
+      if (next) onboardingUrl.searchParams.set("next", next);
+      return NextResponse.redirect(onboardingUrl, { status: 302 });
+    }
   } catch (err) {
     const anyErr = err as unknown as {
       status?: number;
@@ -62,10 +68,12 @@ export async function GET(req: Request) {
   return NextResponse.redirect(new URL(next, env.appUrl), { status: 302 });
 }
 
-async function ensureProfile(supabase: SupabaseClient<Database>) {
+async function ensureProfile(
+  supabase: SupabaseClient<Database>,
+): Promise<"client" | "pro" | "admin" | null> {
   const { data } = await supabase.auth.getUser();
   const user = data.user ?? null;
-  if (!user) return;
+  if (!user) return null;
 
   type ProfileTable = Database["public"]["Tables"]["profiles"];
   type ProfileInsert = ProfileTable["Insert"];
@@ -84,6 +92,7 @@ async function ensureProfile(supabase: SupabaseClient<Database>) {
     typeof metadata.full_name === "string" ? metadata.full_name : null;
   const avatarUrl =
     typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
+  const email = typeof user.email === "string" ? user.email : null;
 
   const { data: existing, error } = await typedProfilesTable
     .select("id, role")
@@ -92,7 +101,7 @@ async function ensureProfile(supabase: SupabaseClient<Database>) {
 
   if (error) {
     console.error("[auth/callback] profile lookup failed", error.message);
-    return;
+    return null;
   }
 
   if (!existing) {
@@ -100,20 +109,22 @@ async function ensureProfile(supabase: SupabaseClient<Database>) {
       id: user.id,
       full_name: fullName,
       avatar_url: avatarUrl,
-      role: "client",
+      email,
     };
-    await typedProfilesTable.insert(payload);
-    return;
+    const { data: inserted } = await typedProfilesTable
+      .insert(payload)
+      .select("role")
+      .maybeSingle();
+    return (inserted?.role as "client" | "pro" | "admin" | null) ?? null;
   }
 
   const updatePayload: ProfileUpdate = {
     full_name: fullName,
     avatar_url: avatarUrl,
+    email,
   };
 
-  if (existing.role == null) {
-    updatePayload.role = "client";
-  }
-
   await typedProfilesTable.update(updatePayload).eq("id", user.id);
+
+  return (existing.role as "client" | "pro" | "admin" | null) ?? null;
 }
