@@ -18,7 +18,8 @@ type EmailPasswordFormProps = {
   showTitle?: boolean;
 };
 
-const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const isValidEmail = (value: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 const buildPasswordRequirements = (password: string): PasswordRequirement[] => [
   { label: "Al menos 8 caracteres", pass: password.length >= 8 },
@@ -43,7 +44,10 @@ export default function EmailPasswordForm({
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
   const [resetting, setResetting] = useState(false);
 
-  const { loading: authLoading, submit } = useEmailPasswordAuth({ next, onAuthSuccess });
+  const { loading: authLoading, submit } = useEmailPasswordAuth({
+    next,
+    onAuthSuccess,
+  });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const emailLooksValid = isValidEmail(email);
@@ -124,7 +128,9 @@ export default function EmailPasswordForm({
     }
     if (result.pendingEmailConfirmation) {
       setPendingConfirmation(true);
-      setInfo("Te enviamos un enlace para confirmar tu cuenta. Revisa tu correo.");
+      setInfo(
+        "Te enviamos un enlace para confirmar tu cuenta. Revisa tu correo.",
+      );
     }
   };
 
@@ -132,11 +138,17 @@ export default function EmailPasswordForm({
     const trimmed = email.trim();
     console.log("Forgot password clicked", trimmed);
     if (!trimmed) {
-      setError("Por favor escribe tu correo para enviarte el enlace de recuperación.");
+      setError(
+        "Por favor escribe tu correo para enviarte el enlace de recuperación.",
+      );
       setSuccessMessage(null);
       return;
     }
-    if (!isValidEmail(trimmed) || trimmed.length < 6 || isBlockedDomain(trimmed)) {
+    if (
+      !isValidEmail(trimmed) ||
+      trimmed.length < 6 ||
+      isBlockedDomain(trimmed)
+    ) {
       setError(
         "Usa un correo válido y evita dominios genéricos (ej: test.com, example.com, mailinator.com).",
       );
@@ -153,12 +165,18 @@ export default function EmailPasswordForm({
         body: JSON.stringify({ email: trimmed }),
       });
 
-      const data = (await res.json().catch(() => null)) as
-        | { success?: boolean; error?: string; message?: string }
-        | null;
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      } | null;
 
       if (!res.ok || data?.success !== true) {
-        console.error("Error from send-password-reset endpoint:", res.status, data);
+        console.error(
+          "Error from send-password-reset endpoint:",
+          res.status,
+          data,
+        );
         setError(
           data?.message ||
             data?.error ||
@@ -188,9 +206,12 @@ export default function EmailPasswordForm({
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
       {showTitle ? (
         <div className="space-y-1.5">
-          <h3 className="text-xl font-semibold text-slate-900">Accede con tu correo</h3>
+          <h3 className="text-xl font-semibold text-slate-900">
+            Accede con tu correo
+          </h3>
           <p className="text-sm text-slate-500">
-            Ingresa tu correo y contraseña para continuar. Si es tu primera vez, crea tu clave.
+            Ingresa tu correo y contraseña para continuar. Si es tu primera vez,
+            crea tu clave.
           </p>
         </div>
       ) : null}
@@ -219,7 +240,10 @@ export default function EmailPasswordForm({
       </div>
 
       <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700" htmlFor="password">
+        <label
+          className="text-sm font-medium text-slate-700"
+          htmlFor="password"
+        >
           Contraseña
         </label>
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 shadow-sm focus-within:border-[#0b835e]">
@@ -266,7 +290,9 @@ export default function EmailPasswordForm({
 
       {mode === "signup" ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="mb-2 text-sm font-semibold text-slate-700">Requisitos de contraseña</p>
+          <p className="mb-2 text-sm font-semibold text-slate-700">
+            Requisitos de contraseña
+          </p>
           <ul className="space-y-1.5 text-sm">
             {requirements.map((req) => (
               <li

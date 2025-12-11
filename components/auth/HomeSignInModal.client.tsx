@@ -46,5 +46,7 @@ export default function HomeSignInModal() {
     </div>
   );
 
-  return typeof document !== "undefined" ? createPortal(modal, document.body) : null;
+  return typeof document !== "undefined"
+    ? createPortal(modal, document.body)
+    : null;
 }

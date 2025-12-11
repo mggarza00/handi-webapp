@@ -21,7 +21,9 @@ export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [status, setStatus] = useState<"loading" | "ready" | "invalid">("loading");
+  const [status, setStatus] = useState<"loading" | "ready" | "invalid">(
+    "loading",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +48,10 @@ export default function ResetPasswordPage() {
             });
 
             if (setErr) {
-              console.error("Error setting session from recovery hash:", setErr);
+              console.error(
+                "Error setting session from recovery hash:",
+                setErr,
+              );
               setStatus("invalid");
               return;
             }
@@ -55,7 +60,8 @@ export default function ResetPasswordPage() {
           }
         }
 
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { data: userData, error: userError } =
+          await supabase.auth.getUser();
         if (!active) return;
         if (userError || !userData?.user) {
           console.error("No user found for reset-password:", userError);
@@ -94,7 +100,9 @@ export default function ResetPasswordPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
+      const { error: updateError } = await supabase.auth.updateUser({
+        password,
+      });
       if (updateError) throw updateError;
       toast.success("Tu contraseña se ha actualizado correctamente.");
       router.replace(next);
@@ -115,7 +123,9 @@ export default function ResetPasswordPage() {
       <div className="flex min-h-[70vh] items-center justify-center px-4">
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white px-6 py-8 shadow-sm">
           <Spinner />
-          <p className="text-sm text-slate-600">Cargando / validando enlace...</p>
+          <p className="text-sm text-slate-600">
+            Cargando / validando enlace...
+          </p>
         </div>
       </div>
     );
@@ -125,12 +135,18 @@ export default function ResetPasswordPage() {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">Enlace no válido</h1>
+          <h1 className="text-xl font-semibold text-slate-900">
+            Enlace no válido
+          </h1>
           <p className="mt-2 text-sm text-slate-600">
-            No encontramos un enlace de recuperación válido. Vuelve a solicitar el cambio de contraseña.
+            No encontramos un enlace de recuperación válido. Vuelve a solicitar
+            el cambio de contraseña.
           </p>
           <div className="mt-6">
-            <Button className="w-full" onClick={() => router.push("/auth/sign-in")}>
+            <Button
+              className="w-full"
+              onClick={() => router.push("/auth/sign-in")}
+            >
               Volver a iniciar sesión
             </Button>
           </div>
@@ -142,14 +158,20 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold text-slate-900">Restablecer contraseña</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">
+          Restablecer contraseña
+        </h1>
         <p className="mt-2 text-sm text-slate-600">
-          Escribe tu nueva contraseña para tu cuenta Handi. Debe cumplir con los siguientes requisitos.
+          Escribe tu nueva contraseña para tu cuenta Handi. Debe cumplir con los
+          siguientes requisitos.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700" htmlFor="password">
+            <label
+              className="text-sm font-medium text-slate-700"
+              htmlFor="password"
+            >
               Nueva contraseña
             </label>
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 shadow-sm focus-within:border-[#0b835e]">
@@ -173,7 +195,10 @@ export default function ResetPasswordPage() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700" htmlFor="confirm">
+            <label
+              className="text-sm font-medium text-slate-700"
+              htmlFor="confirm"
+            >
               Confirmar contraseña
             </label>
             <input
@@ -186,12 +211,16 @@ export default function ResetPasswordPage() {
               required
             />
             {!match && confirm.length > 0 ? (
-              <p className="text-xs text-red-600">Las contraseñas no coinciden.</p>
+              <p className="text-xs text-red-600">
+                Las contraseñas no coinciden.
+              </p>
             ) : null}
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="mb-2 text-sm font-semibold text-slate-700">Requisitos</p>
+            <p className="mb-2 text-sm font-semibold text-slate-700">
+              Requisitos
+            </p>
             <ul className="space-y-1.5 text-sm">
               {reqs.map((req) => (
                 <li

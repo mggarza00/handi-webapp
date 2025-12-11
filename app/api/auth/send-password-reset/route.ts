@@ -22,7 +22,10 @@ export async function POST(req: Request) {
     }
     if (email.length < 6 || isBlockedDomain(email)) {
       return NextResponse.json(
-        { success: false, message: "Usa un correo válido y evita dominios genéricos." },
+        {
+          success: false,
+          message: "Usa un correo válido y evita dominios genéricos.",
+        },
         { status: 400, headers: JSONH },
       );
     }
@@ -41,7 +44,10 @@ export async function POST(req: Request) {
         hasAppUrl: !!appUrl,
       });
       return NextResponse.json(
-        { success: false, message: "Configuración de correo incompleta en el servidor." },
+        {
+          success: false,
+          message: "Configuración de correo incompleta en el servidor.",
+        },
         { status: 500, headers: JSONH },
       );
     }
@@ -59,7 +65,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: error?.message || "No se pudo generar el enlace de recuperación.",
+          message:
+            error?.message || "No se pudo generar el enlace de recuperación.",
         },
         { status: 500, headers: JSONH },
       );
@@ -79,7 +86,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "No pudimos enviar el correo de recuperación. Inténtalo de nuevo más tarde.",
+          message:
+            "No pudimos enviar el correo de recuperación. Inténtalo de nuevo más tarde.",
         },
         { status: 500, headers: JSONH },
       );
@@ -89,7 +97,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          message: "No pudimos enviar el correo de recuperación. Inténtalo de nuevo más tarde.",
+          message:
+            "No pudimos enviar el correo de recuperación. Inténtalo de nuevo más tarde.",
         },
         { status: 500, headers: JSONH },
       );
@@ -102,7 +111,10 @@ export async function POST(req: Request) {
       error instanceof Error
         ? error.message
         : "Error al enviar el correo de recuperación.";
-    return NextResponse.json({ success: false, message }, { status: 500, headers: JSONH });
+    return NextResponse.json(
+      { success: false, message },
+      { status: 500, headers: JSONH },
+    );
   }
 }
 

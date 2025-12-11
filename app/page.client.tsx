@@ -662,7 +662,8 @@ export default function Page({
                               ? {
                                   ...addr,
                                   label: addr.label ?? null,
-                                  address_place_id: addr.address_place_id ?? null,
+                                  address_place_id:
+                                    addr.address_place_id ?? null,
                                   lat: addr.lat ?? null,
                                   lng: addr.lng ?? null,
                                 }

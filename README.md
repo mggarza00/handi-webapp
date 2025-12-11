@@ -74,28 +74,33 @@ Copia `.env.example` a `.env.local` y rellena:
 Notas iOS: Web Push requiere iOS 16.4+ con Safari y “Añadir a pantalla de inicio”. Si el permiso está denegado, el botón muestra un tip para habilitarlo desde el candado de la barra de direcciones.
 
 Endpoints canónicos para Web Push:
+
 - Canonical: `/api/push/*` (`/api/push/subscribe`, `/api/push/send`)
 - Compatibilidad: `/api/web-push/*` re-exporta a `/api/push/*`
 
 ## Handi Webapp · Arranque y Debug
 
 ### Next.js (recomendado)
+
 - Desarrollo: `npm run dev` (VS Code: F5 → "Debug Next.js (npm run dev)")
 - Build: `npm run build`
 - Start: `npm run start`
 
 ### Deno (opcional)
+
 - Script demo: `scripts/deno/hello.ts`
 - Debug: F5 → "Debug Deno (scripts/deno/hello.ts)"
 - Nota: En Deno 2 ya no existe `--unstable` global. Usa flags `--unstable-*` solo si ocupas APIs específicas.
 
 ## Supabase local
+
 - Instala Docker Desktop y asegurate de que el daemon este ejecutandose antes de usar los comandos de supabase.
 - Ejecuta `npx supabase start` en la raiz del repo para levantar los contenedores locales.
 - Verifica el estado con `npx supabase status`; si ves `The system cannot find the file specified` o `Make sure you've run 'supabase start'!` significa que Docker Desktop no esta activo.
 - Cuando termines, deten los servicios con `npx supabase stop`.
 
 ## Revisión automática de CSS/UI
+
 - `npm run review:ui`: typecheck + lint (soft-fail) + capturas con Playwright + Lighthouse.
 - Capturas: `snapshots/*.png` y resumen `snapshots/ui-review.json`.
 - Rutas por defecto: home (guest), requests y mensajes (client), dashboard pro y admin, `/design-check`.
@@ -104,18 +109,20 @@ Endpoints canónicos para Web Push:
 - Reportes Lighthouse: `artifacts/lhci/*.html` (config en `lighthouserc.cjs`).
 
 ## Revisión UI asistida (artefactos para agente)
+
 - Configura targets en `scripts/ui-revision.targets.json`.
 - Genera PNG + HTML por target: `npm run ui:revise` o `npm run ui:revise -- --target=home-guest`.
 - Artefactos: `artifacts/ui-revision/<target>/iter-<n>/`. Ver docs en `docs/REVISION_UI_AUTOMATION.md`.
 
 ## E2E con Playwright (dev/CI)
+
 - Ruta de **mock de rol** (solo dev/CI): `/api/test-auth/:role` con `role` en `guest|client|professional|admin`.
- - La UI debe exponer testids en el header:
-   - Invitado: `data-testid="btn-login"`
-  - Autenticado: `data-testid="avatar"`
-  - Cliente: `data-testid="nav-client"`
-  - Profesional: `data-testid="nav-professional"`
-  - Admin: `data-testid="nav-admin"`
+- La UI debe exponer testids en el header:
+  - Invitado: `data-testid="btn-login"`
+- Autenticado: `data-testid="avatar"`
+- Cliente: `data-testid="nav-client"`
+- Profesional: `data-testid="nav-professional"`
+- Admin: `data-testid="nav-admin"`
 - Ajusta los selectores en `tests/e2e/navbar-roles.spec.ts` si usas otros.
 
 ## Subida de Fotos de Solicitudes (requests-photos)
@@ -148,7 +155,14 @@ Endpoints canónicos para Web Push:
   ```tsx
   import PhotoUploader from "@/components/PhotoUploader";
   // Dentro de una página de solicitud
-  <PhotoUploader requestId={request.id} onComplete={(items) => { /* refrescar vista */ }} />
+  <PhotoUploader
+    requestId={request.id}
+    onComplete={(items) => {
+      /* refrescar vista */
+    }}
+  />;
+  ```
+
 ````
 
 Notas:
@@ -491,3 +505,4 @@ Si notas sesiones inconsistentes tras la migración a cookies base64, ejecuta un
 ```
 _dmarc  TXT  v=DMARC1; p=none; rua=mailto:dmarc@handi.mx;
 ```
+````

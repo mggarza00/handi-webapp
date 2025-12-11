@@ -2,7 +2,13 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 
 import EmailPasswordForm from "@/components/auth/EmailPasswordForm";
@@ -28,7 +34,10 @@ const FeatureBullet = ({ children }: { children: ReactNode }) => (
   </li>
 );
 
-export function SignInFlowCard({ onClose, variant = "page" }: SignInFlowCardProps) {
+export function SignInFlowCard({
+  onClose,
+  variant = "page",
+}: SignInFlowCardProps) {
   const router = useRouter();
   const sp = useSearchParams();
   const supabase = useMemo(() => createSupabaseBrowser(), []);
@@ -68,7 +77,11 @@ export function SignInFlowCard({ onClose, variant = "page" }: SignInFlowCardProp
       );
       return;
     }
-    if (code === "over_request_rate_limit" || status === "429" || /rate limit/i.test(err)) {
+    if (
+      code === "over_request_rate_limit" ||
+      status === "429" ||
+      /rate limit/i.test(err)
+    ) {
       setError(
         "Demasiados intentos al iniciar sesión. Espera 1-2 minutos e inténtalo de nuevo, o usa el enlace por correo.",
       );
@@ -129,7 +142,9 @@ export function SignInFlowCard({ onClose, variant = "page" }: SignInFlowCardProp
     } catch (err) {
       setGoogleLoading(false);
       setError(
-        err instanceof Error ? err.message : "No se pudo iniciar sesión con Google en este momento.",
+        err instanceof Error
+          ? err.message
+          : "No se pudo iniciar sesión con Google en este momento.",
       );
     }
   };
@@ -167,8 +182,12 @@ export function SignInFlowCard({ onClose, variant = "page" }: SignInFlowCardProp
               Conecta con expertos de confianza.
             </p>
             <ul className="space-y-3">
-              <FeatureBullet>Categorías desde mantenimiento hasta cuidado para personas.</FeatureBullet>
-              <FeatureBullet>Expertos certificados y aprobados por Handi.</FeatureBullet>
+              <FeatureBullet>
+                Categorías desde mantenimiento hasta cuidado para personas.
+              </FeatureBullet>
+              <FeatureBullet>
+                Expertos certificados y aprobados por Handi.
+              </FeatureBullet>
               <FeatureBullet>Pagos 100% protegidos.</FeatureBullet>
             </ul>
           </div>
@@ -181,8 +200,12 @@ export function SignInFlowCard({ onClose, variant = "page" }: SignInFlowCardProp
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#0b835e]">
                 Paso {step === "method" ? "1" : "2"} de 2
               </p>
-              <h2 className="text-2xl font-semibold text-slate-900">Inicia sesión o crea tu cuenta</h2>
-              <p className="text-sm text-slate-500">Selecciona cómo quieres continuar</p>
+              <h2 className="text-2xl font-semibold text-slate-900">
+                Inicia sesión o crea tu cuenta
+              </h2>
+              <p className="text-sm text-slate-500">
+                Selecciona cómo quieres continuar
+              </p>
             </div>
 
             {step === "method" ? (
@@ -196,7 +219,13 @@ export function SignInFlowCard({ onClose, variant = "page" }: SignInFlowCardProp
                   {googleLoading ? (
                     <Spinner />
                   ) : (
-                    <Image src="/icons/google.svg" width={20} height={20} alt="" aria-hidden />
+                    <Image
+                      src="/icons/google.svg"
+                      width={20}
+                      height={20}
+                      alt=""
+                      aria-hidden
+                    />
                   )}
                   <span className="ml-2 font-medium">
                     {googleLoading ? "Redirigiendo..." : "Continuar con Google"}

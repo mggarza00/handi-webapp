@@ -16,16 +16,26 @@ type AuthResult =
   | { ok: true; pendingEmailConfirmation?: boolean }
   | { ok: false; error: string };
 
-export function useEmailPasswordAuth({ next, onAuthSuccess }: UseEmailPasswordAuthArgs) {
+export function useEmailPasswordAuth({
+  next,
+  onAuthSuccess,
+}: UseEmailPasswordAuthArgs) {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const submit = async (mode: EmailAuthMode, email: string, password: string): Promise<AuthResult> => {
+  const submit = async (
+    mode: EmailAuthMode,
+    email: string,
+    password: string,
+  ): Promise<AuthResult> => {
     setLoading(true);
     try {
       if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
         if (error) throw error;
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });

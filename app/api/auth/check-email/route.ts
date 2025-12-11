@@ -11,7 +11,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ exists: false }, { headers: JSONH });
     }
 
-    const { email } = (await req.json().catch(() => ({}))) as { email?: string };
+    const { email } = (await req.json().catch(() => ({}))) as {
+      email?: string;
+    };
     const normalizedEmail = (email || "").trim().toLowerCase();
     const emailRegex = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
     if (!emailRegex.test(normalizedEmail)) {
@@ -32,8 +34,12 @@ export async function POST(req: Request) {
 
     if (typeof adminApi.getUserByEmail === "function") {
       const { data, error } = await adminApi.getUserByEmail(normalizedEmail);
-      if (error) return NextResponse.json({ exists: false }, { headers: JSONH });
-      return NextResponse.json({ exists: Boolean(data?.user) }, { headers: JSONH });
+      if (error)
+        return NextResponse.json({ exists: false }, { headers: JSONH });
+      return NextResponse.json(
+        { exists: Boolean(data?.user) },
+        { headers: JSONH },
+      );
     }
 
     // Fallback: list users and match by email (best-effort, small page)
@@ -43,7 +49,9 @@ export async function POST(req: Request) {
     })) || { data: null, error: null };
     if (error) return NextResponse.json({ exists: false }, { headers: JSONH });
     const match =
-      data?.users?.some((u) => (u.email || "").toLowerCase() === normalizedEmail) ?? false;
+      data?.users?.some(
+        (u) => (u.email || "").toLowerCase() === normalizedEmail,
+      ) ?? false;
     return NextResponse.json({ exists: match }, { headers: JSONH });
   } catch {
     return NextResponse.json({ exists: false }, { headers: JSONH });
