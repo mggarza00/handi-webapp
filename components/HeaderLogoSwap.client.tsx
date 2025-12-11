@@ -2,13 +2,16 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 
 type Props = {
   href: string;
   className?: string;
   width?: number;
   height?: number;
+  /** When true, swap logo only on landing (/) while over hero; elsewhere keep default */
+  swapOnLanding?: boolean;
 };
 
 export default function HeaderLogoSwap({
@@ -16,11 +19,22 @@ export default function HeaderLogoSwap({
   className,
   width = 128,
   height = 128,
+  swapOnLanding = false,
 }: Props) {
+  const pathname = usePathname();
+  const enableSwap = useMemo(
+    () => swapOnLanding && pathname === "/",
+    [swapOnLanding, pathname],
+  );
   const [overHero, setOverHero] = useState(true);
 
   useEffect(() => {
-    const hero = document.getElementById("hero-client") ?? document.getElementById("hero");
+    if (!enableSwap) {
+      setOverHero(false);
+      return;
+    }
+    const hero =
+      document.getElementById("hero-client") ?? document.getElementById("hero");
     if (!hero) return;
 
     const observer = new IntersectionObserver(
@@ -37,16 +51,15 @@ export default function HeaderLogoSwap({
 
     observer.observe(hero);
     return () => observer.disconnect();
-  }, []);
+  }, [enableSwap]);
 
-  const logoSrc = overHero ? "/images/LOGO_HEADER_B.png" : "/images/LOGO_HEADER_DB.png";
+  const logoSrc =
+    enableSwap && overHero
+      ? "/images/LOGO_HEADER_B.png"
+      : "/images/LOGO_HEADER_DB.png";
 
   return (
-    <Link
-      href={href}
-      className={className}
-      aria-label="Handi inicio"
-    >
+    <Link href={href} className={className} aria-label="Handi inicio">
       <Image
         src={logoSrc}
         alt="Handi"

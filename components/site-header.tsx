@@ -428,6 +428,7 @@ export default async function SiteHeader() {
             {/* Logo: centrado en mÃ³vil, alineado a la izquierda en desktop */}
             <HeaderLogoSwap
               href={leftHref}
+              swapOnLanding={!isAuth}
               className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
               width={128}
               height={128}
@@ -534,28 +535,21 @@ export default async function SiteHeader() {
             ) : null}
 
             {role === "pro" ? (
-              <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-2">
-                {rightLinks
-                  .filter(
-                    (l) =>
-                      l.href === "/requests/explore" ||
-                      l.href === "/pro/calendar" ||
-                      l.href === "/applied",
-                  )
-                  .map((l) => (
-                    <Button
-                      key={l.href}
-                      asChild
-                      size={l.size ?? "sm"}
-                      variant={l.variant ?? "ghost"}
-                      className={[l.className, "w-[12.32rem] justify-center"]
-                        .filter(Boolean)
-                        .join(" ")}
-                    >
+              <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
+                <div className="flex items-center gap-2 rounded-full bg-black/20 px-2.5 py-1.5 backdrop-blur">
+                  {rightLinks
+                    .filter(
+                      (l) =>
+                        l.href === "/requests/explore" ||
+                        l.href === "/pro/calendar" ||
+                        l.href === "/applied",
+                    )
+                    .map((l) => (
                       <Link
+                        key={l.href}
                         href={l.href}
                         data-testid={l.testId}
-                        className={`inline-flex items-center gap-2 whitespace-nowrap`}
+                        className="inline-flex items-center gap-2 rounded-full px-4 py-1 text-sm font-normal font-[var(--font-stack-sans-text)] text-white hover:bg-white hover:text-[#0C2555] whitespace-nowrap"
                       >
                         {l.href === "/requests/explore" ? (
                           <Image
@@ -582,10 +576,26 @@ export default async function SiteHeader() {
                             className="h-8 w-8"
                           />
                         ) : null}
-                        <span>{l.label}</span>
+                        <span className="text-center leading-tight w-full">
+                          {l.href === "/requests/explore" ? (
+                            <>
+                              Trabajos
+                              <br />
+                              disponibles
+                            </>
+                          ) : l.href === "/applied" ? (
+                            <>
+                              Trabajos
+                              <br />
+                              realizados
+                            </>
+                          ) : (
+                            l.label
+                          )}
+                        </span>
                       </Link>
-                    </Button>
-                  ))}
+                    ))}
+                </div>
               </div>
             ) : null}
 

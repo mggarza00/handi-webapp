@@ -5,12 +5,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/use-toast";
 
 type CardType = "client" | "pro";
 
 export default function HowToUseHandiSection() {
   const router = useRouter();
   const [hoveredCard, setHoveredCard] = useState<CardType | null>(null);
+  const STORAGE_KEY = "handi:auto-open-request-wizard";
 
   return (
     <section className="bg-[#F5F7FA] py-12 md:py-16">
@@ -39,13 +41,19 @@ export default function HowToUseHandiSection() {
 
             <button
               type="button"
-              onClick={() => router.push("/requests/new")}
-              className="inline-flex items-center justify-center rounded-full px-6 py-2.5 text-xs font-medium text-white md:text-sm translate-y-3"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  window.sessionStorage.setItem(STORAGE_KEY, "pending");
+                }
+                toast({
+                  description: "Inicia sesión para solicitar tu servicio.",
+                });
+                router.push("/auth/sign-in?role=client");
+              }}
+              className="inline-flex items-center justify-center rounded-full px-6 py-2.5 text-xs font-medium text-white md:text-sm translate-y-3 bg-[#082877] shadow-[0_16px_36px_-14px_rgba(0,0,0,0.45),0_6px_16px_-12px_rgba(0,0,0,0.35)] transition-[transform,box-shadow,filter] duration-200 ease-out transform scale-[0.85] hover:scale-[0.88] hover:shadow-[0_22px_42px_-16px_rgba(0,0,0,0.55),0_10px_20px_-10px_rgba(0,0,0,0.35)] hover:brightness-105 active:scale-[0.84] active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5A9EF6]"
               style={{
-                backgroundColor: "#082877",
                 fontFamily:
                   '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-                transform: "scale(0.85)",
               }}
             >
               Solicitar servicio

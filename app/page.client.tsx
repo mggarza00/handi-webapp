@@ -14,6 +14,7 @@ import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
+import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 const stackSansMedium = localFont({
@@ -214,6 +215,20 @@ export default function Page({
     }
     setSelectedAddress((current) => current ?? savedAddresses[0] ?? null);
   }, [savedAddresses]);
+
+  useEffect(() => {
+    if (!isClientVariant) return;
+    if (typeof window === "undefined") return;
+    const STORAGE_KEY = "handi:auto-open-request-wizard";
+    const shouldAutoOpen =
+      window.sessionStorage.getItem(STORAGE_KEY) === "pending";
+    if (!shouldAutoOpen) return;
+    window.sessionStorage.removeItem(STORAGE_KEY);
+    const timer = window.setTimeout(() => {
+      openCreateRequestWizard();
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [isClientVariant]);
 
   useEffect(() => {
     let isMounted = true;
@@ -568,14 +583,17 @@ export default function Page({
   );
 
   const heroClient = (
-    <div style={{ marginTop: heroMarginTop }} className="px-[2.625rem]">
+    <div
+      style={{ marginTop: heroMarginTop }}
+      className="px-4 pb-8 sm:px-[2.625rem]"
+    >
       <div className="mx-auto max-w-6xl rounded-3xl bg-white shadow-sm overflow-hidden px-0">
         <section
           id="hero-client"
-          className="relative isolate overflow-hidden bg-slate-900 text-white"
+          className="client-hero relative isolate overflow-hidden bg-slate-900 text-white"
         >
           <div className="relative w-full">
-            <div className="relative aspect-[16/9] w-full md:aspect-[21/9] min-h-[420px] md:min-h-[480px] lg:min-h-[520px] xl:min-h-[560px]">
+            <div className="client-hero__visual relative w-full min-h-[400px] sm:aspect-[16/9] sm:min-h-[480px] md:aspect-[21/9] md:min-h-[520px] lg:min-h-[560px] xl:min-h-[600px] max-h-[880px]">
               <Image
                 src="/images/ac305e5695416fe62abbe78d5ed7297e99cebbfa (1).jpg"
                 alt="Cliente Handi en casa"
@@ -585,60 +603,60 @@ export default function Page({
                 priority
               />
               <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/45 to-black/20" />
-              <div className="absolute left-6 top-2 max-w-xl md:left-[96px] md:top-[60px] lg:top-[70px]">
-                <h1
-                  className={`${stackSansMedium.className} text-3xl leading-tight sm:text-4xl`}
-                >
-                  <span
-                    className={`${stackSansExtraLight.className} leading-tight text-[26px] sm:text-[32px] tracking-[-0.02em] font-light text-white`}
-                    style={{ fontFamily: '"Stack Sans Text", sans-serif' }}
-                  >
-                    {greetingFirstWord}
-                  </span>
-                  <span
-                    className={`${interLight.className} text-[26px] sm:text-[32px] leading-tight tracking-[-0.02em] font-light`}
-                  >
-                    ,
-                  </span>{" "}
-                  <span
-                    className={`${stackSansLight.className} font-light text-white`}
-                    style={{ fontFamily: '"Stack Sans Text", sans-serif' }}
-                  >
-                    {greetingRest}
-                  </span>
-                </h1>
-              </div>
-              <div className="absolute left-6 top-32 max-w-xl md:left-[96px] md:top-[210px] lg:top-[230px]">
-                <div className="flex flex-col gap-6">
-                  <p
-                    className={`${stackSansMedium.className} max-w-2xl text-white`}
-                    ref={heroClientTitleRef}
-                    style={{
-                      fontFamily:
-                        '"Stack Sans Text", system-ui, -apple-system, "Segoe UI", sans-serif',
-                      fontWeight: 400,
-                      fontStyle: "normal",
-                      fontSize: "50px",
-                      lineHeight: "106%",
-                      letterSpacing: "0%",
-                    }}
+              <div className="absolute inset-0 flex h-full flex-col justify-center px-6 py-8 md:block md:px-0 md:py-0">
+                <div className="md:absolute md:left-[96px] md:top-[60px] lg:top-[70px] absolute left-6 top-6 sm:static sm:left-auto sm:top-auto">
+                  <h1
+                    className={`${stackSansMedium.className} text-2xl leading-tight sm:text-4xl`}
                   >
                     <span
-                      className={`${stackSansLight.className} block leading-[1.06] font-thin`}
+                      className={`${stackSansExtraLight.className} leading-tight text-[22px] sm:text-[32px] tracking-[-0.02em] font-light text-white`}
+                      style={{ fontFamily: '"Stack Sans Text", sans-serif' }}
                     >
-                      Profesionales
+                      {greetingFirstWord}
                     </span>
-                    <span className="block leading-[1.06]">a tu alcance</span>
-                  </p>
-                  <div className="mt-10 md:mt-12">
-                    <HeroClientActions
-                      ctaLabel="Solicitar un servicio"
-                      addresses={savedAddresses}
-                      selectedAddress={selectedAddress}
-                      onAddressChange={setSelectedAddress}
-                      triggerClassName={`btn-contratar ${stackSansMedium.className}`}
-                      showPill={false}
-                    />
+                    <span
+                      className={`${interLight.className} text-[22px] sm:text-[32px] leading-tight tracking-[-0.02em] font-light`}
+                    >
+                      ,
+                    </span>{" "}
+                    <span
+                      className={`${stackSansLight.className} font-light text-white`}
+                      style={{ fontFamily: '"Stack Sans Text", sans-serif' }}
+                    >
+                      {greetingRest}
+                    </span>
+                  </h1>
+                </div>
+                <div className="md:absolute md:left-[96px] md:top-[210px] lg:top-[230px] mb-8 md:mb-0">
+                  <div className="flex flex-col gap-4">
+                    <p
+                      ref={heroClientTitleRef}
+                      style={{
+                        fontFamily:
+                          '"Stack Sans Text", system-ui, -apple-system, "Segoe UI", sans-serif',
+                        fontWeight: 400,
+                        fontStyle: "normal",
+                        letterSpacing: "0%",
+                      }}
+                      className={`${stackSansMedium.className} max-w-2xl text-white text-[38px] sm:text-[50px] leading-[1.06]`}
+                    >
+                      <span
+                        className={`${stackSansLight.className} block leading-[1.06] font-thin`}
+                      >
+                        Profesionales
+                      </span>
+                      <span className="block leading-[1.06]">a tu alcance</span>
+                    </p>
+                    <div className="mt-[70px] md:mt-12">
+                      <HeroClientActions
+                        ctaLabel="Solicitar un servicio"
+                        addresses={savedAddresses}
+                        selectedAddress={selectedAddress}
+                        onAddressChange={setSelectedAddress}
+                        triggerClassName={`btn-contratar ${stackSansMedium.className}`}
+                        showPill={false}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -648,7 +666,7 @@ export default function Page({
                 selectedAddress={selectedAddress}
                 onAddressChange={setSelectedAddress}
                 showButton={false}
-                addressPillClassName="absolute bottom-6 right-6 z-20 md:bottom-8 md:right-10"
+                addressPillClassName="absolute bottom-6 right-6 z-20 -mt-20 md:mt-0 md:bottom-8 md:right-10"
               />
               <div className="hero-payment-badge absolute inset-0 pointer-events-none hidden md:block">
                 <PaymentProtectionBadge />
@@ -758,7 +776,7 @@ export default function Page({
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
           {(topCategoryCards.length > 0 ? topCategoryCards : categoryCards)
             .slice(0, 9)
             .map((cat) => {
@@ -1004,6 +1022,24 @@ export default function Page({
           {trustSection}
         </>
       )}
+      <style jsx global>{`
+        :root {
+          --hero-header-height: 64px;
+          --hero-tabbar-height: 72px;
+          --hero-padding: 24px;
+        }
+        @media (width <= 768px) {
+          .client-hero__visual {
+            min-height: calc(
+              100vh - var(--hero-header-height) - var(--hero-tabbar-height) -
+                (2 * var(--hero-padding))
+            );
+            padding-bottom: calc(
+              var(--hero-padding) + env(safe-area-inset-bottom, 0px)
+            );
+          }
+        }
+      `}</style>
     </main>
   );
 }
