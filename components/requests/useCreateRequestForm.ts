@@ -420,7 +420,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   // Autoclasificación (wrapper simplificado: usa endpoint "classify-request")
   const [aiConfidence, setAiConfidence] = useState<number | null>(null);
   const classifyAbortRef = useRef<AbortController | null>(null);
-  const classifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const classifyTimeoutRef = useRef<number | null>(null);
   const classifyRequestIdRef = useRef(0);
 
   const clearClassifyTimeout = useCallback(() => {

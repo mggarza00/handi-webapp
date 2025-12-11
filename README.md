@@ -453,3 +453,41 @@ Si notas sesiones inconsistentes tras la migración a cookies base64, ejecuta un
 1. Limpia datos del sitio en tu navegador (Chrome → Application → Storage → Clear site data).
 2. Crea temporalmente una Server Action que llame a `await expireLegacyAuthCookie()` de `lib/supabase/expire-legacy-auth-cookie.ts` y luego elimínala.
 3. Reinicia el servidor de Next.js.
+
+## Solución a error de TypeScript en npm run check
+
+- Asegúrate de usar Node 20: `nvm use` (el repo incluye `.nvmrc` con `20`).
+- Limpieza rápida:
+  - `rm -rf node_modules pnpm-lock.yaml`
+  - `pnpm install`
+  - `pnpm run check`
+- TypeScript está fijado en la versión estable `5.6.3` para evitar el fallo de `tsc` observado con versiones más recientes.
+
+## Reset de contraseña (Supabase)
+
+- El enlace de recuperación debe redirigir a `/auth/reset-password` (ej: `http://localhost:3000/auth/reset-password` en local).
+- En Supabase Console → Auth → URL Configuration, agrega las URLs de `/auth/reset-password` (local y producción) en Redirect URLs permitidas.
+
+## Configurar Resend SMTP para Supabase
+
+- Genera credenciales SMTP en Resend (Dashboard → Settings → SMTP) y copia host/puerto/usuario/contraseña; si usas dominio propio, configura los registros DNS que indica Resend.
+- En Supabase Dashboard → Auth → SMTP settings, pega las variables:
+  - `SUPABASE_SMTP_HOST=smtp.resend.com`
+  - `SUPABASE_SMTP_PORT=587`
+  - `SUPABASE_SMTP_USERNAME=resend`
+  - `SUPABASE_SMTP_PASSWORD=<tu contraseña SMTP de Resend>`
+  - `SUPABASE_SMTP_SENDER="Handi <no-reply@handi.mx>"`
+- Supabase seguirá enviando automáticamente los correos de autenticación (sign-up, reset, magic links) usando Resend como transport SMTP.
+
+## Configuración de Resend para emails de reset password
+
+- Crea una API Key en Resend y guárdala en `RESEND_API_KEY`. Define el remitente para estos correos en `PASSWORD_RESET_FROM_EMAIL` (ej: `"Handi <no-reply@handi.mx>"`).
+- Define la URL base donde vive tu app en `PASSWORD_RESET_APP_URL` (ej: `https://handi.mx`); el enlace de recuperación apunta a `/auth/reset-password`.
+- En Supabase Console → Auth → URL Configuration, incluye las URLs de `/auth/reset-password` (local y prod) en Redirect URLs permitidas.
+- El endpoint interno `/api/auth/send-password-reset` genera el enlace con el service role y envía el correo vía Resend usando la plantilla HTML dedicada.
+
+### Ejemplo de registro DMARC recomendado
+
+```
+_dmarc  TXT  v=DMARC1; p=none; rua=mailto:dmarc@handi.mx;
+```

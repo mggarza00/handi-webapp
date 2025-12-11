@@ -16,10 +16,16 @@ type TweenLike = {
   kill?: () => void;
   scrollTrigger?: {
     kill?: () => void;
+    trigger?: Element | null;
+    vars?: { trigger?: Element | null };
   };
 };
 type ScrollTriggerInstance = {
-  getAll?: () => Array<{ kill?: () => void }>;
+  getAll?: () => Array<{
+    kill?: () => void;
+    trigger?: Element | null;
+    vars?: { trigger?: Element | null };
+  }>;
 };
 type ScrollTriggerModule = {
   ScrollTrigger?: ScrollTriggerInstance;
@@ -28,6 +34,7 @@ type ScrollTriggerModule = {
 type GsapModule = {
   gsap: {
     registerPlugin?: (plugin: unknown) => void;
+    set: (targets: HTMLElement[] | HTMLElement, vars: TweenVars) => void;
     to: (targets: HTMLElement[] | HTMLElement, vars: TweenVars) => TweenLike;
   };
 };

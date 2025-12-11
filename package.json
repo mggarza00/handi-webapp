@@ -37,7 +37,7 @@
     "lint:admin": "eslint app/admin/layout.tsx app/admin/page.tsx app/admin/offers/**/*.tsx app/admin/requests/**/*.tsx app/admin/professionals/**/*.tsx app/admin/clients/**/*.tsx app/admin/payments/**/*.tsx app/admin/settings/**/*.tsx app/admin/system/**/*.tsx app/admin/[...stub]/page.tsx app/api/admin/metrics/**/*.ts app/api/admin/requests/**/*.ts app/api/admin/professionals/**/*.ts app/api/admin/clients/**/*.ts app/api/admin/payments/**/*.ts app/api/admin/webhooks/**/*.ts app/api/admin/audit/**/*.ts app/api/admin/settings/**/*.ts app/api/admin/offers/**/*.ts components/admin/**/*.tsx components/RoleGate.tsx components/ui/table.tsx hooks/use-admin-auth.ts --max-warnings=0",
     "check:admin": "tsc -p tsconfig.json --noEmit && npm run lint:admin",
     "review:ui": "node scripts/ui-review.mjs",
-    "check": "npm run typecheck && npm run lint",
+    "check": "next lint && tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "prepare": "husky install",
     "test:e2e": "playwright test",
@@ -93,6 +93,9 @@
     "audit:assets": "node scripts/audit-large-assets.mjs",
     "audit:raw": "node scripts/audit-raw-strings.mjs",
     "audit:webpack": "npm run -s audit:assets && npm run -s audit:raw"
+  },
+  "engines": {
+    "node": ">=18 <23"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
@@ -196,7 +199,7 @@
     "tailwindcss": "^4.1.11",
     "tsx": "^4.19.0",
     "tw-animate-css": "^1.3.7",
-    "typescript": "^5.9.2",
+    "typescript": "5.6.3",
     "vitest": "^3.2.4"
   },
   "postcss": {

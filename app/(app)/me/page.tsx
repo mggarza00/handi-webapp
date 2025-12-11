@@ -136,7 +136,9 @@ export default async function MePage() {
           .join(", ")
       : "—";
 
-  const agreements = (agreementsData ?? []) as AgreementWithRelations[];
+  const agreements = Array.isArray(agreementsData)
+    ? (agreementsData as unknown as AgreementWithRelations[])
+    : [];
   const totalJobs = agreements.length;
   const completedJobs = agreements.filter(
     (a) => a.status === "completed",
@@ -158,7 +160,7 @@ export default async function MePage() {
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-[280px,minmax(0,1fr)]">
         <div className="space-y-4">
           <InfoCard
-            email={user.email}
+            email={user.email ?? null}
             city={city}
             categoriesLabel={categoriesLabel}
             subcategoriesLabel={subcategoriesLabel}

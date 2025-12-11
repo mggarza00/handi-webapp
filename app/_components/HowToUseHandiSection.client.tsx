@@ -46,6 +46,7 @@ export default function HowToUseHandiSection() {
                   window.sessionStorage.setItem(STORAGE_KEY, "pending");
                 }
                 toast({
+                  title: "Inicia sesión",
                   description: "Inicia sesión para solicitar tu servicio.",
                 });
                 router.push("/auth/sign-in?role=client");
