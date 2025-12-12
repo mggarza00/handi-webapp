@@ -82,6 +82,123 @@ export async function POST(req: Request) {
           const scheduledTimeMeta = (
             (session.metadata as any)?.scheduled_time || ""
           ).trim();
+          const nowIso = new Date().toISOString();
+
+          const ensureAgreement = async (args: {
+            requestId?: string | null;
+            professionalId?: string | null;
+            amount?: unknown;
+            scheduledDate?: string | null;
+            scheduledTime?: string | null;
+            agreementIdHint?: string | null;
+          }): Promise<string | null> => {
+            const requestId = (args.requestId || "").trim();
+            const professionalId = (args.professionalId || "").trim();
+            if (!requestId || !professionalId) return null;
+            const amtRaw = Number(args.amount ?? NaN);
+            const amount = Number.isFinite(amtRaw) ? amtRaw : null;
+            const scheduledDate = args.scheduledDate || null;
+            const scheduledTime = args.scheduledTime || null;
+
+            // If agreementIdHint exists, try to mark it paid first (idempotent)
+            if (args.agreementIdHint) {
+              try {
+                const { data: agrById } = await admin
+                  .from("agreements")
+                  .update({
+                    status: "paid",
+                    updated_at: nowIso,
+                    ...(amount !== null ? { amount } : {}),
+                    ...(scheduledDate ? { scheduled_date: scheduledDate } : {}),
+                    ...(scheduledTime ? { scheduled_time: scheduledTime } : {}),
+                  })
+                  .eq("id", args.agreementIdHint)
+                  .select("id")
+                  .maybeSingle();
+                if (agrById?.id) return agrById.id as string;
+              } catch {
+                /* ignore */
+              }
+            }
+
+            // Check existing by request/pro (respect UNIQUE)
+            try {
+              const { data: existing } = await admin
+                .from("agreements")
+                .select("id,status,scheduled_date,scheduled_time")
+                .eq("request_id", requestId)
+                .eq("professional_id", professionalId)
+                .maybeSingle();
+              if (existing?.id) {
+                const patch: Record<string, unknown> = { updated_at: nowIso };
+                const st = String((existing as any).status || "").toLowerCase();
+                if (!(st === "in_progress" || st === "completed"))
+                  patch.status = "paid" as any;
+                if (amount !== null) patch.amount = amount;
+                if (scheduledDate) {
+                  if (!(existing as any)?.scheduled_date)
+                    patch.scheduled_date = scheduledDate;
+                  // TODO: si se desea sobrescribir fecha existente cuando cambie, definir política.
+                }
+                if (scheduledTime) {
+                  if (!(existing as any)?.scheduled_time)
+                    patch.scheduled_time = scheduledTime;
+                  // TODO: igual para hora: definir si se sobreescribe en cambios posteriores.
+                }
+                if (Object.keys(patch).length > 1) {
+                  try {
+                    await admin
+                      .from("agreements")
+                      .update(patch)
+                      .eq("id", existing.id);
+                  } catch {
+                    /* ignore update */
+                  }
+                }
+                return existing.id as string;
+              }
+            } catch {
+              /* ignore select */
+            }
+
+            // Insert (upsert) respecting UNIQUE(request_id, professional_id)
+            try {
+              const { data: ins } = await (admin as any)
+                .from("agreements")
+                .upsert(
+                  {
+                    request_id: requestId,
+                    professional_id: professionalId,
+                    amount,
+                    status: "paid" as any,
+                    scheduled_date: scheduledDate || null,
+                    scheduled_time: scheduledTime || null,
+                    created_at: nowIso,
+                    updated_at: nowIso,
+                  },
+                  { onConflict: "request_id,professional_id" },
+                )
+                .select("id")
+                .maybeSingle();
+              if (ins?.id) return ins.id as string;
+            } catch (e: unknown) {
+              const msg = (e as any)?.message || "";
+              if (typeof msg === "string" && msg.includes("duplicate key")) {
+                try {
+                  const { data: existing } = await admin
+                    .from("agreements")
+                    .select("id")
+                    .eq("request_id", requestId)
+                    .eq("professional_id", professionalId)
+                    .maybeSingle();
+                  if (existing?.id) return existing.id as string;
+                } catch {
+                  /* ignore */
+                }
+              }
+            }
+            return null;
+          };
           let payment_intent_id: string | null =
             typeof session.payment_intent === "string"
               ? session.payment_intent
@@ -553,7 +670,7 @@ export async function POST(req: Request) {
               const { data: off } = await admin
                 .from("offers")
                 .select(
-                  "id, conversation_id, client_id, professional_id, service_date",
+                  "id, conversation_id, client_id, professional_id, service_date, amount",
                 )
                 .eq("id", offerId)
                 .single();
@@ -618,12 +735,16 @@ export async function POST(req: Request) {
                     | undefined;
                   if (requestId) {
                     requestIdTouched = requestId;
-                    // Actualiza estado a in_process, pro asignado y fecha/hora
+                    // Actualiza estado a in_process/scheduled, pro asignado y fecha/hora
                     let patch: Record<string, unknown> = {
                       status: "in_process",
                       is_explorable: false,
                       visible_in_explore: false,
                     } as any;
+                    const amountNumber =
+                      typeof (off as any)?.amount === "number"
+                        ? (off as any).amount
+                        : null;
                     if (proId) {
                       try {
                         (patch as any).professional_id = proId;
@@ -653,6 +774,28 @@ export async function POST(req: Request) {
                         /* ignore parse */
                       }
                     }
+                    if ((patch as any).scheduled_date)
+                      (patch as any).status = "scheduled";
+                    const scheduleDateUsed =
+                      ((patch as any).scheduled_date as string | undefined) ||
+                      null;
+                    const scheduleTimeUsed =
+                      ((patch as any).scheduled_time as string | undefined) ||
+                      null;
+                    try {
+                      const agreementIdEnsured = await ensureAgreement({
+                        requestId,
+                        professionalId: proId,
+                        amount: amountNumber,
+                        scheduledDate: scheduleDateUsed,
+                        scheduledTime: scheduleTimeUsed,
+                        agreementIdHint: (patch as any)?.agreement_id ?? null,
+                      });
+                      if (agreementIdEnsured)
+                        (patch as any).agreement_id = agreementIdEnsured;
+                    } catch {
+                      /* ignore agreement upsert errors */
+                    }
                     try {
                       if (!(patch as any).scheduled_date) {
                         try {
@@ -670,6 +813,8 @@ export async function POST(req: Request) {
                           /* ignore */
                         }
                       }
+                      if ((patch as any).scheduled_date)
+                        (patch as any).status = "scheduled";
                       await admin
                         .from("requests")
                         .update(patch)
@@ -760,15 +905,13 @@ export async function POST(req: Request) {
                       scheduled_date,
                       scheduled_time,
                     };
-                    await admin
-                      .from("messages")
-                      .insert({
-                        conversation_id: convId,
-                        sender_id: clientId,
-                        body: body || "Detalles de servicio",
-                        message_type: "system",
-                        payload: payload2,
-                      });
+                    await admin.from("messages").insert({
+                      conversation_id: convId,
+                      sender_id: clientId,
+                      body: body || "Detalles de servicio",
+                      message_type: "system",
+                      payload: payload2,
+                    });
                     try {
                       const { notifyChatMessageByConversation } = await import(
                         "@/lib/chat-notifier"
@@ -798,59 +941,64 @@ export async function POST(req: Request) {
 
           const agreementId = (session.metadata?.agreement_id || "").trim();
           if (agreementId) {
-            const { data: agr } = await admin
-              .from("agreements")
-              .update({ status: "paid" })
-              .eq("id", agreementId)
-              .select("id, request_id")
-              .single();
-            if (agr?.request_id) {
-              requestIdTouched = agr.request_id as any;
-              try {
-                await admin
-                  .from("requests")
-                  // Idempotente: marca como in_process
-                  .update({
-                    status: "in_process" as any,
-                    is_explorable: false as any,
-                    visible_in_explore: false as any,
-                  })
-                  .eq("id", agr.request_id);
-              } catch {
-                /* ignore */
-              }
-              // Enviar mensaje con dirección si existe conversación
-              try {
-                const { data: agrRow } = await admin
-                  .from("agreements")
-                  .select("id, professional_id, request_id")
-                  .eq("id", agreementId)
-                  .single();
-                const proId = (agrRow as any)?.professional_id as
-                  | string
-                  | undefined;
-                let convId: string | null = null;
-                if (proId) {
-                  const { data: conv } = await admin
-                    .from("conversations")
-                    .select("id")
-                    .eq("request_id", agr.request_id)
-                    .eq("pro_id", proId)
-                    .limit(1);
-                  if (Array.isArray(conv) && conv.length)
-                    convId = (conv[0] as any).id as string;
+            try {
+              // Intentar marcar el agreement por id y, si no existe, usar request/pro
+              const { data: agr } = await admin
+                .from("agreements")
+                .update({ status: "paid" })
+                .eq("id", agreementId)
+                .select("id, request_id, professional_id")
+                .maybeSingle();
+              const reqId =
+                (agr as any)?.request_id || requestIdFromMeta || null;
+              const proResolved =
+                (agr as any)?.professional_id ?? proIdFromMeta ?? null;
+              const scheduleFromMeta = (() => {
+                const sd: string | null = scheduledDateMeta || null;
+                const st: string | null = (scheduledTimeMeta as any) || null;
+                return { sd, st };
+              })();
+              const agreementIdEnsured = await ensureAgreement({
+                requestId: reqId,
+                professionalId: proResolved,
+                amount: service_cents ? service_cents / 100 : undefined,
+                scheduledDate: scheduleFromMeta.sd,
+                scheduledTime: scheduleFromMeta.st,
+                agreementIdHint: agreementId,
+              });
+              if (reqId) {
+                requestIdTouched = reqId as any;
+                const patchReq: Record<string, unknown> = {
+                  status: scheduleFromMeta.sd
+                    ? ("scheduled" as any)
+                    : ("in_process" as any),
+                  is_explorable: false as any,
+                  visible_in_explore: false as any,
+                  agreement_id: agreementIdEnsured ?? agreementId,
+                  updated_at: new Date().toISOString(),
+                };
+                if (proResolved) {
+                  (patchReq as any).professional_id = proResolved;
+                  (patchReq as any).accepted_professional_id = proResolved;
                 }
-                const { data: reqRow } = await admin
-                  .from("requests")
-                  .select(
-                    "title,created_by,address_line,address_place_id,address_lat,address_lng,scheduled_date,scheduled_time",
-                  )
-                  .eq("id", agr.request_id)
-                  .single();
-                const clientId = (reqRow as any)?.created_by as
-                  | string
-                  | undefined;
-                if (convId && clientId) {
+                if (scheduleFromMeta.sd)
+                  (patchReq as any).scheduled_date = scheduleFromMeta.sd;
+                if (scheduleFromMeta.st)
+                  (patchReq as any).scheduled_time = scheduleFromMeta.st;
+                try {
+                  await admin.from("requests").update(patchReq).eq("id", reqId);
+                } catch {
+                  /* ignore request patch */
+                }
+                // Mensaje + calendario
+                try {
+                  const { data: reqRow } = await admin
+                    .from("requests")
+                    .select(
+                      "title,created_by,address_line,address_place_id,address_lat,address_lng,scheduled_date,scheduled_time,required_at",
+                    )
+                    .eq("id", reqId)
+                    .single();
                   const address_line = (reqRow as any)?.address_line as
                     | string
                     | null;
@@ -860,25 +1008,41 @@ export async function POST(req: Request) {
                   const address_lng = (reqRow as any)?.address_lng as
                     | number
                     | null;
-                  const scheduled_date = (reqRow as any)?.scheduled_date as
+                  const clientId = (reqRow as any)?.created_by as
                     | string
-                    | null;
-                  const scheduled_time = (reqRow as any)?.scheduled_time as
-                    | string
-                    | null;
-                  const reqTitle =
-                    ((reqRow as any)?.title as string | undefined) ||
-                    "Servicio";
-                  // Upsert calendar event (best effort)
+                    | undefined;
+                  const finalDate =
+                    scheduleFromMeta.sd ||
+                    (reqRow as any)?.scheduled_date ||
+                    (reqRow as any)?.required_at ||
+                    null;
+                  const finalTime =
+                    scheduleFromMeta.st ||
+                    (reqRow as any)?.scheduled_time ||
+                    null;
+                  let convId: string | null = null;
+                  if (proResolved) {
+                    const { data: conv } = await admin
+                      .from("conversations")
+                      .select("id")
+                      .eq("request_id", reqId)
+                      .eq("pro_id", proResolved)
+                      .limit(1);
+                    if (Array.isArray(conv) && conv.length)
+                      convId = (conv[0] as any).id as string;
+                  }
+                  // Upsert calendar
                   try {
-                    if (proId) {
+                    if (proResolved) {
                       await (admin as any).from("pro_calendar_events").upsert(
                         {
-                          pro_id: proId,
-                          request_id: agr.request_id,
-                          title: reqTitle,
-                          scheduled_date: scheduled_date || null,
-                          scheduled_time: scheduled_time || null,
+                          pro_id: proResolved,
+                          request_id: reqId,
+                          title:
+                            ((reqRow as any)?.title as string | undefined) ||
+                            "Servicio",
+                          scheduled_date: finalDate || null,
+                          scheduled_time: finalTime || null,
                           status: "scheduled",
                         },
                         { onConflict: "request_id" },
@@ -887,58 +1051,63 @@ export async function POST(req: Request) {
                   } catch {
                     /* ignore calendar errors */
                   }
-                  const mapsUrl =
-                    address_lat != null && address_lng != null
-                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address_lat},${address_lng}`)}`
-                      : address_line
-                        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address_line)}`
-                        : null;
-                  const pubToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || null;
-                  const mapImg =
-                    pubToken && address_lat != null && address_lng != null
-                      ? `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-l+ff0000(${address_lng},${address_lat})/${address_lng},${address_lat},15/600x300@2x?access_token=${encodeURIComponent(pubToken)}`
-                      : null;
-                  const whenStr = scheduled_date
-                    ? `${scheduled_date}${scheduled_time ? ` ${scheduled_time}` : ""}`
-                    : null;
-                  const body = [
-                    address_line ? `Dirección: ${address_line}` : null,
-                    whenStr ? `Día y horario: ${whenStr}` : null,
-                    mapsUrl ? `Abrir en Google Maps: ${mapsUrl}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join("\n");
-                  const payload2: Record<string, unknown> = {
-                    agreement_id: agreementId,
-                    type: "schedule_details",
-                    address_line,
-                    coords:
+                  if (convId && clientId) {
+                    const mapsUrl =
                       address_lat != null && address_lng != null
-                        ? { lat: address_lat, lng: address_lng }
-                        : null,
-                    map_image_url: mapImg,
-                    maps_url: mapsUrl,
-                    scheduled_date,
-                    scheduled_time,
-                  };
-                  await admin
-                    .from("messages")
-                    .insert({
+                        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address_lat},${address_lng}`)}`
+                        : address_line
+                          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address_line)}`
+                          : null;
+                    const pubToken =
+                      process.env.NEXT_PUBLIC_MAPBOX_TOKEN || null;
+                    const mapImg =
+                      pubToken && address_lat != null && address_lng != null
+                        ? `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-l+ff0000(${address_lng},${address_lat})/${address_lng},${address_lat},15/600x300@2x?access_token=${encodeURIComponent(pubToken)}`
+                        : null;
+                    const whenStr = finalDate
+                      ? `${finalDate}${finalTime ? ` ${finalTime}` : ""}`
+                      : null;
+                    const body = [
+                      address_line ? `Dirección: ${address_line}` : null,
+                      whenStr ? `Día y horario: ${whenStr}` : null,
+                      mapsUrl ? `Abrir en Google Maps: ${mapsUrl}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join("\n");
+                    const payload2: Record<string, unknown> = {
+                      agreement_id: agreementIdEnsured ?? agreementId,
+                      type: "schedule_details",
+                      address_line,
+                      coords:
+                        address_lat != null && address_lng != null
+                          ? { lat: address_lat, lng: address_lng }
+                          : null,
+                      map_image_url: mapImg,
+                      maps_url: mapsUrl,
+                      scheduled_date: finalDate,
+                      scheduled_time: finalTime,
+                    };
+                    await admin.from("messages").insert({
                       conversation_id: convId,
                       sender_id: clientId,
                       body: body || "Detalles de servicio",
                       message_type: "system",
                       payload: payload2,
                     });
-                  try {
-                    revalidatePath("/pro/calendar");
-                    revalidateTag("pro-calendar");
-                    revalidatePath(`/mensajes/${convId}`);
-                  } catch {
-                    /* ignore */
+                    try {
+                      revalidatePath("/pro/calendar");
+                      revalidateTag("pro-calendar");
+                      revalidatePath(`/mensajes/${convId}`);
+                    } catch {
+                      /* ignore */
+                    }
                   }
+                } catch {
+                  /* ignore messaging */
                 }
-              } catch {}
+              }
+            } catch {
+              /* ignore agreement branch errors */
             }
           }
 
@@ -950,15 +1119,18 @@ export async function POST(req: Request) {
                 status: "in_process" as any,
                 is_explorable: false as any,
                 visible_in_explore: false as any,
+                updated_at: new Date().toISOString(),
               };
               if (proIdFromMeta) {
                 (patchReq as any).professional_id = proIdFromMeta;
                 (patchReq as any).accepted_professional_id = proIdFromMeta;
               }
+              if (agreementId) (patchReq as any).agreement_id = agreementId;
               if (scheduledDateMeta) {
                 (patchReq as any).scheduled_date = scheduledDateMeta;
                 if (scheduledTimeMeta)
                   (patchReq as any).scheduled_time = scheduledTimeMeta as any;
+                (patchReq as any).status = "scheduled" as any;
               }
               try {
                 if (!(patchReq as any).scheduled_date) {
@@ -971,6 +1143,9 @@ export async function POST(req: Request) {
                   if (!sd) sd = (r0 as any)?.required_at || null;
                   if (!sd) sd = new Date().toISOString().slice(0, 10);
                   (patchReq as any).scheduled_date = sd;
+                }
+                if ((patchReq as any).scheduled_date) {
+                  (patchReq as any).status = "scheduled" as any;
                 }
                 await admin
                   .from("requests")
@@ -1063,18 +1238,16 @@ export async function POST(req: Request) {
                   const paidBody = whenStr
                     ? `Pago confirmado. Servicio agendado para ${whenStr}`
                     : "Pago realizado. Servicio agendado.";
-                  await admin
-                    .from("messages")
-                    .insert({
-                      conversation_id: convId,
-                      sender_id: clientId,
-                      body: paidBody,
-                      message_type: "system",
-                      payload: {
-                        request_id: requestIdFromMeta,
-                        status: "paid",
-                      },
-                    } as any);
+                  await admin.from("messages").insert({
+                    conversation_id: convId,
+                    sender_id: clientId,
+                    body: paidBody,
+                    message_type: "system",
+                    payload: {
+                      request_id: requestIdFromMeta,
+                      status: "paid",
+                    },
+                  } as any);
                   try {
                     const { notifyChatMessageByConversation } = await import(
                       "@/lib/chat-notifier"
@@ -1111,15 +1284,13 @@ export async function POST(req: Request) {
                   scheduled_date,
                   scheduled_time,
                 };
-                await admin
-                  .from("messages")
-                  .insert({
-                    conversation_id: convId,
-                    sender_id: clientId,
-                    body: body || "Detalles de servicio",
-                    message_type: "system",
-                    payload: payload2,
-                  });
+                await admin.from("messages").insert({
+                  conversation_id: convId,
+                  sender_id: clientId,
+                  body: body || "Detalles de servicio",
+                  message_type: "system",
+                  payload: payload2,
+                });
                 try {
                   const { notifyChatMessageByConversation } = await import(
                     "@/lib/chat-notifier"
@@ -1236,7 +1407,7 @@ export async function POST(req: Request) {
               const { data: offRow } = await admin
                 .from("offers")
                 .select(
-                  "conversation_id, client_id, professional_id, service_date",
+                  "conversation_id, client_id, professional_id, service_date, amount",
                 )
                 .eq("id", offerId)
                 .maybeSingle();
