@@ -203,6 +203,8 @@ export default function ChatPanel({
   const [requestId, setRequestId] = React.useState<string | null>(
     requestIdProp ?? null,
   );
+  const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
+  const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
   const [budget, setBudget] = React.useState<number | null>(
     typeof requestBudgetProp === "number" && Number.isFinite(requestBudgetProp)
       ? requestBudgetProp
@@ -509,9 +511,6 @@ export default function ChatPanel({
       }
     })();
   }, [userId]);
-  // Request meta
-  const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
-  const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
   const load = React.useCallback(
     async (withSpinner = true) => {
       if (!conversationId) return;
@@ -1215,6 +1214,43 @@ export default function ChatPanel({
       }>(res);
       if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "No se pudo crear la oferta");
+      }
+
+      // Best-effort: asegurar que exista un agreement para conteo/seguimiento
+      try {
+        if (requestId && participants?.pro_id) {
+          const proId = participants.pro_id;
+          const agreeUrl = `/api/requests/${encodeURIComponent(requestId)}/agreements`;
+          const existing = await fetch(agreeUrl, {
+            headers,
+            cache: "no-store",
+            credentials: "include",
+          });
+          const existingJson = await parseJsonSafe<{
+            data?: Array<{ professional_id?: string }>;
+          }>(existing);
+          const hasOne =
+            existing.ok &&
+            Array.isArray(existingJson?.data) &&
+            existingJson?.data?.some(
+              (a) => (a?.professional_id as string | undefined) === proId,
+            );
+          if (!hasOne) {
+            await fetch(`/api/agreements`, {
+              method: "POST",
+              headers,
+              credentials: "include",
+              body: JSON.stringify({
+                request_id: requestId,
+                professional_id: proId,
+                amount: Number(amountValue.toFixed(2)),
+                status: "negotiating",
+              }),
+            }).catch(() => undefined);
+          }
+        }
+      } catch {
+        /* ignore agreement creation errors */
       }
 
       // Optimistic offer message so it appears immediately
