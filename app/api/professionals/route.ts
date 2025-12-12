@@ -5,6 +5,7 @@ import createClient from "@/utils/supabase/server";
 import { getUserOrThrow } from "@/lib/_supabase-server";
 import {
   filterProfessionalsByRequest,
+  toArray,
   toNames,
 } from "@/lib/professionals/filter";
 import {
@@ -16,6 +17,13 @@ import { ProfileUpsertSchema } from "@/lib/validators/profiles";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
+const normalizeKey = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
 // GET /api/professionals?city=Monterrey&category=Plomería&page=1
 export async function GET(req: Request) {
@@ -152,6 +160,32 @@ export async function GET(req: Request) {
 
     const totalCount = filtered.length;
     const pageItems = filtered.slice(offset, offset + limit);
+
+    // Build map subcategory name -> color
+    const subcatColors = new Map<string, string>();
+    try {
+      const admin = createServiceClient();
+      const { data: subRows } = await admin
+        .from("categories_subcategories")
+        .select("id, subcategory, color, color_hex");
+      for (const row of subRows || []) {
+        const rec = row as Record<string, unknown>;
+        const name =
+          rec.subcategory ??
+          rec["Subcategoría"] ??
+          rec["Subcategoria"] ??
+          rec["subcategory"] ??
+          rec["name"];
+        const color =
+          (rec.color as string | null | undefined) ??
+          (rec.color_hex as string | null | undefined);
+        const key = normalizeKey(name);
+        if (key && color) subcatColors.set(key, String(color).trim());
+      }
+    } catch {
+      // ignore color map errors
+    }
+
     // Mapea solo campos necesarios al cliente
     let mapped = pageItems.map((r) => {
       const x = r as Record<string, unknown>;
@@ -180,7 +214,38 @@ export async function GET(req: Request) {
             ? (x.years_experience as number)
             : null,
         categories: toNames(x.categories),
-        subcategories: toNames(x.subcategories),
+        subcategories: toArray(x.subcategories).map((value) => {
+          if (value && typeof value === "object") {
+            const rec = value as Record<string, unknown>;
+            const name =
+              typeof rec.name === "string"
+                ? rec.name
+                : typeof rec.subcategory === "string"
+                  ? rec.subcategory
+                  : typeof rec.label === "string"
+                    ? rec.label
+                    : "";
+            const rawColor =
+              (rec.color as string | null | undefined) ??
+              (rec.color_hex as string | null | undefined);
+            const key = normalizeKey(name);
+            const color =
+              rawColor && String(rawColor).trim()
+                ? String(rawColor).trim()
+                : key && subcatColors.has(key)
+                  ? subcatColors.get(key)!
+                  : null;
+            return name ? { name: name.trim(), color } : null;
+          }
+          if (typeof value === "string") {
+            const name = value.trim();
+            const key = normalizeKey(name);
+            const color =
+              key && subcatColors.has(key) ? subcatColors.get(key)! : null;
+            return name ? { name, color } : null;
+          }
+          return null;
+        }),
         city: (x.city as string | null) ?? null,
         jobsDone: null as number | null,
       } as const;

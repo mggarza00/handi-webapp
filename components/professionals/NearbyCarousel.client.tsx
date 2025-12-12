@@ -123,6 +123,46 @@ const normalizeColorValue = (value?: string | null) => {
   return raw.replace(/^['"]+|['"]+$/g, "");
 };
 
+const normalizeKey = (value?: string | null) =>
+  (value ?? "")
+    .toString()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+let subcatColorPromise: Promise<Map<string, string>> | null = null;
+async function loadSubcategoryColorMap(): Promise<Map<string, string>> {
+  if (subcatColorPromise) return subcatColorPromise;
+  subcatColorPromise = (async () => {
+    const map = new Map<string, string>();
+    try {
+      const res = await fetch("/api/catalog/categories", {
+        cache: "no-store",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      });
+      const j = await res.json().catch(() => null);
+      const rows = Array.isArray(j?.data)
+        ? (j.data as Array<Record<string, unknown>>)
+        : [];
+      for (const row of rows) {
+        const sub =
+          (row.subcategory as string | null | undefined)?.toString().trim() ??
+          "";
+        const color =
+          (row.color as string | null | undefined)?.toString().trim() ?? "";
+        if (!sub || !color) continue;
+        const key = normalizeKey(sub);
+        if (key) map.set(key, color);
+      }
+    } catch {
+      // ignore
+    }
+    return map;
+  })();
+  return subcatColorPromise;
+}
+
 const normalizeCategories = (value: unknown): string[] => {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -369,7 +409,40 @@ function SubcategoryChips({ items }: { items: Subcategory[] }) {
   );
 }
 
-function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
+export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
+  const [colorMap, setColorMap] = React.useState<Map<string, string> | null>(
+    null,
+  );
+  React.useEffect(() => {
+    let mounted = true;
+    loadSubcategoryColorMap().then((map) => {
+      if (mounted) setColorMap(map);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const subcategories = React.useMemo(() => {
+    const map = colorMap;
+    return (pro.subcategories || [])
+      .map((subcat) => {
+        const name = (subcat?.name ?? "").toString().trim();
+        if (!name) return null;
+        const explicitColor = normalizeColorValue(subcat.color);
+        const fallback =
+          (map &&
+            (map.get(normalizeKey(name)) ?? map.get(name.toLowerCase()))) ||
+          null;
+        return {
+          ...subcat,
+          name,
+          color: explicitColor || fallback || null,
+        };
+      })
+      .filter(Boolean) as Subcategory[];
+  }, [pro.subcategories, colorMap]);
+
   const ratingDisplay =
     typeof pro.rating === "number" && Number.isFinite(pro.rating)
       ? Number.isInteger(pro.rating)
@@ -380,10 +453,12 @@ function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
     typeof pro.jobsDone === "number" && pro.jobsDone >= 0
       ? pro.jobsDone.toString()
       : "—";
-  const yearsDisplay =
+  const years =
     typeof pro.years_experience === "number" && pro.years_experience > 0
-      ? `${pro.years_experience} años`
-      : "— años";
+      ? pro.years_experience
+      : null;
+  const yearsDisplay =
+    years != null ? `${years} ${years === 1 ? "año" : "años"}` : "— años";
 
   return (
     <div className="min-w-[220px] max-w-[220px] flex-shrink-0">
@@ -419,7 +494,7 @@ function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
             pro.bio ??
             "Categoría pendiente"}
         </div>
-        <SubcategoryChips items={pro.subcategories} />
+        <SubcategoryChips items={subcategories} />
         <div
           className={`mt-4 flex w-full items-center justify-between gap-3 text-center text-[10px] text-slate-500 ${interFont.className}`}
         >
@@ -564,3 +639,6 @@ export default function NearbyCarousel() {
     </div>
   );
 }
+
+export type { ProItem, NormalizedPro };
+export { normalizeProItem };
