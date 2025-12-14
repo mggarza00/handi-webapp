@@ -71,6 +71,9 @@ export type ChatPanelProps = {
   requestBudget?: number | null;
   dataPrefix?: string; // e2e: chat | request-chat
   hideClientCtas?: boolean;
+  openOfferDialogSignal?: number;
+  offerPrefillTitle?: string | null;
+  offerPrefillAmount?: number | null;
 };
 const JSON_HEADER = {
   "Content-Type": "application/json; charset=utf-8",
@@ -171,6 +174,9 @@ export default function ChatPanel({
   requestBudget: requestBudgetProp,
   dataPrefix = "chat",
   hideClientCtas = false,
+  openOfferDialogSignal,
+  offerPrefillTitle,
+  offerPrefillAmount,
 }: ChatPanelProps): JSX.Element {
   const supabaseAuth = createSupabaseBrowser();
   const [open, setOpen] = React.useState(true);
@@ -197,6 +203,8 @@ export default function ChatPanel({
   const [requestId, setRequestId] = React.useState<string | null>(
     requestIdProp ?? null,
   );
+  const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
+  const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
   const [budget, setBudget] = React.useState<number | null>(
     typeof requestBudgetProp === "number" && Number.isFinite(requestBudgetProp)
       ? requestBudgetProp
@@ -223,6 +231,33 @@ export default function ChatPanel({
   const [offerSubmitting, setOfferSubmitting] = React.useState(false);
   // Pro: Quote (cotización formal)
   const [quoteOpen, setQuoteOpen] = React.useState(false);
+  const offerSignalRef = React.useRef<number | undefined>(
+    openOfferDialogSignal,
+  );
+  React.useEffect(() => {
+    if (openOfferDialogSignal === undefined) return;
+    if (offerSignalRef.current === openOfferDialogSignal) return;
+    offerSignalRef.current = openOfferDialogSignal;
+    const title =
+      (offerPrefillTitle && offerPrefillTitle.trim()) ||
+      (requestTitle && requestTitle.trim()) ||
+      "";
+    if (title) setOfferTitle(title);
+    if (
+      typeof offerPrefillAmount === "number" &&
+      Number.isFinite(offerPrefillAmount)
+    ) {
+      setOfferAmount(String(offerPrefillAmount));
+      setOfferAmountLocked(false);
+    }
+    setOfferCurrency("MXN");
+    setOfferDialogOpen(true);
+  }, [
+    offerPrefillAmount,
+    offerPrefillTitle,
+    openOfferDialogSignal,
+    requestTitle,
+  ]);
   // Pro: Onsite quote request
   const [onsiteOpen, setOnsiteOpen] = React.useState(false);
   const [onsiteDate, setOnsiteDate] = React.useState<string>("");
@@ -476,9 +511,6 @@ export default function ChatPanel({
       }
     })();
   }, [userId]);
-  // Request meta
-  const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
-  const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
   const load = React.useCallback(
     async (withSpinner = true) => {
       if (!conversationId) return;
@@ -1182,6 +1214,43 @@ export default function ChatPanel({
       }>(res);
       if (!res.ok || json?.ok === false) {
         throw new Error(json?.error || "No se pudo crear la oferta");
+      }
+
+      // Best-effort: asegurar que exista un agreement para conteo/seguimiento
+      try {
+        if (requestId && participants?.pro_id) {
+          const proId = participants.pro_id;
+          const agreeUrl = `/api/requests/${encodeURIComponent(requestId)}/agreements`;
+          const existing = await fetch(agreeUrl, {
+            headers,
+            cache: "no-store",
+            credentials: "include",
+          });
+          const existingJson = await parseJsonSafe<{
+            data?: Array<{ professional_id?: string }>;
+          }>(existing);
+          const hasOne =
+            existing.ok &&
+            Array.isArray(existingJson?.data) &&
+            existingJson?.data?.some(
+              (a) => (a?.professional_id as string | undefined) === proId,
+            );
+          if (!hasOne) {
+            await fetch(`/api/agreements`, {
+              method: "POST",
+              headers,
+              credentials: "include",
+              body: JSON.stringify({
+                request_id: requestId,
+                professional_id: proId,
+                amount: Number(amountValue.toFixed(2)),
+                status: "negotiating",
+              }),
+            }).catch(() => undefined);
+          }
+        }
+      } catch {
+        /* ignore agreement creation errors */
       }
 
       // Optimistic offer message so it appears immediately

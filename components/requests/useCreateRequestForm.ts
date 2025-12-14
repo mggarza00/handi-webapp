@@ -134,12 +134,19 @@ export type CreateRequestFormApi = {
   removeFileAt: (index: number) => void;
   setOpenMap: (v: boolean) => void;
   setAddress: (v: string) => void;
-  pickAddress: (it: { address: string; city?: string | null; lat?: number | null; lon?: number | null }) => void;
+  pickAddress: (it: {
+    address: string;
+    city?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  }) => void;
   debouncedFetchAddr: (q: string) => void;
   categoriesList: string[];
   subcatOptions: { value: string; label: string; icon: string | null }[];
   setAddrOpen: (v: boolean) => void;
-  handleSubmit: (opts?: { onSuccess?: (newId?: string) => void }) => Promise<void>;
+  handleSubmit: (opts?: {
+    onSuccess?: (newId?: string) => void;
+  }) => Promise<void>;
 };
 
 type FormValues = {
@@ -180,7 +187,13 @@ export function useCreateRequestForm(): CreateRequestFormApi {
 
   // react-hook-form (used for drafts sync and setValue helpers)
   const form = useForm<FormValues>({
-    defaultValues: { city: "Monterrey", address: "", address_line: "", address_lat: null, address_lng: null },
+    defaultValues: {
+      city: "Monterrey",
+      address: "",
+      address_line: "",
+      address_lat: null,
+      address_lng: null,
+    },
     mode: "onChange",
     shouldUnregister: false,
   });
@@ -195,7 +208,9 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   }, []);
 
   const userId = me?.id ?? "anon";
-  useFormDraft<FormValues>(`draft:requests/new:${userId}`, watch, reset, { debounceMs: 400 });
+  useFormDraft<FormValues>(`draft:requests/new:${userId}`, watch, reset, {
+    debounceMs: 400,
+  });
 
   // Auth session tracking
   useEffect(() => {
@@ -203,9 +218,11 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     (async () => {
       const { data } = await supabaseBrowser.auth.getSession();
       setMe(data.session?.user ?? null);
-      const { data: sub } = supabaseBrowser.auth.onAuthStateChange((_e, session) => {
-        setMe(session?.user ?? null);
-      });
+      const { data: sub } = supabaseBrowser.auth.onAuthStateChange(
+        (_e, session) => {
+          setMe(session?.user ?? null);
+        },
+      );
       unsub = () => sub.subscription.unsubscribe();
     })();
     return () => {
@@ -218,68 +235,90 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   }, []);
 
   // City canonicalization helpers
-  const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}+/gu, "").toLowerCase().trim();
-  const CITIES_NORM = useMemo(() => new Map(CITIES.map((c) => [norm(c), c])), []);
-  const toCanon = useCallback((raw?: string | null) => {
-    const n = norm(String(raw ?? ""));
-    const direct = CITIES_NORM.get(n);
-    if (direct) return direct;
-    if (n.includes("garza garcia")) return "San Pedro Garza García" as const;
-    if (n.includes("san pedro")) return "San Pedro Garza García" as const;
-    if (n.includes("san nicolas")) return "San Nicolás" as const;
-    if (n.includes("general escobedo") || n.includes("escobedo")) return "Escobedo" as const;
-    if (n.includes("santa catarina")) return "Santa Catarina" as const;
-    if (n.includes("monterrey")) return "Monterrey" as const;
-    if (n.includes("guadalupe")) return "Guadalupe" as const;
-    if (n.includes("apodaca")) return "Apodaca" as const;
-    if (n.includes("garcia")) return "García" as const;
-    return null;
-  }, [CITIES_NORM]);
+  const norm = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/\p{Diacritic}+/gu, "")
+      .toLowerCase()
+      .trim();
+  const CITIES_NORM = useMemo(
+    () => new Map(CITIES.map((c) => [norm(c), c])),
+    [],
+  );
+  const toCanon = useCallback(
+    (raw?: string | null) => {
+      const n = norm(String(raw ?? ""));
+      const direct = CITIES_NORM.get(n);
+      if (direct) return direct;
+      if (n.includes("garza garcia")) return "San Pedro Garza García" as const;
+      if (n.includes("san pedro")) return "San Pedro Garza García" as const;
+      if (n.includes("san nicolas")) return "San Nicolás" as const;
+      if (n.includes("general escobedo") || n.includes("escobedo"))
+        return "Escobedo" as const;
+      if (n.includes("santa catarina")) return "Santa Catarina" as const;
+      if (n.includes("monterrey")) return "Monterrey" as const;
+      if (n.includes("guadalupe")) return "Guadalupe" as const;
+      if (n.includes("apodaca")) return "Apodaca" as const;
+      if (n.includes("garcia")) return "García" as const;
+      return null;
+    },
+    [CITIES_NORM],
+  );
 
-  const suggestCityUpdate = useCallback((maybeCity?: string | null) => {
-    const c = (maybeCity || "").toString().trim();
-    if (!c) return;
-    if (!(CITIES as ReadonlyArray<string>).includes(c)) return;
-    if (c === city) return;
-    try {
-      toast.info(`Detectamos ${c}. ¿Actualizar ciudad?`, {
-        action: {
-          label: "Actualizar",
-          onClick: () => {
-            setCityTouched(true);
-            setCity(c);
-            try {
-              setValue("city", c, { shouldDirty: true });
-            } catch (error) {
-              logFormError("set-city", error);
-            }
+  const suggestCityUpdate = useCallback(
+    (maybeCity?: string | null) => {
+      const c = (maybeCity || "").toString().trim();
+      if (!c) return;
+      if (!(CITIES as ReadonlyArray<string>).includes(c)) return;
+      if (c === city) return;
+      try {
+        toast.info(`Detectamos ${c}. ¿Actualizar ciudad?`, {
+          action: {
+            label: "Actualizar",
+            onClick: () => {
+              setCityTouched(true);
+              setCity(c);
+              try {
+                setValue("city", c, { shouldDirty: true });
+              } catch (error) {
+                logFormError("set-city", error);
+              }
+            },
           },
-        },
-      });
-    } catch (error) {
-      logFormError("toast-info", error);
-      if (typeof window !== "undefined" && window.confirm(`Detectamos ${c}. ¿Actualizar ciudad?`)) {
-        setCityTouched(true);
-        setCity(c);
-        try {
-          setValue("city", c, { shouldDirty: true });
-        } catch (err) {
-          logFormError("set-city-confirm", err);
+        });
+      } catch (error) {
+        logFormError("toast-info", error);
+        if (
+          typeof window !== "undefined" &&
+          window.confirm(`Detectamos ${c}. ¿Actualizar ciudad?`)
+        ) {
+          setCityTouched(true);
+          setCity(c);
+          try {
+            setValue("city", c, { shouldDirty: true });
+          } catch (err) {
+            logFormError("set-city-confirm", err);
+          }
         }
       }
-    }
-  }, [city, setValue]);
+    },
+    [city, setValue],
+  );
 
   // Address state
   const [address, setAddress] = useState<string>("");
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(
+    null,
+  );
   const [addressLine, setAddressLine] = useState<string>("");
   const [addressLat, setAddressLat] = useState<number | null>(null);
   const [addressLng, setAddressLng] = useState<number | null>(null);
   const [openMap, setOpenMap] = useState(false);
   const [addrOpen, setAddrOpen] = useState(false);
   const addrResolveBusy = false;
-  const [addrSuggestions, setAddrSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addrSuggestions, setAddrSuggestions] = useState<AddressSuggestion[]>(
+    [],
+  );
   const [recentAddrs] = useState<AddressSuggestion[]>([]);
   const addrDebounceRef = useRef<number | null>(null);
   const addrTouchedRef = useRef(false);
@@ -290,7 +329,10 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     let pos: GeolocationPosition | null = null;
     try {
       pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        const id = window.setTimeout(() => reject(new Error("GEO_TIMEOUT")), 5000);
+        const id = window.setTimeout(
+          () => reject(new Error("GEO_TIMEOUT")),
+          5000,
+        );
         navigator.geolocation.getCurrentPosition(
           (p) => {
             window.clearTimeout(id);
@@ -314,9 +356,15 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     try {
       const response = await fetch(
         `/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lon))}`,
-        { cache: "no-store", headers: { Accept: "application/json; charset=utf-8" } },
+        {
+          cache: "no-store",
+          headers: { Accept: "application/json; charset=utf-8" },
+        },
       );
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; city?: string };
+      const data = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        city?: string;
+      };
       if (data?.ok && typeof data.city === "string") {
         suggestCityUpdate(data.city);
       }
@@ -325,18 +373,18 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     }
   }, [suggestCityUpdate]);
 
-    useEffect(() => {
-      let cancelled = false;
-      (async () => {
-        if (addrTouchedRef.current) return;
-        if (address) return;
-        if (cancelled) return;
-        await detectCityNow();
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [address, detectCityNow]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (addrTouchedRef.current) return;
+      if (address) return;
+      if (cancelled) return;
+      await detectCityNow();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, detectCityNow]);
 
   // Categories
   const [catMap, setCatMap] = useState<Record<string, Subcat[]>>({});
@@ -349,10 +397,17 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       try {
         let map: Record<string, Subcat[]> | null = null;
         try {
-          const r = await fetch("/api/catalog/categories", { cache: "no-store" });
+          const r = await fetch("/api/catalog/categories", {
+            cache: "no-store",
+          });
           const j = await r.json();
-          if (!r.ok || j?.ok === false) throw new Error(j?.detail || j?.error || "fetch_failed");
-          const rows: Array<{ category?: string | null; subcategory?: string | null; icon?: string | null }> = j?.data ?? [];
+          if (!r.ok || j?.ok === false)
+            throw new Error(j?.detail || j?.error || "fetch_failed");
+          const rows: Array<{
+            category?: string | null;
+            subcategory?: string | null;
+            icon?: string | null;
+          }> = j?.data ?? [];
           const tmp: Record<string, Subcat[]> = {};
           (rows || []).forEach((row) => {
             const cat = (row?.category ?? "").toString().trim();
@@ -360,7 +415,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
             const icon = (row?.icon ?? "").toString().trim() || null;
             if (!cat) return;
             if (!tmp[cat]) tmp[cat] = [];
-            if (sub && !tmp[cat].some((x) => x.name === sub)) tmp[cat].push({ id: null, name: sub, icon });
+            if (sub && !tmp[cat].some((x) => x.name === sub))
+              tmp[cat].push({ id: null, name: sub, icon });
           });
           map = tmp;
         } catch (error) {
@@ -368,22 +424,35 @@ export function useCreateRequestForm(): CreateRequestFormApi {
           try {
             const { data, error: dbError } = await supabaseBrowser
               .from("categories_subcategories")
-              .select('"categories_subcategories_id","Categoría","Subcategoría","Activa","ícono","Emoji"');
+              .select(
+                '"categories_subcategories_id","Categoría","Subcategoría","Activa","ícono","Emoji"',
+              );
             if (dbError) throw dbError;
             const tmp: Record<string, Subcat[]> = {};
             const isActive = (v: unknown) => {
               const s = (v ?? "").toString().trim().toLowerCase();
-              return ["sí", "si", "true", "1", "activo", "activa", "x"].includes(s);
+              return [
+                "sí",
+                "si",
+                "true",
+                "1",
+                "activo",
+                "activa",
+                "x",
+              ].includes(s);
             };
             (data || []).forEach((row: Record<string, unknown>) => {
               if (!isActive(row?.["Activa"])) return;
               const cat = (row?.["Categoría"] ?? "").toString().trim();
               const sub = (row?.["Subcategoría"] ?? "").toString().trim();
-              const id = (row?.["categories_subcategories_id"] ?? null) as string | null;
-            const icon = (row?.["Emoji"] ?? "").toString().trim() || null;
+              const id = (row?.["categories_subcategories_id"] ?? null) as
+                | string
+                | null;
+              const icon = (row?.["Emoji"] ?? "").toString().trim() || null;
               if (!cat) return;
               if (!tmp[cat]) tmp[cat] = [];
-              if (sub && !tmp[cat].some((x) => x.name === sub)) tmp[cat].push({ id, name: sub, icon });
+              if (sub && !tmp[cat].some((x) => x.name === sub))
+                tmp[cat].push({ id, name: sub, icon });
             });
             map = tmp;
           } catch (dbError) {
@@ -400,12 +469,16 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         if (!cancelled) setLoadingCats(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const categoriesList = useMemo(() => {
     const entries = Object.keys(catMap);
-    return entries.sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+    return entries.sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" }),
+    );
   }, [catMap]);
 
   const subcatOptions = useMemo(() => {
@@ -413,14 +486,16 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     if (list.length === 0) return [];
     return list
       .slice()
-      .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, "es", { sensitivity: "base" }),
+      )
       .map((item) => ({ value: item.name, label: item.name, icon: item.icon }));
   }, [catMap, category]);
 
   // Autoclasificación (wrapper simplificado: usa endpoint "classify-request")
   const [aiConfidence, setAiConfidence] = useState<number | null>(null);
   const classifyAbortRef = useRef<AbortController | null>(null);
-  const classifyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const classifyTimeoutRef = useRef<number | null>(null);
   const classifyRequestIdRef = useRef(0);
 
   const clearClassifyTimeout = useCallback(() => {
@@ -443,13 +518,18 @@ export function useCreateRequestForm(): CreateRequestFormApi {
           cache: "no-store",
           signal: controller.signal,
         });
-        const payload = (await response.json().catch(() => null)) as
-          | { best?: ClassificationSuggestion | null; alternatives?: ClassificationSuggestion[]; model?: string | null }
-          | null;
-        if (!response.ok || !payload) throw new Error("classify_request_failed");
+        const payload = (await response.json().catch(() => null)) as {
+          best?: ClassificationSuggestion | null;
+          alternatives?: ClassificationSuggestion[];
+          model?: string | null;
+        } | null;
+        if (!response.ok || !payload)
+          throw new Error("classify_request_failed");
         if (token !== classifyRequestIdRef.current) return;
         const best = payload.best ?? null;
-        setAiConfidence(typeof best?.confidence === "number" ? best.confidence : null);
+        setAiConfidence(
+          typeof best?.confidence === "number" ? best.confidence : null,
+        );
         if (best?.category) {
           setCategoryState(best.category);
           setSubcategoryState(best.subcategory ?? "");
@@ -517,13 +597,17 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         params.set("q", qq);
         if (city) params.set("city", city);
         params.set("limit", "5");
-        const response = await fetch(`/api/addresses/suggest?${params.toString()}`, {
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-        const payload = (await response.json().catch(() => null)) as
-          | { ok?: boolean; items?: unknown[] }
-          | null;
+        const response = await fetch(
+          `/api/addresses/suggest?${params.toString()}`,
+          {
+            cache: "no-store",
+            headers: { Accept: "application/json" },
+          },
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          ok?: boolean;
+          items?: unknown[];
+        } | null;
         const parsed =
           payload?.ok && Array.isArray(payload.items)
             ? payload.items
@@ -571,7 +655,10 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       }
     }
     try {
-      setValue("address_line", line, { shouldDirty: true, shouldValidate: true });
+      setValue("address_line", line, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       setValue("address_lat", lat ?? null, { shouldDirty: true });
       setValue("address_lng", lng ?? null, { shouldDirty: true });
     } catch (error) {
@@ -583,13 +670,40 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   // Zod schema (same as page)
   const FormSchema = z.object({
     title: z.string().min(3, "Mínimo 3 caracteres").max(120),
-    description: z.string().min(10, "Mínimo 10 caracteres").max(2000).optional().or(z.literal("")),
+    description: z
+      .string()
+      .min(10, "Mínimo 10 caracteres")
+      .max(2000)
+      .optional()
+      .or(z.literal("")),
     city: z.string().min(2, "Ingresa una ciudad válida").max(80),
     category: z.string().min(2, "Selecciona una categoría").max(80),
     subcategory: z.string().min(1).max(80).optional().or(z.literal("")),
-    budget: z.union([z.number().positive("Debe ser positivo").max(1_000_000), z.literal("")]).optional(),
-    required_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD").optional().or(z.literal("")),
-    conditions: z.union([z.string().max(240), z.array(z.string().min(2).max(40).transform((s) => s.replace(/\s+/g, " ").trim())).max(10)]).optional(),
+    budget: z
+      .union([
+        z.number().positive("Debe ser positivo").max(1_000_000),
+        z.literal(""),
+      ])
+      .optional(),
+    required_at: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato YYYY-MM-DD")
+      .optional()
+      .or(z.literal("")),
+    conditions: z
+      .union([
+        z.string().max(240),
+        z
+          .array(
+            z
+              .string()
+              .min(2)
+              .max(40)
+              .transform((s) => s.replace(/\s+/g, " ").trim()),
+          )
+          .max(10),
+      ])
+      .optional(),
     address_line: z.string().min(5, "Ingresa una dirección válida").max(500),
     address_place_id: z.string().max(200).optional().or(z.literal("")),
     address_lat: z.number().nullable(),
@@ -598,15 +712,18 @@ export function useCreateRequestForm(): CreateRequestFormApi {
 
   // Submit logic
   async function handleSubmit(opts?: { onSuccess?: (newId?: string) => void }) {
-    setSubmitting(true); setErrors({});
+    setSubmitting(true);
+    setErrors({});
     try {
       // Auth gating
       try {
         const { data } = await supabaseBrowser.auth.getSession();
         const userNow = data.session?.user ?? me;
         if (!userNow) {
-          const draftLat = coords && typeof coords.lat === "number" ? coords.lat : null;
-          const draftLng = coords && typeof coords.lon === "number" ? coords.lon : null;
+          const draftLat =
+            coords && typeof coords.lat === "number" ? coords.lat : null;
+          const draftLng =
+            coords && typeof coords.lon === "number" ? coords.lon : null;
           const draftPayload: RequestDraftSnapshot = {
             title,
             description,
@@ -637,27 +754,70 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       }
 
       const parsed = FormSchema.safeParse({
-        title, description, city, category, subcategory, budget, required_at: requiredAt, conditions: conditionsText, address_line: address, address_place_id: "", address_lat: addressLat ?? null, address_lng: addressLng ?? null,
+        title,
+        description,
+        city,
+        category,
+        subcategory,
+        budget,
+        required_at: requiredAt,
+        conditions: conditionsText,
+        address_line: address,
+        address_place_id: "",
+        address_lat: addressLat ?? null,
+        address_lng: addressLng ?? null,
       });
 
       if (!parsed.success) {
         const fieldErrors: Record<string, string> = {};
-        parsed.error.issues.forEach((i) => { const k = (i.path[0] as string) ?? "form"; if (!fieldErrors[k]) fieldErrors[k] = i.message; });
+        parsed.error.issues.forEach((i) => {
+          const k = (i.path[0] as string) ?? "form";
+          if (!fieldErrors[k]) fieldErrors[k] = i.message;
+        });
         setErrors(fieldErrors);
-        const hasAddressError = Object.prototype.hasOwnProperty.call(fieldErrors, "address_line");
-        toast.error(hasAddressError ? "Favor de indicar Dirección" : "Revisa los campos del formulario");
+        const hasAddressError = Object.prototype.hasOwnProperty.call(
+          fieldErrors,
+          "address_line",
+        );
+        toast.error(
+          hasAddressError
+            ? "Favor de indicar Dirección"
+            : "Revisa los campos del formulario",
+        );
         setSubmitting(false);
         return;
       }
 
       // Additional validation: category exists and subcategory selection
-      const chosenCat = parsed.data.category; const availableCats = Object.keys(catMap);
-      if (!availableCats.includes(chosenCat)) { setErrors((prev) => ({ ...prev, category: "Categoría inválida" })); toast.error("Selecciona una categoría válida"); setSubmitting(false); return; }
+      const chosenCat = parsed.data.category;
+      const availableCats = Object.keys(catMap);
+      if (!availableCats.includes(chosenCat)) {
+        setErrors((prev) => ({ ...prev, category: "Categoría inválida" }));
+        toast.error("Selecciona una categoría válida");
+        setSubmitting(false);
+        return;
+      }
       const subcats = catMap[chosenCat] ?? [];
-      if (subcats.length > 0 && (!subcategory || subcategory.trim().length === 0)) { setErrors((prev) => ({ ...prev, subcategory: "Selecciona una subcategoría" })); toast.error("Selecciona una subcategoría"); setSubmitting(false); return; }
+      if (
+        subcats.length > 0 &&
+        (!subcategory || subcategory.trim().length === 0)
+      ) {
+        setErrors((prev) => ({
+          ...prev,
+          subcategory: "Selecciona una subcategoría",
+        }));
+        toast.error("Selecciona una subcategoría");
+        setSubmitting(false);
+        return;
+      }
 
       // Upload attachments
-      const attachments: Array<{ url: string; mime: string; size: number; path?: string; }> = [];
+      const attachments: Array<{
+        url: string;
+        mime: string;
+        size: number;
+        path?: string;
+      }> = [];
       if (files.length > 0) {
         setUploading(true);
         try {
@@ -668,39 +828,78 @@ export function useCreateRequestForm(): CreateRequestFormApi {
           }
           const prefix = me?.id ?? "anon";
           for (const f of files) {
-            const max = 5 * 1024 * 1024; if (f.size > max) throw new Error(`El archivo ${f.name} excede 5MB`);
-            if (!/^image\//i.test(f.type)) throw new Error(`Tipo inválido para ${f.name}`);
-            const { url: uploadedUrl, path, mime } = await uploadRequestFile(supabaseBrowser, prefix, f);
-            attachments.push({ url: uploadedUrl, mime: mime, size: f.size, path });
+            const max = 5 * 1024 * 1024;
+            if (f.size > max)
+              throw new Error(`El archivo ${f.name} excede 5MB`);
+            if (!/^image\//i.test(f.type))
+              throw new Error(`Tipo inválido para ${f.name}`);
+            const {
+              url: uploadedUrl,
+              path,
+              mime,
+            } = await uploadRequestFile(supabaseBrowser, prefix, f);
+            attachments.push({
+              url: uploadedUrl,
+              mime: mime,
+              size: f.size,
+              path,
+            });
           }
         } catch (err) {
-          const msg = err instanceof Error ? err.message : "Error al subir archivos";
+          const msg =
+            err instanceof Error ? err.message : "Error al subir archivos";
           toast.error(msg);
-          setSubmitting(false); setUploading(false);
+          setSubmitting(false);
+          setUploading(false);
           return;
-        } finally { setUploading(false); }
+        } finally {
+          setUploading(false);
+        }
       }
 
       // Geocode if address has no coords
-      if ((address || '').trim().length > 0 && (addressLat == null || addressLng == null)) {
+      if (
+        (address || "").trim().length > 0 &&
+        (addressLat == null || addressLng == null)
+      ) {
         try {
-          const r = await fetch(`/api/geocode/search?q=${encodeURIComponent(address.trim())}`, {
-            cache: "no-store",
-            headers: { Accept: "application/json; charset=utf-8" },
-          });
-          const j = (await r.json().catch(() => ({}))) as { data?: Array<Record<string, unknown>> };
-          const first = Array.isArray(j?.data) && j.data.length ? j.data[0] : null;
+          const r = await fetch(
+            `/api/geocode/search?q=${encodeURIComponent(address.trim())}`,
+            {
+              cache: "no-store",
+              headers: { Accept: "application/json; charset=utf-8" },
+            },
+          );
+          const j = (await r.json().catch(() => ({}))) as {
+            data?: Array<Record<string, unknown>>;
+          };
+          const first =
+            Array.isArray(j?.data) && j.data.length ? j.data[0] : null;
           if (first) {
             if (typeof first.lat === "number") setAddressLat(first.lat);
             if (typeof first.lon === "number") setAddressLng(first.lon);
-            if (typeof first.city === "string" && first.city.trim().length > 0) {
+            if (
+              typeof first.city === "string" &&
+              first.city.trim().length > 0
+            ) {
               const canon = toCanon(first.city);
               if (canon) setCity(canon);
             }
             try {
-              setValue("address_line", address.trim(), { shouldDirty: true, shouldValidate: true });
-              setValue("address_lat", typeof first.lat === "number" ? first.lat : null, { shouldDirty: true });
-              setValue("address_lng", typeof first.lon === "number" ? first.lon : null, { shouldDirty: true });
+              setValue("address_line", address.trim(), {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+              setValue(
+                "address_lat",
+                typeof first.lat === "number" ? first.lat : null,
+                { shouldDirty: true },
+              );
+              setValue(
+                "address_lng",
+                typeof first.lon === "number" ? first.lon : null,
+                { shouldDirty: true },
+              );
             } catch (error) {
               logFormError("geocode:setValue", error);
             }
@@ -711,20 +910,39 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       }
 
       // Build payload
-      const payload: Record<string, unknown> = { title: parsed.data.title, city: parsed.data.city };
-      if (parsed.data.description && parsed.data.description.length > 0) payload.description = parsed.data.description.trim();
+      const payload: Record<string, unknown> = {
+        title: parsed.data.title,
+        city: parsed.data.city,
+      };
+      if (parsed.data.description && parsed.data.description.length > 0)
+        payload.description = parsed.data.description.trim();
       if (category) payload.category = category;
       if (subcategory) payload.subcategory = subcategory;
-      if (budget !== "" && typeof budget === 'number') payload.budget = budget;
+      if (budget !== "" && typeof budget === "number") payload.budget = budget;
       if (requiredAt) payload.required_at = requiredAt;
-      if ((conditionsText || '').trim()) payload.conditions = (conditionsText || '').trim();
-      if ((address || '').trim()) payload.address_line = address.trim();
-      if (addressLat != null && addressLng != null) { payload.address_lat = addressLat; payload.address_lng = addressLng; }
+      if ((conditionsText || "").trim())
+        payload.conditions = (conditionsText || "").trim();
+      if ((address || "").trim()) payload.address_line = address.trim();
+      if (addressLat != null && addressLng != null) {
+        payload.address_lat = addressLat;
+        payload.address_lng = addressLng;
+      }
       if (attachments.length > 0) payload.attachments = attachments;
 
-      const res = await fetch("/api/requests", { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8" }, body: JSON.stringify(payload), cache: "no-store" });
+      const res = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) { toast.error(j?.detail || j?.error || "No fue posible crear la solicitud"); setSubmitting(false); return; }
+      if (!res.ok || j?.ok === false) {
+        toast.error(
+          j?.detail || j?.error || "No fue posible crear la solicitud",
+        );
+        setSubmitting(false);
+        return;
+      }
       const newId: string | undefined = j?.data?.id;
 
       try {
@@ -755,18 +973,40 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     (async () => {
       try {
         if (!isPendingAutoSubmit()) return;
-        const { data } = await supabaseBrowser.auth.getUser(); if (!data?.user) return;
-        const d = readDraft<{ title?: string; description?: string; city?: string; category?: string; subcategory?: string; budget?: number | ""; required_at?: string; conditions?: string | string[]; address?: string; lat?: number; lon?: number; }>("draft:create-service");
-        if (!d) { toast.message("Tu sesión está iniciada. Por favor revisa y envía de nuevo."); clearGatingFlags(); return; }
-        if (typeof d.title === 'string') setTitle(d.title);
-        if (typeof d.description === 'string') setDescription(d.description);
-        if (typeof d.city === 'string') setCity(d.city);
-        if (typeof d.category === 'string') setCategoryState(d.category);
-        if (typeof d.subcategory === 'string') setSubcategoryState(d.subcategory);
-        if (typeof d.budget !== 'undefined') setBudget(d.budget as number | "");
-        if (typeof d.required_at === 'string') setRequiredAt(d.required_at);
-        if (Array.isArray(d.conditions)) setConditionsText(d.conditions.join(", "));
-        else if (typeof d.conditions === 'string') setConditionsText(d.conditions);
+        const { data } = await supabaseBrowser.auth.getUser();
+        if (!data?.user) return;
+        const d = readDraft<{
+          title?: string;
+          description?: string;
+          city?: string;
+          category?: string;
+          subcategory?: string;
+          budget?: number | "";
+          required_at?: string;
+          conditions?: string | string[];
+          address?: string;
+          lat?: number;
+          lon?: number;
+        }>("draft:create-service");
+        if (!d) {
+          toast.message(
+            "Tu sesión está iniciada. Por favor revisa y envía de nuevo.",
+          );
+          clearGatingFlags();
+          return;
+        }
+        if (typeof d.title === "string") setTitle(d.title);
+        if (typeof d.description === "string") setDescription(d.description);
+        if (typeof d.city === "string") setCity(d.city);
+        if (typeof d.category === "string") setCategoryState(d.category);
+        if (typeof d.subcategory === "string")
+          setSubcategoryState(d.subcategory);
+        if (typeof d.budget !== "undefined") setBudget(d.budget as number | "");
+        if (typeof d.required_at === "string") setRequiredAt(d.required_at);
+        if (Array.isArray(d.conditions))
+          setConditionsText(d.conditions.join(", "));
+        else if (typeof d.conditions === "string")
+          setConditionsText(d.conditions);
         await new Promise((r) => setTimeout(r, 50));
         try {
           await handleSubmitRef.current();
@@ -785,10 +1025,13 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       const combined = [...prev];
       for (const f of incoming) {
         if (combined.length >= 5) break;
-        const dup = combined.some((x) => x.name === f.name && x.size === f.size);
+        const dup = combined.some(
+          (x) => x.name === f.name && x.size === f.size,
+        );
         if (!dup) combined.push(f);
       }
-      if (prev.length + incoming.length > 5) toast.error("Solo puedes adjuntar hasta 5 imágenes.");
+      if (prev.length + incoming.length > 5)
+        toast.error("Solo puedes adjuntar hasta 5 imágenes.");
       return combined.slice(0, 5);
     });
   }, []);
@@ -799,7 +1042,18 @@ export function useCreateRequestForm(): CreateRequestFormApi {
 
   return {
     state: {
-      values: { title, description, city, category, subcategory, budget, requiredAt, conditionsText, files, address },
+      values: {
+        title,
+        description,
+        city,
+        category,
+        subcategory,
+        budget,
+        requiredAt,
+        conditionsText,
+        files,
+        address,
+      },
       errors,
       submitting,
       uploading,
@@ -871,7 +1125,10 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       setAddressLat(null);
       setAddressLng(null);
       try {
-        setValue("address_line", value, { shouldDirty: true, shouldValidate: true });
+        setValue("address_line", value, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
         setValue("address_lat", null, { shouldDirty: true });
         setValue("address_lng", null, { shouldDirty: true });
       } catch (error) {
@@ -897,13 +1154,22 @@ export function useCreateRequestForm(): CreateRequestFormApi {
 
 export default useCreateRequestForm;
 
-async function uploadRequestFile(supabase: SupabaseClient, ownerPrefix: string, file: File): Promise<{ url: string; path: string; mime: string }> {
+async function uploadRequestFile(
+  supabase: SupabaseClient,
+  ownerPrefix: string,
+  file: File,
+): Promise<{ url: string; path: string; mime: string }> {
   const bucket = "requests";
   const owner = (ownerPrefix || "anon").trim();
   const contentType = file.type || "application/octet-stream";
-  let key = buildStorageKey(owner, file.name, { allowUnicode: false, maxNameLength: 180 });
+  let key = buildStorageKey(owner, file.name, {
+    allowUnicode: false,
+    maxNameLength: 180,
+  });
   const upload = () =>
-    supabase.storage.from(bucket).upload(key, file, { cacheControl: "3600", upsert: false, contentType });
+    supabase.storage
+      .from(bucket)
+      .upload(key, file, { cacheControl: "3600", upsert: false, contentType });
   let { data, error } = await upload();
   if (error && /invalid key/i.test(String(error.message || ""))) {
     const ultraKey = buildUltraSafeKey(owner, file.name);
@@ -918,8 +1184,14 @@ async function uploadRequestFile(supabase: SupabaseClient, ownerPrefix: string, 
       fd.append("file", file);
       fd.append("path", key);
       fd.append("bucket", bucket);
-      const response = await fetch("/api/storage/upload", { method: "POST", body: fd });
-      const payload = (await response.json().catch(() => null)) as { ok?: boolean; url?: string } | null;
+      const response = await fetch("/api/storage/upload", {
+        method: "POST",
+        body: fd,
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        url?: string;
+      } | null;
       if (response.ok && payload?.ok && typeof payload.url === "string") {
         return { url: payload.url, path: key, mime: contentType };
       }

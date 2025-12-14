@@ -15,14 +15,20 @@ type Props = {
 
 type ApplicationRow = Record<string, unknown>;
 
-export default function ChatClient({ requestId, createdBy, initialTitle }: Props) {
+export default function ChatClient({
+  requestId,
+  createdBy,
+  initialTitle,
+}: Props) {
   const router = useRouter();
   const supabase = createSupabaseBrowser();
   const [apps, setApps] = React.useState<ApplicationRow[]>([]);
   const [peerId, setPeerId] = React.useState<string>("");
   const [me, setMe] = React.useState<string | null>(null);
   const [chatOpen, setChatOpen] = React.useState(false);
-  const [conversationId, setConversationId] = React.useState<string | null>(null);
+  const [conversationId, setConversationId] = React.useState<string | null>(
+    null,
+  );
   const [requestBudget, setRequestBudget] = React.useState<number | null>(null);
   const [_requestTitle, setRequestTitle] = React.useState<string | null>(
     initialTitle ?? null,
@@ -60,7 +66,8 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
           const data = j?.data as Record<string, unknown> | undefined;
           const b = Number(data?.budget ?? NaN);
           if (Number.isFinite(b)) setRequestBudget(b);
-          if (typeof data?.title === "string") setRequestTitle(data.title as string);
+          if (typeof data?.title === "string")
+            setRequestTitle(data.title as string);
         }
       } catch {
         /* ignore */
@@ -78,7 +85,10 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
         cache: "no-store",
       });
       if (!res.ok) return;
-      const json = (await res.json()) as { ok: boolean; data?: ApplicationRow[] };
+      const json = (await res.json()) as {
+        ok: boolean;
+        data?: ApplicationRow[];
+      };
       const rows: ApplicationRow[] = json?.data ?? [];
       setApps(rows);
       const firstId = (rows[0]?.professional_id as string | undefined) ?? "";
@@ -147,7 +157,8 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
         }
         toast.error(j?.error || "No se pudo iniciar el chat");
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "No se pudo iniciar el chat";
+        const msg =
+          e instanceof Error ? e.message : "No se pudo iniciar el chat";
         toast.error(msg);
       }
       return null;
@@ -170,7 +181,10 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
       return;
     }
     if (!me) {
-      const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
+      const here =
+        typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "/";
       router.push(`/auth/sign-in?next=${encodeURIComponent(here)}`);
       return;
     }
@@ -205,9 +219,16 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
                 {(a.pro_full_name as string) ?? (a.professional_id as string)}
               </option>
             ))}
-            {createdBy ? <option value={createdBy}>Cliente (dueno)</option> : null}
+            {createdBy ? (
+              <option value={createdBy}>Cliente (dueno)</option>
+            ) : null}
           </select>
-          <Button size="sm" onClick={openChat} disabled={!peerId || sending} data-testid="open-request-chat">
+          <Button
+            size="sm"
+            onClick={openChat}
+            disabled={!peerId || sending}
+            data-testid="open-request-chat"
+          >
             Abrir chat
           </Button>
           <Button
@@ -234,7 +255,9 @@ export default function ChatClient({ requestId, createdBy, initialTitle }: Props
           requestId={requestId}
           requestBudget={requestBudget}
           dataPrefix="request-chat"
-
+          openOfferDialogSignal={_offerSignal}
+          offerPrefillTitle={_requestTitle}
+          offerPrefillAmount={requestBudget}
           onClose={() => setChatOpen(false)}
         />
       ) : null}

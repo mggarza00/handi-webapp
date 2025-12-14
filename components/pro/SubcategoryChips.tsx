@@ -52,11 +52,11 @@ const hexToRgb = (hex: string) => {
   return { r, g, b, a };
 };
 
-const textColorFor = () => "#0f172a";
+const textColorFor = (_color?: string | null) => "#0f172a";
 
 const withAlpha = (color: string | null | undefined, alpha = 0.8) => {
   const normalized = normalizeColor(color);
-  if (!normalized) return null;
+  if (!normalized) return undefined;
   if (normalized.startsWith("#")) {
     const rgb = hexToRgb(normalized);
     if (rgb) return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
@@ -72,7 +72,7 @@ const withAlpha = (color: string | null | undefined, alpha = 0.8) => {
 
 const ChipBadge = ({ name, color }: Chip) => {
   const baseBg = normalizeColor(color) ?? hashColor(name || "");
-  const bg = withAlpha(baseBg, BG_ALPHA);
+  const bg = withAlpha(baseBg, BG_ALPHA) ?? baseBg;
   const text = textColorFor(baseBg);
   return (
     <span

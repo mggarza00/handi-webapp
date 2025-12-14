@@ -74,28 +74,33 @@ Copia `.env.example` a `.env.local` y rellena:
 Notas iOS: Web Push requiere iOS 16.4+ con Safari y “Añadir a pantalla de inicio”. Si el permiso está denegado, el botón muestra un tip para habilitarlo desde el candado de la barra de direcciones.
 
 Endpoints canónicos para Web Push:
+
 - Canonical: `/api/push/*` (`/api/push/subscribe`, `/api/push/send`)
 - Compatibilidad: `/api/web-push/*` re-exporta a `/api/push/*`
 
 ## Handi Webapp · Arranque y Debug
 
 ### Next.js (recomendado)
+
 - Desarrollo: `npm run dev` (VS Code: F5 → "Debug Next.js (npm run dev)")
 - Build: `npm run build`
 - Start: `npm run start`
 
 ### Deno (opcional)
+
 - Script demo: `scripts/deno/hello.ts`
 - Debug: F5 → "Debug Deno (scripts/deno/hello.ts)"
 - Nota: En Deno 2 ya no existe `--unstable` global. Usa flags `--unstable-*` solo si ocupas APIs específicas.
 
 ## Supabase local
+
 - Instala Docker Desktop y asegurate de que el daemon este ejecutandose antes de usar los comandos de supabase.
 - Ejecuta `npx supabase start` en la raiz del repo para levantar los contenedores locales.
 - Verifica el estado con `npx supabase status`; si ves `The system cannot find the file specified` o `Make sure you've run 'supabase start'!` significa que Docker Desktop no esta activo.
 - Cuando termines, deten los servicios con `npx supabase stop`.
 
 ## Revisión automática de CSS/UI
+
 - `npm run review:ui`: typecheck + lint (soft-fail) + capturas con Playwright + Lighthouse.
 - Capturas: `snapshots/*.png` y resumen `snapshots/ui-review.json`.
 - Rutas por defecto: home (guest), requests y mensajes (client), dashboard pro y admin, `/design-check`.
@@ -104,18 +109,20 @@ Endpoints canónicos para Web Push:
 - Reportes Lighthouse: `artifacts/lhci/*.html` (config en `lighthouserc.cjs`).
 
 ## Revisión UI asistida (artefactos para agente)
+
 - Configura targets en `scripts/ui-revision.targets.json`.
 - Genera PNG + HTML por target: `npm run ui:revise` o `npm run ui:revise -- --target=home-guest`.
 - Artefactos: `artifacts/ui-revision/<target>/iter-<n>/`. Ver docs en `docs/REVISION_UI_AUTOMATION.md`.
 
 ## E2E con Playwright (dev/CI)
+
 - Ruta de **mock de rol** (solo dev/CI): `/api/test-auth/:role` con `role` en `guest|client|professional|admin`.
- - La UI debe exponer testids en el header:
-   - Invitado: `data-testid="btn-login"`
-  - Autenticado: `data-testid="avatar"`
-  - Cliente: `data-testid="nav-client"`
-  - Profesional: `data-testid="nav-professional"`
-  - Admin: `data-testid="nav-admin"`
+- La UI debe exponer testids en el header:
+  - Invitado: `data-testid="btn-login"`
+- Autenticado: `data-testid="avatar"`
+- Cliente: `data-testid="nav-client"`
+- Profesional: `data-testid="nav-professional"`
+- Admin: `data-testid="nav-admin"`
 - Ajusta los selectores en `tests/e2e/navbar-roles.spec.ts` si usas otros.
 
 ## Subida de Fotos de Solicitudes (requests-photos)
@@ -148,7 +155,14 @@ Endpoints canónicos para Web Push:
   ```tsx
   import PhotoUploader from "@/components/PhotoUploader";
   // Dentro de una página de solicitud
-  <PhotoUploader requestId={request.id} onComplete={(items) => { /* refrescar vista */ }} />
+  <PhotoUploader
+    requestId={request.id}
+    onComplete={(items) => {
+      /* refrescar vista */
+    }}
+  />;
+  ```
+
 ````
 
 Notas:
@@ -453,3 +467,42 @@ Si notas sesiones inconsistentes tras la migración a cookies base64, ejecuta un
 1. Limpia datos del sitio en tu navegador (Chrome → Application → Storage → Clear site data).
 2. Crea temporalmente una Server Action que llame a `await expireLegacyAuthCookie()` de `lib/supabase/expire-legacy-auth-cookie.ts` y luego elimínala.
 3. Reinicia el servidor de Next.js.
+
+## Solución a error de TypeScript en npm run check
+
+- Asegúrate de usar Node 20: `nvm use` (el repo incluye `.nvmrc` con `20`).
+- Limpieza rápida:
+  - `rm -rf node_modules pnpm-lock.yaml`
+  - `pnpm install`
+  - `pnpm run check`
+- TypeScript está fijado en la versión estable `5.6.3` para evitar el fallo de `tsc` observado con versiones más recientes.
+
+## Reset de contraseña (Supabase)
+
+- El enlace de recuperación debe redirigir a `/auth/reset-password` (ej: `http://localhost:3000/auth/reset-password` en local).
+- En Supabase Console → Auth → URL Configuration, agrega las URLs de `/auth/reset-password` (local y producción) en Redirect URLs permitidas.
+
+## Configurar Resend SMTP para Supabase
+
+- Genera credenciales SMTP en Resend (Dashboard → Settings → SMTP) y copia host/puerto/usuario/contraseña; si usas dominio propio, configura los registros DNS que indica Resend.
+- En Supabase Dashboard → Auth → SMTP settings, pega las variables:
+  - `SUPABASE_SMTP_HOST=smtp.resend.com`
+  - `SUPABASE_SMTP_PORT=587`
+  - `SUPABASE_SMTP_USERNAME=resend`
+  - `SUPABASE_SMTP_PASSWORD=<tu contraseña SMTP de Resend>`
+  - `SUPABASE_SMTP_SENDER="Handi <no-reply@handi.mx>"`
+- Supabase seguirá enviando automáticamente los correos de autenticación (sign-up, reset, magic links) usando Resend como transport SMTP.
+
+## Configuración de Resend para emails de reset password
+
+- Crea una API Key en Resend y guárdala en `RESEND_API_KEY`. Define el remitente para estos correos en `PASSWORD_RESET_FROM_EMAIL` (ej: `"Handi <no-reply@handi.mx>"`).
+- Define la URL base donde vive tu app en `PASSWORD_RESET_APP_URL` (ej: `https://handi.mx`); el enlace de recuperación apunta a `/auth/reset-password`.
+- En Supabase Console → Auth → URL Configuration, incluye las URLs de `/auth/reset-password` (local y prod) en Redirect URLs permitidas.
+- El endpoint interno `/api/auth/send-password-reset` genera el enlace con el service role y envía el correo vía Resend usando la plantilla HTML dedicada.
+
+### Ejemplo de registro DMARC recomendado
+
+```
+_dmarc  TXT  v=DMARC1; p=none; rua=mailto:dmarc@handi.mx;
+```
+````

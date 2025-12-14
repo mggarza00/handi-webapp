@@ -14,6 +14,7 @@ import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
+import HomeSignInModal from "@/components/auth/HomeSignInModal.client";
 import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
@@ -199,9 +200,11 @@ export default function Page({
   const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
   const [topCategoryCards, setTopCategoryCards] = useState<CategoryCard[]>([]);
   const [subcategories, setSubcategories] = useState<Subcat[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<
-    LandingPageProps["savedAddresses"][number] | null
-  >(savedAddresses?.[0] ?? null);
+  type SavedAddress = NonNullable<LandingPageProps["savedAddresses"]>[number];
+  const initialSaved = Array.isArray(savedAddresses) ? savedAddresses : [];
+  const [selectedAddress, setSelectedAddress] = useState<SavedAddress | null>(
+    initialSaved[0] ?? null,
+  );
   const heroTitleRef = useRef<HTMLDivElement | null>(null);
   const heroClientTitleRef = useRef<HTMLParagraphElement | null>(null);
   const heroSubtitleRef = useRef<HTMLParagraphElement | null>(null);
@@ -209,11 +212,12 @@ export default function Page({
   // Rotating text and prefix slide removed
 
   useEffect(() => {
-    if (!savedAddresses || savedAddresses.length === 0) {
+    const addresses = savedAddresses ?? [];
+    if (addresses.length === 0) {
       setSelectedAddress(null);
       return;
     }
-    setSelectedAddress((current) => current ?? savedAddresses[0] ?? null);
+    setSelectedAddress((current) => current ?? addresses[0] ?? null);
   }, [savedAddresses]);
 
   useEffect(() => {
@@ -652,7 +656,20 @@ export default function Page({
                         ctaLabel="Solicitar un servicio"
                         addresses={savedAddresses}
                         selectedAddress={selectedAddress}
-                        onAddressChange={setSelectedAddress}
+                        onAddressChange={(addr) =>
+                          setSelectedAddress(
+                            addr
+                              ? {
+                                  ...addr,
+                                  label: addr.label ?? null,
+                                  address_place_id:
+                                    addr.address_place_id ?? null,
+                                  lat: addr.lat ?? null,
+                                  lng: addr.lng ?? null,
+                                }
+                              : null,
+                          )
+                        }
                         triggerClassName={`btn-contratar ${stackSansMedium.className}`}
                         showPill={false}
                       />
@@ -664,7 +681,19 @@ export default function Page({
                 ctaLabel="Solicitar un servicio"
                 addresses={savedAddresses}
                 selectedAddress={selectedAddress}
-                onAddressChange={setSelectedAddress}
+                onAddressChange={(addr) =>
+                  setSelectedAddress(
+                    addr
+                      ? {
+                          ...addr,
+                          label: addr.label ?? null,
+                          address_place_id: addr.address_place_id ?? null,
+                          lat: addr.lat ?? null,
+                          lng: addr.lng ?? null,
+                        }
+                      : null,
+                  )
+                }
                 showButton={false}
                 addressPillClassName="absolute bottom-6 right-6 z-20 -mt-20 md:mt-0 md:bottom-8 md:right-10"
               />
@@ -1006,6 +1035,9 @@ export default function Page({
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
+      <HiddenIfClientHasSession>
+        <HomeSignInModal />
+      </HiddenIfClientHasSession>
       {isClientVariant ? heroClient : heroGuest}
       {isClientVariant ? (
         <>

@@ -3,23 +3,34 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
 
-type SplitHostElement = HTMLElement & { _rbsplitInstance?: SplitPluginInstance };
+type SplitHostElement = HTMLElement & {
+  _rbsplitInstance?: SplitPluginInstance;
+};
 type SplitPluginInstance = {
   chars?: HTMLElement[];
   words?: HTMLElement[];
   lines?: HTMLElement[];
   revert?: () => void;
 };
-type SplitTextConstructor = new (element: Element, options?: Record<string, unknown>) => SplitPluginInstance;
+type SplitTextConstructor = new (
+  element: Element,
+  options?: Record<string, unknown>,
+) => SplitPluginInstance;
 type TweenVars = Record<string, unknown>;
 type TweenLike = {
   kill?: () => void;
   scrollTrigger?: {
     kill?: () => void;
+    trigger?: Element | null;
+    vars?: { trigger?: Element | null };
   };
 };
 type ScrollTriggerInstance = {
-  getAll?: () => Array<{ kill?: () => void }>;
+  getAll?: () => Array<{
+    kill?: () => void;
+    trigger?: Element | null;
+    vars?: { trigger?: Element | null };
+  }>;
 };
 type ScrollTriggerModule = {
   ScrollTrigger?: ScrollTriggerInstance;
@@ -28,6 +39,7 @@ type ScrollTriggerModule = {
 type GsapModule = {
   gsap: {
     registerPlugin?: (plugin: unknown) => void;
+    set: (targets: HTMLElement[] | HTMLElement, vars: TweenVars) => void;
     to: (targets: HTMLElement[] | HTMLElement, vars: TweenVars) => TweenLike;
   };
 };
@@ -41,7 +53,11 @@ const logSplitError = (scope: string, error: unknown) => {
 
 type IntrinsicTag = keyof JSX.IntrinsicElements;
 
-type SplitMode = "chars" | "words" | "lines" | `${"chars"|"words"|"lines"},${string}`;
+type SplitMode =
+  | "chars"
+  | "words"
+  | "lines"
+  | `${"chars" | "words" | "lines"},${string}`;
 
 export type SplitTextProps = {
   text: string;
@@ -61,25 +77,23 @@ export type SplitTextProps = {
   startSignal?: number | boolean; // change to trigger start when manualStart
 };
 
-export default function SplitText(
-  {
-    text,
-    className = "",
-    delay = 100,
-    duration = 0.6,
-    ease = "power3.out",
-    splitType = "chars",
-    from = { opacity: 0, y: 40 } satisfies TweenVars,
-    to = { opacity: 1, y: 0 } satisfies TweenVars,
-    threshold = 0.1,
-    rootMargin = "-100px",
-    textAlign,
-    tag = "span",
-    onLetterAnimationComplete,
-    manualStart = false,
-    startSignal,
-  }: SplitTextProps,
-) {
+export default function SplitText({
+  text,
+  className = "",
+  delay = 100,
+  duration = 0.6,
+  ease = "power3.out",
+  splitType = "chars",
+  from = { opacity: 0, y: 40 } satisfies TweenVars,
+  to = { opacity: 1, y: 0 } satisfies TweenVars,
+  threshold = 0.1,
+  rootMargin = "-100px",
+  textAlign,
+  tag = "span",
+  onLetterAnimationComplete,
+  manualStart = false,
+  startSignal,
+}: SplitTextProps) {
   const ref = useRef<SplitHostElement | null>(null);
   const animationCompletedRef = useRef(false);
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -111,9 +125,14 @@ export default function SplitText(
           ])) as [GsapModule, ScrollTriggerModule];
           const { gsap } = gsapModule;
           const scrollTriggerPlugin =
-            scrollTriggerModule.ScrollTrigger ?? scrollTriggerModule.default ?? null;
+            scrollTriggerModule.ScrollTrigger ??
+            scrollTriggerModule.default ??
+            null;
           scrollTriggerInstance = scrollTriggerPlugin;
-          if (scrollTriggerPlugin && typeof gsap.registerPlugin === "function") {
+          if (
+            scrollTriggerPlugin &&
+            typeof gsap.registerPlugin === "function"
+          ) {
             gsap.registerPlugin(scrollTriggerPlugin);
           }
 
@@ -122,15 +141,25 @@ export default function SplitText(
 
           const startPct = Math.max(0, Math.min(1, threshold ?? 0.1));
           const pct = (1 - startPct) * 100;
-          const marginMatch = /^(-?\d+(?:\.\d+)?)(px|em|rem|%)?$/.exec(rootMargin || "");
+          const marginMatch = /^(-?\d+(?:\.\d+)?)(px|em|rem|%)?$/.exec(
+            rootMargin || "",
+          );
           const marginValue = marginMatch ? parseFloat(marginMatch[1]) : 0;
           const marginUnit = marginMatch ? marginMatch[2] || "px" : "px";
           const marginSign =
-            marginValue === 0 ? "" : marginValue < 0 ? `-=${Math.abs(marginValue)}${marginUnit}` : `+=${marginValue}${marginUnit}`;
+            marginValue === 0
+              ? ""
+              : marginValue < 0
+                ? `-=${Math.abs(marginValue)}${marginUnit}`
+                : `+=${marginValue}${marginUnit}`;
           const start = (`top ${pct}%` + (marginSign ? marginSign : "")).trim();
 
-          const splitPluginModule = await import("gsap/SplitText").catch(() => null);
-          const SplitCtor = (splitPluginModule?.SplitText ?? splitPluginModule?.default ?? null) as SplitTextConstructor | null;
+          const splitPluginModule = await import("gsap/SplitText").catch(
+            () => null,
+          );
+          const SplitCtor = (splitPluginModule?.SplitText ??
+            splitPluginModule?.default ??
+            null) as SplitTextConstructor | null;
 
           const fromVars: TweenVars = from;
           const toVarsBase: TweenVars = to;
@@ -139,11 +168,23 @@ export default function SplitText(
             let targets: HTMLElement[] = [];
             const assignTargets = (instance: SplitPluginInstance) => {
               const preferred = (splitType || "chars").toString();
-              if (preferred.includes("chars") && instance.chars?.length) targets = instance.chars;
-              if (!targets.length && preferred.includes("words") && instance.words?.length) targets = instance.words;
-              if (!targets.length && preferred.includes("lines") && instance.lines?.length) targets = instance.lines;
+              if (preferred.includes("chars") && instance.chars?.length)
+                targets = instance.chars;
+              if (
+                !targets.length &&
+                preferred.includes("words") &&
+                instance.words?.length
+              )
+                targets = instance.words;
+              if (
+                !targets.length &&
+                preferred.includes("lines") &&
+                instance.lines?.length
+              )
+                targets = instance.lines;
               if (!targets.length) {
-                targets = instance.chars || instance.words || instance.lines || [];
+                targets =
+                  instance.chars || instance.words || instance.lines || [];
               }
             };
 
@@ -197,18 +238,25 @@ export default function SplitText(
             el.textContent = "";
             const container = document.createDocumentFragment();
             const mode = (splitType || "chars").toString();
-            const tokens = mode.startsWith("words") ? original.split(/(\s+)/) : Array.from(original);
+            const tokens = mode.startsWith("words")
+              ? original.split(/(\s+)/)
+              : Array.from(original);
             tokens.forEach((token) => {
               const isSpace = /\s+/.test(token);
               const span = document.createElement("span");
               span.textContent = isSpace ? "\u00A0" : token;
-              span.setAttribute(isSpace ? "data-space" : "data-ch", isSpace ? "1" : token);
+              span.setAttribute(
+                isSpace ? "data-space" : "data-ch",
+                isSpace ? "1" : token,
+              );
               span.className = "inline-block align-baseline";
               container.appendChild(span);
             });
             el.appendChild(container);
 
-            const spans = Array.from(el.querySelectorAll("[data-ch], [data-space]")) as HTMLElement[];
+            const spans = Array.from(
+              el.querySelectorAll("[data-ch], [data-space]"),
+            ) as HTMLElement[];
             gsap.set(spans, fromVars);
             const toVars: TweenVars = {
               ...toVarsBase,
@@ -246,7 +294,8 @@ export default function SplitText(
           scrollTriggerInstance?.getAll?.()?.forEach((trigger) => {
             const matchesCurrent =
               !!ref.current &&
-              (trigger?.trigger === ref.current || trigger?.vars?.trigger === ref.current);
+              (trigger?.trigger === ref.current ||
+                trigger?.vars?.trigger === ref.current);
             if (matchesCurrent) {
               trigger.kill?.();
             }
@@ -261,16 +310,35 @@ export default function SplitText(
         }
       };
     },
-    { dependencies: [fontsLoaded, text, delay, duration, ease, splitType, JSON.stringify(from), JSON.stringify(to), threshold, rootMargin, manualStart, startSignal ? 1 : 0] },
-  );  const commonStyle: React.CSSProperties = {
+    {
+      dependencies: [
+        fontsLoaded,
+        text,
+        delay,
+        duration,
+        ease,
+        splitType,
+        JSON.stringify(from),
+        JSON.stringify(to),
+        threshold,
+        rootMargin,
+        manualStart,
+        startSignal ? 1 : 0,
+      ],
+    },
+  );
+  const commonStyle: React.CSSProperties = {
     overflow: "visible",
-    display: (tag === "p" || tag === "div") ? "block" : "inline",
+    display: tag === "p" || tag === "div" ? "block" : "inline",
     whiteSpace: "inherit",
     verticalAlign: "baseline",
     willChange: "transform, opacity",
   };
   if (textAlign) commonStyle.textAlign = textAlign;
 
-  return React.createElement(tag, { ref, className: `split-parent ${className}`.trim(), style: commonStyle }, text);
+  return React.createElement(
+    tag,
+    { ref, className: `split-parent ${className}`.trim(), style: commonStyle },
+    text,
+  );
 }
-
