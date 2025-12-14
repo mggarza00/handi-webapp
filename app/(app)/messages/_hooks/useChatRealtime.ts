@@ -33,7 +33,11 @@ export type Handlers = {
   onMessageInsert?: (row: RealtimeMessage) => void;
   onAttachmentInsert?: (row: RealtimeAttachment) => void;
   onMessageUpdate?: (row: RealtimeMessage) => void; // optional
-  onAttachmentDelete?: (row: { id: string; message_id: string; conversation_id: string }) => void; // optional
+  onAttachmentDelete?: (row: {
+    id: string;
+    message_id: string;
+    conversation_id: string;
+  }) => void; // optional
 };
 
 /**
@@ -41,6 +45,9 @@ export type Handlers = {
  * Keeps UI responsive without manual refresh.
  */
 export function useChatRealtime(conversationId: string, h: Handlers) {
+  const handlersRef = React.useRef<Handlers>(h);
+  handlersRef.current = h;
+
   React.useEffect(() => {
     if (!conversationId) return;
     const sb = createSupabaseBrowser();
@@ -48,37 +55,85 @@ export function useChatRealtime(conversationId: string, h: Handlers) {
       .channel(`chat:${conversationId}:rt`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
         (payload) => {
           if (process.env.NODE_ENV !== "production") {
             // eslint-disable-next-line no-console
-            console.debug("rt message insert", conversationId, (payload.new as { id?: string })?.id);
+            console.debug(
+              "rt message insert",
+              conversationId,
+              (payload.new as { id?: string })?.id,
+            );
           }
-          h.onMessageInsert?.(payload.new as RealtimeMessage);
+          handlersRef.current?.onMessageInsert?.(
+            payload.new as RealtimeMessage,
+          );
         },
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-        (payload) => {
-          if (process.env.NODE_ENV != "production") { console.debug("rt message update", conversationId, (payload.new as { id?: string })?.id); }
-          h.onMessageUpdate?.(payload.new as RealtimeMessage);
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
         },
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "message_attachments", filter: `conversation_id=eq.${conversationId}` },
         (payload) => {
           if (process.env.NODE_ENV != "production") {
-            console.debug("rt attachment insert", conversationId, (payload.new as { message_id?: string })?.message_id, (payload.new as { id?: string })?.id);
+            console.debug(
+              "rt message update",
+              conversationId,
+              (payload.new as { id?: string })?.id,
+            );
           }
-          h.onAttachmentInsert?.(payload.new as RealtimeAttachment);
+          handlersRef.current?.onMessageUpdate?.(
+            payload.new as RealtimeMessage,
+          );
         },
       )
       .on(
         "postgres_changes",
-        { event: "DELETE", schema: "public", table: "message_attachments", filter: `conversation_id=eq.${conversationId}` },
-        (payload) => h.onAttachmentDelete?.(payload.old as { id: string; message_id: string; conversation_id: string }),
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "message_attachments",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          if (process.env.NODE_ENV != "production") {
+            console.debug(
+              "rt attachment insert",
+              conversationId,
+              (payload.new as { message_id?: string })?.message_id,
+              (payload.new as { id?: string })?.id,
+            );
+          }
+          handlersRef.current?.onAttachmentInsert?.(
+            payload.new as RealtimeAttachment,
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "message_attachments",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) =>
+          handlersRef.current?.onAttachmentDelete?.(
+            payload.old as {
+              id: string;
+              message_id: string;
+              conversation_id: string;
+            },
+          ),
       )
       // DEV-only broad listener (no filter) to diagnose filtering issues. Remove after validation.
       .on(
@@ -112,9 +167,15 @@ export function useChatRealtime(conversationId: string, h: Handlers) {
         },
       )
       .subscribe();
-    if (process.env.NODE_ENV != "production") { console.debug("rt sub to conv", conversationId); }
+    if (process.env.NODE_ENV != "production") {
+      console.debug("rt sub to conv", conversationId);
+    }
     return () => {
-      try { sb.removeChannel(channel); } catch { /* ignore */ }
+      try {
+        sb.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
     };
-  }, [conversationId, h]);
+  }, [conversationId]);
 }
