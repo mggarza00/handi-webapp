@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Chip = {
   name: string;
@@ -112,6 +112,33 @@ export default function SubcategoryChips({ items }: { items: Chip[] }) {
 
   const visible = chips.slice(0, MAX_INLINE);
   const hidden = chips.slice(MAX_INLINE);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const update = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [expanded]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -123,6 +150,7 @@ export default function SubcategoryChips({ items }: { items: Chip[] }) {
           {hidden.length > 0 ? (
             <div
               className="relative"
+              ref={triggerRef}
               onMouseLeave={() => setExpanded(false)}
               onMouseEnter={() => setExpanded(true)}
             >
@@ -140,7 +168,12 @@ export default function SubcategoryChips({ items }: { items: Chip[] }) {
               </button>
               {expanded ? (
                 <div
-                  className="absolute left-0 top-full z-20 w-[min(360px,80vw)] max-h-80 overflow-y-auto rounded-xl border border-slate-100 bg-white p-2 shadow-xl"
+                  className="fixed z-[9999] w-[min(420px,90vw)] max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-2xl"
+                  style={{
+                    top: coords?.top ?? 0,
+                    left: coords?.left ?? 0,
+                    minWidth: coords?.width ?? undefined,
+                  }}
                   onMouseEnter={() => setExpanded(true)}
                   onMouseLeave={() => setExpanded(false)}
                 >

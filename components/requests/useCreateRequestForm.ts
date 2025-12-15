@@ -76,6 +76,7 @@ function toAddressSuggestion(value: unknown): AddressSuggestion | null {
     lon: typeof obj.lon === "number" ? obj.lon : null,
     postal_code: typeof obj.postal_code === "string" ? obj.postal_code : null,
     label: typeof obj.label === "string" ? obj.label : null,
+    place_id: typeof obj.place_id === "string" ? obj.place_id : null,
   };
 }
 
@@ -114,6 +115,10 @@ export type CreateRequestFormState = {
   addrSuggestions: AddressSuggestion[];
   recentAddrs: AddressSuggestion[];
   coords: { lat: number; lon: number } | null;
+  savedAddrs: AddressSuggestion[];
+  shouldSaveAddress: boolean;
+  isAddressSaved: boolean;
+  placeId: string | null;
 };
 
 export type CreateRequestFormApi = {
@@ -139,6 +144,7 @@ export type CreateRequestFormApi = {
     city?: string | null;
     lat?: number | null;
     lon?: number | null;
+    place_id?: string | null;
   }) => void;
   debouncedFetchAddr: (q: string) => void;
   categoriesList: string[];
@@ -147,6 +153,8 @@ export type CreateRequestFormApi = {
   handleSubmit: (opts?: {
     onSuccess?: (newId?: string) => void;
   }) => Promise<void>;
+  setShouldSaveAddress: (v: boolean) => void;
+  setPlaceId: (v: string | null) => void;
 };
 
 type FormValues = {
@@ -180,6 +188,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   const [requiredAt, setRequiredAt] = useState("");
   const [conditionsText, setConditionsText] = useState<string>("");
   const [files, setFiles] = useState<File[]>([]);
+  const [placeId, setPlaceId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
@@ -320,6 +329,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     [],
   );
   const [recentAddrs] = useState<AddressSuggestion[]>([]);
+  const [savedAddrs, setSavedAddrs] = useState<AddressSuggestion[]>([]);
+  const [shouldSaveAddress, setShouldSaveAddress] = useState(false);
   const addrDebounceRef = useRef<number | null>(null);
   const addrTouchedRef = useRef(false);
 
@@ -384,7 +395,51 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     return () => {
       cancelled = true;
     };
+    setShouldSaveAddress(false);
   }, [address, detectCityNow]);
+
+  const normalizeAddress = useCallback((v: string | null | undefined) => {
+    return (v || "").toString().trim().toLowerCase();
+  }, []);
+
+  const isAddressSaved = useMemo(() => {
+    const norm = normalizeAddress(addressLine || address);
+    const match = savedAddrs.some((it) => {
+      const byPlace =
+        placeId &&
+        typeof it?.place_id === "string" &&
+        it.place_id.trim() &&
+        it.place_id.trim() === placeId;
+      const byLine = normalizeAddress(it?.address) === norm;
+      return byPlace || byLine;
+    });
+    return match;
+  }, [address, addressLine, normalizeAddress, placeId, savedAddrs]);
+
+  // Load saved addresses for default detection
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/addresses/saved", {
+          cache: "no-store",
+          headers: { Accept: "application/json; charset=utf-8" },
+          credentials: "include",
+        });
+        if (!res.ok) return;
+        const json = await res.json().catch(() => ({}));
+        const list = Array.isArray(json?.data) ? (json.data as AddressSuggestion[]) : [];
+        if (!cancelled) {
+          setSavedAddrs(list.map((it) => toAddressSuggestion(it)!).filter(Boolean));
+        }
+      } catch (error) {
+        logFormError("load-saved-addresses", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Categories
   const [catMap, setCatMap] = useState<Record<string, Subcat[]>>({});
@@ -641,6 +696,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     setAddress(line);
     const lat = typeof it.lat === "number" ? it.lat : null;
     const lng = typeof it.lon === "number" ? it.lon : null;
+    setPlaceId(it.place_id ?? null);
     setAddressLat(lat);
     setAddressLng(lng);
     if (typeof it.city === "string" && it.city) {
@@ -957,6 +1013,28 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       clearDraft("draft:create-service");
       clearGatingFlags();
 
+      if (shouldSaveAddress && addressLine.trim()) {
+        try {
+          await fetch("/api/addresses/saved", {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            credentials: "include",
+            body: JSON.stringify({
+              address_line: addressLine.trim(),
+              address_place_id: placeId,
+              lat: addressLat,
+              lng: addressLng,
+              label: null,
+            }),
+          });
+        } catch (error) {
+          logFormError("save-address", error);
+          toast.error(
+            "No se pudo guardar la dirección, pero la solicitud fue creada.",
+          );
+        }
+      }
+
       if (opts?.onSuccess) opts.onSuccess(newId);
       else if (newId) router.push(`/requests/${newId}`);
     } finally {
@@ -1071,6 +1149,10 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       addrSuggestions,
       recentAddrs,
       coords,
+      savedAddrs,
+      shouldSaveAddress,
+      isAddressSaved,
+      placeId,
     },
     setTitle,
     setDescription,
@@ -1124,6 +1206,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       setAddressLine(value);
       setAddressLat(null);
       setAddressLng(null);
+      setPlaceId(null);
+      setShouldSaveAddress(false);
       try {
         setValue("address_line", value, {
           shouldDirty: true,
@@ -1149,6 +1233,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     subcatOptions,
     setAddrOpen,
     handleSubmit,
+    setShouldSaveAddress,
+    setPlaceId,
   };
 }
 
