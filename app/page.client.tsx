@@ -860,7 +860,7 @@ export default function Page({
             </p>
             <div className="max-w-5xl mx-auto px-4 md:px-6 bg-white rounded-3xl shadow-sm border border-slate-200">
               <div
-                className="marquee overflow-x-hidden overflow-y-visible pb-2"
+                className="marquee overflow-x-hidden overflow-y-visible py-6"
                 style={
                   {
                     ["--marquee-duration" as string]: MARQUEE_DURATION,
@@ -879,7 +879,7 @@ export default function Page({
                         <Link
                           key={`subcat-a-${s.name}`}
                           href={`/search?subcategory=${encodeURIComponent(s.name)}`}
-                          className="inline-flex min-w-[150px] max-w-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-5 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+                          className="inline-flex min-w-[150px] max-w-[180px] min-h-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-6 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
                         >
                           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
                             {emoji ? (
@@ -916,7 +916,7 @@ export default function Page({
                         <Link
                           key={`subcat-b-${s.name}`}
                           href={`/search?subcategory=${encodeURIComponent(s.name)}`}
-                          className="inline-flex min-w-[150px] max-w-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-5 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
+                          className="inline-flex min-w-[150px] max-w-[180px] min-h-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-6 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
                         >
                           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
                             {emoji ? (
@@ -992,7 +992,7 @@ export default function Page({
                 </p>
               </div>
               <Link
-                href="#como-funciona"
+                href="/pagos"
                 className={`${stackSansMedium.className} inline-flex w-fit items-center justify-center rounded-full bg-[#A6D234] px-8 py-3 text-base text-[#114430] shadow-sm transition hover:bg-[#9bc32f]`}
               >
                 Cómo funciona
