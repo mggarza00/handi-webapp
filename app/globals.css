@@ -648,6 +648,12 @@ body {
       hue-rotate(191deg) brightness(90%) contrast(96%);
   }
 
+  /* Oculta botones de login en pantallas específicas */
+  .hide-login-buttons .login-pill,
+  .hide-login-buttons .public-login-menu {
+    display: none !important;
+  }
+
   .handi-header.header-on-hero
     .handi-header-public
     .login-pill:hover

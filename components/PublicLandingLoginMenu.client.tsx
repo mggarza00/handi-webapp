@@ -60,7 +60,7 @@ export default function PublicLandingLoginMenu({
   }
 
   return (
-    <div ref={menuRef} className="relative md:hidden">
+    <div ref={menuRef} className="public-login-menu relative md:hidden">
       <button
         type="button"
         aria-label={open ? "Cerrar menú" : "Abrir menú de inicio de sesión"}
