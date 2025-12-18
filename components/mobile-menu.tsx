@@ -315,7 +315,7 @@ function MobileMenuDrawer({
 
   const onShare = React.useCallback(async () => {
     const url = typeof window !== "undefined" ? window.location.origin : "";
-    const text = "Asnete a Handi y conecta con expertos de confianza";
+    const text = "Únete a Handi y conecta con expertos de confianza";
     try {
       if (navigator.share) {
         await navigator.share({ title: "Handi", text, url });

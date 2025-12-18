@@ -36,7 +36,9 @@ type MapboxGeocoderInstance = {
   on: (event: "result", callback: (ev: MapboxGeocoderEvent) => void) => void;
 };
 
-type MapboxGeocoderConstructor = new (options: Record<string, unknown>) => MapboxGeocoderInstance;
+type MapboxGeocoderConstructor = new (
+  options: Record<string, unknown>,
+) => MapboxGeocoderInstance;
 
 export type MapboxContext = MapboxContextFeature[] | null;
 
@@ -92,10 +94,17 @@ const logMapError = (error: unknown) => {
   }
 };
 
-export default function MapPickerModal({ open, initial, onClose, onConfirm }: Props) {
+export default function MapPickerModal({
+  open,
+  initial,
+  onClose,
+  onConfirm,
+}: Props) {
   const mapRef = React.useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = React.useRef<MapboxMap | null>(null);
   const markerRef = React.useRef<MapboxMarker | null>(null);
+  const selectionRef = React.useRef<{ lat: number; lng: number } | null>(null);
+  const mapboxModuleRef = React.useRef<MapboxModule | null>(null);
   const geocoderContainerRef = React.useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = React.useState<string>(initial?.address || "");
   const [isLoaded, setIsLoaded] = React.useState(false);
@@ -114,25 +123,192 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
     // Otherwise, default by common cities, using address hint if present.
     const hint = initialAddress.toLowerCase();
     if (hint.includes("monterrey")) return [-100.3161, 25.6866];
-    if (hint.includes("cdmx") || hint.includes("ciudad de méxico") || hint.includes("ciudad de mexico")) return [-99.1332, 19.4326];
+    if (
+      hint.includes("cdmx") ||
+      hint.includes("ciudad de méxico") ||
+      hint.includes("ciudad de mexico")
+    )
+      return [-99.1332, 19.4326];
     return [-100.3161, 25.6866];
   }, [initialAddress]);
 
   const center: [number, number] = React.useMemo(() => {
-    if (typeof initialLng === "number" && typeof initialLat === "number") return [initialLng, initialLat];
+    if (typeof initialLng === "number" && typeof initialLat === "number")
+      return [initialLng, initialLat];
     return defaultCenter;
   }, [initialLat, initialLng, defaultCenter]);
+
+  const reverseNow = React.useCallback(
+    async (coords?: { lat: number; lng: number }) => {
+      const target =
+        coords ??
+        (() => {
+          const map = mapInstanceRef.current;
+          const ll = map?.getCenter?.();
+          if (!ll) return null;
+          return { lat: ll.lat, lng: ll.lng };
+        })();
+      if (!target) return null;
+      selectionRef.current = target;
+      setBusy(true);
+      try {
+        const res = await fetch(
+          `/api/geocode?lat=${encodeURIComponent(String(target.lat))}&lng=${encodeURIComponent(String(target.lng))}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json().catch(() => ({}))) as GeocodeResult;
+        const context = Array.isArray(json?.context) ? json.context : null;
+        const next: ResolvedAddress = {
+          address:
+            typeof json?.address_line === "string" ? json.address_line : null,
+          place_id: typeof json?.place_id === "string" ? json.place_id : null,
+          city: typeof json?.city === "string" ? json.city : null,
+          postcode: typeof json?.postcode === "string" ? json.postcode : null,
+          state: typeof json?.state === "string" ? json.state : null,
+          country: typeof json?.country === "string" ? json.country : null,
+          context,
+        };
+        setResolved(next);
+        if (next.address) {
+          setQuery(next.address);
+        }
+        return next;
+      } catch (error) {
+        logMapError(error);
+        setResolved(null);
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
+
+  const setSelection = React.useCallback(
+    async (lng: number, lat: number, resolvedHint?: ResolvedAddress | null) => {
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+      const ll = { lng, lat };
+      selectionRef.current = ll;
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.log("[MapPickerModal] setSelection", ll);
+      }
+      try {
+        if (!markerRef.current) {
+          const map = mapInstanceRef.current;
+          const mapboxModule = mapboxModuleRef.current;
+          if (!map || !mapboxModule) return null;
+          const el = document.createElement("div");
+          el.style.width = "28px";
+          el.style.height = "28px";
+          el.style.borderRadius = "50%";
+          el.style.background = "#2563eb";
+          el.style.border = "2px solid white";
+          el.style.boxShadow = "0 6px 14px rgba(0,0,0,0.25)";
+          markerRef.current = new mapboxModule.Marker({
+            draggable: true,
+            element: el,
+            anchor: "center",
+          })
+            .setLngLat([lng, lat])
+            .addTo(map);
+          const markerEl = markerRef.current.getElement();
+          markerEl.style.cursor = "grab";
+          markerRef.current.on("dragstart", () => {
+            markerEl.style.cursor = "grabbing";
+          });
+          markerRef.current.on("dragend", () => {
+            markerEl.style.cursor = "grab";
+            const ll = markerRef.current?.getLngLat();
+            if (ll) void setSelection(ll.lng, ll.lat);
+          });
+        }
+        markerRef.current?.setLngLat([lng, lat]);
+      } catch (error) {
+        logMapError(error);
+      }
+      if (resolvedHint) {
+        setResolved(resolvedHint);
+        if (resolvedHint.address) {
+          setQuery(resolvedHint.address);
+        }
+        return resolvedHint;
+      }
+      return reverseNow(ll);
+    },
+    [reverseNow],
+  );
+
+  const forwardNow = React.useCallback(
+    async (search?: string) => {
+      try {
+        const q = (search ?? query ?? "").trim();
+        if (!q) return;
+        setBusy(true);
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
+          cache: "no-store",
+        });
+        const json = await res.json().catch(() => ({}));
+        const results = Array.isArray(json?.results)
+          ? (json.results as GeocodeResult[])
+          : [];
+        const feature = results.length > 0 ? results[0] : null;
+        if (!feature) return;
+        const lat = typeof feature.lat === "number" ? feature.lat : null;
+        const lng = typeof feature.lng === "number" ? feature.lng : null;
+        const address =
+          typeof feature.address_line === "string"
+            ? feature.address_line
+            : null;
+        const mapInstance = mapInstanceRef.current;
+        if (lat != null && lng != null && mapInstance) {
+          try {
+            mapInstance.flyTo({ center: [lng, lat], zoom: 16 });
+          } catch (error) {
+            logMapError(error);
+          }
+        }
+        const resolvedPayload: ResolvedAddress = {
+          address,
+          place_id:
+            typeof feature.place_id === "string" ? feature.place_id : null,
+          city: typeof feature.city === "string" ? feature.city : null,
+          postcode:
+            typeof feature.postcode === "string" ? feature.postcode : null,
+          state: typeof feature.state === "string" ? feature.state : null,
+          country: typeof feature.country === "string" ? feature.country : null,
+          context: Array.isArray(feature.context) ? feature.context : null,
+        };
+        if (lat != null && lng != null) {
+          void setSelection(lng, lat, resolvedPayload);
+        }
+        setQuery(address || q);
+      } catch (error) {
+        logMapError(error);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [query, setSelection],
+  );
 
   React.useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
+    let rafId: number | null = null;
+    const resizeTimers: number[] = [];
     (async () => {
       try {
-        const [rawMapbox, rawGeocoder] = await Promise.all([mapboxglPromise, geocoderPromise]);
+        const [rawMapbox, rawGeocoder] = await Promise.all([
+          mapboxglPromise,
+          geocoderPromise,
+        ]);
         const { default: mapboxDefault } = rawMapbox as { default: unknown };
         const mapboxgl = mapboxDefault as MapboxModule;
-        const { default: geocoderDefault } = rawGeocoder as { default: unknown };
+        mapboxModuleRef.current = mapboxgl;
+        const { default: geocoderDefault } = rawGeocoder as {
+          default: unknown;
+        };
         const MapboxGeocoder = geocoderDefault as MapboxGeocoderConstructor;
         if (cancelled) return;
         mapboxgl.accessToken = token;
@@ -146,23 +322,56 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
           attributionControl: true,
         });
         mapInstanceRef.current = map;
-
-        const setMarker = (ll: { lng: number; lat: number }) => {
-          if (markerRef.current) {
-            markerRef.current.setLngLat(ll);
-            return;
+        const initialCenter = { lng: center[0], lat: center[1] };
+        selectionRef.current = initialCenter;
+        if (process.env.NODE_ENV !== "production") {
+          // eslint-disable-next-line no-console
+          console.log("[MapPickerModal] initial center", initialCenter);
+        }
+        const scheduleResize = () => {
+          try {
+            map.resize();
+          } catch (error) {
+            logMapError(error);
           }
-          const marker = new mapboxgl.Marker({ draggable: true, anchor: "bottom" })
-            .setLngLat(ll)
-            .addTo(map);
-          markerRef.current = marker;
-          marker.on("dragend", () => {
-            void reverseNow();
-          });
+          if (typeof window !== "undefined") {
+            rafId = window.requestAnimationFrame(() => {
+              try {
+                map.resize();
+              } catch (error) {
+                logMapError(error);
+              }
+            });
+            resizeTimers.push(
+              window.setTimeout(() => {
+                try {
+                  map.resize();
+                  if (process.env.NODE_ENV !== "production") {
+                    // eslint-disable-next-line no-console
+                    console.log("[MapPickerModal] resize tick");
+                  }
+                } catch (error) {
+                  logMapError(error);
+                }
+              }, 50),
+            );
+            resizeTimers.push(
+              window.setTimeout(() => {
+                try {
+                  map.resize();
+                } catch (error) {
+                  logMapError(error);
+                }
+              }, 250),
+            );
+          }
         };
 
         try {
-          const nav: MapboxNavigationControl = new mapboxgl.NavigationControl({ showCompass: false, showZoom: true });
+          const nav: MapboxNavigationControl = new mapboxgl.NavigationControl({
+            showCompass: false,
+            showZoom: true,
+          });
           map.addControl(nav, "top-right");
         } catch (error) {
           logMapError(error);
@@ -179,28 +388,18 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
           geolocate.on("geolocate", (event: GeolocationPosition) => {
             const latitude = Number(event?.coords?.latitude);
             const longitude = Number(event?.coords?.longitude);
-            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+            if (!Number.isFinite(latitude) || !Number.isFinite(longitude))
+              return;
             try {
               map.flyTo({ center: [longitude, latitude], zoom: 15 });
             } catch (error) {
               logMapError(error);
             }
-            setMarker({ lng: longitude, lat: latitude });
-            void reverseNow();
+            void setSelection(longitude, latitude);
           });
         } catch (error) {
           logMapError(error);
         }
-
-        setMarker({ lng: center[0], lat: center[1] });
-        void reverseNow();
-
-        map.on("click", (event: MapMouseEvent) => {
-          const ll = event.lngLat;
-          if (!ll) return;
-          setMarker({ lng: ll.lng, lat: ll.lat });
-          void reverseNow();
-        });
 
         const geocoder = new MapboxGeocoder({
           accessToken: token,
@@ -211,6 +410,15 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
           countries: "mx",
           placeholder: "Buscar dirección…",
           limit: 5,
+        });
+        map.on("click", (event: MapMouseEvent) => {
+          const ll = event.lngLat;
+          if (!ll) return;
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.log("[MapPickerModal] map click", ll);
+          }
+          void setSelection(ll.lng, ll.lat);
         });
         const mountNode = geocoderContainerRef.current;
         if (mountNode) {
@@ -223,27 +431,26 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
           const feature = event.result;
           if (!feature) return;
           const featureCenter = feature.center;
-          if (Array.isArray(featureCenter)) {
-            const [lng, lat] = featureCenter;
-            try {
-              map.flyTo({ center: [lng, lat], zoom: 15 });
-            } catch (error) {
-              logMapError(error);
-            }
-            setMarker({ lng, lat });
-          }
           const addressLine = String(feature.place_name || feature.text || "");
           const placeId = String(feature.id || "");
-          const ctx: MapboxContextFeature[] = Array.isArray(feature.context) ? feature.context : [];
+          const ctx: MapboxContextFeature[] = Array.isArray(feature.context)
+            ? feature.context
+            : [];
           const getContextValue = (prefix: string) => {
-            const entry = ctx.find((item) => typeof item?.id === "string" && item.id.startsWith(prefix));
+            const entry = ctx.find(
+              (item) =>
+                typeof item?.id === "string" && item.id.startsWith(prefix),
+            );
             return entry?.text ?? null;
           };
-          const city = getContextValue("locality.") || getContextValue("place.") || getContextValue("region.");
+          const city =
+            getContextValue("locality.") ||
+            getContextValue("place.") ||
+            getContextValue("region.");
           const postcode = getContextValue("postcode.");
           const state = getContextValue("region.");
           const country = getContextValue("country.");
-          setResolved({
+          const resolvedPayload: ResolvedAddress = {
             address: addressLine || null,
             place_id: placeId || null,
             city,
@@ -251,23 +458,53 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
             state,
             country,
             context: ctx,
-          });
-          setQuery(addressLine || "");
+          };
+          if (Array.isArray(featureCenter)) {
+            const [lng, lat] = featureCenter;
+            if (process.env.NODE_ENV !== "production") {
+              // eslint-disable-next-line no-console
+              console.log("[MapPickerModal] geocoder result", { lng, lat });
+            }
+            try {
+              map.flyTo({ center: [lng, lat], zoom: 16 });
+            } catch (error) {
+              logMapError(error);
+            }
+            void setSelection(lng, lat, resolvedPayload);
+          }
+          const ll = Array.isArray(featureCenter)
+            ? { lat: featureCenter[1], lng: featureCenter[0] }
+            : (selectionRef.current ?? null);
+          if (ll && !Array.isArray(featureCenter)) {
+            void setSelection(ll.lng, ll.lat, resolvedPayload);
+          }
+          setQuery(addressLine || resolvedPayload.address || "");
         });
 
-        const resizeMap = () => {
-          try {
-            map.resize();
-          } catch (error) {
-            logMapError(error);
-          }
-        };
         map.on("load", () => {
           if (cancelled) return;
           setIsLoaded(true);
           setLoadError(null);
-          resizeMap();
-          cleanupTimer = setTimeout(resizeMap, 100);
+
+          scheduleResize();
+          map.once("idle", scheduleResize);
+          try {
+            map.setCenter([initialCenter.lng, initialCenter.lat]);
+            map.setZoom(15);
+          } catch (error) {
+            logMapError(error);
+          }
+          if (process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.log(
+              "[MapPickerModal] after load center",
+              map.getCenter()?.toArray(),
+            );
+          }
+          void setSelection(initialCenter.lng, initialCenter.lat);
+          if (!initialLat && !initialLng && initialAddress.trim()) {
+            void forwardNow(initialAddress);
+          }
           if (geolocate?.trigger) {
             try {
               geolocate.trigger();
@@ -281,7 +518,10 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
                 (position) => {
                   const latitude = Number(position?.coords?.latitude);
                   const longitude = Number(position?.coords?.longitude);
-                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                  if (
+                    !Number.isFinite(latitude) ||
+                    !Number.isFinite(longitude)
+                  ) {
                     return;
                   }
                   try {
@@ -289,8 +529,6 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
                   } catch (error) {
                     logMapError(error);
                   }
-                  setMarker({ lng: longitude, lat: latitude });
-                  void reverseNow();
                 },
                 () => undefined,
                 { enableHighAccuracy: true, timeout: 5000, maximumAge: 300000 },
@@ -300,11 +538,14 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
             logMapError(error);
           }
         });
-        map.once("idle", () => resizeMap());
+        map.once("idle", scheduleResize);
         map.on("error", (event: MapboxErrorEvent) => {
-          resizeMap();
+          scheduleResize();
           setIsLoaded(true);
-          const msg = event && (event.error || event.message) ? String(event.error || event.message) : "map_error";
+          const msg =
+            event && (event.error || event.message)
+              ? String(event.error || event.message)
+              : "map_error";
           setLoadError(msg);
         });
       } catch (error) {
@@ -326,107 +567,41 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
       }
       markerRef.current = null;
       mapInstanceRef.current = null;
-      if (cleanupTimer) clearTimeout(cleanupTimer);
+      mapboxModuleRef.current = null;
+      if (rafId && typeof window !== "undefined") {
+        window.cancelAnimationFrame(rafId);
+      }
+      resizeTimers.forEach((t) => window.clearTimeout(t));
     };
-  }, [center, open, token]);
-
-  async function reverseNow() {
-    try {
-      const marker = markerRef.current;
-      const ll = marker?.getLngLat?.();
-      if (!ll) return;
-      setBusy(true);
-      const res = await fetch(`/api/geocode?lat=${encodeURIComponent(String(ll.lat))}&lng=${encodeURIComponent(String(ll.lng))}`, { cache: "no-store" });
-      const json = (await res.json().catch(() => ({}))) as GeocodeResult;
-      const context = Array.isArray(json?.context) ? json.context : null;
-      const next: ResolvedAddress = {
-        address: typeof json?.address_line === "string" ? json.address_line : null,
-        place_id: typeof json?.place_id === "string" ? json.place_id : null,
-        city: typeof json?.city === "string" ? json.city : null,
-        postcode: typeof json?.postcode === "string" ? json.postcode : null,
-        state: typeof json?.state === "string" ? json.state : null,
-        country: typeof json?.country === "string" ? json.country : null,
-        context,
-      };
-      setResolved(next);
-      if (next.address) {
-        setQuery(next.address);
-      }
-    } catch (error) {
-      logMapError(error);
-      setResolved(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const forwardNow = React.useCallback(async () => {
-    try {
-      const q = (query || "").trim();
-      if (!q) return;
-      setBusy(true);
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-      const results = Array.isArray(json?.results) ? (json.results as GeocodeResult[]) : [];
-      const feature = results.length > 0 ? results[0] : null;
-      if (!feature) return;
-      const lat = typeof feature.lat === "number" ? feature.lat : null;
-      const lng = typeof feature.lng === "number" ? feature.lng : null;
-      const address = typeof feature.address_line === "string" ? feature.address_line : null;
-      const mapInstance = mapInstanceRef.current;
-      if (lat != null && lng != null && mapInstance) {
-        try {
-          mapInstance.flyTo({ center: [lng, lat], zoom: 15 });
-        } catch (error) {
-          logMapError(error);
-        }
-        if (markerRef.current) {
-          markerRef.current.setLngLat({ lng, lat });
-        } else {
-          try {
-            const rawMapbox = await mapboxglPromise;
-            const { default: mapboxDefault } = rawMapbox as { default: unknown };
-            const mapboxgl = mapboxDefault as MapboxModule;
-            const marker = new mapboxgl.Marker({ draggable: true, anchor: "bottom" })
-              .setLngLat({ lng, lat })
-              .addTo(mapInstance);
-            markerRef.current = marker;
-            marker.on("dragend", () => void reverseNow());
-          } catch (error) {
-            logMapError(error);
-          }
-        }
-      }
-      setResolved({
-        address,
-        place_id: typeof feature.place_id === "string" ? feature.place_id : null,
-        city: typeof feature.city === "string" ? feature.city : null,
-        postcode: typeof feature.postcode === "string" ? feature.postcode : null,
-        state: typeof feature.state === "string" ? feature.state : null,
-        country: typeof feature.country === "string" ? feature.country : null,
-        context: Array.isArray(feature.context) ? feature.context : null,
-      });
-      setQuery(address || q);
-    } catch (error) {
-      logMapError(error);
-    } finally {
-      setBusy(false);
-    }
-  }, [query]);
+  }, [
+    center,
+    forwardNow,
+    initialAddress,
+    initialLat,
+    initialLng,
+    open,
+    setSelection,
+    token,
+  ]);
 
   async function confirm() {
     try {
-      const m = markerRef.current;
-      const ll = m?.getLngLat?.();
+      const marker = markerRef.current;
+      const ll = marker?.getLngLat?.() ?? selectionRef.current;
       if (!ll) return;
-      // Ensure we have a resolved payload; if missing, reverse now
+      // Ensure we have a resolved payload; if missing, reverse now based on center
       let r = resolved;
-      if (!r) {
-        await reverseNow();
-        r = resolved;
+      if (!r || !r.address) {
+        r = await reverseNow(ll);
       }
+      const addressInput = (
+        r?.address ||
+        query ||
+        initial?.address ||
+        ""
+      ).trim();
       const payload: Payload = {
-        address: (r?.address || initial?.address || "") as string,
+        address: addressInput as string,
         lat: ll.lat,
         lng: ll.lng,
         city: (r?.city ?? undefined) as string | undefined,
@@ -449,7 +624,12 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
       <div className="w-[96vw] max-w-3xl rounded-lg bg-white shadow-lg overflow-hidden">
         <div className="flex items-center justify-between gap-2 p-3 border-b">
           <div className="text-sm font-medium">Seleccionar ubicación</div>
-          <button className="text-sm text-slate-600 hover:text-slate-800" onClick={onClose}>Cerrar</button>
+          <button
+            className="text-sm text-slate-600 hover:text-slate-800"
+            onClick={onClose}
+          >
+            Cerrar
+          </button>
         </div>
         {/* Custom top address field */}
         <div className="px-3 pt-3">
@@ -458,17 +638,31 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
               placeholder="Escribe una dirección…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void forwardNow(); } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void forwardNow();
+                }
+              }}
             />
-            <Button type="button" variant="outline" onClick={() => void forwardNow()} disabled={busy}>
-              {busy ? 'Buscando…' : 'Buscar'}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void confirm()}
+              disabled={busy}
+            >
+              {busy ? "Resolviendo…" : "Aceptar"}
             </Button>
           </div>
         </div>
         {/* Keep Mapbox geocoder mounted but hidden to avoid layout flicker if needed */}
         <div ref={geocoderContainerRef} className="hidden" />
         <div className="relative h-[60vh] min-h-[320px] w-full">
-          <div ref={mapRef} className="h-full w-full" style={{ pointerEvents: isLoaded ? "auto" : "none" }} />
+          <div
+            ref={mapRef}
+            className="h-full w-full"
+            style={{ pointerEvents: isLoaded ? "auto" : "none" }}
+          />
           {!isLoaded ? (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs text-slate-600 bg-white/10">
               Cargando mapa…
@@ -481,7 +675,10 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
           ) : null}
         </div>
         <div className="p-3">
-          <div className="text-sm text-slate-600 truncate" title={resolved?.address || undefined}>
+          <div
+            className="text-sm text-slate-600 truncate"
+            title={resolved?.address || undefined}
+          >
             {resolved?.address || ""}
           </div>
           {!token ? (
@@ -489,11 +686,6 @@ export default function MapPickerModal({ open, initial, onClose, onConfirm }: Pr
               Falta configurar NEXT_PUBLIC_MAPBOX_TOKEN
             </div>
           ) : null}
-          <div className="flex items-center justify-end gap-2 mt-2">
-            <button className="px-3 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50" onClick={() => void confirm()} disabled={busy}>
-              {busy ? "Resolviendo…" : "Usar esta ubicación"}
-            </button>
-          </div>
         </div>
       </div>
     </div>

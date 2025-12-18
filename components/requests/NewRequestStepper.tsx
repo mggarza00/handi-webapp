@@ -6,7 +6,7 @@ import { Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 import Stepper, { Step } from "@/components/react-bits/stepper/Stepper";
-import LocationPickerDialog from "@/components/location/LocationPickerDialog";
+import AddressMapPickerModal from "@/components/address/MapPickerModal";
 import ConditionsCombobox from "@/components/requests/ConditionsCombobox";
 import useCreateRequestForm from "@/components/requests/useCreateRequestForm";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +85,7 @@ export default function NewRequestStepper({
     categoriesList,
     subcatOptions,
     handleSubmit,
+    setShouldSaveAddress,
   } = useCreateRequestForm();
 
   const {
@@ -109,6 +110,8 @@ export default function NewRequestStepper({
     recentAddrs,
     coords,
     openMap,
+    shouldSaveAddress,
+    isAddressSaved,
   } = state;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -118,13 +121,17 @@ export default function NewRequestStepper({
   const [needsErrorFocus, setNeedsErrorFocus] = useState(false);
   const showCategoriesWarning = !loadingCats && categoriesList.length === 0;
   const errorFieldClass = "border-red-600 focus-visible:ring-red-600";
+  const fieldBaseClass =
+    "bg-slate-100 border-slate-300 focus-visible:ring-slate-400 focus-visible:ring-offset-0 placeholder:text-slate-500 shadow-none";
   const categoryTriggerClass = cn(
+    fieldBaseClass,
     errors?.category && errorFieldClass,
     isAutoCategorizing && "opacity-60",
   );
   const subcategoryDisabled =
     isAutoCategorizing || !category || (catMap[category]?.length ?? 0) === 0;
   const subcategoryTriggerClass = cn(
+    fieldBaseClass,
     errors?.subcategory && errorFieldClass,
     isAutoCategorizing && "opacity-60",
   );
@@ -241,7 +248,7 @@ export default function NewRequestStepper({
                 placeholder="ej. Reparación de fuga en baño"
                 required
                 aria-invalid={errors?.title ? true : undefined}
-                className={cn(errors?.title && errorFieldClass)}
+                className={cn(fieldBaseClass, errors?.title && errorFieldClass)}
               />
               {errors?.title ? (
                 <p className="text-xs text-red-600">{errors.title}</p>
@@ -257,7 +264,10 @@ export default function NewRequestStepper({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe lo que necesitas"
                 aria-invalid={errors?.description ? true : undefined}
-                className={cn(errors?.description && errorFieldClass)}
+                className={cn(
+                  fieldBaseClass,
+                  errors?.description && errorFieldClass,
+                )}
               />
               {errors?.description ? (
                 <p className="text-xs text-red-600">{errors.description}</p>
@@ -385,7 +395,10 @@ export default function NewRequestStepper({
                 }}
               >
                 <SelectTrigger
-                  className={cn(errors?.city && errorFieldClass)}
+                  className={cn(
+                    fieldBaseClass,
+                    errors?.city && errorFieldClass,
+                  )}
                   aria-invalid={errors?.city ? true : undefined}
                 >
                   <SelectValue placeholder="Selecciona ciudad" />
@@ -415,7 +428,11 @@ export default function NewRequestStepper({
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="Calle y número, colonia, CP"
-                    className={`flex-1 ${errors?.address_line ? "border-red-600 focus-visible:ring-red-600" : ""}`}
+                    className={cn(
+                      "flex-1",
+                      fieldBaseClass,
+                      errors?.address_line && errorFieldClass,
+                    )}
                     aria-invalid={errors?.address_line ? true : undefined}
                     onFocus={() => {
                       const q = (address || "").trim();
@@ -428,6 +445,19 @@ export default function NewRequestStepper({
                       window.setTimeout(() => setAddrOpen(false), 120)
                     }
                   />
+                  {!isAddressSaved ? (
+                    <div className="flex items-center">
+                      <Button
+                        type="button"
+                        variant={shouldSaveAddress ? "default" : "outline"}
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => setShouldSaveAddress(true)}
+                      >
+                        {shouldSaveAddress ? "Guardada" : "Guardar dirección"}
+                      </Button>
+                    </div>
+                  ) : null}
                   <div className="flex gap-2">
                     <Button
                       type="button"
@@ -550,6 +580,7 @@ export default function NewRequestStepper({
                   onChange={(e) => setRequiredAt(e.target.value)}
                   className={cn(
                     "w-full text-center",
+                    fieldBaseClass,
                     errors?.required_at && errorFieldClass,
                   )}
                   aria-invalid={errors?.required_at ? true : undefined}
@@ -575,9 +606,9 @@ export default function NewRequestStepper({
                     }
                     min={0}
                     step={100}
-                    placeholder="800"
                     className={cn(
                       "pl-6 pr-14",
+                      fieldBaseClass,
                       errors?.budget && errorFieldClass,
                     )}
                     aria-invalid={errors?.budget ? true : undefined}
@@ -603,7 +634,10 @@ export default function NewRequestStepper({
                   <ConditionsCombobox
                     value={conditionsText}
                     onChange={(v) => setConditionsText(v)}
-                    triggerClassName="w-full justify-start"
+                    triggerClassName={cn(
+                      "w-full justify-start text-left",
+                      fieldBaseClass,
+                    )}
                   />
                 </div>
                 {errors?.conditions ? (
@@ -674,13 +708,22 @@ export default function NewRequestStepper({
         </div>
       ) : null}
 
-      <LocationPickerDialog
+      <AddressMapPickerModal
         open={openMap}
-        onOpenChange={setOpenMap}
-        initialCoords={coords}
-        initialAddress={address || null}
-        onConfirm={(lat, lon, addr) => {
-          pickAddress({ address: addr, lat, lon });
+        onClose={() => setOpenMap(false)}
+        initial={{
+          lat: coords?.lat ?? undefined,
+          lng: coords?.lon ?? undefined,
+          address: address || undefined,
+        }}
+        onConfirm={(payload) => {
+          setAddress(payload.address);
+          pickAddress({
+            address: payload.address,
+            lat: payload.lat,
+            lon: payload.lng,
+            city: payload.city ?? null,
+          });
           setOpenMap(false);
         }}
       />

@@ -1,5 +1,8 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+
+const SUPPORT_EMAIL =
+  process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "soporte@handi.mx";
 
 export default function SiteFooter() {
   return (
@@ -16,39 +19,59 @@ export default function SiteFooter() {
                 className="h-32 w-32 object-contain"
                 priority
               />
-              <p className="text-sm text-white">Conecta con expertos de confianza.</p>
+              <p className="text-sm text-white">
+                Conecta con expertos de confianza.
+              </p>
             </div>
           </div>
           <div>
             <p className="mb-2 text-sm font-medium text-white">Enlaces</p>
             <ul className="space-y-1 text-sm text-white">
               <li>
-                <Link href="/professionals" className="font-light text-white hover:text-[#F4571F]">
+                <Link
+                  href="/professionals"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
                   Buscar profesionales
                 </Link>
               </li>
               <li>
-                <Link href="/pro-apply" className="font-light text-white hover:text-[#F4571F]">
+                <Link
+                  href="/pro-apply"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
                   Ofrecer mis servicios
                 </Link>
               </li>
               <li>
-                <Link href="/categorias" className="font-light text-white hover:text-[#F4571F]">
+                <Link
+                  href="/categorias"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
                   Categorias y subcategorias
                 </Link>
               </li>
               <li>
-              <Link href="/privacy" className="font-light text-white hover:text-[#F4571F]">
+                <Link
+                  href="/privacy"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
                   Aviso de privacidad
                 </Link>
               </li>
               <li>
-                <Link href="/terms-and-conditions" className="font-light text-white hover:text-[#F4571F]">
+                <Link
+                  href="/terms-and-conditions"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
                   Términos y Condiciones
                 </Link>
               </li>
               <li>
-                <Link href="/politicas-facturacion" className="font-light text-white hover:text-[#F4571F]">
+                <Link
+                  href="/politicas-facturacion"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
                   Políticas de facturación
                 </Link>
               </li>
@@ -59,15 +82,29 @@ export default function SiteFooter() {
             <ul className="space-y-1 text-sm text-white">
               <li>
                 WhatsApp:{" "}
-                <a href="https://wa.me/5218181611335" className="font-light text-white hover:text-[#F4571F]">
-                  +52 1 81 8161 1335
+                <a
+                  href="https://wa.me/528130878691"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
+                  81 3087 8691
                 </a>
               </li>
               <li>
                 Email:{" "}
-                <a href="mailto:soporte@handi.mx" className="font-light text-white hover:text-[#F4571F]">
-                  soporte@handi.mx
+                <a
+                  href={`mailto:${SUPPORT_EMAIL}`}
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
+                  {SUPPORT_EMAIL}
                 </a>
+              </li>
+              <li>
+                <Link
+                  href="/help"
+                  className="font-light text-white hover:text-[#F4571F]"
+                >
+                  Centro de ayuda
+                </Link>
               </li>
             </ul>
           </div>
@@ -88,7 +125,3 @@ export default function SiteFooter() {
     </footer>
   );
 }
-
-
-
-

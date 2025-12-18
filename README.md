@@ -500,6 +500,30 @@ Si notas sesiones inconsistentes tras la migración a cookies base64, ejecuta un
 - En Supabase Console → Auth → URL Configuration, incluye las URLs de `/auth/reset-password` (local y prod) en Redirect URLs permitidas.
 - El endpoint interno `/api/auth/send-password-reset` genera el enlace con el service role y envía el correo vía Resend usando la plantilla HTML dedicada.
 
+## Plantilla de confirmación de correo (sign-up)
+
+- La plantilla HTML/TXT de confirmación vive en `lib/emails/confirm-registration-email.ts` (logo, bienvenida, CTA, link de respaldo, nota de seguridad y footer).
+- Úsala para reemplazar el correo simple de alta en Supabase o para envíos vía Resend. Ejemplo rápido:
+
+```ts
+import {
+  renderConfirmRegistrationEmailHtml,
+  renderConfirmRegistrationEmailText,
+} from "@/lib/emails/confirm-registration-email";
+
+const html = renderConfirmRegistrationEmailHtml({
+  confirmUrl: "{{ .ConfirmationURL }}", // placeholder típico en Supabase Email Templates
+  name: "{{ .Email }}",
+  expiresInMinutes: 30,
+});
+
+const text = renderConfirmRegistrationEmailText({
+  confirmUrl: "{{ .ConfirmationURL }}",
+  name: "{{ .Email }}",
+  expiresInMinutes: 30,
+});
+```
+
 ### Ejemplo de registro DMARC recomendado
 
 ```

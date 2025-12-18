@@ -207,7 +207,9 @@ const normalizeSubcategories = (value: unknown): Subcategory[] => {
         : "";
     if (!name) continue;
     const color = base
-      ? normalizeColorValue(base.color ?? base["Color"] ?? base["color_hex"])
+      ? normalizeColorValue(
+          toCleanString(base.color ?? base["Color"] ?? base["color_hex"]),
+        )
       : null;
     const id = base
       ? toCleanString(
@@ -314,7 +316,13 @@ const ChipBadge = ({
   );
 };
 
-function SubcategoryChips({ items }: { items: Subcategory[] }) {
+function SubcategoryChips({
+  items,
+  onOpenChange,
+}: {
+  items: Subcategory[];
+  onOpenChange?: (open: boolean) => void;
+}) {
   const chips = React.useMemo(() => {
     const seen = new Set<string>();
     return (items || []).filter((item) => {
@@ -340,9 +348,13 @@ function SubcategoryChips({ items }: { items: Subcategory[] }) {
         return;
       }
       setOpen(false);
+      onOpenChange?.(false);
     };
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") setOpen(false);
+      if (ev.key === "Escape") {
+        setOpen(false);
+        onOpenChange?.(false);
+      }
     };
     document.addEventListener("mousedown", onClick);
     document.addEventListener("touchstart", onClick);
@@ -352,7 +364,7 @@ function SubcategoryChips({ items }: { items: Subcategory[] }) {
       document.removeEventListener("touchstart", onClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, onOpenChange]);
 
   if (chips.length === 0) return null;
 
@@ -365,7 +377,13 @@ function SubcategoryChips({ items }: { items: Subcategory[] }) {
         <ChipBadge key={chip.id} name={chip.name} color={chip.color} />
       ))}
       {hidden.length > 0 ? (
-        <div className="relative" onMouseLeave={() => setOpen(false)}>
+        <div
+          className="relative"
+          onMouseLeave={() => {
+            setOpen(false);
+            onOpenChange?.(false);
+          }}
+        >
           <button
             type="button"
             ref={triggerRef}
@@ -375,24 +393,33 @@ function SubcategoryChips({ items }: { items: Subcategory[] }) {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setOpen((v) => !v);
+              setOpen((v) => {
+                onOpenChange?.(!v);
+                return !v;
+              });
             }}
-            onMouseEnter={() => setOpen(true)}
+            onMouseEnter={() => {
+              setOpen(true);
+              onOpenChange?.(true);
+            }}
           >
             +{hidden.length}
           </button>
           {open ? (
             <div
               ref={popoverRef}
-              className="absolute left-1/2 z-30 mt-2 flex -translate-x-1/2 flex-col gap-2 rounded-2xl border border-slate-100 bg-white px-3 py-3 shadow-[0_18px_50px_-24px_rgba(15,23,42,0.45)]"
+              className="absolute left-1/2 top-full z-[9999] flex -translate-x-1/2 flex-col gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-2xl w-[min(300px,80vw)] max-h-64 overflow-y-auto"
               onMouseEnter={() => setOpen(true)}
-              onMouseLeave={() => setOpen(false)}
+              onMouseLeave={() => {
+                setOpen(false);
+                onOpenChange?.(false);
+              }}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
             >
-              <div className="flex max-w-[260px] flex-wrap justify-center gap-2">
+              <div className="flex flex-wrap justify-center gap-2">
                 {hidden.map((chip) => (
                   <ChipBadge
                     key={chip.id}
@@ -413,6 +440,7 @@ export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
   const [colorMap, setColorMap] = React.useState<Map<string, string> | null>(
     null,
   );
+  const [chipsOpen, setChipsOpen] = React.useState(false);
   React.useEffect(() => {
     let mounted = true;
     loadSubcategoryColorMap().then((map) => {
@@ -461,7 +489,11 @@ export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
     years != null ? `${years} ${years === 1 ? "año" : "años"}` : "— años";
 
   return (
-    <div className="min-w-[220px] max-w-[220px] flex-shrink-0">
+    <div
+      className={`min-w-[220px] max-w-[220px] flex-shrink-0 ${
+        chipsOpen ? "relative z-[999]" : ""
+      }`}
+    >
       <Link
         href={`/profiles/${pro.id}`}
         className="group relative flex h-full flex-col items-center justify-start rounded-2xl bg-white px-5 pb-8 pt-12 text-center shadow-[0_14px_45px_-28px_rgba(8,40,119,0.55)] ring-1 ring-slate-100 transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_60px_-26px_rgba(8,40,119,0.6)]"
@@ -494,7 +526,7 @@ export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
             pro.bio ??
             "Categoría pendiente"}
         </div>
-        <SubcategoryChips items={subcategories} />
+        <SubcategoryChips items={subcategories} onOpenChange={setChipsOpen} />
         <div
           className={`mt-4 flex w-full items-center justify-between gap-3 text-center text-[10px] text-slate-500 ${interFont.className}`}
         >
