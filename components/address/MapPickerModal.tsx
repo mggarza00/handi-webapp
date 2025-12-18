@@ -138,48 +138,51 @@ export default function MapPickerModal({
     return defaultCenter;
   }, [initialLat, initialLng, defaultCenter]);
 
-  async function reverseNow(coords?: { lat: number; lng: number }) {
-    const target =
-      coords ??
-      (() => {
-        const map = mapInstanceRef.current;
-        const ll = map?.getCenter?.();
-        if (!ll) return null;
-        return { lat: ll.lat, lng: ll.lng };
-      })();
-    if (!target) return null;
-    selectionRef.current = target;
-    setBusy(true);
-    try {
-      const res = await fetch(
-        `/api/geocode?lat=${encodeURIComponent(String(target.lat))}&lng=${encodeURIComponent(String(target.lng))}`,
-        { cache: "no-store" },
-      );
-      const json = (await res.json().catch(() => ({}))) as GeocodeResult;
-      const context = Array.isArray(json?.context) ? json.context : null;
-      const next: ResolvedAddress = {
-        address:
-          typeof json?.address_line === "string" ? json.address_line : null,
-        place_id: typeof json?.place_id === "string" ? json.place_id : null,
-        city: typeof json?.city === "string" ? json.city : null,
-        postcode: typeof json?.postcode === "string" ? json.postcode : null,
-        state: typeof json?.state === "string" ? json.state : null,
-        country: typeof json?.country === "string" ? json.country : null,
-        context,
-      };
-      setResolved(next);
-      if (next.address) {
-        setQuery(next.address);
+  const reverseNow = React.useCallback(
+    async (coords?: { lat: number; lng: number }) => {
+      const target =
+        coords ??
+        (() => {
+          const map = mapInstanceRef.current;
+          const ll = map?.getCenter?.();
+          if (!ll) return null;
+          return { lat: ll.lat, lng: ll.lng };
+        })();
+      if (!target) return null;
+      selectionRef.current = target;
+      setBusy(true);
+      try {
+        const res = await fetch(
+          `/api/geocode?lat=${encodeURIComponent(String(target.lat))}&lng=${encodeURIComponent(String(target.lng))}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json().catch(() => ({}))) as GeocodeResult;
+        const context = Array.isArray(json?.context) ? json.context : null;
+        const next: ResolvedAddress = {
+          address:
+            typeof json?.address_line === "string" ? json.address_line : null,
+          place_id: typeof json?.place_id === "string" ? json.place_id : null,
+          city: typeof json?.city === "string" ? json.city : null,
+          postcode: typeof json?.postcode === "string" ? json.postcode : null,
+          state: typeof json?.state === "string" ? json.state : null,
+          country: typeof json?.country === "string" ? json.country : null,
+          context,
+        };
+        setResolved(next);
+        if (next.address) {
+          setQuery(next.address);
+        }
+        return next;
+      } catch (error) {
+        logMapError(error);
+        setResolved(null);
+        return null;
+      } finally {
+        setBusy(false);
       }
-      return next;
-    } catch (error) {
-      logMapError(error);
-      setResolved(null);
-      return null;
-    } finally {
-      setBusy(false);
-    }
-  }
+    },
+    [],
+  );
 
   const setSelection = React.useCallback(
     async (lng: number, lat: number, resolvedHint?: ResolvedAddress | null) => {

@@ -39,6 +39,7 @@ type AddressSuggestion = {
   lon?: number | null;
   postal_code?: string | null;
   label?: string | null;
+  place_id?: string | null;
 };
 
 const isProd = process.env.NODE_ENV === "production";
@@ -428,9 +429,13 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         });
         if (!res.ok) return;
         const json = await res.json().catch(() => ({}));
-        const list = Array.isArray(json?.data) ? (json.data as AddressSuggestion[]) : [];
+        const list = Array.isArray(json?.data)
+          ? (json.data as AddressSuggestion[])
+          : [];
         if (!cancelled) {
-          setSavedAddrs(list.map((it) => toAddressSuggestion(it)!).filter(Boolean));
+          setSavedAddrs(
+            list.map((it) => toAddressSuggestion(it)!).filter(Boolean),
+          );
         }
       } catch (error) {
         logFormError("load-saved-addresses", error);

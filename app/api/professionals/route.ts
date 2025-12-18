@@ -25,6 +25,11 @@ const normalizeKey = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
+const withGroup = (query: unknown, columns: string): any => {
+  const q = query as { group?: (cols: string) => unknown };
+  return typeof q.group === "function" ? q.group(columns) : query;
+};
+
 // GET /api/professionals?city=Monterrey&category=Plomería&page=1
 export async function GET(req: Request) {
   try {
@@ -296,11 +301,13 @@ export async function GET(req: Request) {
         let agg: Array<{ to_user_id: string; avg: unknown }> | null = null;
         try {
           const pub = createClient() as any;
-          const r = await pub
-            .from("ratings")
-            .select("to_user_id, avg:avg(stars)")
-            .in("to_user_id", missingIds)
-            .group("to_user_id");
+          const r = await withGroup(
+            pub
+              .from("ratings")
+              .select("to_user_id, avg:avg(stars)")
+              .in("to_user_id", missingIds),
+            "to_user_id",
+          );
           if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
         } catch {
           // fall back to service role below
@@ -308,11 +315,13 @@ export async function GET(req: Request) {
         if (!agg) {
           try {
             const admin = createServiceClient() as any;
-            const r = await admin
-              .from("ratings")
-              .select("to_user_id, avg:avg(stars)")
-              .in("to_user_id", missingIds)
-              .group("to_user_id");
+            const r = await withGroup(
+              admin
+                .from("ratings")
+                .select("to_user_id, avg:avg(stars)")
+                .in("to_user_id", missingIds),
+              "to_user_id",
+            );
             if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
           } catch {
             // ignore
@@ -341,12 +350,14 @@ export async function GET(req: Request) {
       if (!ids.length) return map;
       try {
         const admin = createServiceClient();
-        const a = await admin
-          .from("agreements")
-          .select("professional_id, count:count(*)")
-          .in("professional_id", ids)
-          .in("status", ["completed", "paid"])
-          .group("professional_id");
+        const a = await withGroup(
+          admin
+            .from("agreements")
+            .select("professional_id, count:count(*)")
+            .in("professional_id", ids)
+            .in("status", ["completed", "paid"]),
+          "professional_id",
+        );
         if (!a.error && Array.isArray(a.data)) {
           for (const row of a.data as any[]) {
             const id = String((row as any).professional_id ?? "");
@@ -355,11 +366,13 @@ export async function GET(req: Request) {
           }
         }
         if (map.size === 0) {
-          const r = await admin
-            .from("ratings")
-            .select("to_user_id, count:count(*)")
-            .in("to_user_id", ids)
-            .group("to_user_id");
+          const r = await withGroup(
+            admin
+              .from("ratings")
+              .select("to_user_id, count:count(*)")
+              .in("to_user_id", ids),
+            "to_user_id",
+          );
           if (!r.error && Array.isArray(r.data)) {
             for (const row of r.data as any[]) {
               const id = String((row as any).to_user_id ?? "");
