@@ -86,7 +86,6 @@ export default function NewRequestStepper({
     subcatOptions,
     handleSubmit,
     setShouldSaveAddress,
-    setPlaceId,
   } = useCreateRequestForm();
 
   const {
@@ -111,10 +110,8 @@ export default function NewRequestStepper({
     recentAddrs,
     coords,
     openMap,
-    savedAddrs,
     shouldSaveAddress,
     isAddressSaved,
-    placeId,
   } = state;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -267,7 +264,10 @@ export default function NewRequestStepper({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Describe lo que necesitas"
                 aria-invalid={errors?.description ? true : undefined}
-                className={cn(fieldBaseClass, errors?.description && errorFieldClass)}
+                className={cn(
+                  fieldBaseClass,
+                  errors?.description && errorFieldClass,
+                )}
               />
               {errors?.description ? (
                 <p className="text-xs text-red-600">{errors.description}</p>
@@ -395,7 +395,10 @@ export default function NewRequestStepper({
                 }}
               >
                 <SelectTrigger
-                  className={cn(fieldBaseClass, errors?.city && errorFieldClass)}
+                  className={cn(
+                    fieldBaseClass,
+                    errors?.city && errorFieldClass,
+                  )}
                   aria-invalid={errors?.city ? true : undefined}
                 >
                   <SelectValue placeholder="Selecciona ciudad" />

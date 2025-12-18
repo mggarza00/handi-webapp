@@ -101,17 +101,6 @@ export default function SubcategoryChips({ items }: { items: Chip[] }) {
   }, [items]);
 
   const [expanded, setExpanded] = useState(false);
-
-  if (chips.length === 0) {
-    return (
-      <p className="text-xs font-semibold text-[#6B7280]">
-        Sin subcategorías configuradas.
-      </p>
-    );
-  }
-
-  const visible = chips.slice(0, MAX_INLINE);
-  const hidden = chips.slice(MAX_INLINE);
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const [coords, setCoords] = useState<{
     top: number;
@@ -139,6 +128,17 @@ export default function SubcategoryChips({ items }: { items: Chip[] }) {
       window.removeEventListener("resize", update);
     };
   }, [expanded]);
+
+  if (chips.length === 0) {
+    return (
+      <p className="text-xs font-semibold text-[#6B7280]">
+        Sin subcategorías configuradas.
+      </p>
+    );
+  }
+
+  const visible = chips.slice(0, MAX_INLINE);
+  const hidden = chips.slice(MAX_INLINE);
 
   return (
     <div className="flex flex-col gap-2">
