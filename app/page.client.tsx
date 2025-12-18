@@ -967,7 +967,7 @@ export default function Page({
                 sizes="(min-width: 1024px) 40vw, (min-width: 768px) 50vw, 100vw"
               />
             </div>
-            <div className="flex flex-col justify-between gap-6 bg-[#114430] p-6 text-white sm:p-8">
+            <div className="flex flex-col justify-between gap-10 sm:gap-8 bg-[#114430] p-6 text-white sm:p-8">
               <div className="space-y-5 relative top-6 sm:top-8">
                 <div className="flex items-start gap-3">
                   <Image
@@ -1005,10 +1005,10 @@ export default function Page({
   );
 
   const trustSection = (
-    <section className="border-t border-[#001447] bg-[#001447] text-white">
-      <div className="mx-auto max-w-5xl px-4 py-10">
-        <div className="flex flex-col items-center gap-4 md:flex-row md:justify-between">
-          <div className="text-center md:text-left">
+    <section className="border-t border-[#001447] bg-[#001447] text-white -mb-16 md:mb-0">
+      <div className="mx-auto max-w-5xl px-4 pb-0 pt-6 md:py-8">
+        <div className="flex min-h-[130px] flex-col items-center gap-3 md:min-h-[110px] md:flex-row md:justify-between md:items-center">
+          <div className="text-center md:text-left space-y-1.5">
             <p className="text-sm font-medium text-white">
               Confianza y transparencia
             </p>
