@@ -1020,14 +1020,14 @@ export default function Page({
               recurrentes.
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs text-white">
-            <span className="rounded-full border border-white/50 bg-white px-3 py-1 text-[#001447] shadow-sm">
+          <div className="flex items-center gap-2 text-[11px] text-white">
+            <span className="rounded-full border border-white/50 bg-white px-2.5 py-1 text-[#001447] shadow-sm leading-none whitespace-nowrap">
               Identidad verificada
             </span>
-            <span className="rounded-full border border-white/50 bg-white px-3 py-1 text-[#001447] shadow-sm">
+            <span className="rounded-full border border-white/50 bg-white px-2.5 py-1 text-[#001447] shadow-sm leading-none whitespace-nowrap">
               Referencias
             </span>
-            <span className="rounded-full border border-white/50 bg-white px-3 py-1 text-[#001447] shadow-sm">
+            <span className="rounded-full border border-white/50 bg-white px-2.5 py-1 text-[#001447] shadow-sm leading-none whitespace-nowrap">
               Historial y reseñas
             </span>
           </div>
