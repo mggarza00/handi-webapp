@@ -653,6 +653,10 @@ body {
   .hide-login-buttons .public-login-menu {
     display: none !important;
   }
+  .hide-login-buttons a[href="/auth/sign-in"],
+  .hide-login-buttons a[href="/auth/sign-in/"] {
+    display: none !important;
+  }
 
   .handi-header.header-on-hero
     .handi-header-public

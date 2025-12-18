@@ -15,6 +15,7 @@ export default function PublicLandingLoginMenu({
 }: Props) {
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const hideOnPage = pathname === "/auth/sign-in";
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -40,6 +41,8 @@ export default function PublicLandingLoginMenu({
   React.useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  if (hideOnPage) return null;
 
   if (!isHome) {
     return (
