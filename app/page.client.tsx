@@ -539,7 +539,10 @@ export default function Page({
   const heroGuest = (
     <section id="hero" className="relative isolate overflow-hidden bg-slate-50">
       <div className="relative w-full">
-        <div className="relative aspect-[16/9] w-full md:aspect-[21/9] lg:h-[620px] min-h-[600px]">
+        <div
+          className="guest-hero__visual relative w-full md:aspect-[21/9] lg:h-[620px]"
+          style={{ minHeight: "calc(100vh - var(--hero-header-height))" }}
+        >
           <Image
             src="/images/be204f42cd07529e6b8dc2c7c9218d6f5728f12b.jpg"
             alt="Profesional industrial trabajando con equipo de seguridad"
@@ -1065,6 +1068,14 @@ export default function Page({
             min-height: calc(
               100vh - var(--hero-header-height) - var(--hero-tabbar-height) -
                 (2 * var(--hero-padding))
+            );
+            padding-bottom: calc(
+              var(--hero-padding) + env(safe-area-inset-bottom, 0px)
+            );
+          }
+          .guest-hero__visual {
+            min-height: calc(
+              100vh - var(--hero-header-height) - (1.5 * var(--hero-padding))
             );
             padding-bottom: calc(
               var(--hero-padding) + env(safe-area-inset-bottom, 0px)
