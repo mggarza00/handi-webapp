@@ -18,6 +18,7 @@ import ClientNoSessionOnly from "@/components/ClientNoSessionOnly.client";
 import PublicLandingHeader from "@/components/PublicLandingHeader.client";
 import HeaderLogoSwap from "@/components/HeaderLogoSwap.client";
 import CreateRequestButton from "@/components/requests/CreateRequestButton";
+import PublicLandingLoginMenu from "@/components/PublicLandingLoginMenu.client";
 
 type Role = "client" | "pro" | "admin";
 
@@ -429,7 +430,7 @@ export default async function SiteHeader() {
             <HeaderLogoSwap
               href={leftHref}
               swapOnLanding={!isAuth}
-              className="absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
+              className="header-logo-swap absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0 flex items-center"
               width={128}
               height={128}
             />
@@ -762,23 +763,7 @@ export default async function SiteHeader() {
             {/* Lado derecho - mÃ³vil y CTA secundarios (sin botÃ³n de menÃº) */}
             <div className="md:hidden flex items-center gap-2">
               {!isAuth ? (
-                <ClientNoSessionOnly>
-                  <Button asChild size="sm" variant="outline">
-                    <Link
-                      href="/auth/sign-in"
-                      className="inline-flex items-center gap-2"
-                    >
-                      <span>Iniciar sesión</span>
-                      <Image
-                        src="/icons/Vector_inicio.svg"
-                        alt=""
-                        width={16}
-                        height={16}
-                        className="h-4 w-4"
-                      />
-                    </Link>
-                  </Button>
-                </ClientNoSessionOnly>
+                <PublicLandingLoginMenu loginHref="/auth/sign-in" />
               ) : (
                 <AvatarDropdown
                   avatarUrl={avatar_url}

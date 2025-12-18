@@ -7,7 +7,7 @@ const SUPPORT_EMAIL =
 export default function SiteFooter() {
   return (
     <footer className="relative overflow-hidden border-t border-[#112C74] bg-[#112C74] text-white">
-      <div className="mx-auto max-w-5xl px-4 pb-10 pt-4 md:pt-10">
+      <div className="mx-auto max-w-5xl px-4 pb-10 pt-0 md:pt-10">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
           <div>
             <div className="mb-3 flex flex-col items-start space-y-4">
@@ -83,10 +83,10 @@ export default function SiteFooter() {
               <li>
                 WhatsApp:{" "}
                 <a
-                  href="https://wa.me/528130878691"
+                  href="https://wa.me/5218181611335"
                   className="font-light text-white hover:text-[#F4571F]"
                 >
-                  81 3087 8691
+                  +52 1 81 8161 1335
                 </a>
               </li>
               <li>

@@ -206,11 +206,13 @@ const normalizeSubcategories = (value: unknown): Subcategory[] => {
         ? item.trim()
         : "";
     if (!name) continue;
-    const color = base
-      ? normalizeColorValue(
-          toCleanString(base.color ?? base["Color"] ?? base["color_hex"]),
-        )
+    const rawColor = base
+      ? (base.color ?? base["Color"] ?? base["color_hex"])
       : null;
+    const color =
+      typeof rawColor === "string"
+        ? normalizeColorValue(toCleanString(rawColor))
+        : null;
     const id = base
       ? toCleanString(
           base.id ??

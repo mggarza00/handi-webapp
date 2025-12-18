@@ -86,22 +86,8 @@ export default function PublicLandingHeader({
         </div>
       </div>
 
-      <div className="handi-header-row handi-header-row--mobile">
-        <button
-          type="button"
-          className="mobile-menu-toggle"
-          onClick={toggleMobileMenu}
-          aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
-          aria-expanded={isMobileMenuOpen}
-        >
-          <span className="mobile-menu-icon">
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
-
-        <div className="header-logo header-logo--center">
+      <div className="handi-header-row handi-header-row-mobile">
+        <div className="header-logo">
           <Link href={logoHref} aria-label="Handi">
             <Image
               src="/images/LOGO_HEADER_DB.png"
@@ -122,36 +108,41 @@ export default function PublicLandingHeader({
           </Link>
         </div>
 
-        <div className="header-right">
-          <Link href={loginHref} className="login-pill login-pill--mobile">
-            <span className="login-label">Iniciar sesión</span>
-            <Image
-              src="/icons/Vector_inicio.svg"
-              alt=""
-              className="login-pill-icon"
-              width={20}
-              height={20}
-            />
-          </Link>
-        </div>
+        <button
+          type="button"
+          className="mobile-menu-toggle mobile-menu-toggle--login"
+          onClick={toggleMobileMenu}
+          aria-label={
+            isMobileMenuOpen ? "Cerrar menú" : "Abrir menú de inicio de sesión"
+          }
+          aria-expanded={isMobileMenuOpen}
+        >
+          <span className="mobile-menu-icon">
+            <span />
+            <span />
+            <span />
+          </span>
+        </button>
       </div>
 
       <div
         className={`mobile-menu-dropdown ${isMobileMenuOpen ? "mobile-menu-dropdown--open" : ""}`.trim()}
         aria-hidden={!isMobileMenuOpen}
       >
-        <nav className="mobile-menu-nav" aria-label="Menú principal móvil">
-          {items.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="mobile-menu-item"
-              onClick={closeMobileMenu}
-            >
-              <span>{item.label}</span>
-              <Image src={item.icon} alt="" width={20} height={20} />
-            </Link>
-          ))}
+        <nav className="mobile-menu-nav" aria-label="Menú de inicio de sesión">
+          <Link
+            href={loginHref}
+            className="mobile-menu-item"
+            onClick={closeMobileMenu}
+          >
+            <span>Iniciar sesión</span>
+            <Image
+              src="/icons/Vector_inicio.svg"
+              alt=""
+              width={20}
+              height={20}
+            />
+          </Link>
         </nav>
       </div>
     </div>

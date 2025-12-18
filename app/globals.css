@@ -648,11 +648,47 @@ body {
       hue-rotate(191deg) brightness(90%) contrast(96%);
   }
 
+  /* Oculta botones de login en pantallas específicas */
+  .hide-login-buttons .login-pill,
+  .hide-login-buttons .public-login-menu {
+    display: none !important;
+  }
+  .hide-login-buttons a[href="/auth/sign-in"],
+  .hide-login-buttons a[href="/auth/sign-in/"] {
+    display: none !important;
+  }
+
   .handi-header.header-on-hero
     .handi-header-public
     .login-pill:hover
     .login-pill-icon {
     filter: brightness(0) saturate(100%) invert(95%);
+  }
+
+  /* Alinear logo a la izquierda en home publico (movil) */
+  @media (width <= 768px) {
+    .handi-header.handi-header-public-mode .header-logo-swap {
+      left: 1.25rem;
+
+      --tw-translate-x: 0;
+
+      right: auto;
+      transform: none;
+    }
+    .handi-header.handi-header-public-mode .handi-header-row-mobile {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-inline: 1rem;
+    }
+    .handi-header.handi-header-public-mode
+      .handi-header-row-mobile
+      .header-logo {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+    }
   }
 
   /* Reusable glassmorphism card (spec exacta solicitada) */
