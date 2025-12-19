@@ -32,6 +32,15 @@ export default function ChatWindow({
   const [requestId, setRequestId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    // Oculta tabbars móviles (pro/cliente) cuando estamos dentro del chat detalle
+    const cls = "hide-chat-tabbars";
+    document.body.classList.add(cls);
+    return () => {
+      document.body.classList.remove(cls);
+    };
+  }, []);
+
+  React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
@@ -185,6 +194,14 @@ export default function ChatWindow({
 
   return (
     <div className="h-full flex flex-col">
+      <style jsx global>{`
+        @media (max-width: 768px) {
+          body.hide-chat-tabbars #pro-mobile-tabbar,
+          body.hide-chat-tabbars #mobile-client-tabbar {
+            display: none !important;
+          }
+        }
+      `}</style>
       {/* Header */}
       <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
         <button
