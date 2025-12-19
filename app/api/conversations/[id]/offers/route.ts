@@ -101,6 +101,24 @@ export async function POST(
         { error: "PRO_MISMATCH" },
         { status: 409, headers: JSONH },
       );
+    // Reject if there is already an active offer (not accepted/rejected/paid/canceled/expired)
+    const { data: existingActive, error: existingActiveErr } = await supabase
+      .from("offers")
+      .select("id, status")
+      .eq("conversation_id", conversationId)
+      .not("status", "in", "(accepted,rejected,paid,canceled,expired)")
+      .limit(1)
+      .maybeSingle();
+    if (!existingActiveErr && existingActive) {
+      return NextResponse.json(
+        {
+          error: "ACTIVE_OFFER_EXISTS",
+          message:
+            "Oferta de contratación activa, pide al professional que Acepte o Rechaze la Oferta activa en el chat.",
+        },
+        { status: 409, headers: JSONH },
+      );
+    }
 
     const amountNumber =
       typeof body.amount === "string" ? Number(body.amount) : body.amount;
@@ -180,39 +198,49 @@ export async function POST(
         { status: 400, headers: JSONH },
       );
 
-    // Best-effort: insert chat message for realtime delivery
+    // Best-effort: ensure chat message exists (DB trigger should already insert).
+    // Avoid duplicate inserts by checking first; falls back to insert if missing.
     try {
       const adminSrv = createServiceClient();
-      const payload: Record<string, unknown> = {
-        offer_id: offer.id,
-        title: guard.payload.title,
-        amount: offer.amount,
-        currency: (offer.currency || "MXN").toUpperCase(),
-        status: "sent",
-      };
-      if (guard.payload.description)
-        payload.description = guard.payload.description;
-      if (serviceDateIso) payload.service_date = serviceDateIso;
-      if (typeof body.flexibleSchedule === "boolean")
-        payload.flexible_schedule = body.flexibleSchedule;
-      if (
-        typeof body.scheduleStartHour === "number" &&
-        typeof body.scheduleEndHour === "number"
-      ) {
-        payload.schedule_start_hour = body.scheduleStartHour;
-        payload.schedule_end_hour = body.scheduleEndHour;
-      }
-      await adminSrv
+      const { data: existing } = await adminSrv
         .from("messages")
-        .insert({
-          conversation_id: conversationId,
-          sender_id: user.id,
-          body: guard.payload.title,
-          message_type: "offer",
-          payload,
-        })
         .select("id")
+        .eq("conversation_id", conversationId)
+        .eq("message_type", "offer")
+        .contains("payload", { offer_id: offer.id })
         .maybeSingle();
+      if (!existing) {
+        const payload: Record<string, unknown> = {
+          offer_id: offer.id,
+          title: guard.payload.title,
+          amount: offer.amount,
+          currency: (offer.currency || "MXN").toUpperCase(),
+          status: "sent",
+        };
+        if (guard.payload.description)
+          payload.description = guard.payload.description;
+        if (serviceDateIso) payload.service_date = serviceDateIso;
+        if (typeof body.flexibleSchedule === "boolean")
+          payload.flexible_schedule = body.flexibleSchedule;
+        if (
+          typeof body.scheduleStartHour === "number" &&
+          typeof body.scheduleEndHour === "number"
+        ) {
+          payload.schedule_start_hour = body.scheduleStartHour;
+          payload.schedule_end_hour = body.scheduleEndHour;
+        }
+        await adminSrv
+          .from("messages")
+          .insert({
+            conversation_id: conversationId,
+            sender_id: user.id,
+            body: guard.payload.title,
+            message_type: "offer",
+            payload,
+          })
+          .select("id")
+          .maybeSingle();
+      }
     } catch {
       /* ignore message insert errors to avoid blocking offer creation */
     }

@@ -35,6 +35,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 type Msg = {
   id: string;
   senderId: string;
@@ -205,6 +207,11 @@ export default function ChatPanel({
   );
   const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
   const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
+  const proProfileIdRef = React.useRef<string | null>(null);
+  const [proProfile, setProProfile] = React.useState<{
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null>(null);
   const [budget, setBudget] = React.useState<number | null>(
     typeof requestBudgetProp === "number" && Number.isFinite(requestBudgetProp)
       ? requestBudgetProp
@@ -653,6 +660,112 @@ export default function ChatPanel({
       cancelled = true;
     };
   }, [requestId, getAuthHeaders]);
+
+  // Fetch professional profile once pro_id is known (header avatar/name)
+  React.useEffect(() => {
+    const proId =
+      participants?.pro_id && typeof participants.pro_id === "string"
+        ? participants.pro_id
+        : null;
+    const targetId = proId;
+    if (!targetId) return;
+    if (proProfile && proProfileIdRef.current === targetId) return;
+    proProfileIdRef.current = targetId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const proRes = await fetch(
+          `/api/profiles/${encodeURIComponent(targetId)}`,
+          {
+            headers,
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
+        const proJson = await parseJsonSafe<{
+          ok?: boolean;
+          data?: { full_name?: string | null; avatar_url?: string | null };
+        }>(proRes);
+        if (cancelled) return;
+        if (
+          !proRes.ok ||
+          proJson?.ok === false ||
+          !proJson?.data ||
+          typeof proJson.data !== "object"
+        ) {
+          return;
+        }
+        setProProfile({
+          full_name:
+            (proJson.data.full_name as string | null | undefined) ?? null,
+          avatar_url:
+            (proJson.data.avatar_url as string | null | undefined) ?? null,
+        });
+      } catch {
+        /* ignore profile errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [participants, getAuthHeaders, proProfile]);
+
+  // Fallback: fetch profile using otherUserId if available (e.g., in requests chat)
+  React.useEffect(() => {
+    const targetId = (() => {
+      if (participants?.pro_id && typeof participants.pro_id === "string")
+        return participants.pro_id;
+      const other =
+        participants && meId
+          ? participants.customer_id === meId
+            ? participants.pro_id
+            : participants.customer_id
+          : null;
+      return typeof other === "string" ? other : null;
+    })();
+    if (!targetId) return;
+    if (proProfile && proProfileIdRef.current === targetId) return;
+    proProfileIdRef.current = targetId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const proRes = await fetch(
+          `/api/profiles/${encodeURIComponent(targetId)}`,
+          {
+            headers,
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
+        const proJson = await parseJsonSafe<{
+          ok?: boolean;
+          data?: { full_name?: string | null; avatar_url?: string | null };
+        }>(proRes);
+        if (cancelled) return;
+        if (
+          !proRes.ok ||
+          proJson?.ok === false ||
+          !proJson?.data ||
+          typeof proJson.data !== "object"
+        ) {
+          return;
+        }
+        setProProfile({
+          full_name:
+            (proJson.data.full_name as string | null | undefined) ?? null,
+          avatar_url:
+            (proJson.data.avatar_url as string | null | undefined) ?? null,
+        });
+      } catch {
+        /* ignore profile errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [participants, meId, getAuthHeaders, proProfile]);
   React.useEffect(() => {
     if (!conversationId) return;
     const channel = supabaseBrowser
@@ -1112,9 +1225,38 @@ export default function ChatPanel({
     }
     return true;
   }
+  function hasActiveOfferInChat(): boolean {
+    const arr = messagesRef.current || [];
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const msg = arr[i];
+      if (msg.messageType !== "offer") continue;
+      const payload = msg.payload;
+      if (!payload || typeof payload !== "object") continue;
+      const rawStatus = (payload as Record<string, unknown>).status;
+      const status = normalizeStatus(
+        typeof rawStatus === "string" ? rawStatus : null,
+      ).toLowerCase();
+      if (
+        status !== "accepted" &&
+        status !== "rejected" &&
+        status !== "paid" &&
+        status !== "canceled" &&
+        status !== "expired"
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
   async function submitOffer() {
+    const ACTIVE_OFFER_MSG =
+      "Oferta de contratación activa, pide al professional que Acepte o Rechaze la Oferta activa en el chat.";
     if (viewerRole !== "customer") {
       toast.error("Solo el cliente puede crear ofertas");
+      return;
+    }
+    if (hasActiveOfferInChat()) {
+      toast.error(ACTIVE_OFFER_MSG);
       return;
     }
     const title = offerTitle.trim();
@@ -1211,9 +1353,23 @@ export default function ChatPanel({
         ok?: boolean;
         error?: string;
         offer?: Record<string, unknown>;
+        message?: string;
       }>(res);
       if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "No se pudo crear la oferta");
+        const code = json?.error || "No se pudo crear la oferta";
+        if (code === "ACTIVE_OFFER_EXISTS" || res.status === 409) {
+          const serverMsg =
+            typeof json?.message === "string" && json.message.trim().length
+              ? json.message
+              : null;
+          toast.error(serverMsg || ACTIVE_OFFER_MSG);
+          return;
+        }
+        throw new Error(
+          code === "VALIDATION_ERROR"
+            ? "No se pudo crear la oferta"
+            : code || "No se pudo crear la oferta",
+        );
       }
 
       // Best-effort: asegurar que exista un agreement para conteo/seguimiento
@@ -1296,8 +1452,12 @@ export default function ChatPanel({
       setOfferServiceDate("");
       await load(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error";
-      toast.error(message);
+      const raw = error instanceof Error ? error.message : "Error";
+      const normalized =
+        typeof raw === "string" && raw.includes("ACTIVE_OFFER_EXISTS")
+          ? ACTIVE_OFFER_MSG
+          : raw;
+      toast.error(normalized);
     } finally {
       setOfferSubmitting(false);
     }
@@ -1937,16 +2097,52 @@ export default function ChatPanel({
     const label =
       UI_STATUS_LABELS[requestStatus as any as keyof typeof UI_STATUS_LABELS] ||
       requestStatus;
+    const proId =
+      participants?.pro_id && typeof participants.pro_id === "string"
+        ? participants.pro_id
+        : null;
+    const proName =
+      (proProfile?.full_name && proProfile.full_name.trim().length
+        ? proProfile.full_name
+        : null) ||
+      proId ||
+      "Profesional";
     return (
-      <div className="border-b px-3 py-2 text-xs text-slate-600 flex items-center justify-between bg-white">
-        <div className="truncate">{requestTitle || "Servicio"}</div>
-        <div className="inline-flex items-center gap-2">
-          <span className="hidden sm:inline text-xs text-muted-foreground">
-            Estatus:
-          </span>
-          <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
-            {label}
-          </span>
+      <div className="border-b px-3 py-4 text-xs text-slate-600 flex items-center gap-3 bg-white">
+        <button
+          type="button"
+          aria-label="Cerrar chat"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-full border text-slate-600 hover:bg-slate-100"
+        >
+          <span className="text-lg leading-none">←</span>
+        </button>
+        <AvatarWithSkeleton
+          src={
+            normalizeAvatarUrl(
+              proProfile?.avatar_url || undefined,
+            ) || "/images/Favicon-v1-jpeg.jpg"
+          }
+          alt={proName}
+          sizeClass="size-10"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="truncate font-semibold text-sm text-slate-900">
+              {proName}
+            </div>
+            <div className="inline-flex items-center gap-2 shrink-0">
+              <span className="hidden sm:inline text-xs text-muted-foreground">
+                Estatus:
+              </span>
+              <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
+                {label}
+              </span>
+            </div>
+          </div>
+          <div className="truncate text-[12px] text-muted-foreground mt-0.5">
+            {requestTitle || "Servicio"}
+          </div>
         </div>
       </div>
     );
@@ -2562,14 +2758,16 @@ export default function ChatPanel({
     >
       <SheetContent
         side="right"
-        className="sm:max-w-md p-0 h-[100dvh]"
+        hideClose
+        className="p-0 h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] rounded-none overflow-hidden left-0 right-0 sm:left-auto sm:max-w-md sm:w-auto sm:rounded-l-xl"
         data-testid={`${dataPrefix}-box`}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Chat</SheetTitle>
         </SheetHeader>
-        <div className="flex h-full flex-col">
+        <div className="flex h-full w-full flex-col overflow-hidden">
+          {statusHeader}
           {showSafetyTip ? (
             <div
               className={[
@@ -2603,7 +2801,6 @@ export default function ChatPanel({
               </div>
             </div>
           ) : null}
-          {statusHeader}
           {loadingState || (
             <>
               {messageList}
