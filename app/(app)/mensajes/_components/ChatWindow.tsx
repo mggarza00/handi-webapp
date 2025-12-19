@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 
 import useCompletionReview from "../../_components/_hooks/useCompletionReview";
 
@@ -17,7 +18,12 @@ type Profile = {
   last_active_at: string | null;
 };
 
-export default function ChatWindow({ conversationId }: { conversationId: string }) {
+export default function ChatWindow({
+  conversationId,
+}: {
+  conversationId: string;
+}) {
+  const router = useRouter();
   const [meId, setMeId] = React.useState<string | null>(null);
   const [other, setOther] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -32,7 +38,10 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
         // 1) Get my id
         let my: string | null = null;
         try {
-          const r = await fetch(`/api/me`, { cache: "no-store", credentials: "include" });
+          const r = await fetch(`/api/me`, {
+            cache: "no-store",
+            credentials: "include",
+          });
           const j = await r.json().catch(() => ({}));
           if (r.ok && j?.user?.id) my = j.user.id as string;
         } catch {
@@ -44,23 +53,39 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
         // 2) Get participants from history (limit 1 is enough to get participants)
         const rh = await fetch(
           `/api/chat/history?conversationId=${encodeURIComponent(conversationId)}&limit=1`,
-          { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store", credentials: "include" },
+          {
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            cache: "no-store",
+            credentials: "include",
+          },
         );
         const jh = await rh.json().catch(() => ({}));
-        const parts = jh?.participants as { customer_id?: string; pro_id?: string } | undefined;
+        const parts = jh?.participants as
+          | { customer_id?: string; pro_id?: string }
+          | undefined;
         const cid = parts?.customer_id as string | undefined;
         const pid = parts?.pro_id as string | undefined;
-        const otherId = my && cid && pid ? (my === cid ? pid : cid) : (cid || pid || null);
+        const otherId =
+          my && cid && pid ? (my === cid ? pid : cid) : cid || pid || null;
         if (!otherId) return;
         const reqId = (jh?.request_id as string | undefined) ?? null;
         if (reqId) {
           if (!cancelled) setRequestId(reqId);
           try {
-            const rr = await fetch(`/api/requests/${reqId}`, { cache: "no-store", credentials: "include" });
+            const rr = await fetch(`/api/requests/${reqId}`, {
+              cache: "no-store",
+              credentials: "include",
+            });
             const rj = await rr.json().catch(() => ({}));
-            const title = typeof rj?.data?.title === "string" ? (rj.data.title as string) : null;
+            const title =
+              typeof rj?.data?.title === "string"
+                ? (rj.data.title as string)
+                : null;
             if (!cancelled) setRequestTitle(title);
-            const status = typeof rj?.data?.status === "string" ? (rj.data.status as string) : null;
+            const status =
+              typeof rj?.data?.status === "string"
+                ? (rj.data.status as string)
+                : null;
             if (!cancelled) setRequestStatus(status);
           } catch {
             /* ignore */
@@ -68,7 +93,10 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
         }
 
         // 3) Load profile of other participant
-        const rp = await fetch(`/api/profiles/${otherId}`, { cache: "no-store", credentials: "include" });
+        const rp = await fetch(`/api/profiles/${otherId}`, {
+          cache: "no-store",
+          credentials: "include",
+        });
         const jp = await rp.json().catch(() => ({}));
         if (rp.ok && jp?.data) {
           const p = jp.data as Profile;
@@ -92,10 +120,16 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
       try {
         const rh = await fetch(
           `/api/chat/history?conversationId=${encodeURIComponent(conversationId)}&limit=1`,
-          { headers: { "Content-Type": "application/json; charset=utf-8" }, cache: "no-store", credentials: "include" },
+          {
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            cache: "no-store",
+            credentials: "include",
+          },
         );
         const jh = await rh.json().catch(() => ({}));
-        const parts = jh?.participants as { customer_id?: string; pro_id?: string } | undefined;
+        const parts = jh?.participants as
+          | { customer_id?: string; pro_id?: string }
+          | undefined;
         const cid = (parts?.customer_id as string | undefined) ?? null;
         const pid = (parts?.pro_id as string | undefined) ?? null;
         if (!cancelled) {
@@ -115,7 +149,11 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     meId && proId && meId === proId ? "pro" : "client";
 
   // TODO: sustituir conversationId por el requestId real cuando esté disponible en el contexto de la conversación.
-  const { modal: reviewModal, handleCompletionResponse: _handleCompletionResponse, open: openReview } = useCompletionReview({
+  const {
+    modal: reviewModal,
+    handleCompletionResponse: _handleCompletionResponse,
+    open: openReview,
+  } = useCompletionReview({
     requestId: requestId ?? conversationId,
     reviewerRole: viewerRole,
     professionalId: proId,
@@ -124,14 +162,19 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     viewerId: meId,
   });
 
-  async function patchStatus(nextStatus: 'scheduled'|'in_process'|'completed') {
+  async function patchStatus(
+    nextStatus: "scheduled" | "in_process" | "completed",
+  ) {
     if (!requestId) return null;
-    const res = await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: JSON.stringify({ nextStatus }),
-      credentials: 'include',
-    });
+    const res = await fetch(
+      `/api/requests/${encodeURIComponent(requestId)}/status`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ nextStatus }),
+        credentials: "include",
+      },
+    );
     const json = await res.json().catch(() => null);
     if (res.ok) {
       const s = (json?.data?.status as string | null) ?? null;
@@ -144,12 +187,29 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
+        <button
+          type="button"
+          aria-label="Volver a mensajes"
+          onClick={() => router.push("/mensajes")}
+          className="flex h-9 w-9 items-center justify-center rounded-full border text-slate-600 hover:bg-slate-100"
+        >
+          <span className="text-lg leading-none">←</span>
+        </button>
         {/* Avatar con skeleton mientras carga */}
-        <AvatarWithSkeleton src={normalizeAvatarUrl(other?.avatar_url) || "/images/Favicon-v1-jpeg.jpg"} alt={other?.full_name || "Avatar"} sizeClass="size-10" />
+        <AvatarWithSkeleton
+          src={
+            normalizeAvatarUrl(other?.avatar_url) ||
+            "/images/Favicon-v1-jpeg.jpg"
+          }
+          alt={other?.full_name || "Avatar"}
+          sizeClass="size-10"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <div className="font-semibold text-sm truncate">{other?.full_name || ""}</div>
-            {requestId && viewerRole === 'pro' ? (
+            <div className="font-semibold text-sm truncate">
+              {other?.full_name || ""}
+            </div>
+            {requestId && viewerRole === "pro" ? (
               <a
                 href={`/requests/explore/${requestId}`}
                 className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-slate-50 shrink-0"
@@ -176,11 +236,16 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
             return (
               <div className="mt-0.5 flex items-center justify-between gap-2">
                 <div className="text-xs text-muted-foreground truncate">
-                  {requestTitle || (loading ? "Cargando…" : formatPresence(other?.last_active_at ?? null))}
+                  {requestTitle ||
+                    (loading
+                      ? "Cargando…"
+                      : formatPresence(other?.last_active_at ?? null))}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <div className="flex items-center gap-2">
-                    <span className="hidden sm:inline text-xs text-muted-foreground">Estatus:</span>
+                    <span className="hidden sm:inline text-xs text-muted-foreground">
+                      Estatus:
+                    </span>
                     <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
                       {statusLabel}
                     </span>
@@ -194,27 +259,31 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
 
       {/* Actions by status */}
       {(() => {
-        const st = (requestStatus || '').toLowerCase();
-        const isScheduled = st === 'scheduled';
-        const isInProcess = st === 'in_process' || st === 'inprogress';
+        const st = (requestStatus || "").toLowerCase();
+        const isScheduled = st === "scheduled";
+        const isInProcess = st === "in_process" || st === "inprogress";
         if (!requestId) return null;
-        if (viewerRole === 'pro') {
+        if (viewerRole === "pro") {
           return (
             <div className="border-b bg-white p-2 flex items-center gap-2">
               {isScheduled ? (
                 <button
                   type="button"
                   className="inline-flex items-center rounded-md border px-3 py-1.5 text-sm hover:bg-slate-50"
-                  onClick={() => { void patchStatus('in_process'); }}
+                  onClick={() => {
+                    void patchStatus("in_process");
+                  }}
                 >
                   Empezar trabajo
                 </button>
               ) : null}
-              {(isScheduled || isInProcess) ? (
+              {isScheduled || isInProcess ? (
                 <button
                   type="button"
                   className="inline-flex items-center rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90"
-                  onClick={() => { openReview(); /* completar se hará tras reseña manualmente */ }}
+                  onClick={() => {
+                    openReview(); /* completar se hará tras reseña manualmente */
+                  }}
                 >
                   Trabajo realizado
                 </button>
@@ -229,7 +298,9 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
               <button
                 type="button"
                 className="inline-flex items-center rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90"
-                onClick={() => { openReview(); /* completar se hará tras reseña manualmente */ }}
+                onClick={() => {
+                  openReview(); /* completar se hará tras reseña manualmente */
+                }}
               >
                 Trabajo realizado
               </button>
@@ -248,8 +319,14 @@ export default function ChatWindow({ conversationId }: { conversationId: string 
           userId={meId}
           dataPrefix="chat"
           hideClientCtas={(() => {
-            const st = (requestStatus || '').toLowerCase();
-            return st === 'scheduled' || st === 'in_process' || st === 'inprogress' || st === 'finished' || st === 'completed';
+            const st = (requestStatus || "").toLowerCase();
+            return (
+              st === "scheduled" ||
+              st === "in_process" ||
+              st === "inprogress" ||
+              st === "finished" ||
+              st === "completed"
+            );
           })()}
         />
       </div>
