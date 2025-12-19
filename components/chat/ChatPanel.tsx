@@ -73,6 +73,8 @@ export type ChatPanelProps = {
   requestBudget?: number | null;
   dataPrefix?: string; // e2e: chat | request-chat
   hideClientCtas?: boolean;
+  ignoreStageLock?: boolean;
+  stickyActionBar?: boolean;
   openOfferDialogSignal?: number;
   offerPrefillTitle?: string | null;
   offerPrefillAmount?: number | null;
@@ -176,6 +178,8 @@ export default function ChatPanel({
   requestBudget: requestBudgetProp,
   dataPrefix = "chat",
   hideClientCtas = false,
+  ignoreStageLock = false,
+  stickyActionBar = false,
   openOfferDialogSignal,
   offerPrefillTitle,
   offerPrefillAmount,
@@ -345,8 +349,10 @@ export default function ChatPanel({
         let base = options.replace
           ? prev.filter((m) => m.id.startsWith("tmp_"))
           : [...prev];
-        // Prepare server-offer ids for dedupe of optimistic offer messages
+        // Prepare server-offer/quote ids for dedupe of optimistic messages
         const serverOfferIds = new Set<string>();
+        const serverQuoteIds = new Set<string>();
+        let hasServerQuote = false;
         for (const it of arr) {
           if (
             it.messageType === "offer" &&
@@ -357,6 +363,17 @@ export default function ChatPanel({
             const oid =
               typeof po.offer_id === "string" ? (po.offer_id as string) : null;
             if (oid) serverOfferIds.add(oid);
+          }
+          if (
+            it.messageType === "quote" &&
+            it.payload &&
+            typeof it.payload === "object"
+          ) {
+            hasServerQuote = true;
+            const pq = it.payload as Record<string, unknown>;
+            const qid =
+              typeof pq.quote_id === "string" ? (pq.quote_id as string) : null;
+            if (qid) serverQuoteIds.add(qid);
           }
         }
         if (options.fromServer) {
@@ -374,6 +391,20 @@ export default function ChatPanel({
                   ? (po.offer_id as string)
                   : null;
               if (oid && serverOfferIds.has(oid)) return false;
+            }
+            if (
+              m.messageType === "quote" &&
+              m.payload &&
+              typeof m.payload === "object"
+            ) {
+              const pq = m.payload as Record<string, unknown>;
+              const qid =
+                typeof pq.quote_id === "string"
+                  ? (pq.quote_id as string)
+                  : null;
+              if (qid && serverQuoteIds.has(qid)) return false;
+              // Fallback: drop tmp quotes once server messages arrive to avoid duplicados
+              if (hasServerQuote) return false;
             }
             // Body-based dedupe only applies to my own optimistic text messages
             if (meId) {
@@ -2030,16 +2061,17 @@ export default function ChatPanel({
     }
   }
 
-  const actionButtons = (
+  const actionButtonsContent = (
     <>
       {(() => {
         const st = (requestStatus || "").toLowerCase();
-        const stageLocked =
+        const baseLocked =
           st === "scheduled" ||
           st === "in_process" ||
           st === "inprogress" ||
           st === "finished" ||
           st === "completed";
+        const stageLocked = ignoreStageLock ? false : baseLocked;
         return (
           participants &&
           meId === participants?.customer_id &&
@@ -2090,6 +2122,13 @@ export default function ChatPanel({
       ) : null}
     </>
   );
+  const actionButtons = stickyActionBar ? (
+    <div className="sticky bottom-0 bg-white border-t">
+      {actionButtonsContent}
+    </div>
+  ) : (
+    actionButtonsContent
+  );
 
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
   const statusHeader = (() => {
@@ -2119,9 +2158,8 @@ export default function ChatPanel({
         </button>
         <AvatarWithSkeleton
           src={
-            normalizeAvatarUrl(
-              proProfile?.avatar_url || undefined,
-            ) || "/images/Favicon-v1-jpeg.jpg"
+            normalizeAvatarUrl(proProfile?.avatar_url || undefined) ||
+            "/images/Favicon-v1-jpeg.jpg"
           }
           alt={proName}
           sizeClass="size-10"
@@ -2478,7 +2516,40 @@ export default function ChatPanel({
       open={quoteOpen}
       onOpenChange={setQuoteOpen}
       conversationId={conversationId}
-      onSubmitted={() => {
+      dialogTitle="Cotización"
+      dialogDescription="Completa los detalles y envía la cotización al cliente."
+      onSubmitted={(info) => {
+        // Optimistic quote message so el profesional lo ve al instante (el cliente recibe realtime)
+        if (viewerRole === "professional") {
+          const createdAtIso = new Date().toISOString();
+          const optimistic: Msg = {
+            id:
+              info?.id && typeof info.id === "string"
+                ? info.id
+                : `tmp_quote_${Date.now()}`,
+            senderId: meId ?? "me",
+            body: "Cotización enviada",
+            createdAt: createdAtIso,
+            messageType: "quote",
+            payload: {
+              quote_id:
+                info?.id && typeof info.id === "string"
+                  ? info.id
+                  : `tmp_quote_${Date.now()}`,
+              total:
+                typeof info?.total === "number" && Number.isFinite(info.total)
+                  ? info.total
+                  : null,
+              currency:
+                typeof info?.currency === "string" &&
+                info.currency.trim().length
+                  ? info.currency
+                  : "MXN",
+            },
+            attachments: [],
+          };
+          mergeMessages(optimistic, { fromServer: true });
+        }
         void load(false);
       }}
     />
@@ -2619,7 +2690,7 @@ export default function ChatPanel({
   );
   if (mode === "page") {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col overflow-hidden">
         {showSafetyTip ? (
           <div
             className={[
@@ -2651,85 +2722,94 @@ export default function ChatPanel({
             </div>
           </div>
         ) : null}
-        {loadingState || messageList}
-        {typingIndicator}
-        {actionButtons}
-        <div className="border-t p-2">
-          <ChatUploader
-            conversationId={conversationId}
-            mode="draft-first"
-            showButton={false}
-            onReady={(api) => {
-              uploaderApiRef.current = api;
-            }}
-            onMessageCreated={({ messageId, attachments }) => {
-              if (process.env.NODE_ENV !== "production") {
-                // eslint-disable-next-line no-console
-                console.debug(
-                  "ui att add optimistic",
-                  messageId,
-                  attachments.length,
-                );
-              }
-              setMessages((prev) => {
-                const exists = prev.some((m) => m.id === messageId);
-                let next = prev;
-                if (!exists) {
-                  const createdAtIso = new Date().toISOString();
-                  next = [
-                    ...prev,
-                    {
-                      id: messageId,
-                      senderId: meId ?? "me",
-                      body: "",
-                      createdAt: createdAtIso,
-                      messageType: "text",
-                      payload: null,
-                      attachments: [],
-                    },
-                  ];
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {loadingState || messageList}
+            {typingIndicator}
+            {actionButtons}
+          </div>
+          <div className="border-t p-2 shrink-0">
+            <ChatUploader
+              conversationId={conversationId}
+              mode="draft-first"
+              showButton={false}
+              onReady={(api) => {
+                uploaderApiRef.current = api;
+              }}
+              onMessageCreated={({ messageId, attachments }) => {
+                if (process.env.NODE_ENV !== "production") {
+                  // eslint-disable-next-line no-console
+                  console.debug(
+                    "ui att add optimistic",
+                    messageId,
+                    attachments.length,
+                  );
                 }
-                const converted = attachments.map((a) => ({
-                  id: (a as any)?.id as string | undefined,
-                  filename: a.filename,
-                  mime_type: a.mime_type,
-                  byte_size: a.byte_size,
-                  width: a.width ?? null,
-                  height: a.height ?? null,
-                  storage_path: a.storage_path,
-                  created_at: (a as any)?.created_at as string | undefined,
-                }));
-                for (const att of converted) {
-                  next = appendAttachment(next, messageId, att);
+                setMessages((prev) => {
+                  const exists = prev.some((m) => m.id === messageId);
+                  let next = prev;
+                  if (!exists) {
+                    const createdAtIso = new Date().toISOString();
+                    next = [
+                      ...prev,
+                      {
+                        id: messageId,
+                        senderId: meId ?? "me",
+                        body: "",
+                        createdAt: createdAtIso,
+                        messageType: "text",
+                        payload: null,
+                        attachments: [],
+                      },
+                    ];
+                  }
+                  const converted = attachments.map((a) => ({
+                    id: (a as any)?.id as string | undefined,
+                    filename: a.filename,
+                    mime_type: a.mime_type,
+                    byte_size: a.byte_size,
+                    width: a.width ?? null,
+                    height: a.height ?? null,
+                    storage_path: a.storage_path,
+                    created_at: (a as any)?.created_at as string | undefined,
+                  }));
+                  for (const att of converted) {
+                    next = appendAttachment(next, messageId, att);
+                  }
+                  return next;
+                });
+              }}
+            />
+          </div>
+          <div className="shrink-0">
+            <MessageInput
+              onSend={onSend}
+              onTyping={emitTyping}
+              disabled={loading}
+              dataPrefix={dataPrefix}
+              onPickFiles={() => uploaderApiRef.current?.pickFiles()}
+              onPickCamera={() => uploaderApiRef.current?.pickCamera()}
+              onFocus={() => {
+                try {
+                  const el = document.querySelector(
+                    `[data-testid="${dataPrefix}-list"]`,
+                  ) as HTMLDivElement | null;
+                  if (el)
+                    setTimeout(
+                      () =>
+                        el.scrollTo({
+                          top: el.scrollHeight,
+                          behavior: "smooth",
+                        }),
+                      50,
+                    );
+                } catch {
+                  /* ignore */
                 }
-                return next;
-              });
-            }}
-          />
+              }}
+            />
+          </div>
         </div>
-        <MessageInput
-          onSend={onSend}
-          onTyping={emitTyping}
-          disabled={loading}
-          dataPrefix={dataPrefix}
-          onPickFiles={() => uploaderApiRef.current?.pickFiles()}
-          onPickCamera={() => uploaderApiRef.current?.pickCamera()}
-          onFocus={() => {
-            try {
-              const el = document.querySelector(
-                `[data-testid="${dataPrefix}-list"]`,
-              ) as HTMLDivElement | null;
-              if (el)
-                setTimeout(
-                  () =>
-                    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }),
-                  50,
-                );
-            } catch {
-              /* ignore */
-            }
-          }}
-        />
         {acceptedForPay ? (
           <OfferPaymentDialog
             open={paymentOpen}

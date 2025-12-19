@@ -17,7 +17,13 @@ import {
   isOwnerPro,
 } from "@/lib/offers/actors";
 import OfferPaymentDialog from "@/components/payments/OfferPaymentDialog";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Item = {
   id: string;
@@ -164,6 +170,9 @@ export default function MessageList({
   const [paymentOpen, setPaymentOpen] = React.useState(false);
   const [quoteLightbox, setQuoteLightbox] = React.useState<string | null>(null);
   const [quoteImgLoading, setQuoteImgLoading] = React.useState(false);
+  const [quoteImgError, setQuoteImgError] = React.useState<
+    Record<string, boolean>
+  >({});
   React.useEffect(() => {
     if (quoteLightbox) setQuoteImgLoading(true);
     else setQuoteImgLoading(false);
@@ -603,10 +612,17 @@ export default function MessageList({
       typeof message.payload === "object"
     ) {
       const payloadRecord = message.payload as QuotePayload;
-      const qid =
+      const payloadQuoteId =
         typeof payloadRecord.quote_id === "string"
           ? payloadRecord.quote_id
           : null;
+      const fallbackQuoteId =
+        message.messageType === "quote" &&
+        typeof message.id === "string" &&
+        message.id.trim().length > 0
+          ? message.id
+          : null;
+      const qid = payloadQuoteId || fallbackQuoteId;
       const totalRaw = payloadRecord.total;
       const currencyRaw = payloadRecord.currency;
       const total =
@@ -617,6 +633,8 @@ export default function MessageList({
         : null;
       const hasAttachment =
         Array.isArray(message.attachments) && message.attachments.length > 0;
+      const canRenderRemoteImage = qid && !qid.startsWith("tmp");
+      const hasImgError = qid ? quoteImgError[qid] : false;
       return (
         <div className="space-y-1">
           <div className="text-sm font-medium text-slate-800">
@@ -626,7 +644,7 @@ export default function MessageList({
             <div className="text-sm text-slate-700">Total: {totalFmt}</div>
           ) : null}
           {/* Fallback: si aún no hay adjunto, muestra la imagen renderizada por API */}
-          {!hasAttachment && qid ? (
+          {!hasAttachment && canRenderRemoteImage ? (
             <div className="pt-1">
               <button
                 type="button"
@@ -639,13 +657,25 @@ export default function MessageList({
                 aria-label="Abrir cotización"
                 title="Abrir cotización"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`/api/quotes/${encodeURIComponent(qid)}/image`}
-                  alt="Cotización"
-                  className="block max-h-56 object-contain"
-                  style={{ maxWidth: 300 }}
-                />
+                {!hasImgError ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`/api/quotes/${encodeURIComponent(qid)}/image`}
+                    alt="Cotización"
+                    className="block max-h-56 object-contain"
+                    style={{ maxWidth: 300 }}
+                    onError={() =>
+                      setQuoteImgError((prev) => ({ ...prev, [qid]: true }))
+                    }
+                    onLoad={() =>
+                      setQuoteImgError((prev) => ({ ...prev, [qid]: false }))
+                    }
+                  />
+                ) : (
+                  <div className="flex h-40 w-full max-w-[300px] items-center justify-center rounded-md bg-slate-50 text-slate-500 text-sm border border-slate-200">
+                    Ver cotización
+                  </div>
+                )}
               </button>
             </div>
           ) : null}
@@ -909,12 +939,21 @@ export default function MessageList({
                         const payload = isRecord(m.payload)
                           ? (m.payload as QuotePayload)
                           : null;
-                        const qid =
+                        const payloadQid =
                           typeof payload?.quote_id === "string"
                             ? payload.quote_id
                             : null;
-                        if (m.messageType === "quote" && qid) {
-                          return `/api/quotes/${encodeURIComponent(qid)}/image`;
+                        const resolvedQid =
+                          payloadQid ||
+                          (m.messageType === "quote" && typeof m.id === "string"
+                            ? m.id
+                            : null);
+                        if (
+                          m.messageType === "quote" &&
+                          resolvedQid &&
+                          !resolvedQid.startsWith("tmp")
+                        ) {
+                          return `/api/quotes/${encodeURIComponent(resolvedQid)}/image`;
                         }
                         return url;
                       }}
@@ -964,11 +1003,18 @@ export default function MessageList({
         onOpenChange={(o) => {
           if (!o) setQuoteLightbox(null);
         }}
+        aria-describedby="quote-lightbox-desc"
       >
         <DialogContent
           showCloseButton={false}
           className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent"
         >
+          <DialogHeader className="sr-only">
+            <DialogTitle>Previsualización de cotización</DialogTitle>
+            <DialogDescription>
+              Imagen generada de la cotización enviada.
+            </DialogDescription>
+          </DialogHeader>
           {quoteLightbox ? (
             <div className="relative" aria-busy={quoteImgLoading}>
               {quoteImgLoading ? (

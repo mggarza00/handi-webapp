@@ -15,13 +15,16 @@ type QuoteImageProps = {
   brandHex?: string;
   grayHex?: string;
   logoUrl?: string | null;
+  watermarkUrl?: string | null;
+  logoDataUrl?: string | null;
+  watermarkDataUrl?: string | null;
 };
 
 const peso = (n: number, currency: string = "MXN") =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(n);
 
 export default function QuoteImage({
-  title = "Cotización",
+  title: _title = "Cotización",
   folio,
   issuedAtISO,
   professionalName,
@@ -30,66 +33,397 @@ export default function QuoteImage({
   items,
   currency = "MXN",
   notes,
-  brandHex = "#0E7490",
-  grayHex = "#E5E7EB",
+  brandHex: _brandHex = "#0E7490",
+  grayHex: _grayHex = "#E5E7EB",
   logoUrl,
+  watermarkUrl,
+  logoDataUrl,
+  watermarkDataUrl,
 }: QuoteImageProps) {
   const subtotal = items.reduce((acc, i) => acc + (i.amount || 0), 0);
   const total = subtotal;
-  const dateStr = new Date(issuedAtISO).toLocaleDateString("es-MX", { dateStyle: "medium" });
+  const dateStr = new Date(issuedAtISO).toLocaleDateString("es-MX", {
+    dateStyle: "medium",
+  });
+  const paperMaxWidth = 880;
+  const primary = "#2BB3C0";
+  const text = "#0F172A";
+  const muted = "#64748B";
+  const border = "#E2E8F0";
+  const background = "#F6F8FB";
+  const softShadow = "0px 20px 60px rgba(15, 23, 42, 0.08)";
+  const stackSans =
+    "'Stack Sans', 'Inter', 'Helvetica Neue', Arial, sans-serif";
+  const inter = "'Inter', 'Helvetica Neue', Arial, sans-serif";
+  const watermarkSize = 520;
+  const brandLogo = logoDataUrl || logoUrl || "/images/LOGO_HANDI_DB.png";
+  const watermarkImg =
+    watermarkDataUrl || watermarkUrl || "/images/FAVICON_FOOTER.png";
+  const currencyStyle = {
+    fontVariantNumeric: "tabular-nums lining-nums",
+    fontFeatureSettings: "'tnum' 1, 'lnum' 1",
+  } as const;
 
   return (
-    <div style={{ width: 1080, height: 1600, backgroundColor: "#FFFFFF", color: "#0F172A", display: "flex", flexDirection: "column", padding: 48, fontFamily: "Inter", gap: 24 }}>
-      {/* Header simple */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-        <span style={{ fontSize: 40, fontWeight: 700, letterSpacing: -0.5, color: brandHex }}>{`Handi ${title}`}</span>
-        {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt="Logotipo" style={{ height: 72, width: 72, objectFit: "cover", borderRadius: 12 }} />
+    <div
+      style={{
+        width: 1080,
+        height: 1600,
+        backgroundColor: background,
+        color: text,
+        display: "flex",
+        justifyContent: "center",
+        padding: 48,
+        boxSizing: "border-box",
+        fontFamily: inter,
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: paperMaxWidth,
+          backgroundColor: "#FFFFFF",
+          borderRadius: 24,
+          boxShadow: softShadow,
+          padding: 48,
+          display: "flex",
+          flexDirection: "column",
+          gap: 28,
+          overflow: "hidden",
+        }}
+      >
+        {/* Watermark */}
+        {watermarkImg ? (
+          <div
+            style={{
+              position: "absolute",
+              bottom: -80,
+              right: -120,
+              width: watermarkSize,
+              height: watermarkSize,
+              opacity: 0.12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              overflow: "hidden",
+            }}
+            aria-hidden="true"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={watermarkImg}
+              alt=""
+              style={{
+                width: "120%",
+                height: "120%",
+                objectFit: "contain",
+                filter: "grayscale(8%)",
+              }}
+            />
+          </div>
         ) : null}
-      </div>
 
-      {/* Meta compacta */}
-      <span style={{ fontSize: 24, color: "#334155" }}>{`Folio: ${folio}  •  Fecha: ${dateStr}`}</span>
-
-      {/* Separador */}
-      <div style={{ display: "flex", height: 2, backgroundColor: grayHex }} />
-
-      {/* Personas */}
-      <span style={{ fontSize: 28 }}>{`Profesional: ${professionalName}`}</span>
-      <span style={{ fontSize: 28 }}>{`Cliente: ${clientName}`}</span>
-      <span style={{ fontSize: 28 }}>{`Servicio: ${serviceTitle}`}</span>
-
-      {/* Encabezado tabla */}
-      <div style={{ display: "flex", justifyContent: "space-between", borderTop: `2px solid ${grayHex}`, borderBottom: `2px solid ${grayHex}`, padding: "14px 0" }}>
-        <span style={{ fontSize: 28, fontWeight: 600 }}>Concepto</span>
-        <span style={{ fontSize: 28, fontWeight: 600, minWidth: 260, textAlign: "right" }}>Importe</span>
-      </div>
-      {/* Filas */}
-      {items.map((it, idx) => (
-        <div key={idx} style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderBottom: `1px solid ${grayHex}` }}>
-          <span style={{ fontSize: 28, maxWidth: 720 }}>{it.description}</span>
-          <span style={{ fontSize: 28, minWidth: 260, textAlign: "right" }}>{peso(it.amount, currency)}</span>
+        {/* Header */}
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 24,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 16,
+            }}
+          >
+            {brandLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brandLogo}
+                alt="Handi"
+                style={{
+                  height: 64,
+                  width: 64,
+                  borderRadius: 14,
+                  objectFit: "cover",
+                  border: `1px solid ${border}`,
+                }}
+              />
+            ) : null}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span
+                style={{
+                  fontFamily: stackSans,
+                  fontSize: 36,
+                  fontWeight: 700,
+                  letterSpacing: -0.6,
+                  color: text,
+                }}
+              >
+                Cotización
+              </span>
+              <span style={{ fontSize: 16, color: muted }}>
+                Resumen del servicio
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              minWidth: 180,
+              textAlign: "right",
+              fontSize: 14,
+              color: muted,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              <span>Folio</span>
+              <strong style={{ fontFamily: inter, color: text, fontSize: 16 }}>
+                {folio}
+              </strong>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              <span>Fecha</span>
+              <strong style={{ fontFamily: inter, color: text, fontSize: 16 }}>
+                {dateStr}
+              </strong>
+            </div>
+          </div>
         </div>
-      ))}
 
-      {/* Total */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignSelf: "flex-end", width: 540, border: `2px solid ${brandHex}`, borderRadius: 24, padding: 24, marginTop: 8 }}>
-        <span style={{ fontSize: 32, fontWeight: 800, color: brandHex }}>Total</span>
-        <span style={{ fontSize: 32, fontWeight: 800, color: brandHex }}>{peso(total, currency)}</span>
-      </div>
-
-      {/* Detalles y condiciones */}
-      {notes ? (
-        <div style={{ marginTop: 12, display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 24, fontWeight: 600, color: "#0F172A", marginBottom: 6 }}>Detalles y condiciones</div>
-          <span style={{ fontSize: 22, color: "#475569", lineHeight: 1.4, whiteSpace: "pre-wrap" }}>{notes}</span>
+        {/* Datos */}
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          {[
+            { label: "Profesional", value: professionalName },
+            { label: "Cliente", value: clientName },
+            { label: "Servicio", value: serviceTitle },
+          ].map((item, idx) => (
+            <div
+              key={idx}
+              style={{
+                border: `1px solid ${border}`,
+                borderRadius: 14,
+                padding: "14px 16px",
+                background: "#FBFDFF",
+                minHeight: 72,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                breakInside: "avoid",
+                flex: "1 1 30%",
+              }}
+            >
+              <span style={{ fontSize: 13, color: muted, letterSpacing: 0.2 }}>
+                {item.label}
+              </span>
+              <strong
+                style={{
+                  fontFamily: stackSans,
+                  fontSize: 18,
+                  fontWeight: 650,
+                  color: text,
+                  lineHeight: 1.3,
+                }}
+              >
+                {item.value}
+              </strong>
+            </div>
+          ))}
         </div>
-      ) : null}
 
-      {/* Footer */}
-      <div style={{ display: "flex", marginTop: "auto", justifyContent: "center" }}>
-        <span style={{ fontSize: 20, color: "#94A3B8" }}>Precio no incluye IVA ni comision. Sujeto a condiciones del servicio.</span>
+        {/* Tabla */}
+        <div
+          style={{
+            position: "relative",
+            border: `1px solid ${border}`,
+            borderRadius: 16,
+            overflow: "hidden",
+            background: "#FFFFFF",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+              padding: "14px 16px",
+              background: "#F8FAFC",
+              borderBottom: `1px solid ${border}`,
+              fontFamily: stackSans,
+              fontSize: 14,
+              fontWeight: 700,
+              color: text,
+            }}
+          >
+            <span>Concepto</span>
+            <span style={{ minWidth: 200, textAlign: "right" }}>Importe</span>
+          </div>
+          {items.map((it, idx) => (
+            <div
+              key={idx}
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                padding: "14px 16px",
+                borderBottom:
+                  idx === items.length - 1 ? "none" : `1px solid ${border}`,
+                fontSize: 15,
+                color: text,
+              }}
+            >
+              <span style={{ lineHeight: 1.5, flex: 1, paddingRight: 12 }}>
+                {it.description}
+              </span>
+              <span
+                style={{
+                  minWidth: 200,
+                  textAlign: "right",
+                  fontFamily: stackSans,
+                  fontWeight: 650,
+                  ...currencyStyle,
+                }}
+              >
+                {peso(it.amount, currency)}
+              </span>
+            </div>
+          ))}
+          {items.length === 0 ? (
+            <div
+              style={{
+                padding: "14px 16px",
+                fontSize: 15,
+                color: muted,
+              }}
+            >
+              Sin conceptos
+            </div>
+          ) : null}
+        </div>
+
+        {/* Total */}
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <div
+            style={{
+              minWidth: 320,
+              padding: "18px 20px",
+              borderRadius: 16,
+              border: `1px solid ${border}`,
+              background: "#F8FEFF",
+              boxShadow: "0px 10px 30px rgba(15,23,42,0.06)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span style={{ fontFamily: stackSans, fontSize: 16, color: muted }}>
+              Total
+            </span>
+            <span
+              style={{
+                fontFamily: stackSans,
+                fontSize: 28,
+                fontWeight: 750,
+                color: primary,
+                ...currencyStyle,
+              }}
+            >
+              {peso(total, currency)}
+            </span>
+          </div>
+        </div>
+
+        {/* Notas */}
+        <div
+          style={{
+            position: "relative",
+            padding: "6px 0",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: stackSans,
+              fontSize: 18,
+              color: text,
+              margin: 0,
+            }}
+          >
+            Detalles y condiciones
+          </h2>
+          {notes ? (
+            <p
+              style={{
+                fontSize: 15,
+                color: muted,
+                lineHeight: 1.5,
+                margin: 0,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {notes}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            justifyContent: "center",
+            paddingTop: 8,
+          }}
+        >
+          <small
+            style={{ fontSize: 13, color: "#94A3B8", textAlign: "center" }}
+          >
+            Precio no incluye IVA ni comisión. Sujeto a condiciones del
+            servicio.
+          </small>
+        </div>
       </div>
     </div>
   );

@@ -7,10 +7,22 @@
  *  - public/<bucket>/<key>
  *  - <bucket>/<key>
  */
-export function normalizeAvatarUrl(url: string | null | undefined): string | null {
+export function normalizeAvatarUrl(
+  url: string | null | undefined,
+): string | null {
   if (!url) return null;
   const s = String(url).trim();
   if (!s) return null;
+  // Avoid external hosts without CORS (e.g., pravatar)
+  try {
+    const parsed = new URL(s, "http://placeholder.local");
+    const host = parsed.host.toLowerCase();
+    if (host.includes("pravatar.cc")) {
+      return "/images/LOGO_HANDI_DB.png";
+    }
+  } catch {
+    /* ignore */
+  }
   // Absolute URL
   if (/^https?:\/\//i.test(s)) return s;
 
@@ -34,7 +46,9 @@ export function normalizeAvatarUrl(url: string | null | undefined): string | nul
  * Extrae { bucket, key } desde varias formas de ruta de almacenamiento.
  * Devuelve null si no se puede inferir.
  */
-export function parseSupabaseStoragePath(url: string | null | undefined): { bucket: string; key: string } | null {
+export function parseSupabaseStoragePath(
+  url: string | null | undefined,
+): { bucket: string; key: string } | null {
   if (!url) return null;
   const s = String(url).trim();
   if (!s || /^https?:\/\//i.test(s)) return null; // ya es absoluta
@@ -50,7 +64,8 @@ export function parseSupabaseStoragePath(url: string | null | undefined): { buck
 
   // <bucket>/<key>
   const idx = clean.indexOf("/");
-  if (idx > 0) return { bucket: clean.slice(0, idx), key: clean.slice(idx + 1) };
+  if (idx > 0)
+    return { bucket: clean.slice(0, idx), key: clean.slice(idx + 1) };
 
   return null;
 }
