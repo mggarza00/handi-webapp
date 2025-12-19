@@ -17,10 +17,6 @@ export default function MessagesShell({
 
   return (
     <div className="mx-auto max-w-6xl p-4">
-      <div className="mb-3">
-        {/* Título en todas las vistas; el botón de regreso ahora vive en el panel de chat */}
-        <h1 className="text-xl font-semibold">Mensajes</h1>
-      </div>
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4">
         {/* Sidebar chat list: hide on mobile when on detail */}
         <aside
