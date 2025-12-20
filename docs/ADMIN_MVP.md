@@ -1,4 +1,4 @@
-# Homaid Admin MVP (/admin)
+# Handi Admin MVP (/admin)
 
 Este MVP agrega el área de administración /admin con navegación, layout, guardas de acceso (middleware), endpoints mock, tablas y KPIs.
 
@@ -76,4 +76,3 @@ supabase db execute --file supabase/seed_admin.sql
 
 - El esquema actual del proyecto ya incluye `profiles` y autorización con Supabase SSR. El middleware ahora también verifica permisos en `/admin`.
 - Este MVP usa datos mock en endpoints. Conecta a tus tablas reales reemplazando la lógica de `/api/admin/*`.
-

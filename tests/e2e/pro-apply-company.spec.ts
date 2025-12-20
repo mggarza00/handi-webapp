@@ -23,7 +23,7 @@ test.describe("Pro Apply — Company flow (UI)", () => {
 
     // 2) Establish a test session (dev/CI) using the endpoint that sets a cookie fallback
     await page.goto(
-      "/api/test-auth/login?email=pro.apply@homaid.dev&role=pro&next=/pro-apply",
+      "/api/test-auth/login?email=pro.apply@handi.dev&role=pro&next=/pro-apply",
       { waitUntil: "domcontentloaded" },
     );
 

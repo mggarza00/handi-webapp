@@ -4,7 +4,7 @@ import * as React from "react";
 
 import NewRequestStepperModal from "@/components/requests/NewRequestStepperModal";
 
-export const OPEN_EVENT = "homaid:create-request";
+export const OPEN_EVENT = "handi:create-request";
 
 export default function CreateRequestWizardRoot() {
   const [open, setOpen] = React.useState(false);

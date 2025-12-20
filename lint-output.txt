@@ -1,5 +1,5 @@
 
-> homaid-webapp@0.1.0 lint C:\dev\handi-webapp
+> handi-webapp@0.1.0 lint C:\dev\handi-webapp
 > next lint && npm run lint:css
 
 

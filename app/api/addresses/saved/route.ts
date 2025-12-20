@@ -149,7 +149,14 @@ export async function POST(req: NextRequest) {
         console.error("[addresses/saved] rpc_failed", error);
       }
       return NextResponse.json(
-        { ok: false, error: "rpc_failed" },
+        {
+          ok: false,
+          error: "rpc_failed",
+          detail:
+            (error as { message?: string; code?: string })?.message ||
+            (error as { code?: string })?.code ||
+            null,
+        },
         { status: 400, headers: JSONH },
       );
     }

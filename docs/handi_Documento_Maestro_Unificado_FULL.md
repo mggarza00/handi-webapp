@@ -1,4 +1,5 @@
 # Handi — Documento Maestro V1 (Unificado)
+
 <!-- Renombrado desde *_Handee_* a *_Handi_* -->
 
 **Fecha:** 13-ago-2025  
@@ -74,6 +75,7 @@ Handi conecta **contratantes** con **profesionales** de oficios. El V1 integra:
 Nota (addendum septiembre 2025): El perfil profesional público se separa de `profiles` y vive en `public.professionals`. La galería de profesionales se aloja en el bucket `professionals-gallery`. Las secciones originales se mantienen por referencia histórica; ver el anexo 3.6 para el diseño vigente y trazabilidad.
 
 Addendum (septiembre 2025 — empresas): Los profesionales pueden postularse como empresa. Se agrega la bandera booleana `empresa` en:
+
 - `public.pro_applications (empresa boolean default false)` para registrar si la postulación es de empresa.
 - `public.professionals (empresa boolean default false)` para marcar el perfil público como empresa.
 
@@ -266,12 +268,14 @@ create index if not exists ix_requests_status_city on public.requests (status, c
 ### 3.6 Addendum — Separación de perfil profesional (sept 2025)
 
 Resumen de cambios:
+
 - Tabla nueva `public.professionals` (perfil profesional público). `public.profiles` queda para datos de usuario (rol, avatar básico, nombre de cuenta).
 - RPCs y endpoints que listan/buscan profesionales migran a `professionals`.
 - Galería de profesionales se mueve a bucket `professionals-gallery`.
 - Postulaciones (`public.pro_applications`) siguen como fuente de onboarding; al aceptar se sincroniza a `professionals`.
 
 DDL (resumen):
+
 ```sql
 create table if not exists public.professionals (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -304,10 +308,12 @@ create index if not exists ix_professionals_featured_rating on public.profession
 ```
 
 Buckets de Storage:
+
 - `professionals-gallery` (nuevo): lectura por URL firmada; escritura sólo dueño bajo `<user_id>/...`.
 - `profiles-gallery` (deprecado): se mantiene temporalmente para compatibilidad y migración de objetos.
 
 Trazabilidad (end-to-end):
+
 - Registro → `auth.users` + `public.profiles` (rol = client por defecto).
 - Postulación → `public.pro_applications`.
 - Aprobación admin → upsert en `public.professionals` (activa y normaliza datos) y opcional `profiles.role='pro'`.

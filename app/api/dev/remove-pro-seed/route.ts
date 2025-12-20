@@ -27,7 +27,7 @@ export async function POST() {
 
   // Try by known email
   try {
-    const pro = await findUserByEmail("pro+seed@homaid.dev");
+    const pro = await findUserByEmail("pro+seed@handi.dev");
     if (pro?.id) ids.push(pro.id);
   } catch {
     // ignore

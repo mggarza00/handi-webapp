@@ -33,7 +33,7 @@ export default function Topbar() {
     <div className="sticky top-16 z-20 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
         <SidebarTrigger className="md:hidden" />
-        <div className="text-sm font-semibold opacity-70">Homaid Admin</div>
+        <div className="text-sm font-semibold opacity-70">Handi Admin</div>
         <div className="ml-auto">
           <input ref={inputRef} type="search" placeholder="Buscar..." className="h-9 w-64 rounded-md border bg-background px-3 text-sm" />
         </div>

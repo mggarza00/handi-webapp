@@ -6,8 +6,8 @@ test.describe("Avatares en listado de chats (/mensajes)", () => {
 
   test.beforeAll(async ({ baseURL, request }) => {
     await seedE2EUsers(request, baseURL);
-    const c = await request.get(`/api/test-auth/login?email=${encodeURIComponent('cliente.e2e@homaid.mx')}&next=/`);
-    const p = await request.get(`/api/test-auth/login?email=${encodeURIComponent('pro.e2e@homaid.mx')}&next=/`);
+    const c = await request.get(`/api/test-auth/login?email=${encodeURIComponent('cliente.e2e@handi.mx')}&next=/`);
+    const p = await request.get(`/api/test-auth/login?email=${encodeURIComponent('pro.e2e@handi.mx')}&next=/`);
     if (!c.ok() || !p.ok()) test.skip(true, "Test auth endpoint unavailable (missing Supabase env). Skipping.");
   });
 

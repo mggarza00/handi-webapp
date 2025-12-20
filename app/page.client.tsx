@@ -48,6 +48,7 @@ type LandingPageProps = {
   greetingText?: string;
   fullName?: string | null;
   savedAddresses?: Array<{
+    id?: string;
     label: string | null;
     address_line: string;
     address_place_id: string | null;

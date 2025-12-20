@@ -1,4 +1,4 @@
-﻿/* eslint-disable import/order */
+/* eslint-disable import/order */
 import * as React from 'react';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 
@@ -97,7 +97,7 @@ export function toPdfReceiptData(sr: ServerReceipt): PdfReceiptData {
 export function ReceiptTemplate({ data, baseUrl }: { data: ServerReceipt; baseUrl?: string }) {
   const vm = toPdfReceiptData(data);
   const created = formatDateTimeMX(vm.createdAt);
-  const candidate = (data as ServerReceipt)?.business?.logoUrl || (baseUrl ? `${baseUrl}/brand/homaid-logo.png` : "/brand/homaid-logo.png");
+  const candidate = (data as ServerReceipt)?.business?.logoUrl || (baseUrl ? `${baseUrl}/brand/handi-logo.png` : "/brand/handi-logo.png");
   const useImage = candidate && /\.(png|jpg|jpeg|gif)$/i.test(candidate);
   const fallbackLogo = baseUrl ? `${baseUrl}/images/LOGO_HANDI_DB.png` : '/images/LOGO_HANDI_DB.png';
   const logo = useImage ? candidate : fallbackLogo;

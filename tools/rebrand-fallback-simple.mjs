@@ -2,7 +2,7 @@
 /*
   Simple fallback rebrand replacer (no path/ID guards)
   Reads files from env var FILES (newline-separated) and applies global replacements:
-    HOMAID->HANDI, Homaid->Handi, homaid->handi
+    HANDI->HANDI, Handi->Handi, handi->handi
     HANDEE->HANDI, Handee->Handi, handee->handi
 
   NOTE: Prefer tools/rebrand-to-handi.mjs for safe replacements that avoid domains/IDs.
@@ -17,9 +17,9 @@ if (!filesEnv.trim()) {
 
 const files = filesEnv.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
 const pairs = [
-  [/HOMAID/g, 'HANDI'],
-  [/Homaid/g, 'Handi'],
-  [/homaid/g, 'handi'],
+  [/HANDI/g, 'HANDI'],
+  [/Handi/g, 'Handi'],
+  [/handi/g, 'handi'],
   [/HANDEE/g, 'HANDI'],
   [/Handee/g, 'Handi'],
   [/handee/g, 'handi'],
@@ -39,4 +39,3 @@ for (const f of files) {
 }
 
 console.log(`Replaced branding in ${changed} files.`);
-

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish Homaid rebrand to main: build/tests, migrations check, PR and auto squash-merge
+# Publish Handi rebrand to main: build/tests, migrations check, PR and auto squash-merge
 # UTF-8, Git Bash compatible
 set -euo pipefail
 
@@ -78,8 +78,8 @@ if command -v gh >/dev/null 2>&1; then
   # Crear PR si no existe; si existe, gh saldrá con mensaje
   set +e
   gh pr create \
-    -t "Rebrand Homaid + Supabase migration repair" \
-    -b "Publica el rebrand (UI Homaid) y deja historial de migraciones saneado.\nChecks:\n- build OK\n- e2e OK (redirects /messages -> /mensajes)\n- supabase migration list/status sin pendientes relevantes." \
+    -t "Rebrand Handi + Supabase migration repair" \
+    -b "Publica el rebrand (UI Handi) y deja historial de migraciones saneado.\nChecks:\n- build OK\n- e2e OK (redirects /messages -> /mensajes)\n- supabase migration list/status sin pendientes relevantes." \
     -B main \
     --head "$BRANCH"
   RC=$?
@@ -95,11 +95,11 @@ else
   echo "Instala GitHub CLI o crea el PR manualmente desde GitHub:"
   echo "Base: main"
   echo "Head: $BRANCH"
-  echo "Título: Rebrand Homaid + Supabase migration repair"
+  echo "Título: Rebrand Handi + Supabase migration repair"
 fi
 
 echo "== Post-merge: recordatorio de smoke tests =="
-echo "1) Home y páginas principales (colores Homaid, logos)."
+echo "1) Home y páginas principales (colores Handi, logos)."
 echo "2) Redirects: /messages y /messages/:id -> /mensajes."
 echo "3) Flujo de pago básico hasta estado 'scheduled' (si aplica en staging)."
 

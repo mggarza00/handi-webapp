@@ -1,4 +1,4 @@
-// tools/rebrand-homaid.ts
+// tools/rebrand-handi.ts
 import fs from "node:fs";
 import path from "node:path";
 
@@ -57,8 +57,8 @@ const TEXT_EXTS = new Set<string>([
 ]);
 
 const SELF_PATHS = new Set<string>([
-  path.join("tools", "rebrand-homaid.ts").replace(/\\/g, "/"),
-  path.join("tools", "rebrand-homaid-old.ts").replace(/\\/g, "/"),
+  path.join("tools", "rebrand-handi.ts").replace(/\\/g, "/"),
+  path.join("tools", "rebrand-handi-old.ts").replace(/\\/g, "/"),
 ]);
 
 function isEnvFile(filePath: string) {

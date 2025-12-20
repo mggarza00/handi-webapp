@@ -6,20 +6,20 @@ Este documento guía un smoke test manual para validar la nueva sección "Cuenta
 
 - App en dev (`npm run dev`).
 - Usuario autenticado como profesional de pruebas (usa el helper):
-  - Visitar `/api/test-auth/login?email=pro.apply@homaid.dev&role=pro&next=/pro-apply`.
+  - Visitar `/api/test-auth/login?email=pro.apply@handi.dev&role=pro&next=/pro-apply`.
 
 ## Pasos
 
-1) Abrir `/pro-apply` y verificar que aparece la sección "Cuentas bancarias" debajo de "Referencias laborales".
-2) Completar campos básicos del formulario (nombre, teléfono, correo, RFC válido, servicios, ciudades, categorías, años).
-3) En "Cuentas bancarias":
+1. Abrir `/pro-apply` y verificar que aparece la sección "Cuentas bancarias" debajo de "Referencias laborales".
+2. Completar campos básicos del formulario (nombre, teléfono, correo, RFC válido, servicios, ciudades, categorías, años).
+3. En "Cuentas bancarias":
    - Nombre del titular: escribir al menos 2 caracteres.
    - Banco: escribir nombre del banco (ej. "BBVA").
    - CLABE: pegar 18 dígitos (validar que el campo enmascara a grupos; si <18 dígitos, ver mensaje "CLABE incompleta").
    - Tipo de cuenta (opcional): seleccionar alguna (Ahorro/Nómina/Otra).
    - Carátula (opcional): subir un PDF o imagen < 10MB.
-4) Adjuntar firma (abrir modal, dibujar y aceptar). Aceptar Aviso de Privacidad.
-5) Enviar postulación.
+4. Adjuntar firma (abrir modal, dibujar y aceptar). Aceptar Aviso de Privacidad.
+5. Enviar postulación.
 
 ## Verificaciones
 
@@ -45,4 +45,3 @@ Este documento guía un smoke test manual para validar la nueva sección "Cuenta
 - La cuenta creada/actualizada desde `/pro-apply` aparece correctamente en `/settings`.
 - El uploader guarda `verification_document_url` en `bank_accounts` y es opcional.
 - No se rompen flujos existentes: /settings sigue listando cuentas; `/api/bank-accounts` y `/api/me/bank-account` operan normal.
-

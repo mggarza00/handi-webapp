@@ -12,7 +12,7 @@
   Guardrails:
   - Only operates on allowed content extensions
   - Skips matches adjoining '-', '_', '/', '@', '.' to avoid paths, IDs, domains, emails
-  - Keeps existing asset paths (Logo-Homaid-*.gif, favicon-homaid.gif, etc.)
+  - Keeps existing asset paths (Logo-Handi-*.gif, favicon-handi.gif, etc.)
   Usage:
     node tools/rebrand-to-handi.mjs [.tmp/rebrand_hits.pre.txt]
 */
@@ -27,9 +27,9 @@ const allowedExt = new Set([
 ]);
 
 const patterns = [
-  { re: /(?<![\-_/@.])\bHOMAID\b(?![\-_/@.])/g, to: 'HANDI' },
-  { re: /(?<![\-_/@.])\bHomaid\b(?![\-_/@.])/g, to: 'Handi' },
-  { re: /(?<![\-_/@.])\bhomaid\b(?![\-_/@.])/g, to: 'handi' },
+  { re: /(?<![\-_/@.])\bHANDI\b(?![\-_/@.])/g, to: 'HANDI' },
+  { re: /(?<![\-_/@.])\bHandi\b(?![\-_/@.])/g, to: 'Handi' },
+  { re: /(?<![\-_/@.])\bhandi\b(?![\-_/@.])/g, to: 'handi' },
   { re: /(?<![\-_/@.])\bHANDEE\b(?![\-_/@.])/g, to: 'HANDI' },
   { re: /(?<![\-_/@.])\bHandee\b(?![\-_/@.])/g, to: 'Handi' },
   { re: /(?<![\-_/@.])\bhandee\b(?![\-_/@.])/g, to: 'handi' },

@@ -491,7 +491,7 @@ body {
   }
 
   /* Animación sutil para la mascota de Handi */
-  @keyframes homaid-bounce-subtle {
+  @keyframes handi-bounce-subtle {
     0%,
     100% {
       transform: translateY(0);
@@ -502,7 +502,7 @@ body {
   }
 
   .animate-bounce-subtle {
-    animation: homaid-bounce-subtle 2.8s ease-in-out infinite;
+    animation: handi-bounce-subtle 2.8s ease-in-out infinite;
   }
 
   /* Marquee horizontal (carrusel lento, constante) */

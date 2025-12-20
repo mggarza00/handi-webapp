@@ -20,7 +20,7 @@ test.describe("Request detail edit UI", () => {
     let actionLink: string | null = null;
     if (baseURL) {
       const r = await request.get(
-        `${baseURL}/api/test-auth/login?email=client+seed@homaid.dev&next=/`,
+        `${baseURL}/api/test-auth/login?email=client+seed@handi.dev&next=/`,
       );
       if (r.ok()) {
         const j = await r.json();

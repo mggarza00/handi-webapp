@@ -45,8 +45,8 @@ const nextConfig = {
   async rewrites() {
     return [
       // Reescrituras internas para compat con paths previos (evita loops por case-insensitive redirects)
-      { source: '/images/Homaid-Tools-and-Hardware-Pattern.png', destination: '/images/homaid-tools-and-hardware-pattern.png' },
-      { source: '/images/homaid-Tools-and-Hardware-Pattern.png', destination: '/images/homaid-tools-and-hardware-pattern.png' },
+      { source: '/images/Handi-Tools-and-Hardware-Pattern.png', destination: '/images/handi-tools-and-hardware-pattern.png' },
+      { source: '/images/handi-Tools-and-Hardware-Pattern.png', destination: '/images/handi-tools-and-hardware-pattern.png' },
     ];
   },
   images: {
