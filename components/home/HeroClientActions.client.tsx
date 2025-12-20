@@ -68,9 +68,10 @@ export default function HeroClientActions({
   }, [currentAddress]);
 
   const pillLabel = (() => {
+    const line = currentAddress?.address_line?.trim();
+    if (line) return line;
     const lbl = currentAddress?.label?.trim();
     if (lbl) return lbl;
-    if (currentAddress) return "Dirección guardada";
     return "Agregar dirección";
   })();
 
