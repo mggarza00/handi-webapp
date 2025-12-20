@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -493,6 +494,9 @@ export function OfferPaymentDialog({
       <DialogContent className="sm:max-w-[780px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto rounded-3xl p-0 shadow-2xl">
         <DialogHeader className="sr-only">
           <DialogTitle>Pago</DialogTitle>
+          <DialogDescription>
+            Completa el pago seguro de tu oferta.
+          </DialogDescription>
         </DialogHeader>
         <div className="p-6 sm:p-8">
           {intent.error ? (

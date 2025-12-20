@@ -25,16 +25,30 @@ export async function POST(req: Request) {
   try {
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("application/json"))
-      return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "UNSUPPORTED_MEDIA_TYPE" },
+        { status: 415, headers: JSONH },
+      );
 
     const parsed = BodySchema.safeParse(await req.json());
     if (!parsed.success)
-      return NextResponse.json({ ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() }, { status: 422, headers: JSONH });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "VALIDATION_ERROR",
+          detail: parsed.error.flatten(),
+        },
+        { status: 422, headers: JSONH },
+      );
     const body = parsed.data;
 
     const db = getRouteClient();
     const { data: auth } = await db.auth.getUser();
-    if (!auth?.user) return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401, headers: JSONH });
+    if (!auth?.user)
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401, headers: JSONH },
+      );
 
     // Validate request ownership
     const { data: reqRow, error: reqErr } = await db
@@ -43,14 +57,26 @@ export async function POST(req: Request) {
       .eq("id", body.request_id)
       .maybeSingle();
     if (reqErr || !reqRow)
-      return NextResponse.json({ ok: false, error: "REQUEST_NOT_FOUND" }, { status: 404, headers: JSONH });
-    const reqOwner = (reqRow as unknown as { created_by?: string }).created_by || null;
+      return NextResponse.json(
+        { ok: false, error: "REQUEST_NOT_FOUND" },
+        { status: 404, headers: JSONH },
+      );
+    const reqOwner =
+      (reqRow as unknown as { created_by?: string }).created_by || null;
     if (reqOwner !== auth.user.id)
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN" },
+        { status: 403, headers: JSONH },
+      );
 
-    const professionalId = (body.professional_id || body.to_user_id) as string | undefined;
+    const professionalId = (body.professional_id || body.to_user_id) as
+      | string
+      | undefined;
     if (!professionalId)
-      return NextResponse.json({ ok: false, error: "MISSING_PROFESSIONAL" }, { status: 400, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "MISSING_PROFESSIONAL" },
+        { status: 400, headers: JSONH },
+      );
 
     // Ensure conversation exists between customer and professional for this request
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,23 +95,35 @@ export async function POST(req: Request) {
       .select("id")
       .single();
     if (up.error || !up.data)
-      return NextResponse.json({ ok: false, error: up.error?.message || "CONVERSATION_UPSERT_FAILED" }, { status: 400, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: up.error?.message || "CONVERSATION_UPSERT_FAILED" },
+        { status: 400, headers: JSONH },
+      );
     const conversationId = up.data.id as string;
 
     // Normalize amount/currency/title/description
     const amountRaw = body.amount ?? body.price ?? 0;
-    const amountNum = typeof amountRaw === "string" ? Number(amountRaw) : amountRaw;
+    const amountNum =
+      typeof amountRaw === "string" ? Number(amountRaw) : amountRaw;
     const amount = Math.round((Number(amountNum) + Number.EPSILON) * 100) / 100;
     if (!Number.isFinite(amount) || amount <= 0)
-      return NextResponse.json({ ok: false, error: "INVALID_AMOUNT" }, { status: 400, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "INVALID_AMOUNT" },
+        { status: 400, headers: JSONH },
+      );
     const currency = (body.currency || "MXN").toUpperCase();
     const title = (body.title || "Propuesta de servicio").slice(0, 160);
-    const description = body.description ? String(body.description).slice(0, 2000) : null;
+    const description = body.description
+      ? String(body.description).slice(0, 2000)
+      : null;
     let serviceDateIso: string | null = null;
     if (body.service_date) {
       const d = new Date(body.service_date);
       if (Number.isNaN(d.getTime()))
-        return NextResponse.json({ ok: false, error: "INVALID_SERVICE_DATE" }, { status: 400, headers: JSONH });
+        return NextResponse.json(
+          { ok: false, error: "INVALID_SERVICE_DATE" },
+          { status: 400, headers: JSONH },
+        );
       serviceDateIso = d.toISOString();
     }
 
@@ -93,6 +131,7 @@ export async function POST(req: Request) {
     const { data: offer, error } = await (db as any)
       .from("offers")
       .insert({
+        request_id: body.request_id,
         conversation_id: conversationId,
         client_id: auth.user.id,
         professional_id: professionalId,
@@ -106,12 +145,18 @@ export async function POST(req: Request) {
       .select("*")
       .single();
     if (error || !offer)
-      return NextResponse.json({ ok: false, error: error?.message || "OFFER_CREATE_FAILED" }, { status: 400, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: error?.message || "OFFER_CREATE_FAILED" },
+        { status: 400, headers: JSONH },
+      );
 
     // In-app notification for the professional
     try {
       const admin = createServerClient();
-      const formatted = new Intl.NumberFormat("es-MX", { style: "currency", currency }).format(Number(offer.amount || 0));
+      const formatted = new Intl.NumberFormat("es-MX", {
+        style: "currency",
+        currency,
+      }).format(Number(offer.amount || 0));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (admin as any).from("user_notifications").insert({
         user_id: professionalId,
@@ -120,19 +165,35 @@ export async function POST(req: Request) {
         body: `${title} por ${formatted}`,
         link: `/mensajes/${encodeURIComponent(conversationId)}`,
       });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Notificar por correo al profesional: "Oferta enviada" (además del trigger de DB que crea el mensaje)
     try {
-      const { notifyChatMessageByConversation } = await import('@/lib/chat-notifier');
-      await notifyChatMessageByConversation({ conversationId, senderId: auth.user.id, text: 'Oferta enviada' });
-    } catch { /* ignore notify errors */ }
+      const { notifyChatMessageByConversation } = await import(
+        "@/lib/chat-notifier"
+      );
+      await notifyChatMessageByConversation({
+        conversationId,
+        senderId: auth.user.id,
+        text: "Oferta enviada",
+      });
+    } catch {
+      /* ignore notify errors */
+    }
 
-    return NextResponse.json({ ok: true, offer, conversationId }, { status: 201, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, offer, conversationId },
+      { status: 201, headers: JSONH },
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : "UNKNOWN";
     const status = (e as { status?: number })?.status ?? 500;
-    return NextResponse.json({ ok: false, error: message }, { status, headers: JSONH });
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status, headers: JSONH },
+    );
   }
 }
 

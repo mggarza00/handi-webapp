@@ -35,6 +35,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 type Msg = {
   id: string;
   senderId: string;
@@ -71,6 +73,8 @@ export type ChatPanelProps = {
   requestBudget?: number | null;
   dataPrefix?: string; // e2e: chat | request-chat
   hideClientCtas?: boolean;
+  ignoreStageLock?: boolean;
+  stickyActionBar?: boolean;
   openOfferDialogSignal?: number;
   offerPrefillTitle?: string | null;
   offerPrefillAmount?: number | null;
@@ -174,6 +178,8 @@ export default function ChatPanel({
   requestBudget: requestBudgetProp,
   dataPrefix = "chat",
   hideClientCtas = false,
+  ignoreStageLock = false,
+  stickyActionBar = false,
   openOfferDialogSignal,
   offerPrefillTitle,
   offerPrefillAmount,
@@ -205,6 +211,11 @@ export default function ChatPanel({
   );
   const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
   const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
+  const proProfileIdRef = React.useRef<string | null>(null);
+  const [proProfile, setProProfile] = React.useState<{
+    full_name: string | null;
+    avatar_url: string | null;
+  } | null>(null);
   const [budget, setBudget] = React.useState<number | null>(
     typeof requestBudgetProp === "number" && Number.isFinite(requestBudgetProp)
       ? requestBudgetProp
@@ -338,8 +349,10 @@ export default function ChatPanel({
         let base = options.replace
           ? prev.filter((m) => m.id.startsWith("tmp_"))
           : [...prev];
-        // Prepare server-offer ids for dedupe of optimistic offer messages
+        // Prepare server-offer/quote ids for dedupe of optimistic messages
         const serverOfferIds = new Set<string>();
+        const serverQuoteIds = new Set<string>();
+        let hasServerQuote = false;
         for (const it of arr) {
           if (
             it.messageType === "offer" &&
@@ -350,6 +363,17 @@ export default function ChatPanel({
             const oid =
               typeof po.offer_id === "string" ? (po.offer_id as string) : null;
             if (oid) serverOfferIds.add(oid);
+          }
+          if (
+            it.messageType === "quote" &&
+            it.payload &&
+            typeof it.payload === "object"
+          ) {
+            hasServerQuote = true;
+            const pq = it.payload as Record<string, unknown>;
+            const qid =
+              typeof pq.quote_id === "string" ? (pq.quote_id as string) : null;
+            if (qid) serverQuoteIds.add(qid);
           }
         }
         if (options.fromServer) {
@@ -367,6 +391,20 @@ export default function ChatPanel({
                   ? (po.offer_id as string)
                   : null;
               if (oid && serverOfferIds.has(oid)) return false;
+            }
+            if (
+              m.messageType === "quote" &&
+              m.payload &&
+              typeof m.payload === "object"
+            ) {
+              const pq = m.payload as Record<string, unknown>;
+              const qid =
+                typeof pq.quote_id === "string"
+                  ? (pq.quote_id as string)
+                  : null;
+              if (qid && serverQuoteIds.has(qid)) return false;
+              // Fallback: drop tmp quotes once server messages arrive to avoid duplicados
+              if (hasServerQuote) return false;
             }
             // Body-based dedupe only applies to my own optimistic text messages
             if (meId) {
@@ -653,6 +691,112 @@ export default function ChatPanel({
       cancelled = true;
     };
   }, [requestId, getAuthHeaders]);
+
+  // Fetch professional profile once pro_id is known (header avatar/name)
+  React.useEffect(() => {
+    const proId =
+      participants?.pro_id && typeof participants.pro_id === "string"
+        ? participants.pro_id
+        : null;
+    const targetId = proId;
+    if (!targetId) return;
+    if (proProfile && proProfileIdRef.current === targetId) return;
+    proProfileIdRef.current = targetId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const proRes = await fetch(
+          `/api/profiles/${encodeURIComponent(targetId)}`,
+          {
+            headers,
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
+        const proJson = await parseJsonSafe<{
+          ok?: boolean;
+          data?: { full_name?: string | null; avatar_url?: string | null };
+        }>(proRes);
+        if (cancelled) return;
+        if (
+          !proRes.ok ||
+          proJson?.ok === false ||
+          !proJson?.data ||
+          typeof proJson.data !== "object"
+        ) {
+          return;
+        }
+        setProProfile({
+          full_name:
+            (proJson.data.full_name as string | null | undefined) ?? null,
+          avatar_url:
+            (proJson.data.avatar_url as string | null | undefined) ?? null,
+        });
+      } catch {
+        /* ignore profile errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [participants, getAuthHeaders, proProfile]);
+
+  // Fallback: fetch profile using otherUserId if available (e.g., in requests chat)
+  React.useEffect(() => {
+    const targetId = (() => {
+      if (participants?.pro_id && typeof participants.pro_id === "string")
+        return participants.pro_id;
+      const other =
+        participants && meId
+          ? participants.customer_id === meId
+            ? participants.pro_id
+            : participants.customer_id
+          : null;
+      return typeof other === "string" ? other : null;
+    })();
+    if (!targetId) return;
+    if (proProfile && proProfileIdRef.current === targetId) return;
+    proProfileIdRef.current = targetId;
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const proRes = await fetch(
+          `/api/profiles/${encodeURIComponent(targetId)}`,
+          {
+            headers,
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
+        const proJson = await parseJsonSafe<{
+          ok?: boolean;
+          data?: { full_name?: string | null; avatar_url?: string | null };
+        }>(proRes);
+        if (cancelled) return;
+        if (
+          !proRes.ok ||
+          proJson?.ok === false ||
+          !proJson?.data ||
+          typeof proJson.data !== "object"
+        ) {
+          return;
+        }
+        setProProfile({
+          full_name:
+            (proJson.data.full_name as string | null | undefined) ?? null,
+          avatar_url:
+            (proJson.data.avatar_url as string | null | undefined) ?? null,
+        });
+      } catch {
+        /* ignore profile errors */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [participants, meId, getAuthHeaders, proProfile]);
   React.useEffect(() => {
     if (!conversationId) return;
     const channel = supabaseBrowser
@@ -1112,9 +1256,38 @@ export default function ChatPanel({
     }
     return true;
   }
+  function hasActiveOfferInChat(): boolean {
+    const arr = messagesRef.current || [];
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const msg = arr[i];
+      if (msg.messageType !== "offer") continue;
+      const payload = msg.payload;
+      if (!payload || typeof payload !== "object") continue;
+      const rawStatus = (payload as Record<string, unknown>).status;
+      const status = normalizeStatus(
+        typeof rawStatus === "string" ? rawStatus : null,
+      ).toLowerCase();
+      if (
+        status !== "accepted" &&
+        status !== "rejected" &&
+        status !== "paid" &&
+        status !== "canceled" &&
+        status !== "expired"
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
   async function submitOffer() {
+    const ACTIVE_OFFER_MSG =
+      "Oferta de contratación activa, pide al professional que Acepte o Rechaze la Oferta activa en el chat.";
     if (viewerRole !== "customer") {
       toast.error("Solo el cliente puede crear ofertas");
+      return;
+    }
+    if (hasActiveOfferInChat()) {
+      toast.error(ACTIVE_OFFER_MSG);
       return;
     }
     const title = offerTitle.trim();
@@ -1211,9 +1384,23 @@ export default function ChatPanel({
         ok?: boolean;
         error?: string;
         offer?: Record<string, unknown>;
+        message?: string;
       }>(res);
       if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || "No se pudo crear la oferta");
+        const code = json?.error || "No se pudo crear la oferta";
+        if (code === "ACTIVE_OFFER_EXISTS" || res.status === 409) {
+          const serverMsg =
+            typeof json?.message === "string" && json.message.trim().length
+              ? json.message
+              : null;
+          toast.error(serverMsg || ACTIVE_OFFER_MSG);
+          return;
+        }
+        throw new Error(
+          code === "VALIDATION_ERROR"
+            ? "No se pudo crear la oferta"
+            : code || "No se pudo crear la oferta",
+        );
       }
 
       // Best-effort: asegurar que exista un agreement para conteo/seguimiento
@@ -1296,8 +1483,12 @@ export default function ChatPanel({
       setOfferServiceDate("");
       await load(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error";
-      toast.error(message);
+      const raw = error instanceof Error ? error.message : "Error";
+      const normalized =
+        typeof raw === "string" && raw.includes("ACTIVE_OFFER_EXISTS")
+          ? ACTIVE_OFFER_MSG
+          : raw;
+      toast.error(normalized);
     } finally {
       setOfferSubmitting(false);
     }
@@ -1870,16 +2061,17 @@ export default function ChatPanel({
     }
   }
 
-  const actionButtons = (
+  const actionButtonsContent = (
     <>
       {(() => {
         const st = (requestStatus || "").toLowerCase();
-        const stageLocked =
+        const baseLocked =
           st === "scheduled" ||
           st === "in_process" ||
           st === "inprogress" ||
           st === "finished" ||
           st === "completed";
+        const stageLocked = ignoreStageLock ? false : baseLocked;
         return (
           participants &&
           meId === participants?.customer_id &&
@@ -1930,6 +2122,13 @@ export default function ChatPanel({
       ) : null}
     </>
   );
+  const actionButtons = stickyActionBar ? (
+    <div className="sticky bottom-0 bg-white border-t">
+      {actionButtonsContent}
+    </div>
+  ) : (
+    actionButtonsContent
+  );
 
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
   const statusHeader = (() => {
@@ -1937,16 +2136,51 @@ export default function ChatPanel({
     const label =
       UI_STATUS_LABELS[requestStatus as any as keyof typeof UI_STATUS_LABELS] ||
       requestStatus;
+    const proId =
+      participants?.pro_id && typeof participants.pro_id === "string"
+        ? participants.pro_id
+        : null;
+    const proName =
+      (proProfile?.full_name && proProfile.full_name.trim().length
+        ? proProfile.full_name
+        : null) ||
+      proId ||
+      "Profesional";
     return (
-      <div className="border-b px-3 py-2 text-xs text-slate-600 flex items-center justify-between bg-white">
-        <div className="truncate">{requestTitle || "Servicio"}</div>
-        <div className="inline-flex items-center gap-2">
-          <span className="hidden sm:inline text-xs text-muted-foreground">
-            Estatus:
-          </span>
-          <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
-            {label}
-          </span>
+      <div className="border-b px-3 py-4 text-xs text-slate-600 flex items-center gap-3 bg-white">
+        <button
+          type="button"
+          aria-label="Cerrar chat"
+          onClick={onClose}
+          className="flex h-9 w-9 items-center justify-center rounded-full border text-slate-600 hover:bg-slate-100"
+        >
+          <span className="text-lg leading-none">←</span>
+        </button>
+        <AvatarWithSkeleton
+          src={
+            normalizeAvatarUrl(proProfile?.avatar_url || undefined) ||
+            "/images/Favicon-v1-jpeg.jpg"
+          }
+          alt={proName}
+          sizeClass="size-10"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="truncate font-semibold text-sm text-slate-900">
+              {proName}
+            </div>
+            <div className="inline-flex items-center gap-2 shrink-0">
+              <span className="hidden sm:inline text-xs text-muted-foreground">
+                Estatus:
+              </span>
+              <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 border">
+                {label}
+              </span>
+            </div>
+          </div>
+          <div className="truncate text-[12px] text-muted-foreground mt-0.5">
+            {requestTitle || "Servicio"}
+          </div>
         </div>
       </div>
     );
@@ -2282,7 +2516,40 @@ export default function ChatPanel({
       open={quoteOpen}
       onOpenChange={setQuoteOpen}
       conversationId={conversationId}
-      onSubmitted={() => {
+      dialogTitle="Cotización"
+      dialogDescription="Completa los detalles y envía la cotización al cliente."
+      onSubmitted={(info) => {
+        // Optimistic quote message so el profesional lo ve al instante (el cliente recibe realtime)
+        if (viewerRole === "professional") {
+          const createdAtIso = new Date().toISOString();
+          const optimistic: Msg = {
+            id:
+              info?.id && typeof info.id === "string"
+                ? info.id
+                : `tmp_quote_${Date.now()}`,
+            senderId: meId ?? "me",
+            body: "Cotización enviada",
+            createdAt: createdAtIso,
+            messageType: "quote",
+            payload: {
+              quote_id:
+                info?.id && typeof info.id === "string"
+                  ? info.id
+                  : `tmp_quote_${Date.now()}`,
+              total:
+                typeof info?.total === "number" && Number.isFinite(info.total)
+                  ? info.total
+                  : null,
+              currency:
+                typeof info?.currency === "string" &&
+                info.currency.trim().length
+                  ? info.currency
+                  : "MXN",
+            },
+            attachments: [],
+          };
+          mergeMessages(optimistic, { fromServer: true });
+        }
         void load(false);
       }}
     />
@@ -2423,7 +2690,7 @@ export default function ChatPanel({
   );
   if (mode === "page") {
     return (
-      <div className="flex h-full flex-col">
+      <div className="flex h-full flex-col overflow-hidden">
         {showSafetyTip ? (
           <div
             className={[
@@ -2455,85 +2722,94 @@ export default function ChatPanel({
             </div>
           </div>
         ) : null}
-        {loadingState || messageList}
-        {typingIndicator}
-        {actionButtons}
-        <div className="border-t p-2">
-          <ChatUploader
-            conversationId={conversationId}
-            mode="draft-first"
-            showButton={false}
-            onReady={(api) => {
-              uploaderApiRef.current = api;
-            }}
-            onMessageCreated={({ messageId, attachments }) => {
-              if (process.env.NODE_ENV !== "production") {
-                // eslint-disable-next-line no-console
-                console.debug(
-                  "ui att add optimistic",
-                  messageId,
-                  attachments.length,
-                );
-              }
-              setMessages((prev) => {
-                const exists = prev.some((m) => m.id === messageId);
-                let next = prev;
-                if (!exists) {
-                  const createdAtIso = new Date().toISOString();
-                  next = [
-                    ...prev,
-                    {
-                      id: messageId,
-                      senderId: meId ?? "me",
-                      body: "",
-                      createdAt: createdAtIso,
-                      messageType: "text",
-                      payload: null,
-                      attachments: [],
-                    },
-                  ];
+        <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {loadingState || messageList}
+            {typingIndicator}
+            {actionButtons}
+          </div>
+          <div className="border-t p-2 shrink-0">
+            <ChatUploader
+              conversationId={conversationId}
+              mode="draft-first"
+              showButton={false}
+              onReady={(api) => {
+                uploaderApiRef.current = api;
+              }}
+              onMessageCreated={({ messageId, attachments }) => {
+                if (process.env.NODE_ENV !== "production") {
+                  // eslint-disable-next-line no-console
+                  console.debug(
+                    "ui att add optimistic",
+                    messageId,
+                    attachments.length,
+                  );
                 }
-                const converted = attachments.map((a) => ({
-                  id: (a as any)?.id as string | undefined,
-                  filename: a.filename,
-                  mime_type: a.mime_type,
-                  byte_size: a.byte_size,
-                  width: a.width ?? null,
-                  height: a.height ?? null,
-                  storage_path: a.storage_path,
-                  created_at: (a as any)?.created_at as string | undefined,
-                }));
-                for (const att of converted) {
-                  next = appendAttachment(next, messageId, att);
+                setMessages((prev) => {
+                  const exists = prev.some((m) => m.id === messageId);
+                  let next = prev;
+                  if (!exists) {
+                    const createdAtIso = new Date().toISOString();
+                    next = [
+                      ...prev,
+                      {
+                        id: messageId,
+                        senderId: meId ?? "me",
+                        body: "",
+                        createdAt: createdAtIso,
+                        messageType: "text",
+                        payload: null,
+                        attachments: [],
+                      },
+                    ];
+                  }
+                  const converted = attachments.map((a) => ({
+                    id: (a as any)?.id as string | undefined,
+                    filename: a.filename,
+                    mime_type: a.mime_type,
+                    byte_size: a.byte_size,
+                    width: a.width ?? null,
+                    height: a.height ?? null,
+                    storage_path: a.storage_path,
+                    created_at: (a as any)?.created_at as string | undefined,
+                  }));
+                  for (const att of converted) {
+                    next = appendAttachment(next, messageId, att);
+                  }
+                  return next;
+                });
+              }}
+            />
+          </div>
+          <div className="shrink-0">
+            <MessageInput
+              onSend={onSend}
+              onTyping={emitTyping}
+              disabled={loading}
+              dataPrefix={dataPrefix}
+              onPickFiles={() => uploaderApiRef.current?.pickFiles()}
+              onPickCamera={() => uploaderApiRef.current?.pickCamera()}
+              onFocus={() => {
+                try {
+                  const el = document.querySelector(
+                    `[data-testid="${dataPrefix}-list"]`,
+                  ) as HTMLDivElement | null;
+                  if (el)
+                    setTimeout(
+                      () =>
+                        el.scrollTo({
+                          top: el.scrollHeight,
+                          behavior: "smooth",
+                        }),
+                      50,
+                    );
+                } catch {
+                  /* ignore */
                 }
-                return next;
-              });
-            }}
-          />
+              }}
+            />
+          </div>
         </div>
-        <MessageInput
-          onSend={onSend}
-          onTyping={emitTyping}
-          disabled={loading}
-          dataPrefix={dataPrefix}
-          onPickFiles={() => uploaderApiRef.current?.pickFiles()}
-          onPickCamera={() => uploaderApiRef.current?.pickCamera()}
-          onFocus={() => {
-            try {
-              const el = document.querySelector(
-                `[data-testid="${dataPrefix}-list"]`,
-              ) as HTMLDivElement | null;
-              if (el)
-                setTimeout(
-                  () =>
-                    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }),
-                  50,
-                );
-            } catch {
-              /* ignore */
-            }
-          }}
-        />
         {acceptedForPay ? (
           <OfferPaymentDialog
             open={paymentOpen}
@@ -2562,14 +2838,16 @@ export default function ChatPanel({
     >
       <SheetContent
         side="right"
-        className="sm:max-w-md p-0 h-[100dvh]"
+        hideClose
+        className="p-0 h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] rounded-none overflow-hidden left-0 right-0 sm:left-auto sm:max-w-md sm:w-auto sm:rounded-l-xl"
         data-testid={`${dataPrefix}-box`}
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Chat</SheetTitle>
         </SheetHeader>
-        <div className="flex h-full flex-col">
+        <div className="flex h-full w-full flex-col overflow-hidden">
+          {statusHeader}
           {showSafetyTip ? (
             <div
               className={[
@@ -2603,7 +2881,6 @@ export default function ChatPanel({
               </div>
             </div>
           ) : null}
-          {statusHeader}
           {loadingState || (
             <>
               {messageList}

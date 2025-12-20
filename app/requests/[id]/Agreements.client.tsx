@@ -207,8 +207,8 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
       <ul className="divide-y rounded border">
         {items.map((a) => (
           <li key={a.id} className="p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   {statusBadge(a.status)}
                   <span className="text-sm font-medium">
@@ -234,8 +234,8 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
               {createdBy &&
                 me &&
                 (me === createdBy || me === a.professional_id) && (
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label className="text-xs text-gray-600">
                         Monto (MXN)
                       </label>

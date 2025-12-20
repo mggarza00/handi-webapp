@@ -572,7 +572,7 @@ export default function NewRequestStepper({
             </div>
 
             <div className="flex flex-wrap gap-4 md:gap-6 justify-between">
-              <div className="space-y-1.5 flex-1 min-w-[150px] max-w-[150px]">
+              <div className="space-y-1.5 flex-1 min-w-[240px] md:min-w-[150px] md:max-w-[180px]">
                 <Label>Fecha requerida</Label>
                 <Input
                   type="date"
@@ -590,7 +590,7 @@ export default function NewRequestStepper({
                 )}
               </div>
 
-              <div className="space-y-1.5 flex-1 min-w-[150px] max-w-[150px]">
+              <div className="space-y-1.5 flex-1 min-w-[240px] md:min-w-[150px] md:max-w-[180px]">
                 <Label>Presupuesto estimado</Label>
                 <div className="relative w-full">
                   <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-slate-500">
@@ -622,7 +622,7 @@ export default function NewRequestStepper({
                 )}
               </div>
 
-              <div className="space-y-1.5 flex-1 min-w-[150px] max-w-[150px]">
+              <div className="space-y-1.5 flex-1 min-w-[240px] md:min-w-[150px] md:max-w-[200px]">
                 <Label>Condiciones</Label>
                 <div
                   className={cn(

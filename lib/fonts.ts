@@ -5,6 +5,7 @@ import path from "node:path";
 import { Concert_One, Inter, Nunito, Varela_Round } from "next/font/google";
 
 let interData: ArrayBuffer | null = null;
+let stackSansData: ArrayBuffer | null = null;
 // Expose chosen font path for diagnostics
 declare global {
   // eslint-disable-next-line no-var
@@ -64,6 +65,40 @@ export async function getInterFont(): Promise<ArrayBuffer> {
   throw new Error(
     "No se encontró una fuente TTF compatible (Inter). Agrega /public/fonts/Inter-VariableFont.ttf.",
   );
+}
+
+export async function getStackSansFont(): Promise<ArrayBuffer | null> {
+  if (stackSansData) return stackSansData;
+  const candidates = [
+    path.join(process.cwd(), "public", "fonts", "StackSans-Medium.ttf"),
+    path.join(process.cwd(), "public", "fonts", "StackSans-SemiBold.ttf"),
+  ];
+  for (const p of candidates) {
+    try {
+      const buf = fs.readFileSync(p);
+      stackSansData = buf.buffer.slice(
+        buf.byteOffset,
+        buf.byteOffset + buf.byteLength,
+      );
+      return stackSansData!;
+    } catch {
+      /* try next */
+    }
+  }
+  // Remote fallback (WOFF) – optional
+  try {
+    const res = await fetch(
+      "https://fonts.cdnfonts.com/s/21921/StackSans-Medium.woff",
+    );
+    if (res.ok) {
+      const buf = await res.arrayBuffer();
+      stackSansData = buf;
+      return stackSansData!;
+    }
+  } catch {
+    /* ignore, fallback to Inter */
+  }
+  return null;
 }
 
 // Site font exports used by app/layout.tsx

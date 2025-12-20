@@ -91,9 +91,9 @@ export default function ConditionsCombobox({
               variant="secondary"
               title={c}
               aria-label={c}
-              className="px-2 py-1 text-xs bg-secondary/50 text-secondary-foreground/90 border-secondary/30"
+              className="px-2 py-1 text-xs bg-secondary/50 text-[#0c2555] border-secondary/30"
             >
-              <span>{mapConditionToLabel(c)}</span>
+              <span className="text-[#0c2555]">{mapConditionToLabel(c)}</span>
               <button
                 type="button"
                 aria-label={`Quitar ${c}`}
