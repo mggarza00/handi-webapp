@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { toast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 
 type Row = {
@@ -41,7 +41,6 @@ export default function AddressesList({ initialItems }: { initialItems: Row[] })
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Row>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const { toast } = useToast();
 
   async function handleDelete(id: string) {
     const item = items.find((x) => x.id === id);
@@ -99,11 +98,7 @@ export default function AddressesList({ initialItems }: { initialItems: Row[] })
       ok = true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo guardar la dirección";
-      toast({
-        variant: "destructive",
-        title: "No se pudo guardar",
-        description: msg,
-      });
+      toast({ title: "No se pudo guardar", description: msg });
     } finally {
       setBusy(null);
       if (ok) {
