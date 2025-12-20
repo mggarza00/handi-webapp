@@ -6,7 +6,7 @@ Este documento guía un smoke test manual para validar la nueva sección "Cuenta
 
 - App en dev (`npm run dev`).
 - Usuario autenticado como profesional de pruebas (usa el helper):
-  - Visitar `/api/test-auth/login?email=pro.apply@homaid.dev&role=pro&next=/pro-apply`.
+  - Visitar `/api/test-auth/login?email=pro.apply@handi.dev&role=pro&next=/pro-apply`.
 
 ## Pasos
 

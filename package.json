@@ -4,11 +4,11 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/mggarza00/homaid-webapp.git"
+    "url": "https://github.com/mggarza00/handi-webapp.git"
   },
-  "homepage": "https://github.com/mggarza00/homaid-webapp",
+  "homepage": "https://github.com/mggarza00/handi-webapp",
   "bugs": {
-    "url": "https://github.com/mggarza00/homaid-webapp/issues"
+    "url": "https://github.com/mggarza00/handi-webapp/issues"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [

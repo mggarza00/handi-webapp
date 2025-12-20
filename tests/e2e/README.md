@@ -1,4 +1,4 @@
-﻿E2E Handi Flow
+E2E Handi Flow
 
 Cómo correr
 - npm run e2e (usa playwright.local.config.ts y ejecuta los specs en tests/e2e)
@@ -16,8 +16,8 @@ Chats
 Semilla de usuarios E2E
 - Endpoint: GET /api/test-seed?action=seed-e2e-users
 - Usuarios:
-  - Cliente: cliente.e2e@homaid.mx / E2e!Pass123
-  - Profesional: pro.e2e@homaid.mx / E2e!Pass123
+  - Cliente: cliente.e2e@handi.mx / E2e!Pass123
+  - Profesional: pro.e2e@handi.mx / E2e!Pass123
 
 Requisitos
 - NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY configurados para endpoints admin.

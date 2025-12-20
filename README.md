@@ -1,21 +1,21 @@
 # Handi Webapp
 
-> Repositorio: https://github.com/mggarza00/homaid-webapp
+> Repositorio: https://github.com/mggarza00/handi-webapp
 
 Estado CI:
 
-[![Design CI](https://github.com/mggarza00/homaid-webapp/actions/workflows/design-ci.yml/badge.svg)](https://github.com/mggarza00/homaid-webapp/actions/workflows/design-ci.yml)
-[![Playwright E2E](https://github.com/mggarza00/homaid-webapp/actions/workflows/playwright.yml/badge.svg)](https://github.com/mggarza00/homaid-webapp/actions/workflows/playwright.yml)
-[![Vercel (prod)](https://img.shields.io/github/deployments/mggarza00/homaid-webapp/production?label=vercel%20prod&logo=vercel)](https://github.com/mggarza00/homaid-webapp/deployments)
-[![Vercel (preview)](https://img.shields.io/github/deployments/mggarza00/homaid-webapp/preview?label=vercel%20preview&logo=vercel)](https://github.com/mggarza00/homaid-webapp/deployments)
+[![Design CI](https://github.com/mggarza00/handi-webapp/actions/workflows/design-ci.yml/badge.svg)](https://github.com/mggarza00/handi-webapp/actions/workflows/design-ci.yml)
+[![Playwright E2E](https://github.com/mggarza00/handi-webapp/actions/workflows/playwright.yml/badge.svg)](https://github.com/mggarza00/handi-webapp/actions/workflows/playwright.yml)
+[![Vercel (prod)](https://img.shields.io/github/deployments/mggarza00/handi-webapp/production?label=vercel%20prod&logo=vercel)](https://github.com/mggarza00/handi-webapp/deployments)
+[![Vercel (preview)](https://img.shields.io/github/deployments/mggarza00/handi-webapp/preview?label=vercel%20preview&logo=vercel)](https://github.com/mggarza00/handi-webapp/deployments)
 
 Deploy:
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mggarza00/homaid-webapp)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/mggarza00/handi-webapp)
 
 Preview:
 
-https://homaid-webapp-woad.vercel.app
+https://handi-webapp-woad.vercel.app
 
 Next.js 14 (App Router) + Supabase + Google Sheets (Service Account).
 
@@ -43,8 +43,8 @@ Next.js 14 (App Router) + Supabase + Google Sheets (Service Account).
 
 ## Documentación
 
-- Documento Maestro (actualizado con separación de profesionales): docs/homaid_Documento_Maestro_Unificado_FULL.md
-- Trazabilidad de Tablas (fuente de verdad de flujos y buckets): docs/homaid_Documento_Maestro_Trazabilidad.md
+- Documento Maestro (actualizado con separación de profesionales): docs/handi_Documento_Maestro_Unificado_FULL.md
+- Trazabilidad de Tablas (fuente de verdad de flujos y buckets): docs/handi_Documento_Maestro_Trazabilidad.md
 - Migraciones SQL: supabase/migrations
 
 ## Requisitos
@@ -295,7 +295,7 @@ Si trabajas con Dev Containers, asegúrate de montar la carpeta del proyecto (pa
 
 ```jsonc
 {
-  "name": "homaid-webapp",
+  "name": "handi-webapp",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
   "customizations": {
     "vscode": {
@@ -371,9 +371,9 @@ El bloque anterior replica la configuración local dentro del contenedor; ajusta
 
 - Stripe: «Usa la herramienta `stripe.paymentLinks.create` para generar un enlace de pago de 1299 MXN para el plan Premium».
 - PayPal: «Consulta con `paypal.list_invoices` los últimos 5 invoices pendientes».
-- Playwright: «Con Playwright abre `https://homaid-webapp-woad.vercel.app`, toma una captura y dime si el CTA principal es visible».
+- Playwright: «Con Playwright abre `https://handi-webapp-woad.vercel.app`, toma una captura y dime si el CTA principal es visible».
 
-> Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://homaid.mx`) a los argumentos.
+> Tip: si necesitas restringir dominios en Playwright MCP, añade `--allowed-origins` (ej. `http://localhost:3000;https://handi.mx`) a los argumentos.
 
 Si alguna herramienta falta, abre la paleta (`Ctrl/Cmd+Shift+P`) y ejecuta `Agents: Reload MCP Servers`. Los prompts `STRIPE_SECRET_KEY` y `PAYPAL_BEARER` quedan guardados como entradas secretas, y `STRIPE_ACCOUNT` como entrada opcional; limpia o reemplaza sus valores desde `Settings → MCP Inputs` si necesitas regenerarlos.
 # Handi Webapp
@@ -413,7 +413,7 @@ pnpm dev
 - Define `NEXT_PUBLIC_GOOGLE_CLIENT_ID` en tus variables de entorno (local y Vercel).
 - En Google Cloud Console:
   - Coloca el estado de la pantalla de consentimiento en Producción o añade tu usuario como tester.
-  - En el cliente OAuth 2.0 (tipo Web) añade tus dominios en "Authorized JavaScript origins" (ej.: `http://localhost:3000`, `https://homaid.mx`). Los dominios de preview (`*.vercel.app`) no aceptan comodines; agrégalos explícitamente o deshabilita FedCM en previews.
+  - En el cliente OAuth 2.0 (tipo Web) añade tus dominios en "Authorized JavaScript origins" (ej.: `http://localhost:3000`, `https://handi.mx`). Los dominios de preview (`*.vercel.app`) no aceptan comodines; agrégalos explícitamente o deshabilita FedCM en previews.
 - En Supabase Auth → Providers → Google, agrega el Web Client ID en "Authorized client IDs" para permitir `signInWithIdToken`.
 - Debug opcional: `NEXT_PUBLIC_ONE_TAP_DEBUG=1` imprimirá razones de `prompt()` en consola. Puedes forzar/desactivar FedCM con `NEXT_PUBLIC_GSI_USE_FEDCM=true|false`.
 

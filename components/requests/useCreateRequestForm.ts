@@ -67,17 +67,32 @@ type RequestDraftSnapshot = {
 function toAddressSuggestion(value: unknown): AddressSuggestion | null {
   if (!value || typeof value !== "object") return null;
   const obj = value as Record<string, unknown>;
-  const address = typeof obj.address === "string" ? obj.address.trim() : "";
+  const address =
+    typeof obj.address === "string"
+      ? obj.address.trim()
+      : typeof obj.address_line === "string"
+        ? obj.address_line.trim()
+        : "";
   if (!address) return null;
   return {
     id: typeof obj.id === "string" ? obj.id : undefined,
     address,
     city: typeof obj.city === "string" ? obj.city : null,
     lat: typeof obj.lat === "number" ? obj.lat : null,
-    lon: typeof obj.lon === "number" ? obj.lon : null,
+    lon:
+      typeof obj.lon === "number"
+        ? obj.lon
+        : typeof obj.lng === "number"
+          ? obj.lng
+          : null,
     postal_code: typeof obj.postal_code === "string" ? obj.postal_code : null,
     label: typeof obj.label === "string" ? obj.label : null,
-    place_id: typeof obj.place_id === "string" ? obj.place_id : null,
+    place_id:
+      typeof obj.place_id === "string"
+        ? obj.place_id
+        : typeof obj.address_place_id === "string"
+          ? obj.address_place_id
+          : null,
   };
 }
 
@@ -120,6 +135,7 @@ export type CreateRequestFormState = {
   shouldSaveAddress: boolean;
   isAddressSaved: boolean;
   placeId: string | null;
+  defaultAddressId: string | null;
 };
 
 export type CreateRequestFormApi = {
@@ -156,6 +172,7 @@ export type CreateRequestFormApi = {
   }) => Promise<void>;
   setShouldSaveAddress: (v: boolean) => void;
   setPlaceId: (v: string | null) => void;
+  saveAddressNow: () => Promise<boolean>;
 };
 
 type FormValues = {
@@ -334,6 +351,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   const [shouldSaveAddress, setShouldSaveAddress] = useState(false);
   const addrDebounceRef = useRef<number | null>(null);
   const addrTouchedRef = useRef(false);
+  const savedAddressAppliedRef = useRef(false);
+  const [defaultAddressId, setDefaultAddressId] = useState<string | null>(null);
 
   // Soft geolocation on mount -> suggest city update
   const detectCityNow = useCallback(async () => {
@@ -417,6 +436,141 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     return match;
   }, [address, addressLine, normalizeAddress, placeId, savedAddrs]);
 
+  const saveAddress = useCallback(
+    async (opts?: { force?: boolean; source?: "click" | "submit" }) => {
+      const line = (addressLine || address || "").trim();
+      const wantSave = opts?.force ?? shouldSaveAddress;
+      if (!wantSave) return false;
+      if (line.length < 5) return false;
+      if (isAddressSaved) {
+        setShouldSaveAddress(false);
+        return true;
+      }
+      try {
+        const { data: sessionData } = await supabaseBrowser.auth.getSession();
+        if (!sessionData?.session) {
+          toastError("Inicia sesión para guardar tu dirección.");
+          return false;
+        }
+      } catch (error) {
+        logFormError("save-address:getSession", error);
+      }
+      const canFallbackToRpc = false;
+      const addLocal = (place: string | null, idFromApi?: string | null) => {
+        setSavedAddrs((prev) => {
+          const exists = prev.some((it) => {
+            const byPlace =
+              place &&
+              typeof it?.place_id === "string" &&
+              it.place_id.trim() === place;
+            const byLine =
+              normalizeAddress(it?.address) === normalizeAddress(line);
+            return byPlace || byLine;
+          });
+          if (exists) return prev;
+          const entry: AddressSuggestion = {
+            id: idFromApi && idFromApi.trim() ? idFromApi : place || line,
+            address: line,
+            city,
+            lat: addressLat,
+            lon: addressLng,
+            label: null,
+            place_id: place,
+          };
+          if (entry.id) setDefaultAddressId(entry.id);
+          return [entry, ...prev];
+        });
+      };
+
+      const place = placeId?.trim() || null;
+
+      const toastError = (msg: string) => {
+        toast.error(msg);
+      };
+
+      try {
+        const res = await fetch("/api/addresses/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          credentials: "include",
+          body: JSON.stringify({
+            address_line: line,
+            address_place_id: placeId,
+            lat: addressLat,
+            lng: addressLng,
+            label: null,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || json?.ok === false) {
+          const errCode = (json?.error || json?.detail || "").toString();
+          if (res.status === 401 || errCode === "unauthorized") {
+            toastError("Inicia sesión para guardar tu dirección.");
+            return false;
+          }
+          if (errCode === "address_line_required") {
+            toastError("Escribe una dirección para guardarla.");
+            return false;
+          }
+          if (!canFallbackToRpc) {
+            const detail =
+              (json?.detail || json?.message || "").toString().trim();
+            toastError(
+              errCode
+                ? detail
+                  ? `No se pudo guardar la dirección (${errCode}: ${detail}).`
+                  : `No se pudo guardar la dirección (${errCode}).`
+                : "No se pudo guardar la dirección. Intenta de nuevo.",
+            );
+            return false;
+          }
+          // fallback a Supabase directo (solo en dev/local con Supabase URL válida)
+          const { data, error } = await supabaseBrowser.rpc(
+            "upsert_user_address",
+            {
+              address_line: line,
+              address_place_id: placeId,
+              lat: addressLat,
+              lng: addressLng,
+              label: null,
+            },
+          );
+          if (error) {
+            const msg =
+              (error as { message?: string; code?: string })?.message || "";
+            if (msg.includes("not_authenticated")) {
+              toastError("Inicia sesión para guardar tu dirección.");
+            } else {
+              toastError("No se pudo guardar la dirección. Intenta de nuevo.");
+            }
+            return false;
+          }
+          addLocal(place, (data as string | null) ?? null);
+          setShouldSaveAddress(false);
+          return true;
+        }
+        addLocal(place, (json?.id as string | null) ?? null);
+        setShouldSaveAddress(false);
+        return true;
+      } catch (error) {
+        logFormError("save-address", error);
+        toastError("No se pudo guardar la dirección. Intenta de nuevo.");
+        return false;
+      }
+    },
+    [
+      address,
+      addressLat,
+      addressLng,
+      addressLine,
+      isAddressSaved,
+      normalizeAddress,
+      placeId,
+      shouldSaveAddress,
+      city,
+    ],
+  );
+
   // Load saved addresses for default detection
   useEffect(() => {
     let cancelled = false;
@@ -433,9 +587,12 @@ export function useCreateRequestForm(): CreateRequestFormApi {
           ? (json.data as AddressSuggestion[])
           : [];
         if (!cancelled) {
-          setSavedAddrs(
-            list.map((it) => toAddressSuggestion(it)!).filter(Boolean),
-          );
+          const mapped = list
+            .map((it) => toAddressSuggestion(it)!)
+            .filter(Boolean);
+          setSavedAddrs(mapped);
+          const first = mapped[0];
+          if (first?.id) setDefaultAddressId(first.id);
         }
       } catch (error) {
         logFormError("load-saved-addresses", error);
@@ -445,6 +602,37 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (savedAddressAppliedRef.current) return;
+    if (addrTouchedRef.current) return;
+    if (address.trim()) return;
+    if (!savedAddrs.length) return;
+    const first = savedAddrs[0];
+    const line = (first?.address || "").trim();
+    if (!line) return;
+    savedAddressAppliedRef.current = true;
+    const lat =
+      typeof first.lat === "number"
+        ? first.lat
+        : typeof first.lon === "number"
+          ? first.lon
+          : null;
+    const lon =
+      typeof first.lon === "number"
+        ? first.lon
+        : typeof (first as { lng?: number }).lng === "number"
+          ? (first as { lng: number }).lng
+          : null;
+    pickAddress({
+      address: line,
+      city: first.city ?? null,
+      lat,
+      lon,
+      place_id: first.place_id ?? null,
+    });
+    setShouldSaveAddress(false);
+  }, [address, pickAddress, savedAddrs]);
 
   // Categories
   const [catMap, setCatMap] = useState<Record<string, Subcat[]>>({});
@@ -1018,27 +1206,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       clearDraft("draft:create-service");
       clearGatingFlags();
 
-      if (shouldSaveAddress && addressLine.trim()) {
-        try {
-          await fetch("/api/addresses/saved", {
-            method: "POST",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            credentials: "include",
-            body: JSON.stringify({
-              address_line: addressLine.trim(),
-              address_place_id: placeId,
-              lat: addressLat,
-              lng: addressLng,
-              label: null,
-            }),
-          });
-        } catch (error) {
-          logFormError("save-address", error);
-          toast.error(
-            "No se pudo guardar la dirección, pero la solicitud fue creada.",
-          );
-        }
-      }
+      await saveAddress({ force: shouldSaveAddress });
 
       if (opts?.onSuccess) opts.onSuccess(newId);
       else if (newId) router.push(`/requests/${newId}`);
@@ -1158,6 +1326,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       shouldSaveAddress,
       isAddressSaved,
       placeId,
+      defaultAddressId,
     },
     setTitle,
     setDescription,
@@ -1205,6 +1374,7 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     addFiles,
     removeFileAt,
     setOpenMap,
+    saveAddressNow: () => saveAddress({ force: true }),
     setAddress: (value) => {
       addrTouchedRef.current = true;
       setAddress(value);

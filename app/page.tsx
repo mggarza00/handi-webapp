@@ -16,6 +16,7 @@ type ProfileRow = Pick<
 };
 
 type SavedAddress = {
+  id: string;
   label: string | null;
   address_line: string;
   address_place_id: string | null;
@@ -59,7 +60,7 @@ export default async function Page() {
   if (user) {
     const { data } = await supabase
       .from("user_saved_addresses")
-      .select("label,address_line,address_place_id,lat,lng,last_used_at,times_used")
+      .select("id,label,address_line,address_place_id,lat,lng,last_used_at,times_used")
       .eq("user_id", user.id)
       .order("last_used_at", { ascending: false })
       .limit(5);

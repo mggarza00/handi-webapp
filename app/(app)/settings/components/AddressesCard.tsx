@@ -44,6 +44,8 @@ export default async function AddressesCard() {
         label: string | null;
         last_used_at: string | null;
         times_used: number | null;
+        lat?: number | null;
+        lng?: number | null;
       }>)
         .filter(Boolean)
         .map((r) => ({
@@ -54,7 +56,8 @@ export default async function AddressesCard() {
           label: r.label,
           times_used: r.times_used ?? 0,
           last_used_at: r.last_used_at ?? "",
-          readOnly: true,
+          lat: r.lat ?? null,
+          lon: r.lng ?? null,
         }))
     : [];
 
@@ -62,8 +65,8 @@ export default async function AddressesCard() {
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader>
-        <CardTitle className="text-xl">Direcciones</CardTitle>
+      <CardHeader className="pb-0">
+        <CardTitle className="text-xl sr-only">Direcciones</CardTitle>
       </CardHeader>
       <CardContent>
         <AddressesList initialItems={rows} />

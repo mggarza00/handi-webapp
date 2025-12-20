@@ -86,6 +86,7 @@ export default function NewRequestStepper({
     subcatOptions,
     handleSubmit,
     setShouldSaveAddress,
+    saveAddressNow,
   } = useCreateRequestForm();
 
   const {
@@ -445,19 +446,26 @@ export default function NewRequestStepper({
                       window.setTimeout(() => setAddrOpen(false), 120)
                     }
                   />
-                  {!isAddressSaved ? (
-                    <div className="flex items-center">
-                      <Button
-                        type="button"
-                        variant={shouldSaveAddress ? "default" : "outline"}
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => setShouldSaveAddress(true)}
-                      >
-                        {shouldSaveAddress ? "Guardada" : "Guardar dirección"}
-                      </Button>
-                    </div>
-                  ) : null}
+                  <div className="flex items-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isAddressSaved}
+                      className={cn(
+                        "text-xs",
+                        isAddressSaved &&
+                          "border-sky-100 bg-sky-50 text-slate-600 hover:bg-sky-50",
+                      )}
+                      onClick={async () => {
+                        if (isAddressSaved) return;
+                        setShouldSaveAddress(true);
+                        await saveAddressNow();
+                      }}
+                    >
+                      {isAddressSaved ? "Dirección guardada" : "Guardar dirección"}
+                    </Button>
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       type="button"

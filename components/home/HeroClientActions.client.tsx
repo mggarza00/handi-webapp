@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type Address = {
+  id?: string;
   label?: string | null;
   address_line: string;
   address_place_id?: string | null;
@@ -66,9 +67,12 @@ export default function HeroClientActions({
     };
   }, [currentAddress]);
 
-  const pillLabel = currentAddress?.label?.trim()
-    ? currentAddress.label
-    : currentAddress?.address_line || "Agregar dirección";
+  const pillLabel = (() => {
+    const lbl = currentAddress?.label?.trim();
+    if (lbl) return lbl;
+    if (currentAddress) return "Dirección guardada";
+    return "Agregar dirección";
+  })();
 
   const hasAddresses = addresses.length > 0;
 
@@ -76,6 +80,16 @@ export default function HeroClientActions({
     setCurrentAddress(addr);
     onAddressChange?.(addr);
     setAddrOpen(false);
+    if (addr?.id) {
+      fetch("/api/addresses/default", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ id: addr.id }),
+        credentials: "include",
+      }).catch(() => {
+        /* ignore */
+      });
+    }
   };
 
   return (
@@ -121,35 +135,39 @@ export default function HeroClientActions({
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-2">
             <div className="space-y-1">
-              {addresses.map((addr, idx) => (
-                <button
-                  key={`${addr.address_place_id || addr.address_line}-${idx}`}
-                  type="button"
-                  onClick={() => handleSelectAddress(addr)}
-                  className={cn(
-                    "flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition hover:bg-slate-50",
-                    currentAddress?.address_line === addr.address_line
-                      ? "bg-slate-100 text-slate-900"
-                      : "",
-                  )}
-                >
-                  <Image
-                    src="/icons/loc_icon.svg"
-                    alt=""
-                    width={16}
-                    height={16}
-                    className="mt-0.5 h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(14%)_sepia(80%)_saturate(1928%)_hue-rotate(200deg)_brightness(93%)_contrast(92%)]"
-                  />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-slate-900">
-                      {addr.label || "Dirección guardada"}
-                    </span>
-                    <span className="text-xs text-slate-600">
-                      {addr.address_line}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {addresses.map((addr, idx) => {
+                const label = addr.label?.trim() || "Dirección guardada";
+                const isSelected = currentAddress?.id
+                  ? currentAddress.id === addr.id
+                  : currentAddress?.address_line === addr.address_line;
+                return (
+                  <button
+                    key={`${addr.address_place_id || addr.address_line}-${idx}`}
+                    type="button"
+                    onClick={() => handleSelectAddress(addr)}
+                    className={cn(
+                      "flex w-full items-start gap-2 rounded-md px-2 py-2 text-left transition hover:bg-slate-50",
+                      isSelected ? "bg-slate-100 text-slate-900" : "",
+                    )}
+                  >
+                    <Image
+                      src="/icons/loc_icon.svg"
+                      alt=""
+                      width={16}
+                      height={16}
+                      className="mt-0.5 h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(14%)_sepia(80%)_saturate(1928%)_hue-rotate(200deg)_brightness(93%)_contrast(92%)]"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {label}
+                      </span>
+                      <span className="text-sm font-medium text-slate-900">
+                        {addr.address_line}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </PopoverContent>
         </Popover>

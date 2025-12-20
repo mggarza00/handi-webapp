@@ -57,7 +57,7 @@ export default function PoliticasFacturacionPage() {
                 </a>
               </li>
               <li>
-                <a className="hover:underline" href="#factura-homaid">
+                <a className="hover:underline" href="#factura-handi">
                   3) Factura de la comisión de Handi
                 </a>
               </li>
@@ -195,7 +195,7 @@ export default function PoliticasFacturacionPage() {
           </div>
 
           <h2
-            id="factura-homaid"
+            id="factura-handi"
             className="scroll-mt-24 text-xl font-semibold"
           >
             3) Factura de la comisión de Handi

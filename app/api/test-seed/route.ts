@@ -21,8 +21,8 @@ function admin() {
 }
 
 // Usuarios seed (determinados por email). Los IDs se resuelven por API.
-const EMAIL_CLIENT = "client+seed@homaid.dev";
-const EMAIL_PRO = "pro+seed@homaid.dev";
+const EMAIL_CLIENT = "client+seed@handi.dev";
+const EMAIL_PRO = "pro+seed@handi.dev";
 const REQ_ID = "33333333-3333-4333-8333-333333333333";
 
 type AuthUserLite = { id: string; email?: string | null };
@@ -283,8 +283,8 @@ export async function GET(req: Request) {
 
     if (action === "seed-e2e-users") {
       try {
-        const client = await ensureUserWithPassword(supa, "cliente.e2e@homaid.mx", "E2e!Pass123");
-        const pro = await ensureUserWithPassword(supa, "pro.e2e@homaid.mx", "E2e!Pass123");
+        const client = await ensureUserWithPassword(supa, "cliente.e2e@handi.mx", "E2e!Pass123");
+        const pro = await ensureUserWithPassword(supa, "pro.e2e@handi.mx", "E2e!Pass123");
         // Upsert profiles basic
         await supa.from("profiles").upsert([
           { id: client.id, full_name: "Cliente E2E", role: "client", active: true },

@@ -2,7 +2,7 @@
 -- Usage: run with Service Role (or in SQL editor with admin privileges) to delete from auth.users.
 
 -- Preview: check user by email and by profile name
-select id, email from auth.users where lower(email) = 'pro+seed@homaid.dev';
+select id, email from auth.users where lower(email) = 'pro+seed@handi.dev';
 select id, full_name from public.profiles where lower(full_name) = 'pro seed';
 
 -- Delete script (safe, best‑effort; tolerates missing tables/permissions)
@@ -13,7 +13,7 @@ begin
   -- 1) Locate by email in auth.users
   select u.id into v_uid
   from auth.users u
-  where lower(u.email) = 'pro+seed@homaid.dev'
+  where lower(u.email) = 'pro+seed@handi.dev'
   limit 1;
 
   -- 2) Fallback: locate by name in public.profiles

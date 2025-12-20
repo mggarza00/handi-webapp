@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { MessageCircle, Send, Loader2 } from "lucide-react";
+import { MessageCircle, Send, Loader2, ArrowLeft } from "lucide-react";
 
 import {
   Sheet,
@@ -59,6 +59,11 @@ export default function AssistantPanel() {
     // autoscroll on new message
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open]);
+
+  function handleClose() {
+    if (abortRef.current) abortRef.current.abort();
+    setOpen(false);
+  }
 
   const canSend = Boolean(input.trim()) && !isSending;
 
@@ -143,10 +148,16 @@ export default function AssistantPanel() {
           : (hasBottomBar ? "bottom-[92px]" : "bottom-4") + " md:bottom-4"
       }`}
     >
-      <Sheet open={open} onOpenChange={(v) => {
-        if (!v && abortRef.current) abortRef.current.abort();
-        setOpen(v);
-      }}>
+      <Sheet
+        open={open}
+        onOpenChange={(v) => {
+          if (!v) {
+            handleClose();
+            return;
+          }
+          setOpen(true);
+        }}
+      >
         <SheetTrigger asChild>
           <Button
             size="lg"
@@ -167,8 +178,17 @@ export default function AssistantPanel() {
           }}
         >
           <SheetHeader className="sticky top-0 z-10 h-24 flex items-center px-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/75">
-            <SheetTitle className="w-full flex items-center justify-between">
-              <span className="text-left ml-10 text-[22px]">Asistente Handi</span>
+            <SheetTitle className="w-full flex items-center justify-between gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleClose}
+                className="md:hidden"
+                aria-label="Cerrar asistente"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <span className="flex-1 text-center md:text-left md:ml-10 text-[22px]">Asistente Handi</span>
               <Image
                 src="/images/handee_mascota.gif"
                 alt="Handee mascota"
