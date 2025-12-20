@@ -68,4 +68,3 @@ Objetivo: documentar el flujo de datos y la responsabilidad de cada tabla/bucket
 
 - `active` controla visibilidad pública en `professionals`. En el endpoint se excluye `active=false`; `null` se considera visible por compatibilidad.
 - Para “solo publicables”, reforzar la edición para exigir `full_name` y mantener `active=true` al publicar.
-
