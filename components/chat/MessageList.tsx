@@ -4,11 +4,11 @@ import { useSearchParams } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AttachmentList } from "@/app/(app)/messages/_components/AttachmentList";
+import { AttachmentList } from "@/app/(app)/(app-shell)/messages/_components/AttachmentList";
 import LocationCard, {
   type LocationPayload,
 } from "@/components/chat/LocationCard";
-import AcceptOfferButton from "@/app/(app)/offers/_components/AcceptOfferButton";
+import AcceptOfferButton from "@/app/(app)/(app-shell)/offers/_components/AcceptOfferButton";
 import {
   extractOfferId,
   extractStatus,

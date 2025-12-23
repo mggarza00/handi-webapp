@@ -5,6 +5,7 @@ import path from "node:path";
 
 import React from "react";
 import satori from "satori";
+import type { Font } from "satori";
 import { Resvg } from "@resvg/resvg-js";
 
 import QuoteImage from "@/components/quote/QuoteImage";
@@ -76,6 +77,22 @@ export async function renderQuotePNG(input: {
     description: i.concept,
     amount: Number(i.amount || 0),
   }));
+  const fonts: Font[] = [];
+  if (inter) {
+    fonts.push(
+      { name: "Inter", data: inter, weight: 400, style: "normal" },
+      { name: "Inter", data: inter, weight: 600, style: "normal" },
+    );
+  }
+  if (stackSans) {
+    fonts.push({
+      name: "Stack Sans",
+      data: stackSans,
+      weight: 600,
+      style: "normal",
+    });
+  }
+
   const svg = await satori(
     React.createElement(QuoteImage, {
       logoUrl,
@@ -102,24 +119,7 @@ export async function renderQuotePNG(input: {
     {
       width: 1080,
       height: 1600,
-      fonts: [
-        ...(inter
-          ? [
-              { name: "Inter", data: inter, weight: 400, style: "normal" },
-              { name: "Inter", data: inter, weight: 600, style: "normal" },
-            ]
-          : []),
-        ...(stackSans
-          ? [
-              {
-                name: "Stack Sans",
-                data: stackSans,
-                weight: 600,
-                style: "normal",
-              },
-            ]
-          : []),
-      ],
+      fonts,
     },
   );
   const resvg = new Resvg(svg, { fitTo: { mode: "width", value: 1080 } });

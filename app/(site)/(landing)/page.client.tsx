@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import localFont from "next/font/local";
 
-import HowToUseHandiSection from "./_components/HowToUseHandiSection.client";
+import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
 
 import HeroClientActions from "@/components/home/HeroClientActions.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
@@ -19,25 +19,25 @@ import { openCreateRequestWizard } from "@/components/requests/CreateRequestWiza
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 const stackSansMedium = localFont({
-  src: "../public/fonts/Stack_Sans_Text/static/StackSansText-Medium.ttf",
+  src: "../../../public/fonts/Stack_Sans_Text/static/StackSansText-Medium.ttf",
   weight: "500",
   display: "swap",
   variable: "--font-stack-sans-medium",
 });
 const stackSansExtraLight = localFont({
-  src: "../public/fonts/Stack_Sans_Text/static/StackSansText-ExtraLight.ttf",
+  src: "../../../public/fonts/Stack_Sans_Text/static/StackSansText-ExtraLight.ttf",
   weight: "200",
   display: "swap",
   variable: "--font-stack-sans-extralight",
 });
 const stackSansLight = localFont({
-  src: "../public/fonts/Stack_Sans_Text/static/StackSansText-Light.ttf",
+  src: "../../../public/fonts/Stack_Sans_Text/static/StackSansText-Light.ttf",
   weight: "300",
   display: "swap",
   variable: "--font-stack-sans-light",
 });
 const interLight = localFont({
-  src: "../public/fonts/Inter/static/Inter_24pt-Light.ttf",
+  src: "../../../public/fonts/Inter/static/Inter_24pt-Light.ttf",
   weight: "300",
   display: "swap",
   variable: "--font-inter-light",

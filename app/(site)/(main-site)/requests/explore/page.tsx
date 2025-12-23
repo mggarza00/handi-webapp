@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 
-import ExploreFilters from "@/app/requests/explore/ExploreFilters.client";
+import ExploreFilters from "@/app/(site)/(main-site)/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
