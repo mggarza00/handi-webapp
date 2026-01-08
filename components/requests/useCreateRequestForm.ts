@@ -617,9 +617,11 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         : typeof first.lon === "number"
           ? first.lon
           : null;
+    const maybeLng = (first as Partial<AddressSuggestion> & { lng?: number })
+      .lng;
     const lon =
-      typeof (first as { lng?: number }).lng === "number"
-        ? (first as { lng: number }).lng
+      typeof maybeLng === "number"
+        ? maybeLng
         : typeof first.lon === "number"
           ? first.lon
           : null;
