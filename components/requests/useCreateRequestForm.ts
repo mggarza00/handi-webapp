@@ -618,8 +618,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
           ? first.lon
           : null;
     const lon =
-      typeof first.lng === "number"
-        ? first.lng
+      typeof (first as { lng?: number }).lng === "number"
+        ? (first as { lng: number }).lng
         : typeof first.lon === "number"
           ? first.lon
           : null;
