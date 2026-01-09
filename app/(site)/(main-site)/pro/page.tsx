@@ -40,7 +40,7 @@ import { getAdminSupabase } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const stackSansHeading = localFont({
-  src: "../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
+  src: "../../../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
   weight: "600",
   display: "swap",
 });

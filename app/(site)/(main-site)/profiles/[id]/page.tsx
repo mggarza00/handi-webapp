@@ -28,7 +28,7 @@ import { getProJobsWithPhotos } from "@/lib/profiles/jobs";
 import createClient from "@/utils/supabase/server";
 
 const stackSansHeading = localFont({
-  src: "../../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
+  src: "../../../../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
   weight: "600",
   display: "swap",
 });
