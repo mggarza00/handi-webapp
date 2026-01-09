@@ -446,6 +446,9 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         setShouldSaveAddress(false);
         return true;
       }
+      const toastError = (msg: string) => {
+        toast.error(msg);
+      };
       try {
         const { data: sessionData } = await supabaseBrowser.auth.getSession();
         if (!sessionData?.session) {
@@ -483,11 +486,6 @@ export function useCreateRequestForm(): CreateRequestFormApi {
       };
 
       const place = placeId?.trim() || null;
-
-      const toastError = (msg: string) => {
-        toast.error(msg);
-      };
-
       try {
         const res = await fetch("/api/addresses/saved", {
           method: "POST",
@@ -513,8 +511,9 @@ export function useCreateRequestForm(): CreateRequestFormApi {
             return false;
           }
           if (!canFallbackToRpc) {
-            const detail =
-              (json?.detail || json?.message || "").toString().trim();
+            const detail = (json?.detail || json?.message || "")
+              .toString()
+              .trim();
             toastError(
               errCode
                 ? detail
@@ -618,11 +617,13 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         : typeof first.lon === "number"
           ? first.lon
           : null;
+    const maybeLng = (first as Partial<AddressSuggestion> & { lng?: number })
+      .lng;
     const lon =
-      typeof first.lon === "number"
-        ? first.lon
-        : typeof (first as { lng?: number }).lng === "number"
-          ? (first as { lng: number }).lng
+      typeof maybeLng === "number"
+        ? maybeLng
+        : typeof first.lon === "number"
+          ? first.lon
           : null;
     pickAddress({
       address: line,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterExplorableRequests, type ExploreRow } from '@/app/requests/explore/_lib/filter';
+import { filterExplorableRequests, type ExploreRow } from '@/app/(site)/(main-site)/requests/explore/_lib/filter';
 
 describe('filterExplorableRequests', () => {
   it('excludes scheduled requests from explore', () => {

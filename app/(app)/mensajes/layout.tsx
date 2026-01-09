@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import MessagesShell from "./_components/MessagesShell.client";
 import RealtimeProvider from "@/components/messages/RealtimeProvider";
+import AppShell from "@/components/layouts/AppShell";
 import type { ChatSummary } from "./_components/types";
 import { cookies } from "next/headers";
 import createClient from "@/utils/supabase/server";
@@ -382,9 +383,11 @@ async function getChatSummaries(): Promise<ChatSummary[]> {
 export default async function MensajesLayout({ children }: { children: ReactNode }) {
   const chats = await getChatSummaries();
   return (
-    <RealtimeProvider>
-      <MessagesShell chats={chats}>{children}</MessagesShell>
-    </RealtimeProvider>
+    <AppShell footerWrapperClassName="hidden md:block">
+      <RealtimeProvider>
+        <MessagesShell chats={chats}>{children}</MessagesShell>
+      </RealtimeProvider>
+    </AppShell>
   );
 }
 /* eslint-disable import/order */

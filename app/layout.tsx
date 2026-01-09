@@ -4,15 +4,11 @@ import "./globals.css";
 import type { Metadata } from "next";
 import ClientToaster from "@/components/ClientToaster";
 import AssistantPanel from "@/components/assistant/AssistantPanel";
-import SiteHeader from "@/components/site-header";
-import ConditionalSiteHeader from "@/components/ConditionalSiteHeader.client";
-import ConditionalFooter from "@/components/ConditionalFooter.client";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import CreateRequestWizardRoot from "@/components/requests/CreateRequestWizardRoot";
 import { concertOne, inter, nunito, varelaRound } from "@/lib/fonts";
 import LeafletCSS from "@/components/LeafletCSS.client";
 import OneTapMount from "@/components/OneTapMount";
-import ConditionalMainWrapper from "@/components/ConditionalMainWrapper.client";
 import InstallAppBanner from "@/components/pwa/InstallAppBanner";
 import RequestNotificationsToast from "@/components/pwa/RequestNotificationsToast";
 import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.client";
@@ -167,13 +163,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
         {/* Google One Tap (solo cliente; no renderiza UI propia) */}
         <OneTapMount />
-        <ConditionalSiteHeader>
-          <SiteHeader />
-        </ConditionalSiteHeader>
-        <ConditionalMainWrapper>{children}</ConditionalMainWrapper>
+        {children}
         <ClientToaster />
         {disableAssistant ? null : <AssistantPanel />}
-        <ConditionalFooter />
         {/* Mobile-only bottom tab bar for clients */}
         <MobileClientTabBar />
         <CreateRequestWizardRoot />

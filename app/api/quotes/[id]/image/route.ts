@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import React from "react";
 import satori from "satori";
+import type { Font } from "satori";
 import { Resvg } from "@resvg/resvg-js";
 
 import { getInterFont, getStackSansFont } from "@/lib/fonts";
@@ -241,30 +242,29 @@ export async function GET(
       stackSans = null;
     }
 
+    const fonts: Font[] = [];
+    if (inter) {
+      fonts.push(
+        { name: "Inter", data: inter, weight: 400, style: "normal" },
+        { name: "Inter", data: inter, weight: 600, style: "normal" },
+      );
+    }
+    if (stackSans) {
+      fonts.push({
+        name: "Stack Sans",
+        data: stackSans,
+        weight: 600,
+        style: "normal",
+      });
+    }
+
     let svg: string | null = null;
     try {
       // Render SVG con Satori (siempre generamos SVG primero)
       svg = await satori(React.createElement(QuoteImage, props), {
         width: 1080,
         height: 1600,
-        fonts: [
-          ...(inter
-            ? [
-                { name: "Inter", data: inter, weight: 400, style: "normal" },
-                { name: "Inter", data: inter, weight: 600, style: "normal" },
-              ]
-            : []),
-          ...(stackSans
-            ? [
-                {
-                  name: "Stack Sans",
-                  data: stackSans,
-                  weight: 600,
-                  style: "normal",
-                },
-              ]
-            : []),
-        ],
+        fonts,
       });
     } catch (err) {
       console.error("[quote-image] satori render error", err);

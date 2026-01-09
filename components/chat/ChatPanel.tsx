@@ -15,7 +15,7 @@ import { X } from "lucide-react";
 import MessageList from "@/components/chat/MessageList";
 import QuoteComposerDialog from "@/components/quotes/QuoteComposerDialog";
 import MessageInput from "@/components/chat/MessageInput";
-import ChatUploader from "@/app/(app)/messages/_components/ChatUploader";
+import ChatUploader from "@/app/(app)/(app-shell)/messages/_components/ChatUploader";
 import { getContactPolicyMessage } from "@/lib/safety/policy";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "sonner";
@@ -25,7 +25,7 @@ import { UI_STATUS_LABELS } from "@/lib/request-status";
 import OfferPaymentDialog from "@/components/payments/OfferPaymentDialog";
 import { Slider } from "@/components/ui/slider";
 import { appendAttachment, removeAttachment } from "@/components/chat/utils";
-import { useChatRealtime } from "@/app/(app)/messages/_hooks/useChatRealtime";
+import { useChatRealtime } from "@/app/(app)/(app-shell)/messages/_hooks/useChatRealtime";
 import CompanyToggle from "@/components/forms/CompanyToggle";
 import {
   Dialog,

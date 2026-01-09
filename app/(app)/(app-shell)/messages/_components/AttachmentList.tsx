@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useSignedUrls } from "@/app/(app)/messages/_hooks/useSignedUrls";
+import { useSignedUrls } from "@/app/(app)/(app-shell)/messages/_hooks/useSignedUrls";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export type Attachment = {
