@@ -13,6 +13,7 @@ import InstallAppBanner from "@/components/pwa/InstallAppBanner";
 import RequestNotificationsToast from "@/components/pwa/RequestNotificationsToast";
 import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.client";
 import RegisterSW from "@/app/register-sw";
+import FooterDiagnostics from "@/components/FooterDiagnostics.client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -180,6 +181,7 @@ export default function RootLayout({
         <RequestNotificationsToast />
         {/* Auto-subscribe to Web Push when permission is granted */}
         <PushAutoSubscribeOnGrant />
+        <FooterDiagnostics />
       </body>
     </html>
   );
