@@ -367,6 +367,16 @@ export default function Page({
 
   // Efecto de aparición por caracteres en el título del hero (similar a "Bienvenido a Handi")
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (!window.matchMedia?.("(min-width: 768px)").matches) return;
+    const MAX_HERO_SPLIT_CHARS = 160;
+    const countChars = (node: HTMLElement | null) =>
+      (node?.textContent || "").length;
+    const totalChars =
+      countChars(heroTitleRef.current) + countChars(heroClientTitleRef.current);
+    if (totalChars > MAX_HERO_SPLIT_CHARS) return;
+
     const run = async () => {
       const applySplit = (root: HTMLElement | null): HTMLElement[] => {
         if (!root) return [];
@@ -442,7 +452,31 @@ export default function Page({
       }
     };
 
-    void run();
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    let idleHandle: number | null = null;
+    let timeoutHandle: number | null = null;
+
+    const schedule = () => {
+      void run();
+    };
+
+    if (win.requestIdleCallback) {
+      idleHandle = win.requestIdleCallback(schedule, { timeout: 2000 });
+    } else {
+      timeoutHandle = window.setTimeout(schedule, 1000);
+    }
+
+    return () => {
+      if (idleHandle !== null && win.cancelIdleCallback) {
+        win.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
+    };
   }, []);
 
   function StepCard({
