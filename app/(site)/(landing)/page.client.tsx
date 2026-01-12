@@ -7,7 +7,6 @@ import Link from "next/link";
 import localFont from "next/font/local";
 
 import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
-
 import HeroClientActions from "@/components/home/HeroClientActions.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import MobileCarousel from "@/components/MobileCarousel";
@@ -453,7 +452,10 @@ export default function Page({
     };
 
     const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number },
+      ) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
     let idleHandle: number | null = null;
