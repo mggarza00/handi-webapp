@@ -1,7 +1,20 @@
+import { headers } from "next/headers";
+
 import LandingPage from "./page.client";
 
-import { buildGreetingText, inferGreetingPreferenceFromName } from "@/lib/greeting";
-import { ensureGreetingPreferenceForProfile, extractFirstName } from "@/lib/profile";
+import {
+  buildGreetingText,
+  inferGreetingPreferenceFromName,
+} from "@/lib/greeting";
+import {
+  buildCatalogLists,
+  type CatalogLists,
+  type CatalogRow,
+} from "@/lib/catalog";
+import {
+  ensureGreetingPreferenceForProfile,
+  extractFirstName,
+} from "@/lib/profile";
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
 
@@ -28,6 +41,37 @@ type SavedAddress = {
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
+
+const CATALOG_REVALIDATE_SECONDS = 300;
+
+function getBaseUrl() {
+  const h = headers();
+  const host = h.get("x-forwarded-host") || h.get("host");
+  const proto = h.get("x-forwarded-proto") || "http";
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (host ? `${proto}://${host}` : "http://localhost:3000")
+  );
+}
+
+async function getCatalogLists(): Promise<CatalogLists> {
+  const origin = getBaseUrl();
+  try {
+    const res = await fetch(`${origin}/api/catalog/categories`, {
+      next: { revalidate: CATALOG_REVALIDATE_SECONDS },
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.ok) {
+      return { categoryCards: [], subcategories: [] };
+    }
+    return buildCatalogLists((payload?.data ?? []) as CatalogRow[]);
+  } catch (error) {
+    console.error("[landing] catalog fetch failed", error);
+    return { categoryCards: [], subcategories: [] };
+  }
+}
 
 export default async function Page() {
   const supabase = getServerClient();
@@ -60,7 +104,9 @@ export default async function Page() {
   if (user) {
     const { data } = await supabase
       .from("user_saved_addresses")
-      .select("id,label,address_line,address_place_id,lat,lng,last_used_at,times_used")
+      .select(
+        "id,label,address_line,address_place_id,lat,lng,last_used_at,times_used",
+      )
       .eq("user_id", user.id)
       .order("last_used_at", { ascending: false })
       .limit(5);
@@ -102,12 +148,16 @@ export default async function Page() {
     greetingText = buildGreetingText(pref, firstName);
   }
 
+  const catalogLists = await getCatalogLists();
+
   return (
     <LandingPage
       variant={variant}
       greetingText={greetingText}
       fullName={fullName}
       savedAddresses={savedAddresses}
+      categoryCards={catalogLists.categoryCards}
+      subcategories={catalogLists.subcategories}
     />
   );
 }
