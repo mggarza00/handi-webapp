@@ -33,13 +33,35 @@ function shouldRemove(node: Element): boolean {
   return attrs.some(hasVercelLiveMarker);
 }
 
-function removeVercelLiveNodes() {
-  const nodes = document.querySelectorAll("iframe, script, link");
-  nodes.forEach((node) => {
+function removeMatchingNodes(root: Element): boolean {
+  let removed = false;
+
+  if (root.matches("iframe, script, link") && shouldRemove(root)) {
+    root.remove();
+    removed = true;
+  }
+
+  root.querySelectorAll("iframe, script, link").forEach((node) => {
     if (shouldRemove(node)) {
       node.remove();
+      removed = true;
     }
   });
+
+  return removed;
+}
+
+function removeFromMutations(records: MutationRecord[]): boolean {
+  let removed = false;
+  records.forEach((record) => {
+    record.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (removeMatchingNodes(node)) {
+        removed = true;
+      }
+    });
+  });
+  return removed;
 }
 
 export default function VercelLiveGuard() {
@@ -47,13 +69,24 @@ export default function VercelLiveGuard() {
     if (!isProd) return;
 
     // Prevent CLS from late Vercel Live/Feedback UI injection in production.
-    removeVercelLiveNodes();
-    const observer = new MutationObserver(() => removeVercelLiveNodes());
+    const observer = new MutationObserver((records) => {
+      if (removeFromMutations(records)) {
+        observer.disconnect();
+      }
+    });
     observer.observe(document.documentElement, {
       childList: true,
       subtree: true,
     });
-    return () => observer.disconnect();
+
+    const timeoutId = window.setTimeout(() => {
+      observer.disconnect();
+    }, 12_000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      observer.disconnect();
+    };
   }, []);
 
   return null;
