@@ -600,8 +600,9 @@ export default function Page() {
       </section>
 
       {/* Quick ask */}
+      {/* Mobile perf: avoid bg-fixed + heavy blur/shadow to reduce paint delays/white flashes. */}
       <section
-        className="relative bg-slate-50 bg-cover bg-center bg-no-repeat bg-fixed"
+        className="relative bg-slate-50 bg-cover bg-center bg-no-repeat bg-scroll md:bg-fixed"
         style={{ backgroundImage: "url('/images/home_background.png')" }}
       >
         <div className="pointer-events-none absolute inset-0 z-0 bg-white/60" />
@@ -621,7 +622,7 @@ export default function Page() {
                       <Link
                         key={`cat-a-${c}`}
                         href={`/requests/new?category=${encodeURIComponent(c)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-white/70 md:bg-[rgba(255,255,255,0.14)] shadow-sm md:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] md:backdrop-blur-2xl md:backdrop-saturate-150 ring-1 ring-white/25 before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 md:hover:-translate-y-[2px] md:hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/70 md:data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {c}
                       </Link>
@@ -635,7 +636,7 @@ export default function Page() {
                       <Link
                         key={`cat-b-${c}`}
                         href={`/requests/new?category=${encodeURIComponent(c)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm text-slate-900/90 bg-white/70 md:bg-[rgba(255,255,255,0.14)] shadow-sm md:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] md:backdrop-blur-2xl md:backdrop-saturate-150 ring-1 ring-white/25 before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 md:hover:-translate-y-[2px] md:hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/70 md:data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {c}
                       </Link>
@@ -658,7 +659,7 @@ export default function Page() {
                       <Link
                         key={`subcat-a-${s.name}`}
                         href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-900/90 bg-white/70 md:bg-[rgba(255,255,255,0.14)] shadow-sm md:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] md:backdrop-blur-2xl md:backdrop-saturate-150 ring-1 ring-white/25 before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 md:hover:-translate-y-[2px] md:hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/70 md:data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {s.icon ? (
                           isUrl(s.icon) ? (
@@ -687,7 +688,7 @@ export default function Page() {
                       <Link
                         key={`subcat-b-${s.name}`}
                         href={`/requests/new?subcategory=${encodeURIComponent(s.name)}`}
-                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-900/90 bg-[rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-white/25 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 hover:-translate-y-[2px] hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
+                        className="relative isolate inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm text-slate-900/90 bg-white/70 md:bg-[rgba(255,255,255,0.14)] shadow-sm md:shadow-[0_20px_60px_-10px_rgba(0,0,0,0.45)] md:backdrop-blur-2xl md:backdrop-saturate-150 ring-1 ring-white/25 before:content-[''] before:absolute before:inset-0 before:rounded-full before:bg-gradient-to-b before:from-[rgba(255,255,255,0.6)] before:via-[rgba(255,255,255,0.15)] before:to-[rgba(255,255,255,0.10)] before:opacity-[0.85] before:pointer-events-none transition-all duration-300 md:hover:-translate-y-[2px] md:hover:shadow-[0_24px_70px_-12px_rgba(0,0,0,0.55)] data-[selected=true]:bg-white/70 md:data-[selected=true]:bg-white/14 data-[selected=true]:ring-white/40 data-[selected=true]:text-slate-900"
                       >
                         {s.icon ? (
                           isUrl(s.icon) ? (
