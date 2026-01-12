@@ -7,7 +7,6 @@ import Link from "next/link";
 import localFont from "next/font/local";
 
 import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
-
 import HeroClientActions from "@/components/home/HeroClientActions.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import MobileCarousel from "@/components/MobileCarousel";
@@ -16,6 +15,8 @@ import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
 import HomeSignInModal from "@/components/auth/HomeSignInModal.client";
 import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
+import type { CategoryCard, Subcat } from "@/lib/catalog";
+import { normalizeMediaUrl } from "@/lib/catalog";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 const stackSansMedium = localFont({
@@ -57,72 +58,13 @@ type LandingPageProps = {
     last_used_at?: string | null;
     times_used?: number | null;
   }>;
-};
-
-type CategoryCard = {
-  name: string;
-  color: string | null;
-  image: string | null;
-};
-
-type Subcat = {
-  name: string;
-  icon: string | null;
-  color: string | null;
-  iconUrl: string | null;
-};
-type CatalogRow = {
-  category?: string | null;
-  subcategory?: string | null;
-  icon?: string | null;
-  iconUrl?: string | null;
-  image?: string | null;
-  color?: string | null;
-};
-type CatalogLists = {
-  categoryCards: CategoryCard[];
-  subcategories: Subcat[];
+  categoryCards?: CategoryCard[];
+  subcategories?: Subcat[];
 };
 
 const toCleanString = (value: unknown) => (value ?? "").toString().trim();
 const localeSort = (a: string, b: string) =>
   a.localeCompare(b, "es", { sensitivity: "base" });
-const normalizeMediaUrl = (value: string | null | undefined) => {
-  const raw = toCleanString(value);
-  if (!raw) return null;
-  const s = raw
-    .replace(/^["']+|["']+$/g, "")
-    .replace(/\\/g, "/")
-    .trim();
-  if (!s) return null;
-  // paths absolutos locales: recorta hasta /public/ si existe
-  const lower = s.toLowerCase();
-  const publicIdx = lower.indexOf("/public/");
-  if (publicIdx >= 0) {
-    const tail = s.slice(publicIdx + "/public".length);
-    return tail.startsWith("/") ? tail : `/${tail}`;
-  }
-  // Si viene con drive (C:/...) sin /public/, intenta detectar carpeta images/categorias
-  if (
-    /^[a-zA-Z]:\//.test(s) ||
-    (s.startsWith("/") && /^[a-zA-Z]:\//.test(s.slice(1)))
-  ) {
-    const imagesIdx = lower.indexOf("/images/");
-    const iconsIdx = lower.indexOf("/icons/");
-    const idx = imagesIdx >= 0 ? imagesIdx : iconsIdx;
-    if (idx >= 0) {
-      const tail = s.slice(idx);
-      return tail.startsWith("/") ? tail : `/${tail}`;
-    }
-    return null;
-  }
-  if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  if (s.startsWith("/")) return s;
-  if (s.includes("://")) return null;
-  // rutas relativas dentro de public (ej: images/categorias/archivo.jpg)
-  if (lower.startsWith("images/")) return `/${s}`;
-  return `/${s.replace(/^\/+/, "")}`;
-};
 const isValidImageSrc = (src: string | null) => {
   if (!src) return false;
   return (
@@ -130,55 +72,6 @@ const isValidImageSrc = (src: string | null) => {
     src.startsWith("http://") ||
     src.startsWith("https://")
   );
-};
-const buildCatalogLists = (rows: CatalogRow[]): CatalogLists => {
-  const catMeta = new Map<
-    string,
-    { color: string | null; image: string | null }
-  >();
-  const subMap = new Map<string, Subcat>();
-
-  (rows || []).forEach((row) => {
-    const categoryName = toCleanString(row.category);
-    const subName = toCleanString(row.subcategory);
-    const icon = toCleanString(row.icon) || null;
-    const iconUrl = normalizeMediaUrl(row.iconUrl);
-    const image = normalizeMediaUrl(row.image);
-    const color = toCleanString(row.color) || null;
-
-    if (categoryName.length > 0) {
-      const existing = catMeta.get(categoryName) || {
-        color: null,
-        image: null,
-      };
-      catMeta.set(categoryName, {
-        color: existing.color || color || null,
-        image: existing.image || image || null,
-      });
-    }
-
-    if (subName.length > 0 && !subMap.has(subName)) {
-      subMap.set(subName, {
-        name: subName,
-        icon,
-        iconUrl,
-        color,
-      });
-    }
-  });
-
-  return {
-    categoryCards: Array.from(catMeta.entries())
-      .map(([name, meta]) => ({
-        name,
-        color: meta.color,
-        image: meta.image,
-      }))
-      .sort((a, b) => localeSort(a.name, b.name)),
-    subcategories: Array.from(subMap.values()).sort((a, b) =>
-      localeSort(a.name, b.name),
-    ),
-  };
 };
 
 const MARQUEE_DURATION = "150s";
@@ -189,6 +82,8 @@ export default function Page({
   greetingText,
   fullName: incomingName,
   savedAddresses = [],
+  categoryCards: initialCategoryCards = [],
+  subcategories: initialSubcategories = [],
 }: LandingPageProps) {
   const isClientVariant = variant === "client";
   const displayName = (incomingName || "").toString().trim() || "Cliente";
@@ -197,10 +92,9 @@ export default function Page({
   const [greetingFirstWord, ...greetingRestParts] =
     resolvedGreeting.split(/\s+/);
   const greetingRest = greetingRestParts.join(" ") || displayName;
-  // Categorías dinámicas desde Supabase (tabla categories_subcategories)
-  const [categoryCards, setCategoryCards] = useState<CategoryCard[]>([]);
+  const categoryCards = initialCategoryCards;
+  const subcategories = initialSubcategories;
   const [topCategoryCards, setTopCategoryCards] = useState<CategoryCard[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcat[]>([]);
   type SavedAddress = NonNullable<LandingPageProps["savedAddresses"]>[number];
   const initialSaved = Array.isArray(savedAddresses) ? savedAddresses : [];
   const [selectedAddress, setSelectedAddress] = useState<SavedAddress | null>(
@@ -234,101 +128,6 @@ export default function Page({
     }, 400);
     return () => window.clearTimeout(timer);
   }, [isClientVariant]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const fetchFromApi = async (): Promise<CatalogLists | null> => {
-      const response = await fetch("/api/catalog/categories", {
-        cache: "no-store",
-      });
-      const payload = await response.json();
-      if (!response.ok || payload?.ok === false) {
-        throw new Error(payload?.detail || payload?.error || "fetch_failed");
-      }
-      return buildCatalogLists((payload?.data ?? []) as CatalogRow[]);
-    };
-
-    const fetchFromSupabase = async (): Promise<CatalogLists | null> => {
-      const sb = createSupabaseBrowser();
-      const primary = await sb.from("categories_subcategories").select("*");
-      const data = primary.data as unknown[] | null;
-      const error = primary.error as { message: string; code?: string } | null;
-      if (error) throw error;
-      const isActive = (value: unknown) => {
-        const normalized = toCleanString(value).toLowerCase();
-        return (
-          normalized === "sí" ||
-          normalized === "si" ||
-          normalized === "true" ||
-          normalized === "1" ||
-          normalized === "activo" ||
-          normalized === "activa" ||
-          normalized === "x"
-        );
-      };
-      const pick = (rec: Record<string, unknown>, keys: string[]) => {
-        for (const k of keys) {
-          const val = rec?.[k];
-          if (
-            val !== undefined &&
-            val !== null &&
-            String(val).trim().length > 0
-          ) {
-            return String(val).trim();
-          }
-        }
-        return null;
-      };
-      const rows: CatalogRow[] = (data || [])
-        .filter((row: Record<string, unknown>) => isActive(row?.["Activa"]))
-        .map((row: Record<string, unknown>) => ({
-          category: toCleanString(row?.["Categoría"]),
-          subcategory: toCleanString(row?.["Subcategoría"]),
-          icon: toCleanString(row?.["Emoji"]) || null,
-          iconUrl: pick(row, [
-            "ícono",
-            "icono",
-            "icon",
-            "icon_url",
-            "icono_url",
-            "iconUrl",
-            "Ícono URL",
-          ]),
-          image: pick(row, ["imagen", "image"]),
-          color: pick(row, ["color"]),
-        }));
-      return buildCatalogLists(rows);
-    };
-
-    const applyCatalog = (lists: CatalogLists | null) => {
-      if (!isMounted || !lists) return false;
-      setCategoryCards(lists.categoryCards);
-      setSubcategories(lists.subcategories);
-      return true;
-    };
-
-    const loadCatalog = async () => {
-      const fromApi = await fetchFromApi().catch((error) => {
-        console.error("[handi] catalog/categories API failed", error);
-        return null;
-      });
-      if (applyCatalog(fromApi)) {
-        return;
-      }
-      const fromSupabase = await fetchFromSupabase().catch((error) => {
-        console.error("[handi] Supabase catalog fallback failed", error);
-        return null;
-      });
-      applyCatalog(fromSupabase);
-    };
-
-    void loadCatalog();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
