@@ -1,10 +1,20 @@
 import { headers } from "next/headers";
 
 import LandingPage from "./LandingPage";
-import { buildCatalogLists, type CatalogRow, type CategoryCard } from "./catalog";
+import {
+  buildCatalogLists,
+  type CatalogRow,
+  type CategoryCard,
+} from "./catalog";
 
-import { buildGreetingText, inferGreetingPreferenceFromName } from "@/lib/greeting";
-import { ensureGreetingPreferenceForProfile, extractFirstName } from "@/lib/profile";
+import {
+  buildGreetingText,
+  inferGreetingPreferenceFromName,
+} from "@/lib/greeting";
+import {
+  ensureGreetingPreferenceForProfile,
+  extractFirstName,
+} from "@/lib/profile";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
@@ -132,7 +142,9 @@ export default async function Page() {
   if (user) {
     const { data } = await supabase
       .from("user_saved_addresses")
-      .select("id,label,address_line,address_place_id,lat,lng,last_used_at,times_used")
+      .select(
+        "id,label,address_line,address_place_id,lat,lng,last_used_at,times_used",
+      )
       .eq("user_id", user.id)
       .order("last_used_at", { ascending: false })
       .limit(5);

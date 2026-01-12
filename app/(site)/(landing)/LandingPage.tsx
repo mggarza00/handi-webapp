@@ -2,15 +2,15 @@ import type React from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import LandingHero from "./LandingHero.client";
+import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
+import { interLight, stackSansLight, stackSansMedium } from "./landing-fonts";
+
 import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
 import HomeSignInModal from "@/components/auth/HomeSignInModal.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
-
-import LandingHero from "./LandingHero.client";
-import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
-import { interLight, stackSansLight, stackSansMedium } from "./landing-fonts";
 
 type LandingPageProps = {
   variant: "guest" | "client" | "other";
@@ -485,7 +485,10 @@ function StepCard({
 
           {/* Mockup en móvil: abajo a la derecha, alineado al fondo (ligeramente más a la derecha) */}
           <div className="absolute -right-4 bottom-[-1.5rem] md:hidden">
-            <div className="relative h-56" style={{ width: "min(12rem, 44vw)" }}>
+            <div
+              className="relative h-56"
+              style={{ width: "min(12rem, 44vw)" }}
+            >
               <Image
                 src={rightImageSrc as string}
                 alt={title}

@@ -5,18 +5,18 @@ import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
-import HeroClientActions from "@/components/home/HeroClientActions.client";
-import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
-import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
-import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
-import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
-
 import {
   interLight,
   stackSansExtraLight,
   stackSansLight,
   stackSansMedium,
 } from "./landing-fonts";
+
+import HeroClientActions from "@/components/home/HeroClientActions.client";
+import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
+import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
+import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
+import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
 
 type LandingHeroProps = {
   variant: "guest" | "client" | "other";
@@ -170,7 +170,10 @@ export default function LandingHero({
     };
 
     const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number },
+      ) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
     let idleHandle: number | null = null;
