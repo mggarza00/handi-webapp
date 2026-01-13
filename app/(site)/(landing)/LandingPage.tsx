@@ -14,7 +14,6 @@ import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.clie
 import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
-
 type LandingPageProps = {
   variant: "guest" | "client" | "other";
   greetingText?: string;
@@ -507,7 +506,10 @@ function StepCard({
 
           {/* Mockup en móvil: abajo a la derecha, alineado al fondo (ligeramente más a la derecha) */}
           <div className="absolute -right-4 bottom-[-1.5rem] md:hidden">
-            <div className="relative h-56" style={{ width: "min(12rem, 44vw)" }}>
+            <div
+              className="relative h-56"
+              style={{ width: "min(12rem, 44vw)" }}
+            >
               <Image
                 src={rightImageSrc as string}
                 alt={title}
