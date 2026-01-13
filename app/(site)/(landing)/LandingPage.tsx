@@ -2,6 +2,11 @@ import type React from "react";
 import Image from "next/image";
 import Link from "next/link";
 
+import LandingHero from "./LandingHero.client";
+import LandingWarmup from "./LandingWarmup.client";
+import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
+import { interLight, stackSansLight, stackSansMedium } from "./landing-fonts";
+
 import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
 import HomeSignInModal from "@/components/auth/HomeSignInModal.client";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
@@ -9,10 +14,6 @@ import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.clie
 import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
-import LandingHero from "./LandingHero.client";
-import LandingWarmup from "./LandingWarmup.client";
-import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
-import { interLight, stackSansLight, stackSansMedium } from "./landing-fonts";
 
 type LandingPageProps = {
   variant: "guest" | "client" | "other";
