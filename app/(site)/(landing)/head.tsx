@@ -1,0 +1,31 @@
+export default function Head() {
+  return (
+    <>
+      <link
+        rel="preload"
+        as="image"
+        href="/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg"
+        fetchPriority="low"
+      />
+      <link
+        rel="preload"
+        as="image"
+        href="/icons/candado_lima.svg"
+        type="image/svg+xml"
+        fetchPriority="low"
+      />
+      <link
+        rel="preload"
+        as="image"
+        href="/images/LOGO_HPM_B.png"
+        fetchPriority="low"
+      />
+      <link
+        rel="preload"
+        as="image"
+        href="/images/FAVICON_FOOTER.png"
+        fetchPriority="low"
+      />
+    </>
+  );
+}

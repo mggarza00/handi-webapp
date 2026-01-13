@@ -4,11 +4,13 @@ import Link from "next/link";
 
 import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
 import HomeSignInModal from "@/components/auth/HomeSignInModal.client";
+import DeferOnIdle from "@/components/DeferOnIdle.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 
 import LandingHero from "./LandingHero.client";
+import LandingWarmup from "./LandingWarmup.client";
 import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { interLight, stackSansLight, stackSansMedium } from "./landing-fonts";
 
@@ -79,35 +81,40 @@ export default function LandingPage({
 
           {/* Mobile carousel effect */}
           <div className="md:hidden -mx-4 overflow-x-hidden">
-            <MobileCarousel
-              className="px-0 pt-6"
-              gap={16}
-              padding={16}
-              autoplay
-              autoplayDelay={4000}
-              loop
-              pauseOnHover
-              threeD={false}
+            <DeferOnIdle
+              delayMs={1500}
+              fallback={<div className="h-[340px]" aria-hidden="true" />}
             >
-              <StepCard
-                step="1"
-                title="Crea tu solicitud de servicio"
-                desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
-                rightImageSrc="/images/nueva-solicitud-mockup-short.png"
-              />
-              <StepCard
-                step="2"
-                title="Compara profesionales"
-                desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
-                rightImageSrc="/images/profesionals-list-mockup-short.png"
-              />
-              <StepCard
-                step="3"
-                title="Contrata con confianza"
-                desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
-                rightImageSrc="/images/chat-mockup-short.png"
-              />
-            </MobileCarousel>
+              <MobileCarousel
+                className="px-0 pt-6"
+                gap={16}
+                padding={16}
+                autoplay
+                autoplayDelay={4000}
+                loop
+                pauseOnHover
+                threeD={false}
+              >
+                <StepCard
+                  step="1"
+                  title="Crea tu solicitud de servicio"
+                  desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+                  rightImageSrc="/images/nueva-solicitud-mockup-short.png"
+                />
+                <StepCard
+                  step="2"
+                  title="Compara profesionales"
+                  desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+                  rightImageSrc="/images/profesionals-list-mockup-short.png"
+                />
+                <StepCard
+                  step="3"
+                  title="Contrata con confianza"
+                  desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+                  rightImageSrc="/images/chat-mockup-short.png"
+                />
+              </MobileCarousel>
+            </DeferOnIdle>
           </div>
 
           {/* Desktop grid */}
@@ -293,7 +300,20 @@ export default function LandingPage({
 
         <div className="space-y-3" id="profesionales-cerca-de-ti">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"></p>
-          <NearbyCarousel />
+          <DeferOnIdle
+            delayMs={1500}
+            fallback={
+              <div
+                className="mt-12 rounded-[32px] bg-white px-4 py-12 shadow-[0_22px_70px_-40px_rgba(8,40,119,0.45)] ring-1 ring-slate-100/80 md:px-8"
+                aria-hidden="true"
+              >
+                <div className="mx-auto h-8 w-56 rounded-full bg-slate-200" />
+                <div className="mt-10 h-[320px] rounded-3xl bg-slate-100" />
+              </div>
+            }
+          >
+            <NearbyCarousel />
+          </DeferOnIdle>
         </div>
       </div>
     </section>
@@ -384,6 +404,7 @@ export default function LandingPage({
       <HiddenIfClientHasSession>
         <HomeSignInModal />
       </HiddenIfClientHasSession>
+      <LandingWarmup />
       <LandingHero
         variant={variant}
         greetingText={greetingText}
