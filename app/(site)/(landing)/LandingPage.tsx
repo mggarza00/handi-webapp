@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import LandingHero from "./LandingHero.client";
+import LandingPageStyles from "./LandingPageStyles.client";
 import LandingWarmup from "./LandingWarmup.client";
 import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { interLight, stackSansLight, stackSansMedium } from "./landing-fonts";
@@ -426,32 +427,7 @@ export default function LandingPage({
           {trustSection}
         </>
       )}
-      <style jsx global>{`
-        :root {
-          --hero-header-height: 64px;
-          --hero-tabbar-height: 72px;
-          --hero-padding: 24px;
-        }
-        @media (width <= 768px) {
-          .client-hero__visual {
-            min-height: calc(
-              100vh - var(--hero-header-height) - var(--hero-tabbar-height) -
-                (2 * var(--hero-padding))
-            );
-            padding-bottom: calc(
-              var(--hero-padding) + env(safe-area-inset-bottom, 0px)
-            );
-          }
-          .guest-hero__visual {
-            min-height: calc(
-              100vh - var(--hero-header-height) - (1.5 * var(--hero-padding))
-            );
-            padding-bottom: calc(
-              var(--hero-padding) + env(safe-area-inset-bottom, 0px)
-            );
-          }
-        }
-      `}</style>
+      <LandingPageStyles />
     </main>
   );
 }
