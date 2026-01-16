@@ -14,6 +14,7 @@ import InstallAppBanner from "@/components/pwa/InstallAppBanner";
 import RequestNotificationsToast from "@/components/pwa/RequestNotificationsToast";
 import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.client";
 import RegisterSW from "@/app/register-sw";
+import VercelLiveGuard from "@/components/VercelLiveGuard.client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -183,6 +184,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
         </noscript>
         {/* Google One Tap (solo cliente; no renderiza UI propia) */}
         <OneTapMount />
+        <VercelLiveGuard />
         {children}
         <ClientToaster />
         {disableAssistant ? null : <AssistantPanel />}
