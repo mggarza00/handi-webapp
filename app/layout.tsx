@@ -1,6 +1,7 @@
 /* eslint-disable import/order */
 /* eslint-disable @next/next/no-page-custom-font */
 import "./globals.css";
+import Script from "next/script";
 import type { Metadata } from "next";
 import ClientToaster from "@/components/ClientToaster";
 import AssistantPanel from "@/components/assistant/AssistantPanel";
@@ -70,6 +71,17 @@ export default function RootLayout({
       className={`${inter.variable} ${nunito.variable} ${varelaRound.variable} ${concertOne.variable}`}
     >
       <head>
+        <Script
+          id="gtm-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
+='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-PFWQ4LRF');`,
+          }}
+        />
         <meta charSet="utf-8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -162,6 +174,14 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
+        <noscript>
+          <iframe
+            src="https://www.googletagmanager.com/ns.html?id=GTM-PFWQ4LRF"
+            height="0"
+            width="0"
+            style={{ display: "none", visibility: "hidden" }}
+          />
+        </noscript>
         {/* Google One Tap (solo cliente; no renderiza UI propia) */}
         <OneTapMount />
         <VercelLiveGuard />

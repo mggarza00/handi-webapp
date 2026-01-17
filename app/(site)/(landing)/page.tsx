@@ -1,20 +1,11 @@
 import { headers } from "next/headers";
 
-import LandingPage from "./page.client";
+import LandingPage from "./LandingPage";
+import { buildCatalogLists, type CatalogRow, type CategoryCard } from "./catalog";
 
-import {
-  buildGreetingText,
-  inferGreetingPreferenceFromName,
-} from "@/lib/greeting";
-import {
-  buildCatalogLists,
-  type CatalogLists,
-  type CatalogRow,
-} from "@/lib/catalog";
-import {
-  ensureGreetingPreferenceForProfile,
-  extractFirstName,
-} from "@/lib/profile";
+import { buildGreetingText, inferGreetingPreferenceFromName } from "@/lib/greeting";
+import { ensureGreetingPreferenceForProfile, extractFirstName } from "@/lib/profile";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
 
@@ -43,6 +34,10 @@ export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
 const CATALOG_REVALIDATE_SECONDS = 300;
+const TOP_CATEGORY_SAMPLE = 2000;
+
+const localeSort = (a: string, b: string) =>
+  a.localeCompare(b, "es", { sensitivity: "base" });
 
 function getBaseUrl() {
   const h = headers();
@@ -56,7 +51,7 @@ function getBaseUrl() {
   );
 }
 
-async function getCatalogLists(): Promise<CatalogLists> {
+async function getCatalogLists() {
   const origin = getBaseUrl();
   try {
     const res = await fetch(`${origin}/api/catalog/categories`, {
@@ -70,6 +65,39 @@ async function getCatalogLists(): Promise<CatalogLists> {
   } catch (error) {
     console.error("[landing] catalog fetch failed", error);
     return { categoryCards: [], subcategories: [] };
+  }
+}
+
+async function getTopCategoryCards(
+  categoryCards: CategoryCard[],
+): Promise<CategoryCard[]> {
+  if (!categoryCards.length) return [];
+  try {
+    const admin = getAdminSupabase();
+    const { data, error } = await admin
+      .from("requests")
+      .select("category, created_at")
+      .order("created_at", { ascending: false })
+      .limit(TOP_CATEGORY_SAMPLE);
+    if (error || !Array.isArray(data)) {
+      return categoryCards.slice(0, 8);
+    }
+    const counts = new Map<string, number>();
+    data.forEach((row) => {
+      const name = (row as Record<string, unknown>)?.category;
+      const clean = (name ?? "").toString().trim();
+      if (!clean) return;
+      counts.set(clean, (counts.get(clean) || 0) + 1);
+    });
+    const sorted = [...categoryCards].sort((a, b) => {
+      const diff = (counts.get(b.name) || 0) - (counts.get(a.name) || 0);
+      if (diff !== 0) return diff;
+      return localeSort(a.name, b.name);
+    });
+    return sorted.slice(0, 8);
+  } catch (error) {
+    console.error("[landing] top categories failed", error);
+    return categoryCards.slice(0, 8);
   }
 }
 
@@ -104,9 +132,7 @@ export default async function Page() {
   if (user) {
     const { data } = await supabase
       .from("user_saved_addresses")
-      .select(
-        "id,label,address_line,address_place_id,lat,lng,last_used_at,times_used",
-      )
+      .select("id,label,address_line,address_place_id,lat,lng,last_used_at,times_used")
       .eq("user_id", user.id)
       .order("last_used_at", { ascending: false })
       .limit(5);
@@ -149,6 +175,9 @@ export default async function Page() {
   }
 
   const catalogLists = await getCatalogLists();
+  const topCategoryCards = await getTopCategoryCards(
+    catalogLists.categoryCards,
+  );
 
   return (
     <LandingPage
@@ -158,6 +187,7 @@ export default async function Page() {
       savedAddresses={savedAddresses}
       categoryCards={catalogLists.categoryCards}
       subcategories={catalogLists.subcategories}
+      topCategoryCards={topCategoryCards}
     />
   );
 }
