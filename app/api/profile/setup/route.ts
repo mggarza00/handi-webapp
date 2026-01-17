@@ -79,27 +79,7 @@ export async function POST(req: Request) {
     // Si NO existe fila previa, inicializar como inactivo; si ya existe, no tocar 'active'
     ...(existing?.id ? {} : { active: false }),
   } as Database["public"]["Tables"]["professionals"]["Insert"];
-
-  // Si el usuario está registrándose como profesional, eleva su rol a "pro"
-  try {
-    const { data: curr } = await (supabase as any)
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    const currentRole = (curr?.role ?? null) as
-      | null
-      | "client"
-      | "pro"
-      | "admin";
-    if (currentRole == null) {
-      // Solo establecer a pro si no tenía rol aún
-      (payload as Database["public"]["Tables"]["profiles"]["Update"]).role =
-        "pro" as const;
-    }
-  } catch {
-    // ignore
-  }
+  // No elevar rol aqui; el alta de profesional se controla por aprobacion/admin.
 
   // Upsert por id (RLS: id debe ser = auth.uid()) en professionals
   const { data, error } = await (supabase as any)
@@ -120,7 +100,10 @@ export async function POST(req: Request) {
 
   // Mantener sincronizado el nombre visible del perfil base
   try {
-    if (typeof input.full_name === "string" && input.full_name.trim().length >= 2) {
+    if (
+      typeof input.full_name === "string" &&
+      input.full_name.trim().length >= 2
+    ) {
       await (supabase as any)
         .from("profiles")
         .update({ full_name: input.full_name.trim() })
