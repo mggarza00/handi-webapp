@@ -31,12 +31,54 @@ export async function POST(req: Request) {
         { status: 401, headers: JSONH },
       );
 
+    const userId = auth.user.id;
+
+    if (to === "profesional") {
+      const [profileRes, professionalRes, applicationRes] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("is_client_pro")
+          .eq("id", userId)
+          .maybeSingle<{ is_client_pro: boolean | null }>(),
+        supabase
+          .from("professionals")
+          .select("id")
+          .eq("id", userId)
+          .maybeSingle<{ id: string }>(),
+        supabase
+          .from("pro_applications")
+          .select("status")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle<{ status: string | null }>(),
+      ]);
+
+      const isClientPro = profileRes.data?.is_client_pro === true;
+      const hasProfessionalRow = Boolean(professionalRes.data?.id);
+      const lastStatus = (applicationRes.data?.status || "").toLowerCase();
+      const isApprovedStatus =
+        lastStatus === "accepted" || lastStatus === "approved";
+
+      if (!isClientPro && !hasProfessionalRow && !isApprovedStatus) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "PRO_NOT_APPROVED",
+            detail:
+              "Tu cuenta aun no ha sido aprobada como profesional. Completa la postulacion en /pro-apply.",
+          },
+          { status: 403, headers: JSONH },
+        );
+      }
+    }
+
     // Map Spanish to existing DB role enum
     const role = to === "cliente" ? "client" : "pro";
     const { data, error } = await (supabase as any)
       .from("profiles")
       .update({ role } as Database["public"]["Tables"]["profiles"]["Update"])
-      .eq("id", auth.user.id)
+      .eq("id", userId)
       .select("id, role")
       .single();
     if (error) {

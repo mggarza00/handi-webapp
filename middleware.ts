@@ -126,6 +126,8 @@ export async function middleware(request: NextRequest) {
   const requiresRole =
     !!user &&
     (!profileRole || `${profileRole}`.trim() === "") &&
+    // Allow /pro-apply without a role to avoid the onboarding loop; pro approval is enforced server-side.
+    !pathname.startsWith("/pro-apply") &&
     !pathname.startsWith("/onboarding/elige-rol") &&
     !pathname.startsWith("/auth/callback") &&
     !pathname.startsWith("/auth/sign-out");

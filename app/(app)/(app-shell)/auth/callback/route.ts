@@ -15,6 +15,11 @@ export async function GET(req: Request) {
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
   const rawNext = url.searchParams.get("next") || "/";
   const next = rawNext.startsWith("/") ? rawNext : "/";
+  const toast = url.searchParams.get("toast");
+  const nextUrl = new URL(next, env.appUrl);
+  if (toast && !nextUrl.searchParams.has("toast")) {
+    nextUrl.searchParams.set("toast", toast);
+  }
   // Preparar una respuesta donde se apliquen cookies (mirroring en redirect)
   const supabase = getRouteClient();
 
@@ -22,12 +27,18 @@ export async function GET(req: Request) {
     if (code) {
       await supabase.auth.exchangeCodeForSession(code);
     } else if (tokenHash) {
-      const emailType: "magiclink" | "recovery" | "invite" =
+      const knownTypes = new Set(["recovery", "invite", "signup", "magiclink"]);
+      if (typeParam && !knownTypes.has(typeParam)) {
+        console.warn("[auth/callback] unknown email type:", typeParam);
+      }
+      const emailType: "magiclink" | "recovery" | "invite" | "signup" =
         typeParam === "recovery"
           ? "recovery"
           : typeParam === "invite"
             ? "invite"
-            : "magiclink";
+            : typeParam === "signup"
+              ? "signup"
+              : "magiclink";
       await supabase.auth.verifyOtp({ type: emailType, token_hash: tokenHash });
     } else {
       throw new Error("missing_oauth_params");
@@ -35,8 +46,19 @@ export async function GET(req: Request) {
 
     const role = await ensureProfile(supabase);
     if (!role) {
+      // Skip onboarding for pro-apply and request creation intents; role approval is enforced elsewhere.
+      if (
+        nextUrl.pathname.startsWith("/pro-apply") ||
+        nextUrl.pathname.startsWith("/requests/new")
+      ) {
+        return NextResponse.redirect(nextUrl, { status: 302 });
+      }
       const onboardingUrl = new URL("/onboarding/elige-rol", env.appUrl);
-      if (next) onboardingUrl.searchParams.set("next", next);
+      onboardingUrl.searchParams.set(
+        "next",
+        `${nextUrl.pathname}${nextUrl.search}`,
+      );
+      if (toast) onboardingUrl.searchParams.set("toast", toast);
       return NextResponse.redirect(onboardingUrl, { status: 302 });
     }
   } catch (err) {
@@ -65,7 +87,7 @@ export async function GET(req: Request) {
     return NextResponse.redirect(redirectUrl, { status: 302 });
   }
 
-  return NextResponse.redirect(new URL(next, env.appUrl), { status: 302 });
+  return NextResponse.redirect(nextUrl, { status: 302 });
 }
 
 async function ensureProfile(
