@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import RoleOnboarding from "./role-onboarding.client";
+import HideHeaderRequestsLink from "./HideHeaderRequestsLink.client";
 
 import { ApiError, getAuthContext } from "@/lib/_supabase-server";
 
@@ -81,12 +82,15 @@ export default async function ChooseRolePage({
     "Handi";
 
   return (
-    <RoleOnboarding
-      name={preferredName}
-      email={user.email ?? null}
-      next={returnTo}
-      preselectedRole={preselectedRole}
-      toastKey={toastKey}
-    />
+    <>
+      <HideHeaderRequestsLink />
+      <RoleOnboarding
+        name={preferredName}
+        email={user.email ?? null}
+        next={returnTo}
+        preselectedRole={preselectedRole}
+        toastKey={toastKey}
+      />
+    </>
   );
 }

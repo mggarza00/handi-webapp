@@ -658,6 +658,10 @@ body {
     display: none !important;
   }
 
+  .hide-requests-link .handi-header a[href^="/requests?mine=1"] {
+    display: none !important;
+  }
+
   .handi-header.header-on-hero
     .handi-header-public
     .login-pill:hover

@@ -7,9 +7,19 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Popover,
   PopoverTrigger,
@@ -32,16 +42,21 @@ import {
 const RFC_REGEX = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
 
 // Bank helpers
-function onlyDigits(s: string) { return (s || "").replace(/\D+/g, ""); }
-function clabePretty(v: string) { return onlyDigits(v).slice(0, 18).replace(/(.)/g, '$1 ').trim(); }
+function onlyDigits(s: string) {
+  return (s || "").replace(/\D+/g, "");
+}
+function clabePretty(v: string) {
+  return onlyDigits(v).slice(0, 18).replace(/(.)/g, "$1 ").trim();
+}
 function isValidClabe(input: string): boolean {
   const clabe = onlyDigits(input);
   if (!/^\d{18}$/.test(clabe)) return false;
   const weights = [3, 7, 1] as const;
   let sum = 0;
-  for (let i = 0; i < 17; i++) sum += ((clabe.charCodeAt(i) - 48) * weights[i % 3]) % 10;
+  for (let i = 0; i < 17; i++)
+    sum += ((clabe.charCodeAt(i) - 48) * weights[i % 3]) % 10;
   const dv = (10 - (sum % 10)) % 10;
-  return dv === (clabe.charCodeAt(17) - 48);
+  return dv === clabe.charCodeAt(17) - 48;
 }
 
 const AppSchema = z
@@ -81,17 +96,40 @@ const AppSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.empresa) {
-      if (!data.company_legal_name || data.company_legal_name.trim().length < 2) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_legal_name"], message: "Requerido" });
+      if (
+        !data.company_legal_name ||
+        data.company_legal_name.trim().length < 2
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["company_legal_name"],
+          message: "Requerido",
+        });
       }
       if (!data.company_industry || data.company_industry.trim().length < 1) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_industry"], message: "Requerido" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["company_industry"],
+          message: "Requerido",
+        });
       }
-      if (data.company_employees_count != null && (!Number.isInteger(data.company_employees_count) || data.company_employees_count < 1)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_employees_count"], message: "Inválido" });
+      if (
+        data.company_employees_count != null &&
+        (!Number.isInteger(data.company_employees_count) ||
+          data.company_employees_count < 1)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["company_employees_count"],
+          message: "Inválido",
+        });
       }
       if (data.company_website && !/^https?:\/\//i.test(data.company_website)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["company_website"], message: "Inválido" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["company_website"],
+          message: "Inválido",
+        });
       }
     }
   });
@@ -127,11 +165,15 @@ export default function ProApplyForm({
   const [selectedCategories, setSelectedCategories] = React.useState<string[]>(
     [],
   );
-  const [selectedSubcategories, setSelectedSubcategories] = React.useState<string[]>([]);
+  const [selectedSubcategories, setSelectedSubcategories] = React.useState<
+    string[]
+  >([]);
   const [availableCategories, setAvailableCategories] = React.useState<
     string[]
   >([]);
-  const [groupedSubcats, setGroupedSubcats] = React.useState<Record<string, string[]>>({});
+  const [groupedSubcats, setGroupedSubcats] = React.useState<
+    Record<string, string[]>
+  >({});
   const [loadingCats, setLoadingCats] = React.useState(false);
   const [years, setYears] = React.useState("");
   const [privacy, setPrivacy] = React.useState(false);
@@ -141,7 +183,11 @@ export default function ProApplyForm({
   const [bankEdited, setBankEdited] = React.useState(false);
   const [bankClabe, setBankClabe] = React.useState("");
   const [bankCover, setBankCover] = React.useState<File | null>(null);
-  const [bankErrs, setBankErrs] = React.useState<{ holder: boolean; bank: boolean; clabe: boolean }>({ holder: false, bank: false, clabe: false });
+  const [bankErrs, setBankErrs] = React.useState<{
+    holder: boolean;
+    bank: boolean;
+    clabe: boolean;
+  }>({ holder: false, bank: false, clabe: false });
   const [accountType, setAccountType] = React.useState("");
   // Facturación (solo persona física)
   const [canInvoiceSelf, setCanInvoiceSelf] = React.useState(false);
@@ -161,6 +207,7 @@ export default function ProApplyForm({
     services_desc: false,
     cities: false,
     categories: false,
+    subcategories: false,
     years_experience: false,
     privacy_accept: false,
   });
@@ -224,7 +271,13 @@ export default function ProApplyForm({
   const [sigDirty, setSigDirty] = React.useState(false);
   const [sigPreviewUrl, setSigPreviewUrl] = React.useState<string | null>(null);
   const [sigOpen, setSigOpen] = React.useState(false);
-  type UploadResponse = { ok: boolean; url: string; path: string; error?: string; detail?: string };
+  type UploadResponse = {
+    ok: boolean;
+    url: string;
+    path: string;
+    error?: string;
+    detail?: string;
+  };
 
   // Load draft on mount
   React.useEffect(() => {
@@ -244,15 +297,15 @@ export default function ProApplyForm({
         categories?: string[];
         subcategories?: string[];
         years_experience?: string;
-      privacy_accept?: boolean;
-      references?: Reference[];
-      billing_can_invoice_self?: boolean;
-      billing_authorize_handi?: boolean;
-      bank_holder?: string;
-      bank_name?: string;
-      bank_clabe?: string;
-      bank_account_type?: string;
-    }>("draft:apply-professional");
+        privacy_accept?: boolean;
+        references?: Reference[];
+        billing_can_invoice_self?: boolean;
+        billing_authorize_handi?: boolean;
+        bank_holder?: string;
+        bank_name?: string;
+        bank_clabe?: string;
+        bank_account_type?: string;
+      }>("draft:apply-professional");
       if (d) {
         if (typeof d.full_name === "string") setFullName(d.full_name);
         if (typeof d.phone === "string") setPhone(d.phone);
@@ -285,7 +338,8 @@ export default function ProApplyForm({
         if (typeof d.bank_holder === "string") setBankHolder(d.bank_holder);
         if (typeof d.bank_name === "string") setBankName(d.bank_name);
         if (typeof d.bank_clabe === "string") setBankClabe(d.bank_clabe);
-        if (typeof d.bank_account_type === "string") setAccountType(d.bank_account_type);
+        if (typeof d.bank_account_type === "string")
+          setAccountType(d.bank_account_type);
       }
     } catch {
       /* ignore */
@@ -348,18 +402,24 @@ export default function ProApplyForm({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/me/bank-account", { cache: "no-store", credentials: "include" });
-        const j = (await res.json().catch(() => ({}))) as { ok?: boolean; account?: Record<string, unknown> | null };
+        const res = await fetch("/api/me/bank-account", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          account?: Record<string, unknown> | null;
+        };
         if (res.ok && j?.account && !cancelled) {
           const acc = j.account as Record<string, unknown>;
           const holder = String(acc["account_holder_name"] ?? "").trim();
           const bname = String(acc["bank_name"] ?? "").trim();
           const clabe = String(acc["clabe"] ?? "").trim();
           const atype = String(acc["account_type"] ?? "").trim();
-          if (holder) setBankHolder((prev) => (prev || holder));
-          if (bname) setBankName((prev) => (prev || bname));
-          if (clabe) setBankClabe((prev) => (prev || clabe));
-          if (atype) setAccountType((prev) => (prev || atype));
+          if (holder) setBankHolder((prev) => prev || holder);
+          if (bname) setBankName((prev) => prev || bname);
+          if (clabe) setBankClabe((prev) => prev || clabe);
+          if (atype) setAccountType((prev) => prev || atype);
         }
       } catch {
         /* ignore */
@@ -369,8 +429,10 @@ export default function ProApplyForm({
         }
       }
     })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Mantener "Nombre del titular" sincronizado según el tipo:
@@ -397,11 +459,28 @@ export default function ProApplyForm({
     if (bankEdited) return;
     const code = onlyDigits(bankClabe).slice(0, 3);
     const map: Record<string, string> = {
-      '002': 'Citibanamex', '006': 'Banco del Bajío', '009': 'BBVA', '012': 'BBVA', '014': 'Santander', '019': 'BanRegio', '021': 'HSBC',
-      '030': 'Banco del Bajío', '032': 'IXE', '036': 'Inbursa', '044': 'Scotiabank', '058': 'Banamex (old)', '059': 'Invex', '062': 'Afirme',
-      '072': 'Banorte', '127': 'Azteca', '128': 'Banamex (wallet)', '136': 'Intercam', '137': 'BanCoppel', '138': 'BanCoppel',
+      "002": "Citibanamex",
+      "006": "Banco del Bajío",
+      "009": "BBVA",
+      "012": "BBVA",
+      "014": "Santander",
+      "019": "BanRegio",
+      "021": "HSBC",
+      "030": "Banco del Bajío",
+      "032": "IXE",
+      "036": "Inbursa",
+      "044": "Scotiabank",
+      "058": "Banamex (old)",
+      "059": "Invex",
+      "062": "Afirme",
+      "072": "Banorte",
+      "127": "Azteca",
+      "128": "Banamex (wallet)",
+      "136": "Intercam",
+      "137": "BanCoppel",
+      "138": "BanCoppel",
     };
-    const suggestion = map[code] || '';
+    const suggestion = map[code] || "";
     if (suggestion && !bankName.trim()) setBankName(suggestion);
   }, [bankClabe, bankEdited, bankName]);
 
@@ -428,7 +507,10 @@ export default function ProApplyForm({
         const j = await res.json();
         if (!res.ok || j?.ok === false)
           throw new Error(j?.detail || j?.error || "fetch_failed");
-        const rows: Array<{ category?: string | null; subcategory?: string | null }> = j?.data ?? [];
+        const rows: Array<{
+          category?: string | null;
+          subcategory?: string | null;
+        }> = j?.data ?? [];
         const catSet = new Set<string>();
         const grouped: Record<string, string[]> = {};
         (rows || []).forEach((r) => {
@@ -441,9 +523,13 @@ export default function ProApplyForm({
           }
         });
         if (!cancelled) {
-          setAvailableCategories(Array.from(catSet).sort((a, b) => a.localeCompare(b)));
+          setAvailableCategories(
+            Array.from(catSet).sort((a, b) => a.localeCompare(b)),
+          );
           // Sort subcategories alphabetically per category
-          Object.keys(grouped).forEach((k) => grouped[k].sort((a, b) => a.localeCompare(b)));
+          Object.keys(grouped).forEach((k) =>
+            grouped[k].sort((a, b) => a.localeCompare(b)),
+          );
           setGroupedSubcats(grouped);
         }
       } catch {
@@ -472,6 +558,13 @@ export default function ProApplyForm({
       setSelectedSubcategories(filtered);
     }
   }, [selectedCategories, groupedSubcats, selectedSubcategories]);
+
+  React.useEffect(() => {
+    if (!fieldErrs.subcategories) return;
+    if (selectedSubcategories.length > 0) {
+      setFieldErrs((prev) => ({ ...prev, subcategories: false }));
+    }
+  }, [fieldErrs.subcategories, selectedSubcategories]);
 
   // Signature drawing handlers (pointer events) bind when dialog opens
   React.useEffect(() => {
@@ -646,9 +739,12 @@ export default function ProApplyForm({
     const ctype = (res.headers.get("content-type") || "").toLowerCase();
     if (!ctype.includes("application/json")) {
       const text = await res.text().catch(() => "");
-      const isTooLarge = res.status === 413 || /request\s*entity\s*too\s*large/i.test(text);
+      const isTooLarge =
+        res.status === 413 || /request\s*entity\s*too\s*large/i.test(text);
       if (isTooLarge) {
-        throw new Error("El archivo es demasiado grande. Tamaño máximo: 10 MB.");
+        throw new Error(
+          "El archivo es demasiado grande. Tamaño máximo: 10 MB.",
+        );
       }
       throw new Error(text || "Error al subir archivo. Intenta nuevamente.");
     }
@@ -671,6 +767,7 @@ export default function ProApplyForm({
       services_desc: false,
       cities: false,
       categories: false,
+      subcategories: false,
       years_experience: false,
       privacy_accept: false,
     });
@@ -722,6 +819,13 @@ export default function ProApplyForm({
         );
         return;
       }
+    }
+    if (selectedSubcategories.length === 0) {
+      const msg = "Selecciona las subcategorias de tus servicios.";
+      setError(msg);
+      toast.error(msg);
+      setFieldErrs((prev) => ({ ...prev, subcategories: true }));
+      return;
     }
 
     // Solo validar campos de empresa si el switch está activado
@@ -803,7 +907,8 @@ export default function ProApplyForm({
 
     // Facturación: si no es empresa, exigir autorización si no tiene facultad propia
     if (!empresa && !canInvoiceSelf && !authorizeHandi) {
-      const msg = "Se requiere autorización del usuario para elaborar facturas a su nombre.";
+      const msg =
+        "Se requiere autorización del usuario para elaborar facturas a su nombre.";
       setError(msg);
       toast.error(msg);
       return;
@@ -897,18 +1002,19 @@ export default function ProApplyForm({
     });
     if (!bankParsed.success) {
       const issues = bankParsed.error.issues || [];
-      const holderErr = issues.some((i) => i.path[0] === 'account_holder_name');
-      const bankErr = issues.some((i) => i.path[0] === 'bank_name');
-      const clabeErr = issues.some((i) => i.path[0] === 'clabe');
+      const holderErr = issues.some((i) => i.path[0] === "account_holder_name");
+      const bankErr = issues.some((i) => i.path[0] === "bank_name");
+      const clabeErr = issues.some((i) => i.path[0] === "clabe");
       setBankErrs({ holder: holderErr, bank: bankErr, clabe: clabeErr });
-      const first = issues[0]?.message || 'Revisa los datos de tu cuenta bancaria.';
+      const first =
+        issues[0]?.message || "Revisa los datos de tu cuenta bancaria.";
       setError(first);
       toast.error(first);
       return;
     }
     if (!isValidClabe(clabeDigits)) {
       setBankErrs((p) => ({ ...p, clabe: true }));
-      const msg = 'CLABE inválida (dígito verificador no coincide).';
+      const msg = "CLABE inválida (dígito verificador no coincide).";
       setError(msg);
       toast.error(msg);
       return;
@@ -1112,7 +1218,9 @@ export default function ProApplyForm({
         </h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm mb-1">{empresa ? "Nombre comercial de la empresa" : "Nombre completo"}</label>
+            <label className="block text-sm mb-1">
+              {empresa ? "Nombre comercial de la empresa" : "Nombre completo"}
+            </label>
             <Input
               aria-invalid={fieldErrs.full_name}
               value={fullName}
@@ -1151,7 +1259,9 @@ export default function ProApplyForm({
               autoCapitalize="characters"
             />
             {fieldErrs.rfc && (
-              <p className="text-xs text-pink-600 mt-1">Ingresa un RFC válido</p>
+              <p className="text-xs text-pink-600 mt-1">
+                Ingresa un RFC válido
+              </p>
             )}
           </div>
           <div className="md:col-span-2">
@@ -1223,15 +1333,27 @@ export default function ProApplyForm({
               </p>
             )}
             {selectedCategories.length > 0 && (
-              <div className="mt-3">
+              <div
+                className={cn(
+                  "mt-3 rounded-md border p-3",
+                  fieldErrs.subcategories
+                    ? "border-pink-500 bg-pink-50/40"
+                    : "border-slate-200",
+                )}
+              >
                 <p className="text-sm text-slate-700 mb-2">Subcategorías</p>
                 <div className="space-y-2">
                   {selectedCategories.map((cat) => {
                     const subs = groupedSubcats[cat] || [];
                     if (subs.length === 0) return null;
                     return (
-                      <details key={cat} className="rounded-md border bg-slate-50">
-                        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">{cat}</summary>
+                      <details
+                        key={cat}
+                        className="rounded-md border bg-slate-50"
+                      >
+                        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+                          {cat}
+                        </summary>
                         <div className="px-3 pb-3 pt-1">
                           <div className="flex items-center justify-end mb-2">
                             <Button
@@ -1239,7 +1361,9 @@ export default function ProApplyForm({
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                const all = new Set<string>(selectedSubcategories);
+                                const all = new Set<string>(
+                                  selectedSubcategories,
+                                );
                                 subs.forEach((s) => all.add(s));
                                 setSelectedSubcategories(Array.from(all));
                               }}
@@ -1251,14 +1375,24 @@ export default function ProApplyForm({
                             {subs.map((s) => {
                               const checked = selectedSubcategories.includes(s);
                               return (
-                                <label key={s} className="flex items-center gap-2 text-sm">
+                                <label
+                                  key={s}
+                                  className="flex items-center gap-2 text-sm"
+                                >
                                   <input
                                     type="checkbox"
                                     checked={checked}
                                     onChange={(e) => {
                                       const next = e.currentTarget.checked
-                                        ? Array.from(new Set([...selectedSubcategories, s]))
-                                        : selectedSubcategories.filter((x) => x !== s);
+                                        ? Array.from(
+                                            new Set([
+                                              ...selectedSubcategories,
+                                              s,
+                                            ]),
+                                          )
+                                        : selectedSubcategories.filter(
+                                            (x) => x !== s,
+                                          );
                                       setSelectedSubcategories(next);
                                     }}
                                   />
@@ -1272,6 +1406,11 @@ export default function ProApplyForm({
                     );
                   })}
                 </div>
+                {fieldErrs.subcategories && (
+                  <p className="text-xs text-pink-600 mt-2">
+                    Selecciona al menos una subcategoria
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -1294,37 +1433,59 @@ export default function ProApplyForm({
           <h2 className="mb-3 text-base font-semibold">Documentos</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-sm mb-1">Sube tu CV (PDF o DOC)</label>
+              <label className="block text-sm mb-1">
+                Sube tu CV (PDF o DOC)
+              </label>
               <Input
-                className={cn(fileErrs.cv && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.cv &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 onChange={(e) => setCvFile(e.currentTarget.files?.[0] ?? null)}
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Cartas de recomendación (al menos una)</label>
+              <label className="block text-sm mb-1">
+                Cartas de recomendación (al menos una)
+              </label>
               <Input
-                className={cn(fileErrs.letters && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.letters &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="image/*,.pdf"
                 multiple
-                onChange={(e) => setLetters(Array.from(e.currentTarget.files ?? []))}
+                onChange={(e) =>
+                  setLetters(Array.from(e.currentTarget.files ?? []))
+                }
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Identificación oficial (frente)</label>
+              <label className="block text-sm mb-1">
+                Identificación oficial (frente)
+              </label>
               <Input
-                className={cn(fileErrs.idFront && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.idFront &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="image/*"
                 onChange={(e) => setIdFront(e.currentTarget.files?.[0] ?? null)}
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Identificación oficial (reverso)</label>
+              <label className="block text-sm mb-1">
+                Identificación oficial (reverso)
+              </label>
               <Input
-                className={cn(fileErrs.idBack && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.idBack &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="image/*"
                 onChange={(e) => setIdBack(e.currentTarget.files?.[0] ?? null)}
@@ -1336,43 +1497,73 @@ export default function ProApplyForm({
 
       <SlideDown open={empresa}>
         <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold">Documentos de empresa</h2>
-          <p className="text-xs text-slate-600 mb-3">Tamaño máximo 10 MB por archivo. Formatos: PDF, JPG o PNG.</p>
+          <h2 className="mb-3 text-base font-semibold">
+            Documentos de empresa
+          </h2>
+          <p className="text-xs text-slate-600 mb-3">
+            Tamaño máximo 10 MB por archivo. Formatos: PDF, JPG o PNG.
+          </p>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="block text-sm mb-1">Acta constitutiva</label>
               <Input
-                className={cn(fileErrs.companyDoc && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.companyDoc &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="application/pdf,image/*"
-                onChange={(e) => setCompanyDoc(e.currentTarget.files?.[0] ?? null)}
+                onChange={(e) =>
+                  setCompanyDoc(e.currentTarget.files?.[0] ?? null)
+                }
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Constancia de situación fiscal (CSF)</label>
+              <label className="block text-sm mb-1">
+                Constancia de situación fiscal (CSF)
+              </label>
               <Input
-                className={cn(fileErrs.companyCsf && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.companyCsf &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="application/pdf,image/*"
-                onChange={(e) => setCompanyCsf(e.currentTarget.files?.[0] ?? null)}
+                onChange={(e) =>
+                  setCompanyCsf(e.currentTarget.files?.[0] ?? null)
+                }
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Identificación representante legal (frente)</label>
+              <label className="block text-sm mb-1">
+                Identificación representante legal (frente)
+              </label>
               <Input
-                className={cn(fileErrs.repIdFront && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.repIdFront &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="image/*,application/pdf"
-                onChange={(e) => setRepIdFront(e.currentTarget.files?.[0] ?? null)}
+                onChange={(e) =>
+                  setRepIdFront(e.currentTarget.files?.[0] ?? null)
+                }
               />
             </div>
             <div>
-              <label className="block text-sm mb-1">Identificación representante legal (reverso)</label>
+              <label className="block text-sm mb-1">
+                Identificación representante legal (reverso)
+              </label>
               <Input
-                className={cn(fileErrs.repIdBack && "border-pink-500 focus-visible:ring-pink-500/50")}
+                className={cn(
+                  fileErrs.repIdBack &&
+                    "border-pink-500 focus-visible:ring-pink-500/50",
+                )}
                 type="file"
                 accept="image/*,application/pdf"
-                onChange={(e) => setRepIdBack(e.currentTarget.files?.[0] ?? null)}
+                onChange={(e) =>
+                  setRepIdBack(e.currentTarget.files?.[0] ?? null)
+                }
               />
             </div>
           </div>
@@ -1424,7 +1615,11 @@ export default function ProApplyForm({
                     refErrs[idx]?.relation &&
                       "border-pink-500 focus-visible:ring-pink-500/50",
                   )}
-                  placeholder={empresa ? "ej. Proveedor o Cliente" : "Relación (ej. jefe anterior)"}
+                  placeholder={
+                    empresa
+                      ? "ej. Proveedor o Cliente"
+                      : "Relación (ej. jefe anterior)"
+                  }
                   value={r.relation}
                   onChange={(e) =>
                     setRefs((arr) =>
@@ -1444,7 +1639,10 @@ export default function ProApplyForm({
       {/* Cuentas bancarias */}
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <h2 className="mb-3 text-base font-semibold">Cuentas bancarias</h2>
-        <p className="text-xs text-slate-600 mb-3">Usaremos esta cuenta para transferirte tus pagos. Debe estar a tu nombre.</p>
+        <p className="text-xs text-slate-600 mb-3">
+          Usaremos esta cuenta para transferirte tus pagos. Debe estar a tu
+          nombre.
+        </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <label className="block text-sm mb-1">Nombre del titular</label>
@@ -1456,7 +1654,9 @@ export default function ProApplyForm({
               className="bg-slate-50"
             />
             {bankErrs.holder && (
-              <p className="text-xs text-pink-600 mt-1">Ingresa el nombre del titular</p>
+              <p className="text-xs text-pink-600 mt-1">
+                Ingresa el nombre del titular
+              </p>
             )}
           </div>
           <div>
@@ -1464,7 +1664,10 @@ export default function ProApplyForm({
             <Input
               aria-invalid={bankErrs.bank}
               value={bankName}
-              onChange={(e) => { setBankEdited(true); setBankName(e.target.value); }}
+              onChange={(e) => {
+                setBankEdited(true);
+                setBankName(e.target.value);
+              }}
               placeholder="Selecciona tu banco"
             />
             {bankErrs.bank && (
@@ -1472,13 +1675,17 @@ export default function ProApplyForm({
             )}
           </div>
           <div>
-            <label className="block text-sm mb-1">CLABE: 18 dígitos (solo números)</label>
+            <label className="block text-sm mb-1">
+              CLABE: 18 dígitos (solo números)
+            </label>
             <Input
               aria-invalid={bankErrs.clabe}
               value={clabePretty(bankClabe)}
-              onChange={(e) => setBankClabe(onlyDigits(e.target.value).slice(0, 18))}
+              onChange={(e) =>
+                setBankClabe(onlyDigits(e.target.value).slice(0, 18))
+              }
               onPaste={(e) => {
-                const t = e.clipboardData.getData('text');
+                const t = e.clipboardData.getData("text");
                 e.preventDefault();
                 setBankClabe(onlyDigits(t).slice(0, 18));
               }}
@@ -1488,16 +1695,28 @@ export default function ProApplyForm({
             {(() => {
               const d = onlyDigits(bankClabe);
               if (d.length > 0 && d.length < 18)
-                return <p className="text-xs text-amber-700 mt-1">CLABE incompleta (18 dígitos requeridos)</p>;
+                return (
+                  <p className="text-xs text-amber-700 mt-1">
+                    CLABE incompleta (18 dígitos requeridos)
+                  </p>
+                );
               if (d.length === 18 && !isValidClabe(d))
-                return <p className="text-xs text-pink-600 mt-1">CLABE inválida (dígito verificador no coincide)</p>;
+                return (
+                  <p className="text-xs text-pink-600 mt-1">
+                    CLABE inválida (dígito verificador no coincide)
+                  </p>
+                );
               if (bankErrs.clabe)
-                return <p className="text-xs text-pink-600 mt-1">CLABE inválida</p>;
+                return (
+                  <p className="text-xs text-pink-600 mt-1">CLABE inválida</p>
+                );
               return null;
             })()}
           </div>
           <div>
-            <label className="block text-sm mb-1">Tipo de cuenta (opcional)</label>
+            <label className="block text-sm mb-1">
+              Tipo de cuenta (opcional)
+            </label>
             <Select value={accountType} onValueChange={setAccountType}>
               <SelectTrigger className="w-full" aria-label="Tipo de cuenta">
                 <SelectValue placeholder="Selecciona tipo de cuenta" />
@@ -1512,14 +1731,22 @@ export default function ProApplyForm({
             </Select>
           </div>
           <div>
-            <label className="block text-sm mb-1">Sube carátula o captura donde se vea tu nombre y CLABE (opcional, ayuda a verificar)</label>
+            <label className="block text-sm mb-1">
+              Sube carátula o captura donde se vea tu nombre y CLABE (opcional,
+              ayuda a verificar)
+            </label>
             <Input
-              className={cn(fileErrs.bankCover && "border-pink-500 focus-visible:ring-pink-500/50")}
+              className={cn(
+                fileErrs.bankCover &&
+                  "border-pink-500 focus-visible:ring-pink-500/50",
+              )}
               type="file"
               accept="image/*,application/pdf"
               onChange={(e) => setBankCover(e.currentTarget.files?.[0] ?? null)}
             />
-            <p className="text-xs text-slate-500 mt-1">Máx. 10 MB. Formatos: PDF o imagen.</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Máx. 10 MB. Formatos: PDF o imagen.
+            </p>
           </div>
         </div>
       </section>
@@ -1556,7 +1783,9 @@ export default function ProApplyForm({
                       ¿Qué es esto?
                     </a>
                   </TooltipTrigger>
-                  <TooltipContent side="top">ir a Políticas de Facturación</TooltipContent>
+                  <TooltipContent side="top">
+                    ir a Políticas de Facturación
+                  </TooltipContent>
                 </Tooltip>
               </div>
             )}
@@ -1591,7 +1820,9 @@ export default function ProApplyForm({
                 aria-hidden="true"
                 className={cn(
                   "mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border shadow-inner transition-all",
-                  privacy ? "bg-emerald-500 border-emerald-600" : "bg-white border-slate-300",
+                  privacy
+                    ? "bg-emerald-500 border-emerald-600"
+                    : "bg-white border-slate-300",
                 )}
               >
                 <svg
@@ -1615,7 +1846,7 @@ export default function ProApplyForm({
                 </svg>
               </span>
               <span className="text-sm leading-5">
-                He leído y acepto el{' '}
+                He leído y acepto el{" "}
                 <a
                   className="underline"
                   href="/privacy"
@@ -1623,13 +1854,16 @@ export default function ProApplyForm({
                   rel="noreferrer"
                 >
                   Aviso de Privacidad
-                </a>{' '}
-                y autorizo a Handi a verificar mis datos para validar mi perfil profesional.
+                </a>{" "}
+                y autorizo a Handi a verificar mis datos para validar mi perfil
+                profesional.
               </span>
             </div>
           </label>
           {fieldErrs.privacy_accept && (
-            <p className="text-xs text-pink-600">Debes aceptar el Aviso de Privacidad</p>
+            <p className="text-xs text-pink-600">
+              Debes aceptar el Aviso de Privacidad
+            </p>
           )}
         </div>
         <div className="mt-4">
@@ -1639,7 +1873,10 @@ export default function ProApplyForm({
               type="button"
               variant="outline"
               onClick={() => setSigOpen(true)}
-              className={cn(fileErrs.sig && "border-pink-500 focus-visible:ring-pink-500/50")}
+              className={cn(
+                fileErrs.sig &&
+                  "border-pink-500 focus-visible:ring-pink-500/50",
+              )}
             >
               Firma
             </Button>
@@ -1660,7 +1897,12 @@ export default function ProApplyForm({
             )}
           </div>
           {/* Hidden persistent canvas to keep the signature for upload */}
-          <canvas ref={sigCanvasRef} width={640} height={180} className="hidden" />
+          <canvas
+            ref={sigCanvasRef}
+            width={640}
+            height={180}
+            className="hidden"
+          />
           <Dialog open={sigOpen} onOpenChange={setSigOpen}>
             <DialogContent className="sm:max-w-xl">
               <div className="space-y-3">
@@ -1673,7 +1915,11 @@ export default function ProApplyForm({
                   />
                 </div>
                 <div className="flex items-center justify-center gap-3">
-                  <Button type="button" variant="outline" onClick={clearDialogSignature}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={clearDialogSignature}
+                  >
                     Borrar
                   </Button>
                   <Button type="button" onClick={acceptSignature}>

@@ -1,12 +1,18 @@
 "use client";
 
+type Props = {
+  id: string;
+  status: string | null;
+  onToggleView?: (id: string) => void;
+  isExpanded?: boolean;
+};
+
 export default function AdminActions({
   id,
   status,
-}: {
-  id: string;
-  status: string | null;
-}) {
+  onToggleView,
+  isExpanded,
+}: Props) {
   async function send(newStatus: "accepted" | "rejected" | "pending") {
     const res = await fetch(`/api/admin/pro-applications/${id}/status`, {
       method: "POST",
@@ -24,6 +30,7 @@ export default function AdminActions({
   return (
     <div className="flex justify-end gap-2">
       <button
+        type="button"
         onClick={() => void send("accepted")}
         className="rounded bg-emerald-600 px-3 py-1 text-white disabled:opacity-50"
         disabled={status === "accepted"}
@@ -31,6 +38,7 @@ export default function AdminActions({
         Aprobar
       </button>
       <button
+        type="button"
         onClick={() => void send("rejected")}
         className="rounded bg-rose-600 px-3 py-1 text-white disabled:opacity-50"
         disabled={status === "rejected"}
@@ -38,11 +46,13 @@ export default function AdminActions({
         Rechazar
       </button>
       <button
-        onClick={() => void send("pending")}
+        type="button"
+        onClick={() => onToggleView?.(id)}
         className="rounded border border-slate-300 px-3 py-1 disabled:opacity-50"
-        disabled={!status || status === "pending"}
+        aria-expanded={isExpanded}
+        disabled={!onToggleView}
       >
-        Reabrir
+        Ver
       </button>
     </div>
   );
