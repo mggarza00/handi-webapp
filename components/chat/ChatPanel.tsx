@@ -2123,11 +2123,11 @@ export default function ChatPanel({
     </>
   );
   const actionButtons = stickyActionBar ? (
-    <div className="sticky bottom-0 bg-white border-t">
+    <div className="sticky bottom-0 bg-white border-t shrink-0">
       {actionButtonsContent}
     </div>
   ) : (
-    actionButtonsContent
+    <div className="shrink-0">{actionButtonsContent}</div>
   );
 
   const typingIndicator = otherTyping ? <TypingIndicator /> : null;
@@ -2723,11 +2723,12 @@ export default function ChatPanel({
           </div>
         ) : null}
         <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* min-h-0 + shrink-0 keep list scrollable and the action bar compact */}
+          <div className="flex flex-1 min-h-0 flex-col">
             {loadingState || messageList}
             {typingIndicator}
-            {actionButtons}
           </div>
+          {actionButtons}
           <div className="border-t p-2 shrink-0">
             <ChatUploader
               conversationId={conversationId}
@@ -2883,8 +2884,10 @@ export default function ChatPanel({
           ) : null}
           {loadingState || (
             <>
-              {messageList}
-              {typingIndicator}
+              <div className="flex flex-1 min-h-0 flex-col">
+                {messageList}
+                {typingIndicator}
+              </div>
               {/* Stage-aware actions: include default CTAs and in-process controls */}
               {(() => {
                 const st = (requestStatus || "").toLowerCase();
@@ -2926,7 +2929,7 @@ export default function ChatPanel({
               })()}
             </>
           )}
-          <div className="border-t p-2">
+          <div className="border-t p-2 shrink-0">
             <ChatUploader
               conversationId={conversationId}
               mode="draft-first"
@@ -2979,29 +2982,34 @@ export default function ChatPanel({
               }}
             />
           </div>
-          <MessageInput
-            onSend={onSend}
-            onTyping={emitTyping}
-            disabled={loading}
-            dataPrefix={dataPrefix}
-            onPickFiles={() => uploaderApiRef.current?.pickFiles()}
-            onPickCamera={() => uploaderApiRef.current?.pickCamera()}
-            onFocus={() => {
-              try {
-                const el = document.querySelector(
-                  `[data-testid="${dataPrefix}-list"]`,
-                ) as HTMLDivElement | null;
-                if (el)
-                  setTimeout(
-                    () =>
-                      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }),
-                    50,
-                  );
-              } catch {
-                /* ignore */
-              }
-            }}
-          />
+          <div className="shrink-0">
+            <MessageInput
+              onSend={onSend}
+              onTyping={emitTyping}
+              disabled={loading}
+              dataPrefix={dataPrefix}
+              onPickFiles={() => uploaderApiRef.current?.pickFiles()}
+              onPickCamera={() => uploaderApiRef.current?.pickCamera()}
+              onFocus={() => {
+                try {
+                  const el = document.querySelector(
+                    `[data-testid="${dataPrefix}-list"]`,
+                  ) as HTMLDivElement | null;
+                  if (el)
+                    setTimeout(
+                      () =>
+                        el.scrollTo({
+                          top: el.scrollHeight,
+                          behavior: "smooth",
+                        }),
+                      50,
+                    );
+                } catch {
+                  /* ignore */
+                }
+              }}
+            />
+          </div>
           {/* Fee dialog visible for customer to confirm breakdown before checkout */}
           {acceptedForPay ? (
             <OfferPaymentDialog
