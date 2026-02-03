@@ -313,7 +313,7 @@ export default function MessageList({
     return (
       <div
         ref={ref}
-        className="flex-1 overflow-y-auto overscroll-contain p-3"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3"
         style={bgStyle}
         data-testid={`${dataPrefix}-list`}
       >
@@ -805,7 +805,7 @@ export default function MessageList({
   return (
     <div
       ref={ref}
-      className="flex-1 overflow-y-auto overscroll-contain p-3"
+      className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3"
       style={bgStyle}
       data-testid={`${dataPrefix}-list`}
     >
