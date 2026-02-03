@@ -2,12 +2,15 @@ import Link from "next/link";
 
 import { getAdminSupabase } from "../../../lib/supabase/admin";
 
-import AdminActions from "./AdminActions.client";
+import ProApplicationsTable from "./ProApplicationsTable.client";
 
 import type { Database } from "@/types/supabase";
 import createClient from "@/utils/supabase/server";
 
-type ProfileRow = Pick<Database["public"]["Tables"]["profiles"]["Row"], "role" | "is_admin">;
+type ProfileRow = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "role" | "is_admin"
+>;
 
 type Search = {
   searchParams: {
@@ -51,9 +54,12 @@ export default async function AdminProApplicationsPage({
   const admin = getAdminSupabase();
   let builder = admin
     .from("pro_applications")
-    .select("id, user_id, full_name, email, phone, empresa, status, created_at", {
-      count: "exact",
-    })
+    .select(
+      "id, user_id, full_name, email, phone, empresa, status, created_at",
+      {
+        count: "exact",
+      },
+    )
     .order("created_at", { ascending: false })
     .range(from, to);
   if (status && ["pending", "accepted", "rejected"].includes(status)) {
@@ -83,7 +89,9 @@ export default async function AdminProApplicationsPage({
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Postulaciones de Profesionales</h1>
+        <h1 className="text-xl font-semibold">
+          Postulaciones de Profesionales
+        </h1>
         <Link href="/" className="text-sm text-slate-600 hover:text-slate-900">
           Volver al inicio
         </Link>
@@ -124,42 +132,7 @@ export default async function AdminProApplicationsPage({
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded border border-slate-200 bg-white">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600">
-            <tr>
-              <th className="px-3 py-2">ID</th>
-              <th className="px-3 py-2">Nombre</th>
-              <th className="px-3 py-2">Correo</th>
-              <th className="px-3 py-2">Teléfono</th>
-              <th className="px-3 py-2">Empresa</th>
-              <th className="px-3 py-2">Estado</th>
-              <th className="px-3 py-2">Creada</th>
-              <th className="px-3 py-2 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(rows || []).map((r) => (
-              <tr key={r.id} className="border-t border-slate-200">
-                <td className="px-3 py-2 font-mono text-xs">
-                  {r.id.slice(0, 8)}
-                </td>
-                <td className="px-3 py-2">{r.full_name}</td>
-                <td className="px-3 py-2">{r.email}</td>
-                <td className="px-3 py-2">{r.phone}</td>
-                <td className="px-3 py-2">{r.empresa ? "Sí" : "No"}</td>
-                <td className="px-3 py-2">{labelStatus(r.status)}</td>
-                <td className="px-3 py-2">
-                  {new Date(r.created_at || "").toLocaleString()}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <AdminActions id={r.id} status={r.status} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ProApplicationsTable rows={rows || []} />
 
       <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
         <div>
@@ -190,17 +163,6 @@ export default async function AdminProApplicationsPage({
       </div>
     </main>
   );
-}
-
-function labelStatus(s: string | null) {
-  switch (s) {
-    case "accepted":
-  return "Aceptada";
-    case "rejected":
-      return "Rechazada";
-    default:
-      return "En revisión";
-  }
 }
 
 function qs(obj: Record<string, string>) {
