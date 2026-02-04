@@ -30,6 +30,7 @@ function statusLabel(status?: string | null) {
       return "Oferta aceptada";
     case "cancelled":
     case "disputed":
+    case "rejected":
       return "Oferta rechazada";
     case "paid":
     case "in_progress":
