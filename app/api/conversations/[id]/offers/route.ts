@@ -202,6 +202,50 @@ export async function POST(
         { status: 400, headers: JSONH },
       );
 
+    // Best-effort: ensure agreement exists for this request/pro (service role to bypass RLS)
+    try {
+      const adminSrv = createServiceClient();
+      const nextAmount =
+        Math.round((amountNumber + Number.EPSILON) * 100) / 100;
+      const { data: existing } = await adminSrv
+        .from("agreements")
+        .select("id, status, amount")
+        .eq("request_id", requestId)
+        .eq("professional_id", professionalId)
+        .maybeSingle();
+      if (!existing) {
+        await adminSrv.from("agreements").insert({
+          request_id: requestId,
+          professional_id: professionalId,
+          amount: nextAmount,
+          status: "negotiating",
+        });
+      } else {
+        const currentStatus = String(existing.status || "").toLowerCase();
+        const resettableStatuses = new Set([
+          "rejected",
+          "cancelled",
+          "canceled",
+          "disputed",
+          "expired",
+          "negotiating",
+        ]);
+        const patch: Record<string, unknown> = {};
+        if (resettableStatuses.has(currentStatus)) {
+          patch.status = "negotiating";
+        }
+        if (Number.isFinite(nextAmount)) {
+          patch.amount = nextAmount;
+        }
+        if (Object.keys(patch).length) {
+          patch.updated_at = new Date().toISOString();
+          await adminSrv.from("agreements").update(patch).eq("id", existing.id);
+        }
+      }
+    } catch {
+      /* ignore agreement creation errors */
+    }
+
     // Best-effort: ensure chat message exists (DB trigger should already insert).
     // Avoid duplicate inserts by checking first; falls back to insert if missing.
     try {
