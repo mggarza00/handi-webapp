@@ -1291,15 +1291,20 @@ export default function ChatPanel({
       if (msg.messageType !== "offer") continue;
       const payload = msg.payload;
       if (!payload || typeof payload !== "object") continue;
-      const rawStatus = (payload as Record<string, unknown>).status;
+      const po = payload as Record<string, unknown>;
+      const rawStatus = po.status;
+      const offerId =
+        typeof po.offer_id === "string" ? (po.offer_id as string) : null;
       const status = normalizeStatus(
-        typeof rawStatus === "string" ? rawStatus : null,
+        (offerId ? getOfferStatusFromMessages(offerId) : null) ??
+          (typeof rawStatus === "string" ? rawStatus : null),
       ).toLowerCase();
       if (
         status !== "accepted" &&
         status !== "rejected" &&
         status !== "paid" &&
         status !== "canceled" &&
+        status !== "cancelled" &&
         status !== "expired"
       ) {
         return true;

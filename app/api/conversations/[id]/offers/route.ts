@@ -101,12 +101,16 @@ export async function POST(
         { error: "PRO_MISMATCH" },
         { status: 409, headers: JSONH },
       );
-    // Reject if there is already an active offer (not accepted/rejected/paid/canceled/expired)
+    // Reject if there is already an active offer (not accepted/rejected/paid/canceled/cancelled/expired)
     const { data: existingActive, error: existingActiveErr } = await supabase
       .from("offers")
       .select("id, status")
       .eq("conversation_id", conversationId)
-      .not("status", "in", "(accepted,rejected,paid,canceled,expired)")
+      .not(
+        "status",
+        "in",
+        "(accepted,rejected,paid,canceled,cancelled,expired)",
+      )
       .limit(1)
       .maybeSingle();
     if (!existingActiveErr && existingActive) {
