@@ -239,7 +239,7 @@ async function HeaderGreeting({
             Ver perfil público
           </Link>
           <Link
-            href="/profile"
+            href="/profile/setup"
             className="inline-flex items-center gap-2 rounded-full bg-[#082877] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#061f5c]"
           >
             <Settings size={16} />
