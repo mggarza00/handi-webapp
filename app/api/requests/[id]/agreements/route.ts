@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createServerClient } from "@/lib/supabase";
+import createClient from "@/utils/supabase/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
@@ -36,8 +36,71 @@ export async function GET(
       );
     }
     const requestId = parsed.data;
-    const supa = createServerClient();
-    const { data, error } = await supa
+    const supa = createClient();
+    const { data: auth } = await supa.auth.getUser();
+    const userId = auth?.user?.id;
+    if (!userId) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED" },
+        { status: 401, headers: JSONH },
+      );
+    }
+
+    let admin = null as ReturnType<typeof getAdminSupabase> | null;
+    try {
+      admin = getAdminSupabase();
+    } catch {
+      admin = null;
+    }
+
+    const requestClient = admin ?? supa;
+    const { data: requestRow, error: requestError } = await requestClient
+      .from("requests")
+      .select("id, created_by, professional_id")
+      .eq("id", requestId)
+      .maybeSingle();
+    if (requestError) {
+      return NextResponse.json(
+        { error: requestError.message },
+        { status: 400, headers: JSONH },
+      );
+    }
+    if (!requestRow) {
+      return NextResponse.json(
+        { error: "NOT_FOUND" },
+        { status: 404, headers: JSONH },
+      );
+    }
+
+    let allowed =
+      requestRow.created_by === userId || requestRow.professional_id === userId;
+    if (!allowed) {
+      const { data: agr } = await requestClient
+        .from("agreements")
+        .select("id")
+        .eq("request_id", requestId)
+        .eq("professional_id", userId)
+        .limit(1);
+      if (Array.isArray(agr) && agr.length > 0) allowed = true;
+    }
+
+    if (!allowed && admin) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("role, is_admin")
+        .eq("id", userId)
+        .maybeSingle();
+      allowed = (prof?.role ?? null) === "admin" || !!prof?.is_admin;
+    }
+
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "FORBIDDEN" },
+        { status: 403, headers: JSONH },
+      );
+    }
+
+    const { data, error } = await requestClient
       .from("agreements")
       .select("id, professional_id, amount, status, created_at, updated_at")
       .eq("request_id", requestId)
@@ -61,13 +124,13 @@ export async function GET(
     let pros: ProfessionalRow[] = [];
     let profiles: ProfileRow[] = [];
     if (professionalIds.length) {
-      const admin = getAdminSupabase();
+      const infoClient = admin ?? supa;
       const [{ data: proRows }, { data: profileRows }] = await Promise.all([
-        admin
+        infoClient
           .from("professionals")
           .select("id, full_name, avatar_url")
           .in("id", professionalIds),
-        admin
+        infoClient
           .from("profiles")
           .select("id, full_name, avatar_url")
           .in("id", professionalIds),
