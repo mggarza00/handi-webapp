@@ -352,6 +352,7 @@ export default function ChatPanel({
         // Prepare server-offer/quote ids for dedupe of optimistic messages
         const serverOfferIds = new Set<string>();
         const serverQuoteIds = new Set<string>();
+        const serverSystemOfferKeys = new Set<string>();
         let hasServerQuote = false;
         for (const it of arr) {
           if (
@@ -374,6 +375,18 @@ export default function ChatPanel({
             const qid =
               typeof pq.quote_id === "string" ? (pq.quote_id as string) : null;
             if (qid) serverQuoteIds.add(qid);
+          }
+          if (
+            it.messageType === "system" &&
+            it.payload &&
+            typeof it.payload === "object"
+          ) {
+            const ps = it.payload as Record<string, unknown>;
+            const oid =
+              typeof ps.offer_id === "string" ? (ps.offer_id as string) : null;
+            const st =
+              typeof ps.status === "string" ? (ps.status as string) : null;
+            if (oid && st) serverSystemOfferKeys.add(`${oid}:${st}`);
           }
         }
         if (options.fromServer) {
@@ -405,6 +418,21 @@ export default function ChatPanel({
               if (qid && serverQuoteIds.has(qid)) return false;
               // Fallback: drop tmp quotes once server messages arrive to avoid duplicados
               if (hasServerQuote) return false;
+            }
+            if (
+              m.messageType === "system" &&
+              m.payload &&
+              typeof m.payload === "object"
+            ) {
+              const ps = m.payload as Record<string, unknown>;
+              const oid =
+                typeof ps.offer_id === "string"
+                  ? (ps.offer_id as string)
+                  : null;
+              const st =
+                typeof ps.status === "string" ? (ps.status as string) : null;
+              if (oid && st && serverSystemOfferKeys.has(`${oid}:${st}`))
+                return false;
             }
             // Body-based dedupe only applies to my own optimistic text messages
             if (meId) {
@@ -831,7 +859,7 @@ export default function ChatPanel({
           if (from && meId && from === meId) return;
           const createdAtIso = new Date().toISOString();
           const optimistic: Msg = {
-            id: `tmp_sys_${oid}`,
+            id: `tmp_sys_${oid}_accepted`,
             senderId: from || "system",
             body: "Oferta aceptada",
             createdAt: createdAtIso,
@@ -872,7 +900,7 @@ export default function ChatPanel({
           if (from && meId && from === meId) return; // ignore own broadcast
           const createdAtIso = new Date().toISOString();
           const optimistic: Msg = {
-            id: `tmp_sys_${oid}`,
+            id: `tmp_sys_${oid}_rejected`,
             senderId: from || "system",
             body: reason ? `Oferta rechazada: ${reason}` : "Oferta rechazada",
             createdAt: createdAtIso,
@@ -973,7 +1001,7 @@ export default function ChatPanel({
           const st = typeof p.status === "string" ? p.status : null;
           const oid = typeof p.offer_id === "string" ? p.offer_id : null;
           if (st === "accepted" && oid) {
-            removeMessageById(`tmp_sys_${oid}`);
+            removeMessageById(`tmp_sys_${oid}_accepted`);
             // Update any prior 'offer' message for same offer_id to accepted
             setMessages((prev) =>
               prev.map((m) => {
@@ -991,7 +1019,7 @@ export default function ChatPanel({
               }),
             );
           } else if (st === "rejected" && oid) {
-            removeMessageById(`tmp_sys_${oid}`);
+            removeMessageById(`tmp_sys_${oid}_rejected`);
             const reason = typeof p.reason === "string" ? p.reason : null;
             // Update any prior 'offer' message for same offer_id to rejected + reason
             setMessages((prev) =>
@@ -1624,7 +1652,7 @@ export default function ChatPanel({
           if (json?.checkoutUrl) payload.checkout_url = json.checkoutUrl;
           mergeMessages(
             {
-              id: `tmp_${Date.now()}`,
+              id: `tmp_sys_${offerId}_accepted`,
               senderId: meId ?? "me",
               body: "Oferta aceptada",
               createdAt: createdAtIso,
@@ -1679,7 +1707,7 @@ export default function ChatPanel({
           if (json2?.checkoutUrl) payload.checkout_url = json2.checkoutUrl;
           mergeMessages(
             {
-              id: `tmp_${Date.now()}`,
+              id: `tmp_sys_${offerId}_accepted`,
               senderId: meId ?? "me",
               body: "Oferta aceptada",
               createdAt: createdAtIso,
@@ -1822,7 +1850,7 @@ export default function ChatPanel({
         const createdAtIso = new Date().toISOString();
         mergeMessages(
           {
-            id: `tmp_sys_${rejectTarget}`,
+            id: `tmp_sys_${rejectTarget}_rejected`,
             senderId: meId ?? "me",
             body: `Oferta rechazada: ${reasonPayload}`,
             createdAt: createdAtIso,
