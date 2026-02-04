@@ -13,12 +13,24 @@ export function normalizeAvatarUrl(
   if (!url) return null;
   const s = String(url).trim();
   if (!s) return null;
+  const lowered = s.toLowerCase();
+  if (lowered === "null" || lowered === "undefined") return null;
   // Avoid external hosts without CORS (e.g., pravatar)
   try {
     const parsed = new URL(s, "http://placeholder.local");
     const host = parsed.host.toLowerCase();
     if (host.includes("pravatar.cc")) {
       return "/images/LOGO_HANDI_DB.png";
+    }
+    if (
+      parsed.hostname &&
+      parsed.pathname.includes("/storage/v1/object/sign/")
+    ) {
+      const publicPath = parsed.pathname.replace(
+        "/storage/v1/object/sign/",
+        "/storage/v1/object/public/",
+      );
+      return `${parsed.origin}${publicPath}`;
     }
   } catch {
     /* ignore */
@@ -32,6 +44,13 @@ export function normalizeAvatarUrl(
   // Already a Supabase public object path
   if (/^storage\/v1\/object\/public\//i.test(clean)) {
     return base ? `${base}/${clean}` : `/${clean}`;
+  }
+  if (/^storage\/v1\/object\/sign\//i.test(clean)) {
+    const publicPath = clean.replace(
+      /^storage\/v1\/object\/sign\//i,
+      "storage/v1/object/public/",
+    );
+    return base ? `${base}/${publicPath}` : `/${publicPath}`;
   }
 
   // Starts with optional "public/" prefix before bucket name

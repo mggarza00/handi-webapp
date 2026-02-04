@@ -3,9 +3,18 @@ import * as React from "react";
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 // no client-side Supabase update here; upload handled server-side
 
-export function AvatarField({ url, userId, onChangeUrl }: { url?: string; userId: string; onChangeUrl: (u: string) => void }) {
+export function AvatarField({
+  url,
+  userId,
+  onChangeUrl,
+}: {
+  url?: string;
+  userId: string;
+  onChangeUrl: (u: string) => void;
+}) {
   const [avatarUrl, setAvatarUrl] = React.useState<string>(url || "");
   const [busy, setBusy] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
@@ -24,7 +33,7 @@ export function AvatarField({ url, userId, onChangeUrl }: { url?: string; userId
         `<rect width='64' height='64' rx='8' fill='url(#g)'/>` +
         `<circle cx='32' cy='24' r='12' fill='#94a3b8'/>` +
         `<rect x='12' y='40' width='40' height='14' rx='7' fill='#94a3b8'/>` +
-      `</svg>`,
+        `</svg>`,
     );
 
   return (
@@ -32,7 +41,8 @@ export function AvatarField({ url, userId, onChangeUrl }: { url?: string; userId
       <label className="block text-sm mb-1">Foto de perfil</label>
       <div className="flex items-center gap-3">
         {(() => {
-          const src = avatarUrl || fallbackSvg;
+          const normalized = normalizeAvatarUrl(avatarUrl);
+          const src = normalized || avatarUrl || fallbackSvg;
           const isData = typeof src === "string" && src.startsWith("data:");
           return (
             <Image
@@ -56,19 +66,31 @@ export function AvatarField({ url, userId, onChangeUrl }: { url?: string; userId
             try {
               const inputEl = e.currentTarget as HTMLInputElement;
               const file = inputEl.files?.[0];
-              try { inputEl.value = ""; } catch { /* ignore */ }
+              try {
+                inputEl.value = "";
+              } catch {
+                /* ignore */
+              }
               if (!file) return;
               if (!userId) throw new Error("Falta sesión de usuario");
               setBusy(true);
               const fd = new FormData();
               fd.set("file", file);
-              const r = await fetch("/api/profile/avatar/upload", { method: "POST", body: fd });
+              const r = await fetch("/api/profile/avatar/upload", {
+                method: "POST",
+                body: fd,
+              });
               const j = await r.json().catch(() => null);
-              if (!r.ok || !j?.url) throw new Error(j?.detail || "No se pudo subir el avatar");
+              if (!r.ok || !j?.url)
+                throw new Error(j?.detail || "No se pudo subir el avatar");
               setAvatarUrl(j.url);
               onChangeUrl(j.url);
             } catch (err) {
-              alert(err instanceof Error ? err.message : "Error al actualizar avatar");
+              alert(
+                err instanceof Error
+                  ? err.message
+                  : "Error al actualizar avatar",
+              );
             } finally {
               setBusy(false);
             }
@@ -81,13 +103,19 @@ export function AvatarField({ url, userId, onChangeUrl }: { url?: string; userId
           disabled={disabled}
           onClick={() => {
             if (disabled) return;
-            try { fileRef.current?.click(); } catch { /* ignore */ }
+            try {
+              fileRef.current?.click();
+            } catch {
+              /* ignore */
+            }
           }}
         >
           Editar
         </Button>
       </div>
-      <p className="mt-1 text-xs text-slate-500">Máx 5MB; formatos comunes (JPG, PNG, WEBP).</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Máx 5MB; formatos comunes (JPG, PNG, WEBP).
+      </p>
     </div>
   );
 }

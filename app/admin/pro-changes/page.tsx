@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ProChangeActionsCell } from "@/components/admin/ProChangeActionsCell.client";
+import { formatDateTimeCDMX } from "@/lib/mx-format";
 import type { Database } from "@/types/supabase";
 import createClient from "@/utils/supabase/server";
 
@@ -31,7 +32,10 @@ export default async function AdminProChangesPage() {
     <main className="mx-auto max-w-6xl px-4 py-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Cambios de perfil solicitados</h1>
-        <Link href="/admin/pro-applications" className="text-sm text-slate-600 hover:text-slate-900">
+        <Link
+          href="/admin/pro-applications"
+          className="text-sm text-slate-600 hover:text-slate-900"
+        >
           Ver postulaciones
         </Link>
       </div>
@@ -51,15 +55,26 @@ export default async function AdminProChangesPage() {
           <tbody>
             {list.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                <td
+                  colSpan={6}
+                  className="px-3 py-6 text-center text-slate-500"
+                >
                   No hay solicitudes.
                 </td>
               </tr>
             ) : (
               list.map((r) => {
-                const payload = (r.payload as unknown as ProfileChangePayload | null) ?? null;
-                const prof = Object.keys((payload?.profiles as Record<string, unknown> | undefined) || {});
-                const pro = Object.keys((payload?.professionals as Record<string, unknown> | undefined) || {});
+                const payload =
+                  (r.payload as unknown as ProfileChangePayload | null) ?? null;
+                const prof = Object.keys(
+                  (payload?.profiles as Record<string, unknown> | undefined) ||
+                    {},
+                );
+                const pro = Object.keys(
+                  (payload?.professionals as
+                    | Record<string, unknown>
+                    | undefined) || {},
+                );
                 const galleryAdds = Array.isArray(payload?.gallery_add_paths)
                   ? payload.gallery_add_paths.length
                   : 0;
@@ -69,18 +84,28 @@ export default async function AdminProChangesPage() {
                   ...(galleryAdds > 0 ? [`gallery(+${galleryAdds})`] : []),
                 ];
                 return (
-                  <tr key={r.id} className="border-t border-slate-200 align-top">
-                    <td className="px-3 py-2 font-mono text-xs">{r.id.slice(0, 8)}</td>
+                  <tr
+                    key={r.id}
+                    className="border-t border-slate-200 align-top"
+                  >
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {r.id.slice(0, 8)}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="font-mono text-xs">{r.user_id}</div>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="max-w-[520px] truncate" title={summary.join(", ") || "(sin resumen)"}>
+                      <div
+                        className="max-w-[520px] truncate"
+                        title={summary.join(", ") || "(sin resumen)"}
+                      >
                         {summary.join(", ") || "(sin resumen)"}
                       </div>
                     </td>
                     <td className="px-3 py-2">{labelStatus(r.status)}</td>
-                    <td className="px-3 py-2">{new Date(r.created_at || "").toLocaleString()}</td>
+                    <td className="px-3 py-2">
+                      {r.created_at ? formatDateTimeCDMX(r.created_at) : "—"}
+                    </td>
                     <td className="px-3 py-2">
                       <ProChangeActionsCell id={r.id} status={r.status} />
                     </td>
