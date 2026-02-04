@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import getRouteClient from "@/lib/supabase/route-client";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 
 import type { Database } from "@/types/supabase";
 
@@ -108,7 +109,15 @@ export async function POST(
 
     // Sync agreements to rejected for this request/pro (if any)
     try {
-      const { data: conv } = await supabase
+      let admin = null as ReturnType<typeof getAdminSupabase> | null;
+      try {
+        admin = getAdminSupabase();
+      } catch {
+        admin = null;
+      }
+
+      const infoClient = admin ?? supabase;
+      const { data: conv } = await infoClient
         .from("conversations")
         .select("request_id")
         .eq("id", (offer as any)?.conversation_id ?? "")
@@ -116,7 +125,7 @@ export async function POST(
       const reqId = (conv as any)?.request_id as string | null;
       const proId = (offer as any)?.professional_id as string | null;
       if (reqId && proId) {
-        const { data: existing } = await supabase
+        const { data: existing } = await infoClient
           .from("agreements")
           .select("id")
           .eq("request_id", reqId)
@@ -125,7 +134,7 @@ export async function POST(
         if (Array.isArray(existing) && existing.length) {
           const agrId = (existing[0] as any)?.id as string | null;
           if (agrId) {
-            await supabase
+            await infoClient
               .from("agreements")
               .update({
                 status: "rejected" as any,
