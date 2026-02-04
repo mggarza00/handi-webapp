@@ -1,44 +1,65 @@
 "use client";
 import * as React from "react";
-import Link from "next/link";
-import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 
 type Props = { requestId: string; createdBy?: string | null };
 
+type ProfessionalSummary = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
 type AgreementItem = {
   id: string;
-  professional_id: string;
+  professional_id: string | null;
   amount: number | null;
   status: string | null;
   created_at: string | null;
   updated_at: string | null;
+  professional: ProfessionalSummary | null;
 };
 
-export default function AgreementsClient({ requestId, createdBy }: Props) {
+const paidishStatuses = new Set(["paid", "in_progress", "completed"]);
+
+function statusLabel(status?: string | null) {
+  switch (status) {
+    case "accepted":
+      return "Oferta aceptada";
+    case "cancelled":
+    case "disputed":
+      return "Oferta rechazada";
+    case "paid":
+    case "in_progress":
+      return "Servicio pagado y agendado";
+    case "completed":
+      return "Servicio finalizado";
+    case "negotiating":
+    default:
+      return "Oferta enviada";
+  }
+}
+
+function timestampFor(item: AgreementItem): number {
+  const raw = item.updated_at || item.created_at || "";
+  const ts = Date.parse(raw);
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function pickMostRecent(items: AgreementItem[]): AgreementItem | null {
+  if (!items.length) return null;
+  return items.reduce((acc, item) =>
+    timestampFor(item) >= timestampFor(acc) ? item : acc,
+  );
+}
+
+export default function AgreementsClient({ requestId }: Props) {
   const [items, setItems] = React.useState<AgreementItem[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [me, setMe] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
   const [nonce, setNonce] = React.useState(0);
-  const [confirmOpen, setConfirmOpen] = React.useState(false);
-  const [confirmTarget, setConfirmTarget] = React.useState<{
-    id: string;
-    next: "in_progress" | "completed" | "cancelled";
-  } | null>(null);
-  const [requestBudget, setRequestBudget] = React.useState<number | null>(null);
-  const [amountEdits, setAmountEdits] = React.useState<Record<string, string>>(
-    {},
-  );
 
   const money = React.useMemo(
     () =>
@@ -50,108 +71,12 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
     [],
   );
 
-  function statusBadge(status?: string | null) {
-    const s = status ?? "negotiating";
-    switch (s) {
-      case "accepted":
-        return <Badge variant="default" data-testid="status-chip">Aceptado</Badge>;
-      case "paid":
-        return (
-          <Badge className="bg-emerald-600 text-white hover:bg-emerald-600" data-testid="status-chip">
-            Pagado
-          </Badge>
-        );
-      case "in_progress":
-        return (
-          <Badge className="bg-blue-600 text-white hover:bg-blue-600" data-testid="status-chip">
-            En progreso
-          </Badge>
-        );
-      case "completed":
-        return (
-          <Badge className="bg-gray-800 text-white hover:bg-gray-800" data-testid="status-chip">
-            Completado
-          </Badge>
-        );
-      case "cancelled":
-        return <Badge variant="destructive" data-testid="status-chip">Cancelado</Badge>;
-      case "disputed":
-        return <Badge variant="destructive" data-testid="status-chip">En disputa</Badge>;
-      case "negotiating":
-      default:
-        return <Badge variant="outline" data-testid="status-chip">En negociación</Badge>;
-    }
-  }
-
-  function Timeline({
-    status,
-    created_at,
-    updated_at,
-  }: {
-    status: string | null | undefined;
-    created_at: string | null | undefined;
-    updated_at: string | null | undefined;
-  }) {
-    const steps = [
-      "negotiating",
-      "accepted",
-      "paid",
-      "in_progress",
-      "completed",
-    ] as const;
-    const current = (status ?? "negotiating") as (typeof steps)[number];
-    const idx = Math.max(0, steps.indexOf(current));
-    return (
-      <ol className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-600">
-        {steps.map((st, i) => (
-          <li key={st} className="flex items-center gap-1">
-            <span
-              className={`inline-block size-2 rounded-full ${i <= idx ? "bg-black" : "bg-gray-300"}`}
-            />
-            <span className={i <= idx ? "font-medium" : ""}>
-              {st.replace("_", " ")}
-              {i === 0 && created_at ? ` · ${created_at.slice(0, 10)}` : ""}
-              {i === idx && updated_at ? ` · ${updated_at.slice(0, 10)}` : ""}
-            </span>
-            {i < steps.length - 1 && (
-              <span className="mx-1 text-gray-400">›</span>
-            )}
-          </li>
-        ))}
-      </ol>
-    );
-  }
-
   React.useEffect(() => {
     const controller = new AbortController();
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        // Presupuesto de la solicitud (para default de monto)
-        try {
-          const r = await fetch(`/api/requests/${requestId}`, {
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            cache: "no-store",
-            signal: controller.signal,
-          });
-          const j = await r.json();
-          if (r.ok) {
-            const b = Number(j?.data?.budget ?? NaN);
-            if (Number.isFinite(b)) setRequestBudget(b);
-          }
-        } catch {
-          /* ignore */
-        }
-        try {
-          const meRes = await fetch(`/api/me`, {
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-          });
-          const meJson = await meRes.json();
-          if (meRes.ok && meJson?.user?.id) setMe(meJson.user.id as string);
-        } catch {
-          /* unauthenticated OK */
-        }
         const res = await fetch(`/api/requests/${requestId}/agreements`, {
           cache: "no-store",
           signal: controller.signal,
@@ -162,16 +87,6 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
           throw new Error(json?.error || "No se pudieron cargar los acuerdos");
         const list: AgreementItem[] = json.data ?? [];
         setItems(list);
-        // Prefill inputs
-        setAmountEdits((prev) => {
-          const next = { ...prev };
-          for (const a of list) {
-            const def = a.amount ?? requestBudget ?? null;
-            if (def != null && next[a.id] === undefined)
-              next[a.id] = String(def);
-          }
-          return next;
-        });
       } catch (e) {
         if ((e as DOMException).name === "AbortError") return;
         setError(e instanceof Error ? e.message : "UNKNOWN");
@@ -181,7 +96,7 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
     }
     load();
     return () => controller.abort();
-  }, [requestId, nonce, requestBudget]);
+  }, [requestId, nonce]);
 
   // Escucha eventos para refrescar lista desde otros componentes (e.g., Prospectos)
   React.useEffect(() => {
@@ -198,241 +113,67 @@ export default function AgreementsClient({ requestId, createdBy }: Props) {
       );
   }, [requestId]);
 
-  if (loading) return <p className="text-sm">Cargando acuerdos…</p>;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-  if (!items?.length) return null;
+  const viewItems = React.useMemo(() => {
+    if (!items) return [] as AgreementItem[];
+    const paidish = items.filter((item) =>
+      paidishStatuses.has(item.status ?? "negotiating"),
+    );
+    const mostRecent = pickMostRecent(paidish);
+    return mostRecent ? [mostRecent] : items;
+  }, [items]);
 
   return (
-    <>
-      <ul className="divide-y rounded border">
-        {items.map((a) => (
-          <li key={a.id} className="p-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  {statusBadge(a.status)}
-                  <span className="text-sm font-medium">
-                    {money.format(a.amount ?? 0)}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Pro:{" "}
-                  <Link
-                    href={`/profiles/${a.professional_id}`}
-                    className="hover:underline"
-                  >
-                    {a.professional_id.slice(0, 8)}…
-                  </Link>{" "}
-                  · {a.created_at?.slice(0, 10)}
-                </p>
-                <Timeline
-                  status={a.status}
-                  created_at={a.created_at}
-                  updated_at={a.updated_at}
-                />
-              </div>
-              {createdBy &&
-                me &&
-                (me === createdBy || me === a.professional_id) && (
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label className="text-xs text-gray-600">
-                        Monto (MXN)
-                      </label>
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        className="w-28 rounded border px-2 py-1 text-xs"
-                        value={
-                          amountEdits[a.id] ??
-                          (a.amount != null
-                            ? String(a.amount)
-                            : requestBudget != null
-                              ? String(requestBudget)
-                              : "")
-                        }
-                        onChange={(e) =>
-                          setAmountEdits((m) => ({
-                            ...m,
-                            [a.id]: e.target.value,
-                          }))
-                        }
-                        data-testid="offer-amount"
-                      />
-                      <button
-                        className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
-                        onClick={async () => {
-                          const raw =
-                            amountEdits[a.id] ??
-                            (a.amount != null
-                              ? String(a.amount)
-                              : requestBudget != null
-                                ? String(requestBudget)
-                                : "");
-                          const val = Number(raw);
-                          if (!Number.isFinite(val) || val <= 0)
-                            return toast.error("Monto inválido");
-                          const r = await fetch(`/api/agreements/${a.id}`, {
-                            method: "PATCH",
-                            headers: {
-                              "Content-Type": "application/json; charset=utf-8",
-                            },
-                            body: JSON.stringify({ amount: val }),
-                          });
-                          const j = await r.json();
-                          if (!r.ok)
-                            return toast.error(
-                              j?.error || "No se pudo actualizar el monto",
-                            );
-                          setItems(
-                            (prev) =>
-                              prev?.map((it) =>
-                                it.id === a.id ? { ...it, amount: val } : it,
-                              ) ?? prev,
-                          );
-                          toast.success("Monto actualizado");
-                        }}
-                      >
-                        Guardar monto
-                      </button>
+    <Card className="border-slate-200">
+      <CardHeader className="pb-3">
+        <CardTitle>Acuerdos</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-sm">Cargando acuerdos.</p>
+        ) : error ? (
+          <p className="text-sm text-red-600">{error}</p>
+        ) : viewItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No existen acuerdos por el momento.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {viewItems.map((item) => {
+              const name = item.professional?.full_name || "Profesional";
+              const avatarSrc =
+                normalizeAvatarUrl(item.professional?.avatar_url) ||
+                "/images/Favicon-v1-jpeg.jpg";
+              return (
+                <li key={item.id} className="py-3">
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={avatarSrc}
+                      alt={name}
+                      className="h-8 w-8 rounded-full border object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="truncate font-medium text-slate-900">
+                          {name}
+                        </div>
+                        <div className="shrink-0 font-semibold text-slate-900">
+                          {money.format(item.amount ?? 0)}
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {statusLabel(item.status)}
+                      </div>
                     </div>
-                    {createdBy &&
-                      me &&
-                      me === createdBy &&
-                      a.status === "accepted" && (
-                        <button
-                          data-testid="pay-now"
-                          className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
-                          onClick={async () => {
-                            const r = await fetch(`/api/stripe/checkout`, {
-                              method: "POST",
-                              headers: {
-                                "Content-Type":
-                                  "application/json; charset=utf-8",
-                              },
-                              body: JSON.stringify({
-                                request_id: requestId,
-                                agreement_id: a.id,
-                              }),
-                            });
-                            const j = await r.json();
-                            if (!r.ok || !j?.url)
-                              return toast.error(
-                                j?.error || "No se pudo iniciar el checkout",
-                              );
-                            window.location.assign(j.url as string);
-                          }}
-                        >
-                          Pagar fee
-                        </button>
-                      )}
-                    {a.status === "paid" && (
-                      <button
-                        className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
-                        data-testid="mark-in-progress"
-                        onClick={() => {
-                          setConfirmTarget({ id: a.id, next: "in_progress" });
-                          setConfirmOpen(true);
-                        }}
-                      >
-                        Iniciar trabajo
-                      </button>
-                    )}
-                    {a.status === "in_progress" && (
-                      <button
-                        className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
-                        data-testid="mark-complete"
-                        onClick={() => {
-                          setConfirmTarget({ id: a.id, next: "completed" });
-                          setConfirmOpen(true);
-                        }}
-                      >
-                        Marcar completado
-                      </button>
-                    )}
-                    {(a.status === "negotiating" ||
-                      a.status === "accepted") && (
-                      <button
-                        className="text-xs rounded px-2 py-1 border hover:bg-gray-50"
-                        onClick={() => {
-                          setConfirmTarget({ id: a.id, next: "cancelled" });
-                          setConfirmOpen(true);
-                        }}
-                      >
-                        Cancelar
-                      </button>
-                    )}
                   </div>
-                )}
-            </div>
-          </li>
-        ))}
-      </ul>
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {confirmTarget?.next === "completed"
-                ? "Marcar acuerdo como completado"
-                : confirmTarget?.next === "in_progress"
-                  ? "Iniciar trabajo"
-                  : "Cancelar acuerdo"}
-            </DialogTitle>
-            <DialogDescription>
-              {confirmTarget?.next === "completed"
-                ? "Confirma que el trabajo fue realizado satisfactoriamente."
-                : confirmTarget?.next === "in_progress"
-                  ? "Confirma que iniciarás el trabajo asociado a este acuerdo."
-                  : "Esta acción cancelará el acuerdo. Puedes crear uno nuevo después si lo necesitas."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <button
-              className="text-xs rounded px-3 py-1.5 border hover:bg-gray-50"
-              onClick={() => setConfirmOpen(false)}
-            >
-              Volver
-            </button>
-            <button
-              className="text-xs rounded px-3 py-1.5 border bg-black text-white hover:bg-black/90"
-              onClick={async () => {
-                if (!confirmTarget) return;
-                const r = await fetch(`/api/agreements/${confirmTarget.id}`, {
-                  method: "PATCH",
-                  headers: {
-                    "Content-Type": "application/json; charset=utf-8",
-                  },
-                  body: JSON.stringify({ status: confirmTarget.next }),
-                });
-                const j = await r.json();
-                if (!r.ok) {
-                  toast.error(j?.error || "Operación fallida");
-                } else {
-                  setItems(
-                    (prev) =>
-                      prev?.map((it) =>
-                        it.id === confirmTarget.id
-                          ? { ...it, status: confirmTarget.next }
-                          : it,
-                      ) ?? prev,
-                  );
-                  toast.success(
-                    confirmTarget.next === "completed"
-                      ? "Acuerdo completado"
-                      : confirmTarget.next === "in_progress"
-                        ? "Trabajo iniciado"
-                        : "Acuerdo cancelado",
-                  );
-                }
-                setConfirmOpen(false);
-                setConfirmTarget(null);
-              }}
-            >
-              Confirmar
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
