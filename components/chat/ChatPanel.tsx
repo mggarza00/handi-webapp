@@ -1285,20 +1285,8 @@ export default function ChatPanel({
     return true;
   }
   function hasActiveOfferInChat(): boolean {
-    const arr = messagesRef.current || [];
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const msg = arr[i];
-      if (msg.messageType !== "offer") continue;
-      const payload = msg.payload;
-      if (!payload || typeof payload !== "object") continue;
-      const po = payload as Record<string, unknown>;
-      const rawStatus = po.status;
-      const offerId =
-        typeof po.offer_id === "string" ? (po.offer_id as string) : null;
-      const status = normalizeStatus(
-        (offerId ? getOfferStatusFromMessages(offerId) : null) ??
-          (typeof rawStatus === "string" ? rawStatus : null),
-      ).toLowerCase();
+    for (const [, summary] of offerSummaries) {
+      const status = normalizeStatus(summary.status).toLowerCase();
       if (
         status !== "accepted" &&
         status !== "rejected" &&
