@@ -1,31 +1,31 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import * as React from "react";
 import { headers } from "next/headers";
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import localFont from "next/font/local";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { MapPin } from "lucide-react";
-
-import Breadcrumbs from "@/components/breadcrumbs";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
-import CertChip from "@/components/profiles/CertChip";
-import PhotoMasonry from "@/components/profiles/PhotoMasonry";
-import CompletedWorks from "@/components/profiles/CompletedWorks";
-import ExpandableText from "@/components/profiles/ExpandableText.client";
-import ReviewsListClient from "@/components/profiles/ReviewsList.client";
-import StarRating from "@/components/StarRating";
-import "./profile-layout.css";
 
 import type { Database } from "@/types/supabase";
-import { getAdminSupabase } from "@/lib/supabase/admin";
+import Breadcrumbs from "@/components/breadcrumbs";
+import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
+import ProfileHeaderCard from "@/components/profiles/ProfileHeaderCard";
+import CertChip from "@/components/profiles/CertChip";
+import CompletedWorks from "@/components/profiles/CompletedWorks";
+import ExpandableText from "@/components/profiles/ExpandableText.client";
+import PhotoMasonry from "@/components/profiles/PhotoMasonry";
+import ReviewsListClient from "@/components/profiles/ReviewsList.client";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   getProfessionalOverview,
   getPortfolio as loadPortfolio,
   getReviews as loadReviews,
 } from "@/lib/profiles/data";
 import { getProJobsWithPhotos } from "@/lib/profiles/jobs";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import createClient from "@/utils/supabase/server";
+
+import "./profile-layout.css";
 
 const stackSansHeading = localFont({
   src: "../../../../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
@@ -35,14 +35,12 @@ const stackSansHeading = localFont({
 
 type Ctx = { params: { id: string } };
 
-type ReviewDTO = {
-  id: string;
-  stars: number;
-  comment?: string;
-  createdAt: string;
-  clientName?: string;
-  clientAvatarUrl?: string;
-};
+const getString = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
+const getNumber = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+const getBoolean = (value: unknown): boolean | null =>
+  typeof value === "boolean" ? value : null;
 
 function getBaseUrl() {
   const h = headers();
@@ -62,11 +60,13 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   try {
     const supa = getAdminSupabase() as SupabaseClient<Database>;
     const ov = await getProfessionalOverview(supa, params.id);
+    const proData = ov.pro;
+    const profileData = proData?.profiles ?? null;
     const name =
-      ((ov.pro as any)?.profiles?.full_name as string) ||
-      (ov.pro as any)?.full_name ||
+      getString(profileData?.full_name) ||
+      getString(proData?.full_name) ||
       "Perfil profesional";
-    const rawBio = (((ov.pro as any)?.bio as string) || "").toString();
+    const rawBio = (getString(proData?.bio) || "").toString();
     const firstLine = rawBio.split(/\r?\n/)[0] || "";
     const bioText = firstLine;
     const titleName = `${name} Perfil profesional`;
@@ -76,9 +76,10 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
         : bioText || "Perfil profesional en Handi";
 
     // Prefer avatar as OG if available, else fallback
-    let imageUrl = (((ov.pro as any)?.profiles?.avatar_url as string) ||
-      (ov.pro as any)?.avatar_url ||
-      `${base}/avatar.png`) as string;
+    const imageUrl =
+      getString(profileData?.avatar_url) ||
+      getString(proData?.avatar_url) ||
+      `${base}/avatar.png`;
 
     return {
       title: `${titleName} · Handi`,
@@ -124,114 +125,8 @@ export default async function PublicProfilePage({ params }: Ctx) {
     return notFound();
   }
 
-  // Small helpers to normalize arrays stored as JSON/string
-  const toArray = (v: unknown): unknown[] => {
-    if (Array.isArray(v)) return v;
-    if (typeof v === "string") {
-      const s = v.trim();
-      try {
-        const parsed = JSON.parse(s);
-        if (Array.isArray(parsed)) return parsed as unknown[];
-      } catch {
-        /* ignore */
-      }
-      return s ? [s] : [];
-    }
-    return [];
-  };
-  const toNames = (v: unknown): string[] =>
-    toArray(v)
-      .map((x) => (typeof x === "string" ? x : (x as any)?.name))
-      .filter((s): s is string => typeof s === "string" && s.length > 0)
-      .map((s) => s.trim());
-
   const categories = overview.categories;
   const subcategories = overview.subcategories;
-
-  // Helpers
-  async function getPortfolio(id: string, limit = 18) {
-    const { data } = await supa
-      .from("service_photos")
-      .select("id, request_id, image_url, uploaded_at")
-      .eq("professional_id", id)
-      .order("uploaded_at", { ascending: false, nullsFirst: false })
-      .limit(limit);
-    const photos = (data ?? []) as Array<
-      Database["public"]["Tables"]["service_photos"]["Row"]
-    >;
-    const reqIds = Array.from(new Set(photos.map((p) => p.request_id))).filter(
-      Boolean,
-    ) as string[];
-    let titles = new Map<string, string>();
-    if (reqIds.length) {
-      const rq = await supa
-        .from("requests")
-        .select("id, title")
-        .in("id", reqIds);
-      const rows = (rq.data ?? []) as Array<
-        Database["public"]["Tables"]["requests"]["Row"]
-      >;
-      titles = new Map(rows.map((r) => [r.id, r.title]));
-    }
-    return photos.map((x) => ({
-      url: x.image_url,
-      requestId: x.request_id,
-      title: titles.get(x.request_id) || undefined,
-      createdAt: x.uploaded_at || undefined,
-    }));
-  }
-
-  async function getReviews(
-    id: string,
-    limit = 10,
-  ): Promise<{
-    items: ReviewDTO[];
-    count: number;
-    nextCursor: string | null;
-    average: number | null;
-  }> {
-    const [{ data: list }, { count }, avg] = await Promise.all([
-      // Prefer view with client info if available
-      supa
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("v_professional_reviews" as any)
-        .select("id, rating, comment, created_at, client_name, client_avatar")
-        .eq("professional_id", id)
-        .order("created_at", { ascending: false })
-        .limit(limit),
-      supa
-        .from("ratings")
-        .select("id", { count: "exact", head: true })
-        .eq("to_user_id", id),
-      supa
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .from("ratings" as any)
-        .select("avg:stars")
-        .eq("to_user_id", id),
-    ]);
-    const items: ReviewDTO[] = (list ?? []).map((r: any) => ({
-      id: String(r.id),
-      stars: Number(r.rating ?? 0),
-      comment: (r.comment as string | null) || undefined,
-      createdAt: (r.created_at as string | null) || "",
-      clientName: (r.client_name as string | null) || undefined,
-      clientAvatarUrl: (r.client_avatar as string | null) || undefined,
-    }));
-    const nextCursor = items.length
-      ? `${items[items.length - 1].createdAt}|${items[items.length - 1].id}`
-      : null;
-    let average: number | null = null;
-    try {
-      if (Array.isArray(avg.data) && avg.data.length > 0) {
-        const v = (avg.data[0] as any)?.avg;
-        average = typeof v === "number" ? v : Number(v);
-        if (!Number.isFinite(average)) average = null;
-      }
-    } catch {
-      /* ignore */
-    }
-    return { items, count: count ?? 0, nextCursor, average };
-  }
 
   const [portfolio, reviewsData] = await Promise.all([
     loadPortfolio(supa, proId, 18),
@@ -245,6 +140,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
   const rls = createClient();
   const { data: auth } = await rls.auth.getUser();
   let showFavorite = false;
+  const isOwner = auth?.user?.id === proId;
   if (auth?.user) {
     const uid = auth.user.id;
     if (uid !== proId) {
@@ -252,10 +148,8 @@ export default async function PublicProfilePage({ params }: Ctx) {
         .from("profiles")
         .select("id, role")
         .eq("id", uid)
-        .maybeSingle<any>();
-      const vrole =
-        ((viewerProfile as any)?.role as null | "client" | "pro" | "admin") ??
-        null;
+        .maybeSingle<{ id: string; role: "client" | "pro" | "admin" | null }>();
+      const vrole = viewerProfile?.role ?? null;
       showFavorite = vrole === "client";
     }
   }
@@ -271,7 +165,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
       .select("id, certifications")
       .eq("id", proId)
       .maybeSingle();
-    const raw = (prow.data as unknown as { certifications?: unknown } | null)
+    const raw = (prow.data as { certifications?: unknown } | null)
       ?.certifications;
     const toArray = (v: unknown): unknown[] => {
       if (Array.isArray(v)) return v;
@@ -280,7 +174,9 @@ export default async function PublicProfilePage({ params }: Ctx) {
         try {
           const parsed = JSON.parse(s);
           if (Array.isArray(parsed)) return parsed as unknown[];
-        } catch {}
+        } catch {
+          /* ignore */
+        }
         if (s.includes(","))
           return s
             .split(",")
@@ -290,40 +186,47 @@ export default async function PublicProfilePage({ params }: Ctx) {
       }
       return [];
     };
+    const toName = (value: unknown): string | null => {
+      if (typeof value === "string") return value;
+      if (value && typeof value === "object" && "name" in value) {
+        const nameValue = (value as { name?: unknown }).name;
+        return typeof nameValue === "string" ? nameValue : null;
+      }
+      return null;
+    };
     certifications = toArray(raw)
-      .map((x) => (typeof x === "string" ? x : (x as any)?.name))
+      .map((x) => toName(x))
       .filter((s): s is string => typeof s === "string" && s.length > 0)
       .map((s) => s.trim());
   } catch {
     /* ignore */
   }
 
+  const proData = pro;
+  const profileData = proData.profiles ?? null;
   const displayName =
-    ((pro as any)?.profiles?.full_name as string) ||
-    ((pro as any)?.full_name as string) ||
+    getString(profileData?.full_name) ||
+    getString(proData?.full_name) ||
     "Profesional";
   const avatarUrl =
-    ((pro as any)?.profiles?.avatar_url as string) ||
-    ((pro as any)?.avatar_url as string) ||
+    getString(profileData?.avatar_url) ||
+    getString(proData?.avatar_url) ||
     "/avatar.png";
   const cityLabel =
-    ((pro as any)?.profiles?.city as string) ||
-    ((pro as any)?.city as string) ||
-    null;
+    getString(profileData?.city) || getString(proData?.city) || null;
   const categoriesLabel =
     (categories.length ? categories : subcategories).join(", ") || "—";
   const subcategoriesLabel = subcategories.join(", ") || "—";
   const serviceCities = overview.cities ?? [];
-  const yearsExperience =
-    typeof (pro as any)?.years_experience === "number"
-      ? ((pro as any)?.years_experience as number)
-      : null;
+  const yearsExperience = getNumber(proData.years_experience) ?? null;
   const averageRating =
     typeof reviewsData.average === "number"
       ? reviewsData.average
-      : typeof (pro as any)?.rating === "number"
-        ? ((pro as any)?.rating as number)
-        : null;
+      : (getNumber(proData.rating) ?? null);
+  const bio = getString(proData.bio);
+  const isVerified = Boolean(
+    getBoolean(proData.verified) || getBoolean(proData.is_featured),
+  );
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
@@ -335,100 +238,28 @@ export default async function PublicProfilePage({ params }: Ctx) {
         ]}
       />
 
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[var(--color-primary)] via-[var(--color-secondary)] to-[var(--color-primary)] text-white shadow-2xl">
-        <div className="flex flex-col gap-6 p-6 md:p-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4 md:gap-6">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={avatarUrl || "/avatar.png"}
-                alt={displayName}
-                className="h-20 w-20 rounded-full bg-white p-1 ring-2 ring-white/50 object-cover shadow-lg md:h-24 md:w-24"
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
-                loading="lazy"
-                decoding="async"
-              />
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1
-                    className={`${stackSansHeading.className} text-3xl font-semibold leading-tight text-white`}
-                  >
-                    {displayName}
-                  </h1>
-                  <Badge
-                    variant="default"
-                    className="bg-white/15 text-white ring-1 ring-white/20"
-                  >
-                    Profesional
-                  </Badge>
-                  {((pro as any)?.verified as boolean | null) ||
-                  ((pro as any)?.is_featured as boolean | null) ? (
-                    <Badge
-                      variant="outline"
-                      className="border-white/30 bg-white/10 text-white"
-                    >
-                      Verificado
-                    </Badge>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-white/85">
-                  <span className="inline-flex items-center gap-1">
-                    <MapPin className="h-4 w-4" />
-                    {cityLabel || "Ubicación no disponible"}
-                  </span>
-                  {typeof yearsExperience === "number" ? (
-                    <span className="inline-flex items-center gap-1">
-                      • {yearsExperience} años de experiencia
-                    </span>
-                  ) : null}
-                  {typeof jobsDone === "number" ? (
-                    <span className="inline-flex items-center gap-1">
-                      • {jobsDone} trabajos realizados
-                    </span>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-white/90">
-                  {typeof averageRating === "number" ? (
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1">
-                      <StarRating
-                        value={averageRating}
-                        ariaLabel={`Calificación ${averageRating.toFixed(1)} de 5`}
-                      />
-                      <span className="font-semibold">
-                        {averageRating.toFixed(1)}
-                      </span>
-                      {typeof reviewsData.count === "number" ? (
-                        <span className="text-white/80">
-                          ({reviewsData.count} reseñas)
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-            {showFavorite ? (
-              <div className="self-start md:self-center">
-                <FavoriteProButton proId={proId} />
-              </div>
-            ) : null}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs text-white/90">
-            {categoriesLabel && categoriesLabel !== "—" ? (
-              <span className="rounded-full bg-white/10 px-3 py-1">
-                {categoriesLabel}
-              </span>
-            ) : null}
-            {serviceCities.map((c) => (
-              <span key={c} className="rounded-full bg-white/10 px-3 py-1">
-                {c}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
+      <ProfileHeaderCard
+        displayName={displayName}
+        avatarUrl={avatarUrl}
+        cityLabel={cityLabel}
+        yearsExperience={yearsExperience}
+        jobsDone={jobsDone}
+        categoriesLabel={categoriesLabel}
+        serviceCities={serviceCities}
+        averageRating={averageRating}
+        reviewsCount={reviewsData.count}
+        headingClassName={stackSansHeading.className}
+        isVerified={isVerified}
+        rightAction={
+          isOwner ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href="/profile/setup">Editar</Link>
+            </Button>
+          ) : showFavorite ? (
+            <FavoriteProButton proId={proId} />
+          ) : null
+        }
+      />
 
       <section className="profile-layout">
         <div className="space-y-4">
@@ -482,9 +313,9 @@ export default async function PublicProfilePage({ params }: Ctx) {
             <div className="p-5">
               <h2 className="text-lg font-semibold text-slate-900">Resumen</h2>
               <div className="mt-3 text-sm text-slate-600">
-                {pro.bio ? (
+                {bio ? (
                   <ExpandableText
-                    text={(pro.bio as string) || ""}
+                    text={bio}
                     maxParagraphs={35}
                     previewParagraphs={4}
                   />
@@ -666,7 +497,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
               <h2 className="text-lg font-semibold text-slate-900">Reseñas</h2>
               <ReviewsListClient
                 professionalId={proId}
-                initial={reviewsData.items as any}
+                initial={reviewsData.items}
                 nextCursor={reviewsData.nextCursor}
                 total={reviewsData.count}
               />
