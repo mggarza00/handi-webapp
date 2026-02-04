@@ -168,7 +168,7 @@ export default function LandingPage({
             return (
               <Link
                 key={`cat-card-${cat.name}`}
-                href={`/search?category=${encodeURIComponent(cat.name)}`}
+                href={`/professionals?category=${encodeURIComponent(cat.name)}`}
                 className="relative overflow-hidden rounded-2xl shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
                 style={{ backgroundColor: bg }}
                 aria-label={`Buscar profesionales de ${cat.name}`}
