@@ -381,7 +381,6 @@ export default async function PublicProfilePage({ params }: Ctx) {
                     Experiencia, calidad y alcance del profesional.
                   </p>
                 </div>
-                {showFavorite ? <FavoriteProButton proId={proId} /> : null}
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <StatPill
