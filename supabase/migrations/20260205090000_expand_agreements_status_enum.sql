@@ -63,6 +63,23 @@ BEGIN
   END IF;
 END $$;
 
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN
+    SELECT c.conname
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    WHERE t.relname = 'agreements'
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ILIKE '%status%'
+  LOOP
+    EXECUTE format('ALTER TABLE agreements DROP CONSTRAINT %I', r.conname);
+  END LOOP;
+END $$;
+
 ALTER TABLE agreements
   ALTER COLUMN status DROP DEFAULT,
   ALTER COLUMN status TYPE agreement_status USING status::text::agreement_status,
