@@ -123,6 +123,7 @@ export async function POST(req: Request) {
               : ((session.payment_intent as { id?: string } | null)?.id ??
                 null);
           const nowIso = new Date().toISOString();
+          let finalizedOk = false;
           if (offerId) {
             try {
               const finalized = await finalizeOfferPayment({
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
                 paymentIntentId,
                 source: "webhook",
               });
+              finalizedOk = !!finalized.ok;
               if (finalized.requestId) requestIdTouched = finalized.requestId;
             } catch {
               /* ignore finalize failures */
@@ -742,7 +744,7 @@ export async function POST(req: Request) {
               const serviceDateIso = (off as any)?.service_date as
                 | string
                 | null;
-              if (convId && clientId) {
+              if (!finalizedOk && convId && clientId) {
                 const { data: existing } = await admin
                   .from("messages")
                   .select("id")
@@ -1631,7 +1633,7 @@ export async function POST(req: Request) {
           } catch {
             /* ignore */
           }
-          if (conversationId && clientId && offerId) {
+          if (!finalizedOk && conversationId && clientId && offerId) {
             try {
               const { data: existingMsg } = await admin
                 .from("messages")
