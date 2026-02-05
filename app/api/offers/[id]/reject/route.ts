@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import getRouteClient from "@/lib/supabase/route-client";
+import { syncOfferAgreementStatus } from "@/lib/agreements/sync-offer-agreement";
 
 import type { Database } from "@/types/supabase";
 
@@ -106,38 +107,10 @@ export async function POST(
         { status: 400, headers: JSONH },
       );
 
-    // Sync agreements to rejected for this request/pro (if any)
-    try {
-      const { data: conv } = await supabase
-        .from("conversations")
-        .select("request_id")
-        .eq("id", (offer as any)?.conversation_id ?? "")
-        .maybeSingle();
-      const reqId = (conv as any)?.request_id as string | null;
-      const proId = (offer as any)?.professional_id as string | null;
-      if (reqId && proId) {
-        const { data: existing } = await supabase
-          .from("agreements")
-          .select("id")
-          .eq("request_id", reqId)
-          .eq("professional_id", proId)
-          .limit(1);
-        if (Array.isArray(existing) && existing.length) {
-          const agrId = (existing[0] as any)?.id as string | null;
-          if (agrId) {
-            await supabase
-              .from("agreements")
-              .update({
-                status: "rejected" as any,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", agrId);
-          }
-        }
-      }
-    } catch {
-      /* ignore sync errors */
-    }
+    await syncOfferAgreementStatus({
+      offer: updated as Database["public"]["Tables"]["offers"]["Row"],
+      status: "rejected",
+    });
 
     return NextResponse.json(
       { ok: true, offer: updated },
