@@ -18,6 +18,9 @@ export default defineConfig({
     url: `http://localhost:${PORT}`,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
+    env: {
+      CI: "true",
+    },
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
