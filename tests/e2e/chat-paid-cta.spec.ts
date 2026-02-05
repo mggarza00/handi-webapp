@@ -9,15 +9,23 @@ async function createOfferForConversation(page, conversationId: string, amount =
   expect(res.ok(), 'create offer ok').toBeTruthy();
 }
 
-async function acceptOfferForConversationAsPro(proContext: BrowserContext, conversationId: string) {
+async function acceptOfferByIdAsPro(proContext: BrowserContext, offerId: string) {
   const proPage = await proContext.newPage();
   await loginUI(proPage, 'pro');
-  const res = await proPage.request.post(`/api/conversations/${encodeURIComponent(conversationId)}/offers/accept`, {
+  const res = await proPage.request.post(`/api/offers/${encodeURIComponent(offerId)}/accept`, {
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    data: { conversationId },
   });
   expect(res.ok(), 'accept offer ok').toBeTruthy();
   await proPage.close();
+}
+
+async function getLatestOfferId(page, conversationId: string): Promise<string> {
+  const off = await page.request.get(`/api/conversations/${encodeURIComponent(conversationId)}/offers`);
+  expect(off.ok(), 'list offers ok').toBeTruthy();
+  const j = await off.json();
+  const offerId: string | undefined = j?.data?.[0]?.id;
+  expect(offerId, 'offer id exists').toBeTruthy();
+  return offerId!;
 }
 
 async function getConversationIdFromFirstThread(page): Promise<string> {
@@ -52,16 +60,18 @@ test.describe('Chat CTAs hidden after payment and request scheduled', () => {
 
     // Create offer (client) and accept it (pro)
     await createOfferForConversation(page, conversationId, 1500);
-    await acceptOfferForConversationAsPro(proContext, conversationId);
+    const offerId = await getLatestOfferId(page, conversationId);
+    const agreementsPage = await browser.newPage();
+    await loginUI(agreementsPage, 'client');
+    await agreementsPage.goto(`/requests/${requestId}`, { waitUntil: 'domcontentloaded' });
+    await expect(agreementsPage.getByRole('heading', { name: 'Acuerdos' })).toBeVisible({ timeout: 15000 });
+    await acceptOfferByIdAsPro(proContext, offerId);
+    await expect(agreementsPage.getByText('Oferta aceptada')).toBeVisible({ timeout: 15000 });
 
     // Resolve offer id and mark it as paid via test endpoint
-    const off = await page.request.get(`/api/conversations/${encodeURIComponent(conversationId)}/offers`);
-    expect(off.ok(), 'list offers ok').toBeTruthy();
-    const j = await off.json();
-    const offerId: string | undefined = j?.data?.[0]?.id;
-    expect(offerId, 'offer id exists').toBeTruthy();
-    const mark = await page.request.post(`/api/test/offers/${encodeURIComponent(offerId!)}/mark-paid`, { headers: { 'x-e2e': '1' } });
+    const mark = await page.request.post(`/api/test/offers/${encodeURIComponent(offerId)}/mark-paid`, { headers: { 'x-e2e': '1' } });
     expect(mark.ok(), 'mark paid ok').toBeTruthy();
+    await agreementsPage.close();
 
     // Wait for paid message to show
     await expect(page.getByText('Pago realizado. Servicio agendado.').first()).toBeVisible({ timeout: 15000 });
