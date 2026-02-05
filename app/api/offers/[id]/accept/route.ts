@@ -5,6 +5,7 @@ import { createClient as createSSRClient } from "@/utils/supabase/server";
 
 import { createBearerClient, createServerClient } from "@/lib/supabase";
 import { assertRateLimit } from "@/lib/rate/limit";
+import { syncOfferAgreementStatus } from "@/lib/agreements/sync-offer-agreement";
 import type { Database } from "@/types/supabase";
 
 type OfferRow = Database["public"]["Tables"]["offers"]["Row"];
@@ -14,58 +15,6 @@ const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ||
   process.env.NEXT_PUBLIC_SITE_URL ||
   "http://localhost:3000";
-
-async function syncAgreementStatus({
-  admin,
-  offer,
-  status,
-}: {
-  admin: ReturnType<typeof createServerClient>;
-  offer: OfferRow;
-  status: "accepted" | "rejected";
-}) {
-  try {
-    const convId = (offer as any)?.conversation_id as string | null;
-    const proId = (offer as any)?.professional_id as string | null;
-    if (!convId || !proId) return;
-    const { data: conv } = await admin
-      .from("conversations")
-      .select("request_id")
-      .eq("id", convId)
-      .maybeSingle();
-    const reqId = (conv as any)?.request_id as string | null;
-    if (!reqId) return;
-    const amt = Number((offer as any)?.amount ?? NaN);
-    const { data: existing } = await admin
-      .from("agreements")
-      .select("id")
-      .eq("request_id", reqId)
-      .eq("professional_id", proId)
-      .limit(1);
-    if (Array.isArray(existing) && existing.length) {
-      const agrId = (existing[0] as any)?.id as string | null;
-      if (agrId) {
-        await admin
-          .from("agreements")
-          .update({
-            status: status as any,
-            amount: Number.isFinite(amt) ? amt : undefined,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", agrId);
-      }
-    } else {
-      await admin.from("agreements").insert({
-        request_id: reqId,
-        professional_id: proId,
-        amount: Number.isFinite(amt) ? amt : null,
-        status: status as any,
-      });
-    }
-  } catch {
-    /* ignore sync errors */
-  }
-}
 
 export async function POST(
   req: Request,
@@ -312,8 +261,7 @@ export async function POST(
             body: JSON.stringify({ offerId: row.id }),
           }).catch(() => undefined);
         }
-        await syncAgreementStatus({
-          admin,
+        await syncOfferAgreementStatus({
           offer: updated,
           status: "accepted",
         });
@@ -423,9 +371,8 @@ export async function POST(
 
     try {
       const admin = createServerClient();
-      await syncAgreementStatus({
-        admin,
-        offer: updated ?? offer,
+      await syncOfferAgreementStatus({
+        offer: (updated ?? offer) as OfferRow,
         status: "accepted",
       });
     } catch {

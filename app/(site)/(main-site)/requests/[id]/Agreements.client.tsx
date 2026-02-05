@@ -3,6 +3,7 @@ import * as React from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = { requestId: string; createdBy?: string | null };
 
@@ -63,6 +64,15 @@ export default function AgreementsClient({ requestId }: Props) {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [nonce, setNonce] = React.useState(0);
+  const lastRealtimeAtRef = React.useRef(0);
+  const supabase = React.useMemo(() => {
+    try {
+      return createSupabaseBrowser();
+    } catch {
+      return null;
+    }
+  }, []);
+  const refresh = React.useCallback(() => setNonce((n) => n + 1), []);
 
   const money = React.useMemo(
     () =>
@@ -101,12 +111,68 @@ export default function AgreementsClient({ requestId }: Props) {
     return () => controller.abort();
   }, [requestId, nonce]);
 
+  React.useEffect(() => {
+    if (!supabase || !requestId) return;
+    const channel = supabase
+      .channel(`agreements:${requestId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "agreements",
+          filter: `request_id=eq.${requestId}`,
+        },
+        () => {
+          const now = Date.now();
+          if (now - lastRealtimeAtRef.current < 250) return;
+          lastRealtimeAtRef.current = now;
+          refresh();
+          window.dispatchEvent(
+            new CustomEvent("agreements:refresh", {
+              detail: { requestId, source: "agreements-realtime" },
+            }),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "offers",
+          filter: `request_id=eq.${requestId}`,
+        },
+        () => {
+          const now = Date.now();
+          if (now - lastRealtimeAtRef.current < 250) return;
+          lastRealtimeAtRef.current = now;
+          refresh();
+          window.dispatchEvent(
+            new CustomEvent("agreements:refresh", {
+              detail: { requestId, source: "agreements-realtime" },
+            }),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [requestId, supabase, refresh]);
+
   // Escucha eventos para refrescar lista desde otros componentes (e.g., Prospectos)
   React.useEffect(() => {
     function onRefresh(e: Event) {
-      const ce = e as CustomEvent<string>;
-      const targetId = ce?.detail;
-      if (!targetId || targetId === requestId) setNonce((n) => n + 1);
+      const ce = e as CustomEvent<
+        string | { requestId?: string; source?: string }
+      >;
+      const detail = ce?.detail;
+      const targetId =
+        typeof detail === "string" ? detail : detail?.requestId;
+      const source = typeof detail === "string" ? null : detail?.source;
+      if (source === "agreements-realtime" && targetId === requestId) return;
+      if (!targetId || targetId === requestId) refresh();
     }
     window.addEventListener("agreements:refresh", onRefresh as EventListener);
     return () =>
@@ -114,7 +180,7 @@ export default function AgreementsClient({ requestId }: Props) {
         "agreements:refresh",
         onRefresh as EventListener,
       );
-  }, [requestId]);
+  }, [requestId, refresh]);
 
   const viewItems = React.useMemo(() => {
     if (!items) return [] as AgreementItem[];
