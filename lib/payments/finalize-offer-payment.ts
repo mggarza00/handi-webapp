@@ -1,6 +1,7 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
+import { sendEmail } from "@/lib/email";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
 type FinalizeArgs = {
@@ -59,6 +60,8 @@ export async function finalizeOfferPayment(
     let requestRequiredAt: string | null = null;
     let requestScheduledDate: string | null = null;
     let requestScheduledTime: string | null = null;
+    let proEmail: string | null = null;
+    let proName: string | null = null;
 
     if (conversationId) {
       const { data: conv } = await admin
@@ -97,6 +100,25 @@ export async function finalizeOfferPayment(
       requestScheduledTime =
         (req as { scheduled_time?: string | null } | null)?.scheduled_time ??
         null;
+    }
+    if (proId) {
+      try {
+        const { data: profile } = await admin
+          .from("profiles")
+          .select("email, full_name")
+          .eq("id", proId)
+          .maybeSingle();
+        proEmail =
+          ((profile as { email?: string | null } | null)?.email as
+            | string
+            | null) ?? null;
+        proName =
+          ((profile as { full_name?: string | null } | null)?.full_name as
+            | string
+            | null) ?? null;
+      } catch {
+        /* ignore */
+      }
     }
 
     const scheduledDate =
@@ -186,7 +208,7 @@ export async function finalizeOfferPayment(
           .update({ status: "cancelled" as any, updated_at: nowIso })
           .eq("request_id", requestId)
           .neq("professional_id", proId)
-          .not("status", "in", "(paid,in_progress,completed,cancelled,disputed)");
+          .in("status", ["negotiating", "accepted", "paid"]);
       } catch {
         /* ignore */
       }
@@ -272,9 +294,48 @@ export async function finalizeOfferPayment(
       }
     }
 
+    if (proEmail) {
+      try {
+        const base =
+          process.env.NEXT_PUBLIC_APP_URL ||
+          process.env.NEXT_PUBLIC_SITE_URL ||
+          "http://localhost:3000";
+        const title = requestTitle || "Servicio";
+        const proUrl = `${base.replace(/\\/$/, "")}/pro`;
+        const calendarUrl = `${base.replace(/\\/$/, "")}/pro/calendar`;
+        const chatUrl = conversationId
+          ? `${base.replace(/\\/$/, "")}/mensajes/${encodeURIComponent(
+              conversationId,
+            )}`
+          : null;
+        const subject = "Handi - Tu oferta fue pagada";
+        const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        const safeName = (proName || "Profesional")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;");
+        const links = [
+          `<li><a href="${proUrl}">Ir a tu dashboard</a></li>`,
+          `<li><a href="${calendarUrl}">Ver calendario</a></li>`,
+          chatUrl ? `<li><a href="${chatUrl}">Abrir chat</a></li>` : null,
+        ]
+          .filter(Boolean)
+          .join("");
+        const html = `
+          <p>Hola ${safeName},</p>
+          <p>Tu oferta de contratacion (<strong>${safeTitle}</strong>) ha sido pagada.</p>
+          <p>El servicio se ha agendado y ya aparece en tu cuenta.</p>
+          <ul>${links}</ul>
+        `;
+        await sendEmail({ to: proEmail, subject, html }).catch(() => null);
+      } catch {
+        /* ignore */
+      }
+    }
+
     try {
       if (requestId) revalidatePath(`/requests/${requestId}`);
       if (conversationId) revalidatePath(`/mensajes/${conversationId}`);
+      revalidatePath("/pro");
       revalidatePath("/pro/calendar");
       revalidateTag("pro-calendar");
     } catch {
