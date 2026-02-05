@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStripe } from "@/lib/stripe";
+import { getStripeForMode, type StripeMode } from "@/lib/stripe";
 import type Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
@@ -13,16 +13,20 @@ import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export async function POST(req: Request) {
-  const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+  const liveSecret =
+    process.env.STRIPE_WEBHOOK_SECRET_LIVE || process.env.STRIPE_WEBHOOK_SECRET;
+  const testSecret = process.env.STRIPE_WEBHOOK_SECRET_TEST;
 
-  if (!STRIPE_WEBHOOK_SECRET) {
+  if (!liveSecret && !testSecret) {
     return new NextResponse(
       JSON.stringify({ ok: false, error: "SERVER_MISCONFIGURED:STRIPE_KEYS" }),
       { status: 500, headers: JSONH },
     );
   }
-  const stripe = await getStripe();
-  if (!stripe) {
+  const stripeLive = await getStripeForMode("live");
+  const stripeTest = await getStripeForMode("test");
+  const stripeForWebhook = stripeLive || stripeTest;
+  if (!stripeForWebhook) {
     return new NextResponse(
       JSON.stringify({
         ok: false,
@@ -42,14 +46,44 @@ export async function POST(req: Request) {
 
   const raw = await req.text();
 
-  let event: Stripe.Event;
+  let event: Stripe.Event | null = null;
+  let eventMode: StripeMode | null = null;
+  let lastError = "invalid payload";
   try {
-    event = stripe.webhooks.constructEvent(raw, sig, STRIPE_WEBHOOK_SECRET);
+    if (liveSecret) {
+      event = stripeForWebhook.webhooks.constructEvent(raw, sig, liveSecret);
+      eventMode = "live";
+    }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "invalid payload";
+    lastError = err instanceof Error ? err.message : "invalid payload";
+  }
+  if (!event && testSecret) {
+    try {
+      event = stripeForWebhook.webhooks.constructEvent(raw, sig, testSecret);
+      eventMode = "test";
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : "invalid payload";
+    }
+  }
+  if (!event || !eventMode) {
     return new NextResponse(
-      JSON.stringify({ ok: false, error: "INVALID_SIGNATURE", detail: msg }),
+      JSON.stringify({
+        ok: false,
+        error: "INVALID_SIGNATURE",
+        detail: lastError,
+      }),
       { status: 400, headers: JSONH },
+    );
+  }
+
+  const stripe = eventMode === "test" ? stripeTest : stripeLive;
+  if (!stripe) {
+    return new NextResponse(
+      JSON.stringify({
+        ok: false,
+        error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY",
+      }),
+      { status: 500, headers: JSONH },
     );
   }
 
@@ -99,6 +133,14 @@ export async function POST(req: Request) {
               if (finalized.requestId) requestIdTouched = finalized.requestId;
             } catch {
               /* ignore finalize failures */
+            }
+            try {
+              await admin
+                .from("offers")
+                .update({ payment_mode: eventMode })
+                .eq("id", offerId);
+            } catch {
+              /* ignore */
             }
           }
 
@@ -412,7 +454,7 @@ export async function POST(req: Request) {
               commission_amount_cents: commission_cents,
               iva_amount_cents: iva_cents,
               total_amount_cents: total_cents,
-              metadata: {},
+              metadata: { payment_mode: eventMode },
             };
             if (receiptIdPersist) {
               await admin
@@ -1378,6 +1420,14 @@ export async function POST(req: Request) {
             } catch {
               /* ignore finalize failures */
             }
+            try {
+              await admin
+                .from("offers")
+                .update({ payment_mode: eventMode })
+                .eq("id", offerId);
+            } catch {
+              /* ignore */
+            }
           }
           let currency: string = (intent.currency || "MXN").toUpperCase();
           let receipt_url: string | null = null;
@@ -1543,7 +1593,7 @@ export async function POST(req: Request) {
               commission_amount_cents: commission_cents,
               iva_amount_cents: iva_cents,
               total_amount_cents: total_cents,
-              metadata: {},
+              metadata: { payment_mode: eventMode },
             };
             if (receiptIdPersist) {
               await admin
