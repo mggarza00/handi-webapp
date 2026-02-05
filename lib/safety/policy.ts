@@ -8,7 +8,9 @@ function resolveContactPolicy(): ContactPolicy {
 }
 
 function resolveContactPolicyMode(): "off" | "block" | "redact" {
-  const raw = (process.env.NEXT_PUBLIC_CONTACT_POLICY_MODE ?? "redact").toLowerCase();
+  const raw = (
+    process.env.NEXT_PUBLIC_CONTACT_POLICY_MODE ?? "redact"
+  ).toLowerCase();
   if (raw === "off") return "off";
   if (raw === "block") return "block";
   return "redact";
@@ -29,6 +31,27 @@ export function getContactPolicyMode(): "off" | "block" | "redact" {
   return resolveContactPolicyMode();
 }
 
-export function getContactPolicyMessage(): string {
+type ContactPolicyContext = {
+  offerStatus?: string | null;
+  agreementStatus?: string | null;
+  requestStatus?: string | null;
+};
+
+export function isContactPolicyLifted(ctx?: ContactPolicyContext): boolean {
+  const offerStatus = (ctx?.offerStatus || "").toLowerCase();
+  const agreementStatus = (ctx?.agreementStatus || "").toLowerCase();
+  const requestStatus = (ctx?.requestStatus || "").toLowerCase();
+  if (offerStatus === "paid") return true;
+  if (agreementStatus === "paid") return true;
+  return (
+    requestStatus === "scheduled" ||
+    requestStatus === "in_process" ||
+    requestStatus === "inprogress" ||
+    requestStatus === "paid"
+  );
+}
+
+export function getContactPolicyMessage(ctx?: ContactPolicyContext): string {
+  if (isContactPolicyLifted(ctx)) return "";
   return resolveContactPolicyMessage();
 }

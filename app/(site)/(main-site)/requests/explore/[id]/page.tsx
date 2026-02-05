@@ -19,6 +19,7 @@ import { normalizeAvatarUrl } from "@/lib/avatar";
 import { mapConditionToLabel } from "@/lib/conditions";
 import { UI_STATUS_LABELS } from "@/lib/request-status";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
+import { Building2, MapPin } from "lucide-react";
 
 // Helpers para normalizar/mostrar fechas como dd-mm-aaaa
 function normalizeDateInput(input?: string | null): string {
@@ -101,7 +102,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   if (!res.ok || !j?.ok) {
     return (
       <main className="mx-auto max-w-5xl p-6">
-        No se encontró la solicitud.
+        No se encontrÃ³ la solicitud.
       </main>
     );
   }
@@ -126,10 +127,14 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const atts = d.attachments as unknown;
   if (Array.isArray(atts)) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
-    const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
+    const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY as
+      | string
+      | undefined;
     for (const raw of atts) {
       const f = raw as Record<string, unknown>;
-      let href = (typeof f.url === "string" ? f.url : undefined) as string | undefined;
+      let href = (typeof f.url === "string" ? f.url : undefined) as
+        | string
+        | undefined;
       if (!href && typeof f.path === "string" && url && serviceRole) {
         try {
           const admin = createSupabaseJs(url, serviceRole);
@@ -141,21 +146,31 @@ export default async function ProRequestDetailPage({ params }: Params) {
           /* ignore */
         }
       }
-      if (href) photos.push({ url: href, alt: (f.mime as string | undefined) ?? null });
+      if (href)
+        photos.push({ url: href, alt: (f.mime as string | undefined) ?? null });
     }
   }
 
   const title = (d.title as string | null) ?? null;
   const city = (d.city as string | null) ?? null;
+  const addressLine =
+    typeof (d as { address_line?: unknown }).address_line === "string"
+      ? ((d as { address_line?: string }).address_line as string)
+      : null;
   const category = (d.category as string | null) ?? null;
   const description = (d.description as string | null) ?? null;
   const budget = typeof d.budget === "number" ? (d.budget as number) : null;
   const requiredAt = (d.required_at as string | null) ?? null;
   const status = (d.status as string | null) ?? null;
-  const assignedProId =
-    ((d as { accepted_professional_id?: string | null }).accepted_professional_id ??
-      (d as { professional_id?: string | null }).professional_id ??
-      null) as string | null;
+  const assignedProId = ((d as { accepted_professional_id?: string | null })
+    .accepted_professional_id ??
+    (d as { professional_id?: string | null }).professional_id ??
+    null) as string | null;
+  const canShowPrivateAddress =
+    Boolean(user?.id && assignedProId && user.id === assignedProId) &&
+    ["scheduled", "in_process", "paid"].includes((status || "").toLowerCase());
+  const privateAddressLine = canShowPrivateAddress ? addressLine : null;
+  const privateCity = canShowPrivateAddress ? city : null;
   const canFinish =
     Boolean(user?.id && assignedProId && user.id === assignedProId) &&
     (status === "scheduled" || status === "in_process");
@@ -167,12 +182,23 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const _createdAt = (d.created_at as string | null) ?? null; // sin uso en UI
   // Usa helper con service role para obtener client_id y perfil (bypass RLS en server)
   const { client: clientFromAdmin } = await getRequestWithClient(params.id);
-  const clientId = clientFromAdmin?.id ?? ((d as { created_by?: string }).created_by ?? null);
+  const clientId =
+    clientFromAdmin?.id ?? (d as { created_by?: string }).created_by ?? null;
 
-  // Cargar perfil básico del cliente
+  // Cargar perfil bÃ¡sico del cliente
   const supabaseS = createClient();
-  let clientProfile: { id?: string; full_name: string | null; avatar_url: string | null; rating: number | null } | null = clientFromAdmin
-    ? { id: clientFromAdmin.id, full_name: clientFromAdmin.full_name, avatar_url: clientFromAdmin.avatar_url, rating: (clientFromAdmin as { rating?: number | null }).rating ?? null }
+  let clientProfile: {
+    id?: string;
+    full_name: string | null;
+    avatar_url: string | null;
+    rating: number | null;
+  } | null = clientFromAdmin
+    ? {
+        id: clientFromAdmin.id,
+        full_name: clientFromAdmin.full_name,
+        avatar_url: clientFromAdmin.avatar_url,
+        rating: (clientFromAdmin as { rating?: number | null }).rating ?? null,
+      }
     : null;
   if (!clientProfile && clientId) {
     const { data: cp } = await supabaseS
@@ -197,16 +223,23 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const nombre = clientProfile?.full_name ?? "Cliente";
   const initialConversationId = await getConversationIdForRequest(params.id);
 
-  // Obtener icono de subcategoría desde catálogo
+  // Obtener icono de subcategorÃ­a desde catÃ¡logo
   let subIcon: string | null = null;
   try {
     const catRes = await fetch(`${base}/api/catalog/categories`, {
-      headers: { "Content-Type": "application/json; charset=utf-8", ...(cookieHeader ? { cookie: cookieHeader } : {}) },
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      },
       cache: "no-store",
     });
     const cj = await catRes.json().catch(() => null);
     if (catRes.ok && cj?.ok && Array.isArray(cj.data)) {
-      const rows: Array<{ category?: string; subcategory?: string | null; icon?: string | null }> = cj.data;
+      const rows: Array<{
+        category?: string;
+        subcategory?: string | null;
+        icon?: string | null;
+      }> = cj.data;
       const c = (category ?? "").trim();
       const s = (subcategory ?? "").trim();
       for (const r of rows) {
@@ -230,9 +263,17 @@ export default async function ProRequestDetailPage({ params }: Params) {
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
       <nav className="text-sm text-slate-600">
-        <Link href="/" className="hover:underline">Inicio</Link> / {" "}
-        <Link href="/requests/explore" className="hover:underline">Trabajos disponibles</Link> / {" "}
-        <span className="text-slate-900 font-medium">{title ?? "Solicitud"}</span>
+        <Link href="/" className="hover:underline">
+          Inicio
+        </Link>{" "}
+        /{" "}
+        <Link href="/requests/explore" className="hover:underline">
+          Trabajos disponibles
+        </Link>{" "}
+        /{" "}
+        <span className="text-slate-900 font-medium">
+          {title ?? "Solicitud"}
+        </span>
       </nav>
 
       <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -252,7 +293,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
               />
             ) : null}
           </div>
-          {/* Condiciones: chips bajo el título, sin tarjeta, sin texto "Condiciones" */}
+          {/* Condiciones: chips bajo el tÃ­tulo, sin tarjeta, sin texto "Condiciones" */}
           {conditions.length > 0 ? (
             <div className="flex flex-wrap gap-2 mt-2">
               {conditions.map((c, i) => (
@@ -267,46 +308,78 @@ export default async function ProRequestDetailPage({ params }: Params) {
               ))}
             </div>
           ) : null}
-          {/* Cliente: en mobile mostrar debajo del título */}
+          {/* Cliente: en mobile mostrar debajo del tÃ­tulo */}
           <Card className="p-4 md:hidden">
             <h2 className="font-medium">Cliente</h2>
             <div className="flex items-center gap-3 mt-3">
               <Avatar className="h-12 w-12">
                 {clientProfile?.avatar_url ? (
-                  <AvatarImage src={normalizeAvatarUrl(clientProfile.avatar_url) || "/images/Favicon-v1-jpeg.jpg"} alt={nombre} />
+                  <AvatarImage
+                    src={
+                      normalizeAvatarUrl(clientProfile.avatar_url) ||
+                      "/images/Favicon-v1-jpeg.jpg"
+                    }
+                    alt={nombre}
+                  />
                 ) : (
-                  <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
+                  <AvatarFallback>
+                    {initials(clientProfile?.full_name)}
+                  </AvatarFallback>
                 )}
               </Avatar>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-medium leading-none truncate">{nombre}</div>
+                  <div className="font-medium leading-none truncate">
+                    {nombre}
+                  </div>
                   {(clientProfile?.id ?? clientId) ? (
                     <Link
                       href={`/clients/${clientProfile?.id ?? clientId}`}
                       className="text-xs underline hover:no-underline text-slate-600"
                     >
-                      ver perfil y reseñas
+                      ver perfil y reseÃ±as
                     </Link>
                   ) : null}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {typeof clientProfile?.rating === "number" ? (
-                    <RatingStars value={clientProfile.rating} className="text-[12px]" />
+                    <RatingStars
+                      value={clientProfile.rating}
+                      className="text-[12px]"
+                    />
                   ) : (
-                    <span>Calificación: —</span>
+                    <span>CalificaciÃ³n: â€”</span>
                   )}
                 </div>
+                {privateAddressLine || privateCity ? (
+                  <div className="mt-2 space-y-1 text-xs text-slate-600">
+                    {privateAddressLine ? (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span className="truncate">{privateAddressLine}</span>
+                      </div>
+                    ) : null}
+                    {privateCity ? (
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3.5 w-3.5" />
+                        <span className="truncate">{privateCity}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="pt-2">
-              <ChatStartPro requestId={String(d.id ?? params.id)} initialConversationId={initialConversationId} />
+              <ChatStartPro
+                requestId={String(d.id ?? params.id)}
+                initialConversationId={initialConversationId}
+              />
             </div>
           </Card>
-          {/* Info en tarjetas (mismo diseño que /requests/[id]) */}
+          {/* Info en tarjetas (mismo diseÃ±o que /requests/[id]) */}
           <div className="space-y-4">
             <Card className="p-4">
-              <Field label="Descripción" value={description} multiline />
+              <Field label="DescripciÃ³n" value={description} multiline />
             </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-4">
@@ -316,31 +389,41 @@ export default async function ProRequestDetailPage({ params }: Params) {
                 <Field label="Ciudad" value={city} />
               </Card>
               <Card className="p-4">
-                <Field label="Categoría" value={category} />
+                <Field label="CategorÃ­a" value={category} />
               </Card>
               <Card className="p-4">
                 <div>
-                  <div className="text-xs text-slate-500">Subcategoría</div>
+                  <div className="text-xs text-slate-500">SubcategorÃ­a</div>
                   <div className="text-sm text-slate-700 inline-flex items-center gap-2">
                     {subIcon ? (
                       subIcon.startsWith("http") ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={subIcon} alt="" className="h-4 w-4 object-contain" />
+                        <img
+                          src={subIcon}
+                          alt=""
+                          className="h-4 w-4 object-contain"
+                        />
                       ) : (
                         <span className="text-sm leading-none">{subIcon}</span>
                       )
                     ) : null}
-                    <span>{subcategory || "—"}</span>
+                    <span>{subcategory || "â€”"}</span>
                   </div>
                 </div>
               </Card>
               <Card className="p-4">
-                <Field label="Presupuesto (MXN)" value={formatCurrencyMXN(budget)} />
+                <Field
+                  label="Presupuesto (MXN)"
+                  value={formatCurrencyMXN(budget)}
+                />
               </Card>
               <Card className="p-4">
-                <Field label="Fecha requerida" value={formatDateDisplay(requiredAt)} />
+                <Field
+                  label="Fecha requerida"
+                  value={formatDateDisplay(requiredAt)}
+                />
               </Card>
-              {/* Condiciones se muestran arriba bajo el título */}
+              {/* Condiciones se muestran arriba bajo el tÃ­tulo */}
             </div>
           </div>
           {photos.length > 0 ? <PhotoGallery photos={photos} /> : null}
@@ -353,43 +436,70 @@ export default async function ProRequestDetailPage({ params }: Params) {
               <Avatar className="h-12 w-12">
                 {clientProfile?.avatar_url ? (
                   <AvatarImage
-                    src={normalizeAvatarUrl(clientProfile.avatar_url) || "/images/Favicon-v1-jpeg.jpg"}
+                    src={
+                      normalizeAvatarUrl(clientProfile.avatar_url) ||
+                      "/images/Favicon-v1-jpeg.jpg"
+                    }
                     alt={nombre}
                   />
                 ) : (
-                  <AvatarFallback>{initials(clientProfile?.full_name)}</AvatarFallback>
+                  <AvatarFallback>
+                    {initials(clientProfile?.full_name)}
+                  </AvatarFallback>
                 )}
               </Avatar>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-medium leading-none truncate">{nombre}</div>
+                  <div className="font-medium leading-none truncate">
+                    {nombre}
+                  </div>
                   {(clientProfile?.id ?? clientId) ? (
                     <Link
                       href={`/clients/${clientProfile?.id ?? clientId}`}
                       className="text-xs underline hover:no-underline text-slate-600"
                     >
-                      ver perfil y reseñas
+                      ver perfil y reseÃ±as
                     </Link>
                   ) : null}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {typeof clientProfile?.rating === "number" ? (
-                    <RatingStars value={clientProfile.rating} className="text-[12px]" />
+                    <RatingStars
+                      value={clientProfile.rating}
+                      className="text-[12px]"
+                    />
                   ) : (
-                    <span>Calificación: —</span>
+                    <span>CalificaciÃ³n: â€”</span>
                   )}
                 </div>
+                {privateAddressLine || privateCity ? (
+                  <div className="mt-2 space-y-1 text-xs text-slate-600">
+                    {privateAddressLine ? (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span className="truncate">{privateAddressLine}</span>
+                      </div>
+                    ) : null}
+                    {privateCity ? (
+                      <div className="flex items-center gap-1">
+                        <Building2 className="h-3.5 w-3.5" />
+                        <span className="truncate">{privateCity}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="pt-2">
-              <ChatStartPro requestId={String(d.id ?? params.id)} initialConversationId={initialConversationId} />
+              <ChatStartPro
+                requestId={String(d.id ?? params.id)}
+                initialConversationId={initialConversationId}
+              />
             </div>
           </Card>
-          {/* Se eliminó Postularme; acciones se integran en el chat */}
+          {/* Se eliminÃ³ Postularme; acciones se integran en el chat */}
         </aside>
       </section>
-
-      
     </main>
   );
 }
@@ -403,12 +513,14 @@ function Field({
   value?: string | number | null;
   multiline?: boolean;
 }) {
-  const v = value == null || value === "" ? "—" : String(value);
+  const v = value == null || value === "" ? "â€”" : String(value);
   return (
     <div>
       <div className="text-xs text-slate-500">{label}</div>
       {multiline ? (
-        <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{v}</p>
+        <p className="text-sm text-slate-700 whitespace-pre-line leading-6">
+          {v}
+        </p>
       ) : (
         <div className="text-sm text-slate-700">{v}</div>
       )}

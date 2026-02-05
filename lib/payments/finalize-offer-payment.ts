@@ -66,6 +66,8 @@ export async function finalizeOfferPayment(
     let requestRequiredAt: string | null = null;
     let requestScheduledDate: string | null = null;
     let requestScheduledTime: string | null = null;
+    let requestAddressLine: string | null = null;
+    let requestCity: string | null = null;
     let proEmail: string | null = null;
     let proName: string | null = null;
 
@@ -85,18 +87,19 @@ export async function finalizeOfferPayment(
       const { data: req } = await admin
         .from("requests")
         .select(
-          "title, created_by, required_at, scheduled_date, scheduled_time",
+          "title, created_by, required_at, scheduled_date, scheduled_time, address_line, city",
         )
         .eq("id", requestId)
         .maybeSingle();
-      const reqRow = (req ?? null) as Pick<
-        Database["public"]["Tables"]["requests"]["Row"],
-        | "title"
-        | "created_by"
-        | "required_at"
-        | "scheduled_date"
-        | "scheduled_time"
-      > | null;
+      const reqRow = (req ?? null) as {
+        title?: string | null;
+        created_by?: string | null;
+        required_at?: string | null;
+        scheduled_date?: string | null;
+        scheduled_time?: string | null;
+        address_line?: string | null;
+        city?: string | null;
+      } | null;
       requestTitle = reqRow?.title ?? "Servicio";
       if (!clientId) {
         clientId = reqRow?.created_by ?? null;
@@ -104,6 +107,8 @@ export async function finalizeOfferPayment(
       requestRequiredAt = reqRow?.required_at ?? null;
       requestScheduledDate = reqRow?.scheduled_date ?? null;
       requestScheduledTime = reqRow?.scheduled_time ?? null;
+      requestAddressLine = reqRow?.address_line ?? null;
+      requestCity = reqRow?.city ?? null;
     }
     if (proId) {
       try {
@@ -129,6 +134,51 @@ export async function finalizeOfferPayment(
       (requestRequiredAt ? requestRequiredAt.slice(0, 10) : null) ||
       nowIso.slice(0, 10);
     const scheduledTime = parsedService.time || requestScheduledTime || "09:00";
+    const baseUrl = (
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "http://localhost:3000"
+    ).replace(/\/$/, "");
+    let receiptId: string | null = null;
+    const receiptUrl: string | null = null;
+    let receiptDownloadUrl: string | null = null;
+    try {
+      if (offer.id) {
+        const { data: recByOfferRaw } = await admin
+          .from("receipts")
+          .select("id")
+          .eq("offer_id", offer.id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const recByOffer = Array.isArray(recByOfferRaw)
+          ? (recByOfferRaw as Array<{ id?: string | null }>)
+          : [];
+        if (recByOffer.length) {
+          receiptId = recByOffer[0]?.id ?? null;
+        }
+      }
+      if (!receiptId && offer.payment_intent_id) {
+        const { data: recByPiRaw } = await admin
+          .from("receipts")
+          .select("id")
+          .eq("payment_intent_id", offer.payment_intent_id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const recByPi = Array.isArray(recByPiRaw)
+          ? (recByPiRaw as Array<{ id?: string | null }>)
+          : [];
+        if (recByPi.length) {
+          receiptId = recByPi[0]?.id ?? null;
+        }
+      }
+    } catch {
+      /* ignore receipt lookup */
+    }
+    if (receiptId) {
+      receiptDownloadUrl = `${baseUrl}/api/receipts/${encodeURIComponent(
+        receiptId,
+      )}/pdf`;
+    }
 
     await admin
       .from("offers")
@@ -258,32 +308,29 @@ export async function finalizeOfferPayment(
     }
 
     if (conversationId && clientId) {
-      try {
+      const hasSystemMessage = async (match: Record<string, unknown>) => {
         const { data: existing } = await admin
           .from("messages")
           .select("id")
           .eq("conversation_id", conversationId)
           .eq("message_type", "system")
-          .contains("payload", { offer_id: offer.id, status: "paid" })
+          .contains("payload", match)
           .limit(1);
-        const has = Array.isArray(existing) && existing.length > 0;
-        if (!has) {
-          const whenStr = scheduledDate
-            ? `${scheduledDate}${scheduledTime ? ` ${scheduledTime}` : ""}`
-            : null;
-          const payload: Record<string, unknown> = {
-            offer_id: offer.id,
-            status: "paid",
-          };
-          const body = whenStr
-            ? `Pago confirmado. Servicio agendado para ${whenStr}`
-            : "Pago realizado. Servicio agendado.";
+        return Array.isArray(existing) && existing.length > 0;
+      };
+      try {
+        const paidPayload: Record<string, unknown> = {
+          offer_id: offer.id,
+          status: "paid",
+        };
+        if (!(await hasSystemMessage(paidPayload))) {
+          const body = "Pago realizado. Servicio agendado.";
           const messageInsert: MessageInsert = {
             conversation_id: conversationId,
             sender_id: clientId,
             body,
             message_type: "system",
-            payload: payload as MessageInsert["payload"],
+            payload: paidPayload as MessageInsert["payload"],
           };
           await admin.from("messages").insert(messageInsert);
           await notifyChatMessageByConversation({
@@ -292,30 +339,138 @@ export async function finalizeOfferPayment(
             text: body,
           });
         }
+        const addressLine = requestAddressLine?.toString().trim() || "";
+        const city = requestCity?.toString().trim() || "";
+        if (addressLine || city) {
+          const addressPayload: Record<string, unknown> = {
+            offer_id: offer.id,
+            status: "paid",
+            type: "service_scheduled_address",
+            address_line: addressLine || null,
+            city: city || null,
+          };
+          const hasAddress = await hasSystemMessage({
+            offer_id: offer.id,
+            status: "paid",
+            type: "service_scheduled_address",
+          });
+          if (!hasAddress) {
+            const line = [addressLine, city].filter(Boolean).join(", ");
+            const body = line
+              ? `Servicio agendado en ${line}.`
+              : "Servicio agendado.";
+            const messageInsert: MessageInsert = {
+              conversation_id: conversationId,
+              sender_id: clientId,
+              body,
+              message_type: "system",
+              payload: addressPayload as MessageInsert["payload"],
+            };
+            await admin.from("messages").insert(messageInsert);
+          }
+        }
+        if (receiptId || receiptUrl) {
+          let hasReceipt = false;
+          if (receiptId) {
+            hasReceipt = await hasSystemMessage({ receipt_id: receiptId });
+          }
+          if (!hasReceipt) {
+            hasReceipt = await hasSystemMessage({
+              offer_id: offer.id,
+              status: "paid",
+              type: "payment_receipt",
+            });
+          }
+          if (!hasReceipt) {
+            const receiptPayload: Record<string, unknown> = {
+              offer_id: offer.id,
+              status: "paid",
+              type: "payment_receipt",
+            };
+            if (receiptId) receiptPayload.receipt_id = receiptId;
+            if (receiptDownloadUrl)
+              receiptPayload.download_url = receiptDownloadUrl;
+            if (receiptUrl) receiptPayload.receipt_url = receiptUrl;
+            const messageInsert: MessageInsert = {
+              conversation_id: conversationId,
+              sender_id: clientId,
+              body: "Comprobante de pago",
+              message_type: "system",
+              payload: receiptPayload as MessageInsert["payload"],
+            };
+            await admin.from("messages").insert(messageInsert);
+          }
+        }
       } catch {
         /* ignore */
       }
     }
 
-    if (proEmail) {
+    let notifiedPro = false;
+    if (proId) {
       try {
-        const base =
-          process.env.NEXT_PUBLIC_APP_URL ||
-          process.env.NEXT_PUBLIC_SITE_URL ||
-          "http://localhost:3000";
+        const link = conversationId
+          ? `${baseUrl}/mensajes/${encodeURIComponent(conversationId)}`
+          : `${baseUrl}/pro`;
+        const addressLine = requestAddressLine?.toString().trim() || "";
+        const city = requestCity?.toString().trim() || "";
+        const line = [addressLine, city].filter(Boolean).join(", ");
+        const body = line
+          ? `La oferta fue pagada. Servicio agendado en ${line}.`
+          : "La oferta fue pagada. Servicio agendado.";
+        const { data: existing } = await admin
+          .from("user_notifications")
+          .select("id")
+          .eq("user_id", proId)
+          .eq("type", "contract_offer_paid")
+          .eq("link", link)
+          .limit(1);
+        const has = Array.isArray(existing) && existing.length > 0;
+        if (!has) {
+          const adminUntyped = admin as unknown as {
+            from: (table: string) => {
+              insert: (values: unknown) => Promise<unknown>;
+            };
+          };
+          await adminUntyped.from("user_notifications").insert({
+            user_id: proId,
+            type: "contract_offer_paid",
+            title: "Oferta pagada",
+            body,
+            link,
+          });
+          notifiedPro = true;
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (proEmail && notifiedPro) {
+      try {
         const title = requestTitle || "Servicio";
-        const proUrl = `${base.replace(/\/$/, "")}/pro`;
-        const calendarUrl = `${base.replace(/\/$/, "")}/pro/calendar`;
+        const proUrl = `${baseUrl}/pro`;
+        const calendarUrl = `${baseUrl}/pro/calendar`;
         const chatUrl = conversationId
-          ? `${base.replace(/\/$/, "")}/mensajes/${encodeURIComponent(
-              conversationId,
-            )}`
+          ? `${baseUrl}/mensajes/${encodeURIComponent(conversationId)}`
           : null;
         const subject = "Handi - Tu oferta fue pagada";
         const safeTitle = title.replace(/&/g, "&amp;").replace(/</g, "&lt;");
         const safeName = (proName || "Profesional")
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;");
+        const addressLine = requestAddressLine?.toString().trim() || "";
+        const city = requestCity?.toString().trim() || "";
+        const addressLineHtml =
+          addressLine || city
+            ? `<p><strong>Dirección:</strong> ${(addressLine || "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")}${
+                city
+                  ? `, ${city.replace(/&/g, "&amp;").replace(/</g, "&lt;")}`
+                  : ""
+              }</p>`
+            : "";
         const links = [
           `<li><a href="${proUrl}">Ir a tu dashboard</a></li>`,
           `<li><a href="${calendarUrl}">Ver calendario</a></li>`,
@@ -327,6 +482,7 @@ export async function finalizeOfferPayment(
           <p>Hola ${safeName},</p>
           <p>Tu oferta de contratacion (<strong>${safeTitle}</strong>) ha sido pagada.</p>
           <p>El servicio se ha agendado y ya aparece en tu cuenta.</p>
+          ${addressLineHtml}
           <ul>${links}</ul>
         `;
         await sendEmail({ to: proEmail, subject, html }).catch(() => null);

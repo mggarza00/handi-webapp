@@ -24,7 +24,9 @@ const PatchSchema = z.object({
   category: z.string().max(120).optional(),
   subcategories: z.array(z.string()).max(6).optional(),
   // Aceptar string o array; normalizar en handler
-  conditions: z.union([z.string().max(240), z.array(z.string().min(2).max(40)).max(10)]).optional(),
+  conditions: z
+    .union([z.string().max(240), z.array(z.string().min(2).max(40)).max(10)])
+    .optional(),
   budget: z.number().nonnegative().nullable().optional(),
   required_at: z.string().datetime().optional(),
   attachments: z
@@ -35,10 +37,7 @@ const PatchSchema = z.object({
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
-export async function GET(
-  _: Request,
-  { params }: { params: { id: string } },
-) {
+export async function GET(_: Request, { params }: { params: { id: string } }) {
   const { id: rid } = params;
   const id = IdParam.safeParse(rid);
   if (!id.success) {
@@ -79,25 +78,69 @@ export async function GET(
       let canSee = false;
       if (uid && data && (data as any)?.created_by === uid) canSee = true;
       if (!canSee && uid) {
-        // Check agreement link for assigned pro
-        const { data: agr } = await supabase
-          .from("agreements")
-          .select("id,status")
-          .eq("request_id", id.data)
-          .eq("professional_id", uid)
-          .limit(1);
-        if (Array.isArray(agr) && agr.length > 0) canSee = true;
+        const reqStatus = String((data as any)?.status || "").toLowerCase();
+        const paidishReq = new Set([
+          "scheduled",
+          "in_process",
+          "inprogress",
+          "paid",
+          "completed",
+          "finished",
+        ]);
+        const assignedProId =
+          ((data as any)?.accepted_professional_id as string | undefined) ??
+          ((data as any)?.professional_id as string | undefined) ??
+          null;
+        if (assignedProId && uid === assignedProId && paidishReq.has(reqStatus))
+          canSee = true;
+        if (!canSee) {
+          // Check agreement link for assigned pro (paidish only)
+          const { data: agr } = await supabase
+            .from("agreements")
+            .select("status")
+            .eq("request_id", id.data)
+            .eq("professional_id", uid)
+            .limit(1);
+          const agrStatus = Array.isArray(agr)
+            ? String((agr[0] as any)?.status || "").toLowerCase()
+            : "";
+          if (
+            ["paid", "in_progress", "completed", "finished"].includes(agrStatus)
+          )
+            canSee = true;
+        }
       }
       if (!canSee) {
-        const { address_line, address_place_id, address_lat, address_lng, ...rest } = (data || {}) as Record<string, unknown>;
-        return NextResponse.json({ ok: true, data: rest }, { status: 200, headers: JSONH });
+        const {
+          address_line,
+          address_place_id,
+          address_lat,
+          address_lng,
+          ...rest
+        } = (data || {}) as Record<string, unknown>;
+        return NextResponse.json(
+          { ok: true, data: rest },
+          { status: 200, headers: JSONH },
+        );
       }
     } catch {
-      const { address_line, address_place_id, address_lat, address_lng, ...rest } = (data || {}) as Record<string, unknown>;
-      return NextResponse.json({ ok: true, data: rest }, { status: 200, headers: JSONH });
+      const {
+        address_line,
+        address_place_id,
+        address_lat,
+        address_lng,
+        ...rest
+      } = (data || {}) as Record<string, unknown>;
+      return NextResponse.json(
+        { ok: true, data: rest },
+        { status: 200, headers: JSONH },
+      );
     }
 
-    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, data },
+      { status: 200, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

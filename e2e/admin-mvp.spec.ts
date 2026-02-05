@@ -30,7 +30,7 @@ test.describe("/admin MVP navigation", () => {
     }
   });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.context().clearCookies();
     const res = await page.goto("/api/test-auth/admin", {
@@ -43,16 +43,54 @@ test.describe("/admin MVP navigation", () => {
       (c) => c.name === "handi_role" && c.value === "admin",
     );
     if (!hasRole) {
-      await page.context().addCookies([
-        {
+      const rawBase =
+        testInfo.project.use.baseURL || page.url() || baseUrl || "";
+      let host = "localhost";
+      try {
+        host = new URL(rawBase).hostname || "localhost";
+      } catch {
+        host = "localhost";
+      }
+      const domains = new Set([host]);
+      if (host === "localhost") domains.add("127.0.0.1");
+      if (host === "127.0.0.1") domains.add("localhost");
+      if (host === "::1") domains.add("localhost");
+      await page.context().addCookies(
+        Array.from(domains).map((domain) => ({
           name: "handi_role",
           value: "admin",
-          url: baseUrl,
+          domain,
           path: "/",
           httpOnly: true,
-          sameSite: "Lax",
-        },
-      ]);
+          sameSite: "Lax" as const,
+        })),
+      );
+      const hasRoleAfter = (await page.context().cookies()).some(
+        (c) => c.name === "handi_role" && c.value === "admin",
+      );
+      if (!hasRoleAfter) {
+        await page.goto("/", { waitUntil: "domcontentloaded" });
+        await page.evaluate(() => {
+          document.cookie = "handi_role=admin; path=/; samesite=lax";
+        });
+      }
+    }
+    await page.goto("/admin", { waitUntil: "domcontentloaded" });
+    const url = page.url();
+    if (url.includes("/auth") || url.includes("/login")) {
+      const cookies = await page.context().cookies();
+      await testInfo.attach("admin-mvp-auth-debug", {
+        body: JSON.stringify(
+          {
+            url,
+            cookies,
+            e2eAdminBypass: process.env.E2E_ADMIN_BYPASS || null,
+          },
+          null,
+          2,
+        ),
+        contentType: "application/json",
+      });
     }
   });
 
@@ -63,6 +101,22 @@ test.describe("/admin MVP navigation", () => {
       body: url,
       contentType: "text/plain",
     });
+    try {
+      const cookies = await page.context().cookies();
+      await testInfo.attach(`admin-mvp-cookies-${label}`, {
+        body: JSON.stringify(
+          {
+            cookies,
+            e2eAdminBypass: process.env.E2E_ADMIN_BYPASS || null,
+          },
+          null,
+          2,
+        ),
+        contentType: "application/json",
+      });
+    } catch {
+      /* ignore debug errors */
+    }
     const shot = await page.screenshot({ fullPage: true });
     await testInfo.attach(`admin-mvp-${label}.png`, {
       body: shot,
@@ -114,13 +168,17 @@ test.describe("/admin MVP navigation", () => {
       await expect(paymentsNav).toBeVisible({ timeout: 15000 });
       await paymentsNav.scrollIntoViewIfNeeded();
       await paymentsNav.click();
-      await expect(page.getByRole("button", { name: /filtrar/i })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /filtrar/i }),
+      ).toBeVisible();
 
       const settingsNav = page.getByTestId("admin-nav-settings-desktop");
       await expect(settingsNav).toBeVisible({ timeout: 15000 });
       await settingsNav.scrollIntoViewIfNeeded();
       await settingsNav.click();
-      await expect(page.getByRole("button", { name: /guardar/i })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /guardar/i }),
+      ).toBeVisible();
 
       const systemNav = page.getByTestId("admin-nav-system-desktop");
       await expect(systemNav).toBeVisible({ timeout: 15000 });

@@ -16,14 +16,28 @@ type MessageInputProps = {
   dataPrefix?: string; // e2e: chat | request-chat
   onPickFiles?: () => void;
   onPickCamera?: () => void;
+  allowContact?: boolean;
 };
 
-export default function MessageInput({ onSend, disabled, autoFocus, onTyping, onFocus, dataPrefix = "chat", onPickFiles, onPickCamera }: MessageInputProps) {
+export default function MessageInput({
+  onSend,
+  disabled,
+  autoFocus,
+  onTyping,
+  onFocus,
+  dataPrefix = "chat",
+  onPickFiles,
+  onPickCamera,
+  allowContact,
+}: MessageInputProps) {
   const [text, setText] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
-  const scan = React.useMemo(() => scanMessage(text), [text]);
-  const hasContact = scan.hasContact;
+  const scan = React.useMemo(
+    () => (allowContact ? { hasContact: false } : scanMessage(text)),
+    [text, allowContact],
+  );
+  const hasContact = allowContact ? false : scan.hasContact;
 
   React.useEffect(() => {
     if (!autoFocus || !textareaRef.current) return;
@@ -81,7 +95,8 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping, on
             className="pointer-events-auto inline-flex items-center justify-center h-7 w-7 rounded-full hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             title="Adjuntar archivos"
             aria-label="Adjuntar archivos"
-            onClick={() => onPickFiles?.()} disabled={sending || disabled}
+            onClick={() => onPickFiles?.()}
+            disabled={sending || disabled}
           >
             <Paperclip className="h-4 w-4 text-slate-600" />
           </button>
@@ -90,13 +105,18 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping, on
             className="pointer-events-auto inline-flex items-center justify-center h-7 w-7 rounded-full hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
             title="Abrir cámara"
             aria-label="Abrir cámara"
-            onClick={() => onPickCamera?.()} disabled={sending || disabled}
+            onClick={() => onPickCamera?.()}
+            disabled={sending || disabled}
           >
             <Camera className="h-4 w-4 text-slate-600" />
           </button>
         </div>
       </div>
-      {hasContact ? <div className="text-xs text-destructive">{getContactPolicyMessage()}</div> : null}
+      {hasContact ? (
+        <div className="text-xs text-destructive">
+          {getContactPolicyMessage()}
+        </div>
+      ) : null}
       <div className="flex justify-end">
         <Button
           size="sm"
@@ -111,6 +131,3 @@ export default function MessageInput({ onSend, disabled, autoFocus, onTyping, on
     </div>
   );
 }
-
-
-
