@@ -857,6 +857,19 @@ export default function ChatPanel({
           if (!oid) return;
           // Ignora eventos que emitimos nosotros mismos
           if (from && meId && from === meId) return;
+          const hasAcceptedSystem = messagesRef.current.some((m) => {
+            if (m.messageType !== "system") return false;
+            if (m.payload && typeof m.payload === "object") {
+              const po = m.payload as Record<string, unknown>;
+              const st = typeof po.status === "string" ? po.status : null;
+              const mid = typeof po.offer_id === "string" ? po.offer_id : null;
+              if (st === "accepted" && mid === oid) return true;
+            }
+            return (
+              !m.id.startsWith("tmp_") &&
+              m.body.trim().toLowerCase() === "oferta aceptada"
+            );
+          });
           const createdAtIso = new Date().toISOString();
           const optimistic: Msg = {
             id: `tmp_sys_${oid}_accepted`,
@@ -868,7 +881,9 @@ export default function ChatPanel({
               ? { offer_id: oid, status: "accepted", checkout_url: checkoutUrl }
               : { offer_id: oid, status: "accepted" },
           };
-          mergeMessages(optimistic, { fromServer: true });
+          if (!hasAcceptedSystem) {
+            mergeMessages(optimistic, { fromServer: true });
+          }
           // Update any prior 'offer' message with same offer_id
           setMessages((prev) =>
             prev.map((m) => {
@@ -1043,6 +1058,22 @@ export default function ChatPanel({
               }),
             );
           }
+        }
+      } catch {
+        /* ignore */
+      }
+      // If server emits a system "Oferta aceptada" without payload, drop any optimistic duplicate.
+      try {
+        if (
+          msg.messageType === "system" &&
+          msg.body.trim().toLowerCase() === "oferta aceptada"
+        ) {
+          setMessages((prev) =>
+            prev.filter((m) => {
+              if (!m.id.startsWith("tmp_sys_")) return true;
+              return m.body.trim().toLowerCase() !== "oferta aceptada";
+            }),
+          );
         }
       } catch {
         /* ignore */
