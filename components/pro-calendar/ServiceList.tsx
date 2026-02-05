@@ -3,7 +3,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { toast } from "sonner";
 
 import type { ScheduledService } from "./types";
 
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { openAssistant } from "@/lib/assistant/events";
+import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 
 type NormalizedService = ScheduledService & {
   dateKey: string;
@@ -27,7 +27,6 @@ type ServiceGroup = {
 export default function ServiceList({ services }: { services: ScheduledService[] }) {
   const router = useRouter();
   const todayKey = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const [pendingRequestId, setPendingRequestId] = React.useState<string | null>(null);
 
   const groups = React.useMemo<ServiceGroup[]>(() => {
     const normalized: NormalizedService[] = services
@@ -53,27 +52,6 @@ export default function ServiceList({ services }: { services: ScheduledService[]
     return Array.from(byDate.values());
   }, [services, todayKey]);
 
-  const handleMarkCompleted = React.useCallback(async (requestId: string) => {
-    setPendingRequestId(requestId);
-    try {
-      const res = await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        credentials: "include",
-        body: JSON.stringify({ nextStatus: "completed" }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(json?.error || "No se pudo actualizar el estado");
-        return;
-      }
-      toast.success("Trabajo marcado como realizado");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Error de red");
-    } finally {
-      setPendingRequestId((prev) => (prev === requestId ? null : prev));
-    }
-  }, []);
 
   const handleNeedHelp = React.useCallback((requestId: string) => {
     const preset = `Tuve un problema con la solicitud ${requestId}. Necesito que notifiques a profiles.admin y que abras un nuevo chat en /mensajes para comunicarme directamente con el profesional.`;
@@ -112,6 +90,9 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                   ev.city || null,
                   ev.client_name || "Cliente",
                 ].filter(Boolean);
+                const canFinish = ["scheduled", "in_process"].includes(
+                  String(ev.status || "").toLowerCase(),
+                );
                 return (
                   <li key={`${ev.id}-${i}`}>
                     <Card className={ev.isPast ? "border-orange-200 bg-orange-50/60" : undefined}>
@@ -129,7 +110,7 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                       <CardContent className="pt-0">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="min-w-0 text-xs text-slate-600 space-y-1">
-                            <p>{infoParts.join(" · ")}</p>
+                            <p>{infoParts.join(" - ")}</p>
                             {ev.isPast ? (
                               <button
                                 type="button"
@@ -147,14 +128,15 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                                   Servicio atrasado
                                 </span>
                                 <div className="flex flex-wrap justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    className="bg-brand text-white hover:opacity-90"
-                                    onClick={() => handleMarkCompleted(ev.id)}
-                                    disabled={pendingRequestId === ev.id}
-                                  >
-                                    {pendingRequestId === ev.id ? "Procesando…" : "Trabajo finalizado"}
-                                  </Button>
+                                  <FinishJobTrigger
+                                    requestId={ev.id}
+                                    requestTitle={ev.title}
+                                    requestStatus={ev.status ?? null}
+                                    clientName={ev.client_name ?? null}
+                                    buttonLabel="Trabajo finalizado"
+                                    buttonClassName="bg-brand text-white hover:opacity-90"
+                                    onCompleted={() => router.refresh()}
+                                  />
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -165,9 +147,22 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                                 </div>
                               </>
                             ) : (
-                              <Button size="sm" variant="outline" onClick={() => handleViewRequest(ev.id)}>
-                                Ver solicitud
-                              </Button>
+                              <div className="flex flex-wrap justify-end gap-2">
+                                {canFinish ? (
+                                  <FinishJobTrigger
+                                    requestId={ev.id}
+                                    requestTitle={ev.title}
+                                    requestStatus={ev.status ?? null}
+                                    clientName={ev.client_name ?? null}
+                                    buttonLabel="Trabajo finalizado"
+                                    buttonVariant="outline"
+                                    onCompleted={() => router.refresh()}
+                                  />
+                                ) : null}
+                                <Button size="sm" variant="outline" onClick={() => handleViewRequest(ev.id)}>
+                                  Ver solicitud
+                                </Button>
+                              </div>
                             )}
                           </div>
                         </div>

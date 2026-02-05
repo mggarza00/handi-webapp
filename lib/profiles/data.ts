@@ -110,7 +110,7 @@ export async function getProfessionalOverview(
     .from("requests")
     .select("id", { count: "exact", head: true })
     .eq("professional_id" as any, id) // TODO(schema): si no existe, usar agreements como fallback
-    .in("status", ["finalizada", "completed"]);
+    .in("status", ["finalizada", "completed", "finished"]);
   if (!j1.error) {
     jobsDone = j1.count ?? 0;
   } else {

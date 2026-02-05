@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { createSupabaseBrowser } from "@/lib/supabase/client";
-
 import type { Session } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
+
+import { createSupabaseBrowser } from "@/lib/supabase/client";
 import type { Database } from "@/types/supabase";
 
 type Props = {

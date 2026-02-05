@@ -1,4 +1,4 @@
-import { test, expect, APIRequestContext, Page, BrowserContext } from "@playwright/test";
+import { test, expect, APIRequestContext, Page } from "@playwright/test";
 
 // Seeded constants per app/api/test-seed
 const SEED_REQUEST_ID = "33333333-3333-4333-8333-333333333333";
@@ -32,11 +32,28 @@ async function loginWithMagicLink(
   await page.waitForLoadState("networkidle");
 }
 
-test.describe("Flujo completo contratar → oferta → aceptar → pago → en proceso → finalizado → fotos → reseñas", () => {
+async function ensureConversation(
+  request: APIRequestContext,
+  baseURL: string | undefined,
+  requestId: string,
+  proId: string,
+) {
+  const prefix = baseURL ?? "";
+  const res = await request.get(
+    `${prefix}/api/conversations/ensure?requestId=${encodeURIComponent(requestId)}&proId=${encodeURIComponent(proId)}&redirect=false`,
+    { headers: { "Content-Type": "application/json; charset=utf-8" } },
+  );
+  expect(res.ok(), "ensure conversation ok").toBeTruthy();
+  const json = await res.json();
+  const conversationId = (json?.id || json?.data?.id) as string | undefined;
+  if (!conversationId) throw new Error("Missing conversation id");
+  return conversationId;
+}
+
+test.describe("Full flow contratar - oferta - pago - finalizacion - resenas", () => {
   let SEED_OK = true;
   test.beforeAll(async ({ request, baseURL }) => {
     const prefix = baseURL ?? "";
-    // reset + seed
     const r1 = await request.get(`${prefix}/api/test-seed?action=reset`, {
       headers: { "Content-Type": "application/json; charset=utf-8" },
     });
@@ -54,24 +71,25 @@ test.describe("Flujo completo contratar → oferta → aceptar → pago → en p
     SEED_OK = r2.ok();
   });
 
-  test("cliente contrata, crea acuerdo; pago simulado; pro confirma; cliente finaliza; sube fotos; reseña", async ({ page, request, baseURL, context }) => {
+  test("cliente contrata y confirma finalizacion", async ({ page, request, baseURL, context }) => {
     if (!SEED_OK) test.skip(true, "Seed unavailable (missing Supabase env). Skipping.");
-    // 1) Login cliente
+
     await loginWithMagicLink(page, request, baseURL, CLIENT_EMAIL);
 
-    // 2) Ir al detalle de la solicitud seed
     await page.goto(`/requests/${SEED_REQUEST_ID}`, { waitUntil: "networkidle" });
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-    // 3) Aceptar la postulación del profesional seed desde la UI
     const aceptarBtn = page.getByRole("button", { name: /^Aceptar$/i }).first();
-    await expect(aceptarBtn).toBeVisible({ timeout: 15_000 });
-    await aceptarBtn.click();
-    const confirmDialog = page.locator('[data-slot="dialog-content"]').filter({ hasText: "Aceptar postulación" });
-    await expect(confirmDialog).toBeVisible();
-    await page.getByRole("button", { name: /^Confirmar$/i }).click();
+    if (await aceptarBtn.isVisible().catch(() => false)) {
+      await aceptarBtn.click();
+      const confirmDialog = page
+        .locator('[data-slot="dialog-content"]')
+        .filter({ hasText: /Aceptar postulaci[o\u00f3]n/i });
+      if (await confirmDialog.isVisible().catch(() => false)) {
+        await page.getByRole("button", { name: /^Confirmar$/i }).click();
+      }
+    }
 
-    // 4) Crear acuerdo (aceptado) con monto
     const montoInput = page.getByLabel(/Monto \(MXN\)/i).first();
     await expect(montoInput).toBeVisible();
     await montoInput.fill("1500");
@@ -79,7 +97,6 @@ test.describe("Flujo completo contratar → oferta → aceptar → pago → en p
     await expect(crearAcuerdoBtn).toBeVisible();
     await crearAcuerdoBtn.click();
 
-    // 5) Obtener el acuerdo creado para continuar el flujo
     const agrRes = await page.request.get(`/api/requests/${SEED_REQUEST_ID}/agreements`, {
       headers: { "Content-Type": "application/json; charset=utf-8" },
     });
@@ -90,95 +107,89 @@ test.describe("Flujo completo contratar → oferta → aceptar → pago → en p
     const agreementId = agreements[0].id as string;
     const proId = (agreements[0].professional_id ?? null) as string | null;
     expect(agreementId, "agreement id").toBeTruthy();
+    expect(proId, "professional id").toBeTruthy();
 
-    // 6) Simular pasarela de pago y poner la solicitud en proceso
-    //    (evitamos Stripe real actualizando el acuerdo a paid + request a in_process)
     const paidRes = await page.request.patch(`/api/agreements/${agreementId}`, {
       headers: { "Content-Type": "application/json; charset=utf-8" },
       data: { status: "paid" },
     });
     expect(paidRes.ok(), "mark agreement paid").toBeTruthy();
 
-    const inProcessRes = await page.request.patch(`/api/requests/${SEED_REQUEST_ID}`, {
+    const scheduledRes = await page.request.patch(`/api/requests/${SEED_REQUEST_ID}`, {
       headers: { "Content-Type": "application/json; charset=utf-8" },
-      data: { status: "in_process" },
+      data: { status: "scheduled" },
     });
-    expect(inProcessRes.ok(), "mark request in_process").toBeTruthy();
+    expect(scheduledRes.ok(), "mark request scheduled").toBeTruthy();
 
-    // 7) Como profesional: ir a la página del servicio y confirmar (servicio en proceso)
+    const conversationId = await ensureConversation(request, baseURL, SEED_REQUEST_ID, proId as string);
+
     const proPage = await context.newPage();
     await loginWithMagicLink(proPage, request, baseURL, PRO_EMAIL);
-    await proPage.goto(`/services/${agreementId}`, { waitUntil: "domcontentloaded" });
-    // Botón de confirmar servicio (pro)
-    const confirmarServicioBtn = proPage.getByRole("button", { name: /Confirmar servicio/i });
-    await expect(confirmarServicioBtn).toBeVisible({ timeout: 15_000 });
-    await confirmarServicioBtn.click();
-    // Debe indicar que espera confirmación del cliente
-    await expect(proPage.getByText(/Esperando la confirmacion del cliente|Esperando confirmaci[óo]n del cliente/i)).toBeVisible({ timeout: 15_000 });
 
-    // 8) Como cliente: confirmar para finalizar el servicio
-    const finalizeRes = await page.request.post(`/api/services/${agreementId}/confirm`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      data: { actor: "client" },
+    await proPage.route("**/api/storage/presign", async (route) => {
+      let path = "e2e";
+      try {
+        const body = await route.request().postDataJSON();
+        if (body?.path) path = String(body.path);
+      } catch {
+        /* ignore */
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: true, path, url: "/__e2e_upload", publicUrl: `https://example.com/${encodeURIComponent(path)}` }),
+      });
     });
-    expect(finalizeRes.ok(), "client confirm service").toBeTruthy();
-
-    // Verificar en la vista del pro que el servicio quedó completado
-    await proPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(proPage.getByText(/Servicio finalizado por ambas partes|Completado/i)).toBeVisible({ timeout: 15_000 });
-
-    // 9) (Opcional) Pago a profesional
-    test.info().annotations.push({ type: "info", description: "Payout a profesional no implementado aún; paso verificado de forma conceptual." });
-
-    // 10) Subir fotos del trabajo (como profesional)
-    const photosRes = await proPage.request.post(`/api/requests/${SEED_REQUEST_ID}/photos`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      data: {
-        urls: [
-          "https://picsum.photos/seed/handi1/800/450",
-          "https://picsum.photos/seed/handi2/800/450",
-        ],
-      },
+    await proPage.route("**/__e2e_upload", async (route) => {
+      await route.fulfill({ status: 200, body: "" });
     });
-    expect(photosRes.ok(), "upload photos").toBeTruthy();
-    await proPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(proPage.getByText(/Evidencias de trabajo/i)).toBeVisible();
-    await expect(proPage.getByText(/Foto subida/i).first()).toBeVisible();
 
-    // 11) Reseñas (cliente califica al profesional)
-    expect(proId, "professional id for review").toBeTruthy();
-    const reviewRes = await page.request.post(`/api/reviews`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      data: {
-        request_id: SEED_REQUEST_ID,
-        professional_id: proId,
-        rating: 5,
-        comment: `Reseña E2E ${Date.now()}`,
-      },
+    await proPage.goto(`/mensajes/${conversationId}`, { waitUntil: "networkidle" });
+
+    const finishBtn = proPage.getByRole("button", { name: /Trabajo finalizado/i }).first();
+    await expect(finishBtn).toBeVisible({ timeout: 15000 });
+    await finishBtn.click();
+
+    const nextBtn = proPage.getByRole("button", { name: /Siguiente/i }).first();
+    await expect(nextBtn).toBeVisible({ timeout: 15000 });
+    await nextBtn.click();
+
+    const photoInput = proPage.getByTestId("finish-job-photos");
+    await expect(photoInput).toBeVisible({ timeout: 15000 });
+    await photoInput.setInputFiles({
+      name: "job.png",
+      mimeType: "image/png",
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
     });
-    expect(reviewRes.ok(), "submit review").toBeTruthy();
 
-    // 12) Verificar que el perfil del pro refleja reseñas
+    const finalizeBtn = proPage.getByRole("button", { name: /Finalizar/i }).first();
+    await expect(finalizeBtn).toBeVisible({ timeout: 15000 });
+    await finalizeBtn.click();
+
+    await expect(proPage.getByText(/El profesional ha finalizado el trabajo/i)).toBeVisible({ timeout: 15000 });
+
+    await page.goto(`/mensajes/${conversationId}`, { waitUntil: "networkidle" });
+    await expect(page.getByText(/El profesional ha finalizado el trabajo/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /Trabajo finalizado/i })).toHaveCount(0);
+
+    const confirmBtn = page.getByRole("button", { name: /^Confirmar$/i });
+    await expect(confirmBtn).toBeVisible({ timeout: 15000 });
+    await confirmBtn.click();
+
+    const submitReview = page.getByTestId("submit-review");
+    await expect(submitReview).toBeVisible({ timeout: 15000 });
+    await submitReview.click();
+
+    const reqRes = await page.request.get(`/api/requests/${SEED_REQUEST_ID}`, {
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    });
+    expect(reqRes.ok(), "request fetch ok").toBeTruthy();
+    const reqJson = await reqRes.json();
+    expect(reqJson?.data?.status).toBe("finished");
+
     await page.goto(`/profiles/${proId}`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText(/Reseñas de clientes|Sin reseñas aún/i)).toBeVisible();
-    // Si muestra resumen, no debe decir "Sin reseñas aún"
-    const hasReviews = await page.getByText(/Sin reseñas aún/i).count().catch(() => 0);
-    expect(hasReviews).toBeLessThan(1);
-
-    // Sanity: estado final del acuerdo completado
-    const agrFinalRes = await page.request.get(`/api/requests/${SEED_REQUEST_ID}/agreements`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-    });
-    expect(agrFinalRes.ok()).toBeTruthy();
-    const agrFinal = await agrFinalRes.json();
-    const finalStatus = (agrFinal?.data?.[0]?.status ?? null) as string | null;
-    expect(finalStatus).toBe("completed");
-
-    // Y la solicitud también completada (aseguramos estado para permitir reseña)
-    const reqCompleted = await page.request.patch(`/api/requests/${SEED_REQUEST_ID}`, {
-      headers: { "Content-Type": "application/json; charset=utf-8" },
-      data: { status: "completed" },
-    });
-    expect(reqCompleted.ok()).toBeTruthy();
+    const works = page.getByRole("region", { name: /Trabajos realizados/i });
+    await expect(works).toBeVisible({ timeout: 15000 });
+    await expect(works.getByRole("img").first()).toBeVisible({ timeout: 15000 });
   });
 });

@@ -111,7 +111,6 @@ export default function NewRequestStepper({
     recentAddrs,
     coords,
     openMap,
-    shouldSaveAddress,
     isAddressSaved,
   } = state;
 

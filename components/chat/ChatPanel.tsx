@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 type Msg = {
   id: string;
   senderId: string;
@@ -2240,6 +2241,7 @@ export default function ChatPanel({
       items={messagesState}
       conversationId={conversationId}
       currentUserId={meId ?? undefined}
+      otherUserId={otherUserId}
       viewerRole={viewerRole}
       onAcceptOffer={handleAcceptOffer}
       onOfferAcceptedUI={(offerId, opts) => {
@@ -2917,11 +2919,12 @@ export default function ChatPanel({
                 const proActions =
                   participants && meId === participants?.pro_id;
                 const canStart = proActions && isScheduled;
-                const canMarkDone = (isScheduled || isInProcess) && !!requestId;
+                const canFinish =
+                  proActions && (isScheduled || isInProcess) && !!requestId;
                 return (
                   <>
                     {actionButtons}
-                    {canStart || canMarkDone ? (
+                    {canStart || canFinish ? (
                       <div className="p-3 flex items-center gap-2 border-t">
                         {canStart ? (
                           <Button
@@ -2933,15 +2936,16 @@ export default function ChatPanel({
                             Empezar trabajo
                           </Button>
                         ) : null}
-                        {canMarkDone ? (
-                          <Button
-                            className="bg-brand text-white hover:opacity-90"
-                            onClick={() => {
-                              void patchRequestStatus("completed");
-                            }}
-                          >
-                            Trabajo realizado
-                          </Button>
+                        {canFinish ? (
+                          <FinishJobTrigger
+                            requestId={requestId ?? ""}
+                            requestTitle={requestTitle}
+                            requestStatus={requestStatus}
+                            clientId={participants?.customer_id ?? null}
+                            proId={participants?.pro_id ?? null}
+                            buttonLabel="Trabajo finalizado"
+                            buttonClassName="bg-brand text-white hover:opacity-90"
+                          />
                         ) : null}
                       </div>
                     ) : null}

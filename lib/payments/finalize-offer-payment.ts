@@ -3,6 +3,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 import { sendEmail } from "@/lib/email";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import type { Database } from "@/types/supabase";
 
 type FinalizeArgs = {
   offerId: string;
@@ -15,6 +16,16 @@ type FinalizeResult = {
   requestId?: string | null;
   conversationId?: string | null;
   proId?: string | null;
+};
+
+type AgreementUpdate = Database["public"]["Tables"]["agreements"]["Update"];
+type AgreementInsert = Database["public"]["Tables"]["agreements"]["Insert"];
+type RequestUpdate = Database["public"]["Tables"]["requests"]["Update"];
+type MessageInsert = Database["public"]["Tables"]["messages"]["Insert"];
+type ConversationRow = {
+  request_id?: string | null;
+  customer_id?: string | null;
+  pro_id?: string | null;
 };
 
 function parseServiceDate(raw?: string | null) {
@@ -45,16 +56,11 @@ export async function finalizeOfferPayment(
     if (!offer) return { ok: false };
 
     const nowIso = new Date().toISOString();
-    const parsedService = parseServiceDate(
-      (offer as { service_date?: string | null }).service_date ?? null,
-    );
+    const parsedService = parseServiceDate(offer.service_date ?? null);
 
-    const conversationId =
-      (offer as { conversation_id?: string | null }).conversation_id ?? null;
-    let clientId =
-      (offer as { client_id?: string | null }).client_id ?? null;
-    let proId =
-      (offer as { professional_id?: string | null }).professional_id ?? null;
+    const conversationId = offer.conversation_id ?? null;
+    let clientId = offer.client_id ?? null;
+    let proId = offer.professional_id ?? null;
     let requestId: string | null = null;
     let requestTitle: string | null = null;
     let requestRequiredAt: string | null = null;
@@ -69,37 +75,35 @@ export async function finalizeOfferPayment(
         .select("request_id, customer_id, pro_id")
         .eq("id", conversationId)
         .maybeSingle();
-      requestId = (conv as { request_id?: string | null } | null)?.request_id
-        ? (conv as { request_id?: string | null }).request_id ?? null
-        : null;
-      if (!clientId)
-        clientId =
-          (conv as { customer_id?: string | null } | null)?.customer_id ?? null;
-      if (!proId)
-        proId = (conv as { pro_id?: string | null } | null)?.pro_id ?? null;
+      const convRow = conv as ConversationRow | null;
+      requestId = convRow?.request_id ?? null;
+      if (!clientId) clientId = convRow?.customer_id ?? null;
+      if (!proId) proId = convRow?.pro_id ?? null;
     }
 
     if (requestId) {
       const { data: req } = await admin
         .from("requests")
-        .select("title, created_by, required_at, scheduled_date, scheduled_time")
+        .select(
+          "title, created_by, required_at, scheduled_date, scheduled_time",
+        )
         .eq("id", requestId)
         .maybeSingle();
-      requestTitle =
-        ((req as { title?: string | null } | null)?.title as string | null) ??
-        "Servicio";
+      const reqRow = (req ?? null) as Pick<
+        Database["public"]["Tables"]["requests"]["Row"],
+        | "title"
+        | "created_by"
+        | "required_at"
+        | "scheduled_date"
+        | "scheduled_time"
+      > | null;
+      requestTitle = reqRow?.title ?? "Servicio";
       if (!clientId) {
-        clientId =
-          (req as { created_by?: string | null } | null)?.created_by ?? null;
+        clientId = reqRow?.created_by ?? null;
       }
-      requestRequiredAt =
-        (req as { required_at?: string | null } | null)?.required_at ?? null;
-      requestScheduledDate =
-        (req as { scheduled_date?: string | null } | null)?.scheduled_date ??
-        null;
-      requestScheduledTime =
-        (req as { scheduled_time?: string | null } | null)?.scheduled_time ??
-        null;
+      requestRequiredAt = reqRow?.required_at ?? null;
+      requestScheduledDate = reqRow?.scheduled_date ?? null;
+      requestScheduledTime = reqRow?.scheduled_time ?? null;
     }
     if (proId) {
       try {
@@ -108,14 +112,12 @@ export async function finalizeOfferPayment(
           .select("email, full_name")
           .eq("id", proId)
           .maybeSingle();
-        proEmail =
-          ((profile as { email?: string | null } | null)?.email as
-            | string
-            | null) ?? null;
-        proName =
-          ((profile as { full_name?: string | null } | null)?.full_name as
-            | string
-            | null) ?? null;
+        const profileRow = profile as {
+          email?: string | null;
+          full_name?: string | null;
+        } | null;
+        proEmail = profileRow?.email ?? null;
+        proName = profileRow?.full_name ?? null;
       } catch {
         /* ignore */
       }
@@ -126,17 +128,14 @@ export async function finalizeOfferPayment(
       requestScheduledDate ||
       (requestRequiredAt ? requestRequiredAt.slice(0, 10) : null) ||
       nowIso.slice(0, 10);
-    const scheduledTime =
-      parsedService.time || requestScheduledTime || "09:00";
+    const scheduledTime = parsedService.time || requestScheduledTime || "09:00";
 
     await admin
       .from("offers")
       .update({
         status: "paid",
         payment_intent_id:
-          args.paymentIntentId ||
-          (offer as { payment_intent_id?: string | null }).payment_intent_id ||
-          null,
+          args.paymentIntentId || offer.payment_intent_id || null,
         checkout_url: null,
         accepting_at: null,
         updated_at: nowIso,
@@ -153,17 +152,16 @@ export async function finalizeOfferPayment(
           .eq("professional_id", proId)
           .maybeSingle();
         if (existing?.id) {
-          const patch: Record<string, unknown> = { updated_at: nowIso };
-          const st = String((existing as any).status || "").toLowerCase();
+          const patch: AgreementUpdate = { updated_at: nowIso };
+          const st = String(existing.status ?? "").toLowerCase();
           if (!(st === "in_progress" || st === "completed")) {
-            patch.status = "paid" as any;
+            patch.status = "paid";
           }
-          if (typeof (offer as any).amount === "number")
-            patch.amount = (offer as any).amount;
-          if (scheduledDate && !(existing as any)?.scheduled_date) {
+          if (typeof offer.amount === "number") patch.amount = offer.amount;
+          if (scheduledDate && !existing.scheduled_date) {
             patch.scheduled_date = scheduledDate;
           }
-          if (scheduledTime && !(existing as any)?.scheduled_time) {
+          if (scheduledTime && !existing.scheduled_time) {
             patch.scheduled_time = scheduledTime;
           }
           if (Object.keys(patch).length > 1) {
@@ -176,24 +174,19 @@ export async function finalizeOfferPayment(
       }
       if (!agreementId) {
         try {
-          const { data: ins } = await (admin as any)
+          const insertRow: AgreementInsert = {
+            request_id: requestId,
+            professional_id: proId,
+            amount: typeof offer.amount === "number" ? offer.amount : null,
+            status: "paid",
+            scheduled_date: scheduledDate || null,
+            scheduled_time: scheduledTime || null,
+            created_at: nowIso,
+            updated_at: nowIso,
+          };
+          const { data: ins } = await admin
             .from("agreements")
-            .upsert(
-              {
-                request_id: requestId,
-                professional_id: proId,
-                amount:
-                  typeof (offer as any).amount === "number"
-                    ? (offer as any).amount
-                    : null,
-                status: "paid" as any,
-                scheduled_date: scheduledDate || null,
-                scheduled_time: scheduledTime || null,
-                created_at: nowIso,
-                updated_at: nowIso,
-              },
-              { onConflict: "request_id,professional_id" },
-            )
+            .upsert(insertRow, { onConflict: "request_id,professional_id" })
             .select("id")
             .maybeSingle();
           if (ins?.id) agreementId = ins.id as string;
@@ -203,9 +196,13 @@ export async function finalizeOfferPayment(
       }
       // Cancel other pending agreements for this request
       try {
+        const cancelPatch: AgreementUpdate = {
+          status: "cancelled",
+          updated_at: nowIso,
+        };
         await admin
           .from("agreements")
-          .update({ status: "cancelled" as any, updated_at: nowIso })
+          .update(cancelPatch)
           .eq("request_id", requestId)
           .neq("professional_id", proId)
           .in("status", ["negotiating", "accepted", "paid"]);
@@ -215,21 +212,21 @@ export async function finalizeOfferPayment(
     }
 
     if (requestId) {
-      const patch: Record<string, unknown> = {
-        status: "scheduled" as any,
-        is_explorable: false as any,
-        visible_in_explore: false as any,
+      const patch: RequestUpdate = {
+        status: "scheduled",
+        is_explorable: false,
+        visible_in_explore: false,
         updated_at: nowIso,
       };
       if (proId) {
-        (patch as any).professional_id = proId;
-        (patch as any).accepted_professional_id = proId;
+        patch.professional_id = proId;
+        patch.accepted_professional_id = proId;
       }
-      if (scheduledDate) (patch as any).scheduled_date = scheduledDate;
-      if (scheduledTime) (patch as any).scheduled_time = scheduledTime;
-      if (agreementId) (patch as any).agreement_id = agreementId;
+      if (scheduledDate) patch.scheduled_date = scheduledDate;
+      if (scheduledTime) patch.scheduled_time = scheduledTime;
+      if (agreementId) patch.agreement_id = agreementId;
       if (!requestRequiredAt && scheduledDate)
-        (patch as any).required_at = scheduledDate;
+        patch.required_at = scheduledDate;
       try {
         await admin.from("requests").update(patch).eq("id", requestId);
       } catch {
@@ -239,7 +236,12 @@ export async function finalizeOfferPayment(
 
     if (requestId && proId) {
       try {
-        await (admin as any).from("pro_calendar_events").upsert(
+        const adminUntyped = admin as unknown as {
+          from: (table: string) => {
+            upsert: (values: unknown, options?: unknown) => Promise<unknown>;
+          };
+        };
+        await adminUntyped.from("pro_calendar_events").upsert(
           {
             pro_id: proId,
             request_id: requestId,
@@ -276,13 +278,14 @@ export async function finalizeOfferPayment(
           const body = whenStr
             ? `Pago confirmado. Servicio agendado para ${whenStr}`
             : "Pago realizado. Servicio agendado.";
-          await admin.from("messages").insert({
+          const messageInsert: MessageInsert = {
             conversation_id: conversationId,
             sender_id: clientId,
             body,
             message_type: "system",
-            payload,
-          } as any);
+            payload: payload as MessageInsert["payload"],
+          };
+          await admin.from("messages").insert(messageInsert);
           await notifyChatMessageByConversation({
             conversationId,
             senderId: clientId,

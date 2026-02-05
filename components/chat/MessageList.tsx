@@ -21,9 +21,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import ReviewModal from "@/app/(app)/_components/ReviewModal";
 
 type Item = {
   id: string;
@@ -86,6 +88,10 @@ type QuotePayload = {
 };
 
 type SystemMessagePayload = LocationPayload & {
+  type?: string | null;
+  request_id?: string | null;
+  pro_id?: string | null;
+  customer_id?: string | null;
   status?: string | null;
   reason?: string | null;
   receipt_url?: string | null;
@@ -166,6 +172,101 @@ export default function MessageList({
   );
   const searchParams = useSearchParams();
   const debugActions = searchParams?.get("debugActions") === "1";
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [confirmTarget, setConfirmTarget] = React.useState<{
+    requestId: string;
+    proId: string;
+  } | null>(null);
+  const [helpOpen, setHelpOpen] = React.useState(false);
+  const [reviewed, setReviewed] = React.useState(false);
+  const [otherName, setOtherName] = React.useState<string | null>(null);
+
+  const serviceFinished = React.useMemo(() => {
+    for (const message of items) {
+      if (
+        message.messageType === "system" &&
+        message.payload &&
+        typeof message.payload === "object"
+      ) {
+        const payloadRecord = message.payload as Record<string, unknown>;
+        if (payloadRecord.type === "service_finished") {
+          return {
+            requestId:
+              typeof payloadRecord.request_id === "string"
+                ? payloadRecord.request_id
+                : null,
+            proId:
+              typeof payloadRecord.pro_id === "string"
+                ? payloadRecord.pro_id
+                : null,
+            clientId:
+              typeof payloadRecord.customer_id === "string"
+                ? payloadRecord.customer_id
+                : null,
+          };
+        }
+      }
+    }
+    return null;
+  }, [items]);
+
+  const reviewStorageKey = React.useMemo(() => {
+    if (!currentUserId || !serviceFinished?.requestId) return null;
+    return `reviewed-${serviceFinished.requestId}-${currentUserId}`;
+  }, [currentUserId, serviceFinished?.requestId]);
+
+  const handleClientReviewSubmitted = React.useCallback(() => {
+    if (reviewStorageKey) {
+      try {
+        localStorage.setItem(reviewStorageKey, "1");
+      } catch {
+        /* ignore */
+      }
+    }
+    setReviewed(true);
+    setConfirmOpen(false);
+  }, [reviewStorageKey]);
+
+  React.useEffect(() => {
+    if (!reviewStorageKey) return;
+    try {
+      setReviewed(localStorage.getItem(reviewStorageKey) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, [reviewStorageKey]);
+
+  React.useEffect(() => {
+    if (!otherUserId) return;
+    let cancelled = false;
+    (async () => {
+      const profile = await fetch(
+        `/api/profiles/${encodeURIComponent(otherUserId)}`,
+        { cache: "no-store", credentials: "include" },
+      )
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null);
+      if (!cancelled && profile?.data?.full_name) {
+        setOtherName(profile.data.full_name as string);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [otherUserId]);
+
+  React.useEffect(() => {
+    if (!serviceFinished) return;
+    if (searchParams.get("confirm") === "1") {
+      const proId = serviceFinished.proId ?? otherUserId ?? null;
+      const requestId = serviceFinished.requestId ?? null;
+      if (proId && requestId) {
+        setConfirmTarget({ proId, requestId });
+        setConfirmOpen(true);
+      }
+    }
+    if (searchParams.get("help") === "1") setHelpOpen(true);
+  }, [otherUserId, searchParams, serviceFinished]);
   // Pago integrado en modal (sin checkout externo)
   const [paymentOpen, setPaymentOpen] = React.useState(false);
   const [quoteLightbox, setQuoteLightbox] = React.useState<string | null>(null);
@@ -712,6 +813,59 @@ export default function MessageList({
       ) {
         return <LocationCard payload={payloadRecord} />;
       }
+      if (payloadType === "service_finished") {
+        const requestId =
+          typeof payloadRecord.request_id === "string"
+            ? payloadRecord.request_id
+            : serviceFinished?.requestId ?? null;
+        const proId =
+          typeof payloadRecord.pro_id === "string"
+            ? payloadRecord.pro_id
+            : serviceFinished?.proId ?? otherUserId ?? null;
+        const customerId =
+          typeof payloadRecord.customer_id === "string"
+            ? payloadRecord.customer_id
+            : serviceFinished?.clientId ?? null;
+        const canConfirm =
+          viewerRole === "customer" &&
+          (!customerId || customerId === currentUserId);
+        if (!canConfirm) {
+          return (
+            <div className="text-sm font-medium text-slate-800">
+              El profesional ha finalizado el trabajo.
+            </div>
+          );
+        }
+        return (
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-900">
+              El profesional ha finalizado el trabajo.
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                className="bg-brand text-white hover:opacity-90"
+                onClick={() => {
+                  if (requestId && proId) {
+                    setConfirmTarget({ requestId, proId });
+                    setConfirmOpen(true);
+                  }
+                }}
+                disabled={reviewed || !requestId || !proId}
+              >
+                {reviewed ? "Confirmado" : "Confirmar"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setHelpOpen(true)}
+              >
+                Ayuda
+              </Button>
+            </div>
+          </div>
+        );
+      }
       const statusValue =
         typeof payloadRecord.status === "string"
           ? payloadRecord.status
@@ -803,12 +957,13 @@ export default function MessageList({
   }
 
   return (
-    <div
-      ref={ref}
-      className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3"
-      style={bgStyle}
-      data-testid={`${dataPrefix}-list`}
-    >
+    <>
+      <div
+        ref={ref}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3"
+        style={bgStyle}
+        data-testid={`${dataPrefix}-list`}
+      >
       {viewerRole === "customer" ? (
         <div
           className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
@@ -1037,15 +1192,45 @@ export default function MessageList({
           ) : null}
         </DialogContent>
       </Dialog>
-      <OfferPaymentDialog
-        open={paymentOpen}
-        onOpenChange={setPaymentOpen}
-        offerId={feeCtx.offerId || null}
-        amount={feeCtx.amount ?? 0}
-        currency={feeCtx.currency}
-        title={feeCtx.title || "Pago seguro"}
-        onSuccess={handlePaymentSuccess}
-      />
-    </div>
+        <OfferPaymentDialog
+          open={paymentOpen}
+          onOpenChange={setPaymentOpen}
+          offerId={feeCtx.offerId || null}
+          amount={feeCtx.amount ?? 0}
+          currency={feeCtx.currency}
+          title={feeCtx.title || "Pago seguro"}
+          onSuccess={handlePaymentSuccess}
+        />
+      </div>
+      {confirmTarget ? (
+        <ReviewModal
+          isOpen={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          requestId={confirmTarget.requestId}
+          reviewerRole="client"
+          professionalId={confirmTarget.proId}
+          onSubmitted={handleClientReviewSubmitted}
+          title={`Califica a ${otherName ?? "el profesional"}`}
+          description="Confirma el servicio y comparte tu experiencia."
+          showComment={false}
+        />
+      ) : null}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Ayuda</DialogTitle>
+            <DialogDescription>
+              Para gestionar cualquier detalle con tu servicio habla directamente
+              con un asesor al +52 81 3087 8691.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHelpOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
