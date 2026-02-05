@@ -436,6 +436,9 @@ pnpm db:seed
 pnpm db:seed:large
 ```
 
+Nota: antes de desplegar cambios que escriben `agreements.status` (accepted/rejected/etc),
+aplica la migracion `20260205090000_expand_agreements_status_enum.sql`.
+
 ## Usuarios de prueba
 
 - Crea usuarios con email/password en Supabase Auth y asigna roles en `profiles.role`:
