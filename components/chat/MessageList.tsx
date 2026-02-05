@@ -61,6 +61,7 @@ type MessageListProps = {
   onRejectOffer?: (offerId: string) => void;
   actionOfferId?: string | null;
   dataPrefix?: string; // e2e: chat | request-chat
+  hideQuoteCta?: boolean;
   onOpenOfferDialog?: (opts: {
     amount?: number | null;
     currency?: string | null;
@@ -94,6 +95,7 @@ type SystemMessagePayload = LocationPayload & {
   customer_id?: string | null;
   status?: string | null;
   reason?: string | null;
+  city?: string | null;
   receipt_url?: string | null;
   receipt_id?: string | null;
   download_url?: string | null;
@@ -158,6 +160,7 @@ export default function MessageList({
   onRejectOffer: _onRejectOffer,
   actionOfferId,
   dataPrefix = "chat",
+  hideQuoteCta = false,
   onOpenOfferDialog,
 }: MessageListProps) {
   const bgStyle = React.useMemo<React.CSSProperties>(
@@ -256,7 +259,7 @@ export default function MessageList({
   }, [otherUserId]);
 
   React.useEffect(() => {
-    if (!serviceFinished) return;
+    if (!serviceFinished || !searchParams) return;
     if (searchParams.get("confirm") === "1") {
       const proId = serviceFinished.proId ?? otherUserId ?? null;
       const requestId = serviceFinished.requestId ?? null;
@@ -792,6 +795,21 @@ export default function MessageList({
       // LocationCard: type 'system/location' o 'schedule_details'
       const payloadType =
         typeof payloadRecord.type === "string" ? payloadRecord.type : "";
+      if (payloadType === "service_scheduled_address") {
+        const addressLine =
+          typeof payloadRecord.address_line === "string"
+            ? payloadRecord.address_line.trim()
+            : "";
+        const city =
+          typeof payloadRecord.city === "string"
+            ? payloadRecord.city.trim()
+            : "";
+        const parts = [addressLine, city].filter(Boolean);
+        const line = parts.length
+          ? `Servicio agendado en ${parts.join(", ")}.`
+          : "Servicio agendado.";
+        return <div className="text-sm font-medium text-slate-800">{line}</div>;
+      }
       const hasLocationFlat =
         typeof payloadRecord.map_image_url === "string" ||
         typeof payloadRecord.maps_url === "string" ||
@@ -817,15 +835,15 @@ export default function MessageList({
         const requestId =
           typeof payloadRecord.request_id === "string"
             ? payloadRecord.request_id
-            : serviceFinished?.requestId ?? null;
+            : (serviceFinished?.requestId ?? null);
         const proId =
           typeof payloadRecord.pro_id === "string"
             ? payloadRecord.pro_id
-            : serviceFinished?.proId ?? otherUserId ?? null;
+            : (serviceFinished?.proId ?? otherUserId ?? null);
         const customerId =
           typeof payloadRecord.customer_id === "string"
             ? payloadRecord.customer_id
-            : serviceFinished?.clientId ?? null;
+            : (serviceFinished?.clientId ?? null);
         const canConfirm =
           viewerRole === "customer" &&
           (!customerId || customerId === currentUserId);
@@ -863,6 +881,43 @@ export default function MessageList({
                 Ayuda
               </Button>
             </div>
+          </div>
+        );
+      }
+      if (payloadType === "payment_receipt") {
+        const rid =
+          typeof payloadRecord.receipt_id === "string"
+            ? (payloadRecord.receipt_id as string)
+            : null;
+        const dl =
+          typeof payloadRecord.download_url === "string" &&
+          payloadRecord.download_url.trim().length
+            ? (payloadRecord.download_url as string)
+            : rid
+              ? `/api/receipts/${encodeURIComponent(rid)}/pdf`
+              : null;
+        const link =
+          dl ||
+          (typeof payloadRecord.receipt_url === "string"
+            ? (payloadRecord.receipt_url as string)
+            : null);
+        return (
+          <div className="text-sm text-slate-800">
+            {message.body}
+            {Array.isArray(message.attachments) &&
+            message.attachments.length > 0 ? null : link ? (
+              <>
+                {" "}
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline text-blue-700 hover:text-blue-800"
+                >
+                  Ver recibo
+                </a>
+              </>
+            ) : null}
           </div>
         );
       }
@@ -964,234 +1019,236 @@ export default function MessageList({
         style={bgStyle}
         data-testid={`${dataPrefix}-list`}
       >
-      {viewerRole === "customer" ? (
-        <div
-          className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
-          data-testid={`${dataPrefix}-conversation-header-customer`}
-        >
-          <div className="flex items-center justify-center gap-2">
-            <Badge
-              variant="outline"
-              className="bg-white text-primary border-slate-200 shadow-sm"
-            >
-              Cotiza
-            </Badge>
-            <span className="text-primary">&gt;</span>
-            <Badge
-              variant="outline"
-              className="bg-white text-primary border-slate-200 shadow-sm"
-            >
-              Contrata
-            </Badge>
-            <span className="text-primary">&gt;</span>
-            <Badge
-              variant="outline"
-              className="bg-white text-primary border-slate-200 shadow-sm"
-            >
-              Paga
-            </Badge>
+        {!hideQuoteCta && viewerRole === "customer" ? (
+          <div
+            className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
+            data-testid={`${dataPrefix}-conversation-header-customer`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Badge
+                variant="outline"
+                className="bg-white text-primary border-slate-200 shadow-sm"
+              >
+                Cotiza
+              </Badge>
+              <span className="text-primary">&gt;</span>
+              <Badge
+                variant="outline"
+                className="bg-white text-primary border-slate-200 shadow-sm"
+              >
+                Contrata
+              </Badge>
+              <span className="text-primary">&gt;</span>
+              <Badge
+                variant="outline"
+                className="bg-white text-primary border-slate-200 shadow-sm"
+              >
+                Paga
+              </Badge>
+            </div>
+            <div className="flex justify-center">
+              <Badge
+                variant="outline"
+                className="bg-emerald-50 text-black border-emerald-100 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
+              >
+                Protegemos tu pago hasta que apruebes el servicio finalizado.
+              </Badge>
+            </div>
           </div>
-          <div className="flex justify-center">
-            <Badge
-              variant="outline"
-              className="bg-emerald-50 text-black border-emerald-100 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
-            >
-              Protegemos tu pago hasta que apruebes el servicio finalizado.
-            </Badge>
+        ) : !hideQuoteCta && viewerRole === "professional" ? (
+          <div
+            className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
+            data-testid={`${dataPrefix}-conversation-header-professional`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <Badge
+                variant="outline"
+                className="bg-white text-primary border-slate-200 shadow-sm"
+              >
+                Cotiza
+              </Badge>
+              <span className="text-primary">&gt;</span>
+              <Badge
+                variant="outline"
+                className="bg-white text-primary border-slate-200 shadow-sm"
+              >
+                Acepta Oferta
+              </Badge>
+              <span className="text-primary">&gt;</span>
+              <Badge
+                variant="outline"
+                className="bg-white text-primary border-slate-200 shadow-sm"
+              >
+                Agenda Servicio
+              </Badge>
+            </div>
+            <div className="flex justify-center">
+              <Badge
+                variant="outline"
+                className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
+              >
+                Los servicios agendados se agregan a tu calendario en
+                automático.
+              </Badge>
+            </div>
           </div>
-        </div>
-      ) : viewerRole === "professional" ? (
-        <div
-          className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
-          data-testid={`${dataPrefix}-conversation-header-professional`}
-        >
-          <div className="flex items-center justify-center gap-2">
-            <Badge
-              variant="outline"
-              className="bg-white text-primary border-slate-200 shadow-sm"
-            >
-              Cotiza
-            </Badge>
-            <span className="text-primary">&gt;</span>
-            <Badge
-              variant="outline"
-              className="bg-white text-primary border-slate-200 shadow-sm"
-            >
-              Acepta Oferta
-            </Badge>
-            <span className="text-primary">&gt;</span>
-            <Badge
-              variant="outline"
-              className="bg-white text-primary border-slate-200 shadow-sm"
-            >
-              Agenda Servicio
-            </Badge>
-          </div>
-          <div className="flex justify-center">
-            <Badge
-              variant="outline"
-              className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
-            >
-              Los servicios agendados se agregan a tu calendario en automático.
-            </Badge>
-          </div>
-        </div>
-      ) : null}
-      <ul className="space-y-2">
-        {items.map((m) => {
-          const isMe =
-            currentUserId &&
-            (m.senderId === currentUserId || m.senderId === "me");
-          const isRead =
-            isMe && otherUserId
-              ? (m.readBy ?? []).includes(otherUserId)
-              : false;
-          const author =
-            viewerRole === "customer"
-              ? isMe
-                ? "client"
-                : "pro"
-              : viewerRole === "professional"
+        ) : null}
+        <ul className="space-y-2">
+          {items.map((m) => {
+            const isMe =
+              currentUserId &&
+              (m.senderId === currentUserId || m.senderId === "me");
+            const isRead =
+              isMe && otherUserId
+                ? (m.readBy ?? []).includes(otherUserId)
+                : false;
+            const author =
+              viewerRole === "customer"
                 ? isMe
-                  ? "pro"
-                  : "client"
-                : "unknown";
-          return (
-            <li
-              key={m.id}
-              className={`text-sm flex ${isMe ? "justify-end" : "justify-start"}`}
-              data-testid={`${dataPrefix}-message`}
-              data-author={author}
-              data-message-id={m.id}
-            >
-              <div
-                className={`max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 shadow-sm ${
-                  isMe ? "bg-blue-50" : "bg-slate-100"
-                }`}
+                  ? "client"
+                  : "pro"
+                : viewerRole === "professional"
+                  ? isMe
+                    ? "pro"
+                    : "client"
+                  : "unknown";
+            return (
+              <li
+                key={m.id}
+                className={`text-sm flex ${isMe ? "justify-end" : "justify-start"}`}
+                data-testid={`${dataPrefix}-message`}
+                data-author={author}
+                data-message-id={m.id}
               >
                 <div
-                  title={new Date(m.createdAt).toLocaleString()}
-                  className="text-[11px] text-slate-500 mb-1"
+                  className={`max-w-[75%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 shadow-sm ${
+                    isMe ? "bg-blue-50" : "bg-slate-100"
+                  }`}
                 >
-                  {formatRelative(m.createdAt)}
-                </div>
-                {(() => {
-                  if (
-                    m.messageType === "quote" &&
-                    m.payload &&
-                    typeof m.payload === "object"
-                  ) {
-                    // Reuse unified quote body (text + link). Attachments render below.
+                  <div
+                    title={new Date(m.createdAt).toLocaleString()}
+                    className="text-[11px] text-slate-500 mb-1"
+                  >
+                    {formatRelative(m.createdAt)}
+                  </div>
+                  {(() => {
+                    if (
+                      m.messageType === "quote" &&
+                      m.payload &&
+                      typeof m.payload === "object"
+                    ) {
+                      // Reuse unified quote body (text + link). Attachments render below.
+                      return renderBody(m);
+                    }
                     return renderBody(m);
-                  }
-                  return renderBody(m);
-                })()}
-                {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
-                  <div className="mt-2">
-                    <AttachmentList
-                      items={m.attachments}
-                      resolveLightboxUrl={(_att, url) => {
-                        const payload = isRecord(m.payload)
-                          ? (m.payload as QuotePayload)
-                          : null;
-                        const payloadQid =
-                          typeof payload?.quote_id === "string"
-                            ? payload.quote_id
+                  })()}
+                  {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
+                    <div className="mt-2">
+                      <AttachmentList
+                        items={m.attachments}
+                        resolveLightboxUrl={(_att, url) => {
+                          const payload = isRecord(m.payload)
+                            ? (m.payload as QuotePayload)
                             : null;
-                        const resolvedQid =
-                          payloadQid ||
-                          (m.messageType === "quote" && typeof m.id === "string"
-                            ? m.id
-                            : null);
-                        if (
-                          m.messageType === "quote" &&
-                          resolvedQid &&
-                          !resolvedQid.startsWith("tmp")
-                        ) {
-                          return `/api/quotes/${encodeURIComponent(resolvedQid)}/image`;
-                        }
-                        return url;
-                      }}
+                          const payloadQid =
+                            typeof payload?.quote_id === "string"
+                              ? payload.quote_id
+                              : null;
+                          const resolvedQid =
+                            payloadQid ||
+                            (m.messageType === "quote" &&
+                            typeof m.id === "string"
+                              ? m.id
+                              : null);
+                          if (
+                            m.messageType === "quote" &&
+                            resolvedQid &&
+                            !resolvedQid.startsWith("tmp")
+                          ) {
+                            return `/api/quotes/${encodeURIComponent(resolvedQid)}/image`;
+                          }
+                          return url;
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  {(() => {
+                    if (m.messageType !== "quote" || viewerRole !== "customer")
+                      return null;
+                    const payload = isRecord(m.payload)
+                      ? (m.payload as QuotePayload)
+                      : null;
+                    const totalRaw = payload?.total ?? null;
+                    const currencyRaw = payload?.currency ?? null;
+                    const total =
+                      typeof totalRaw === "number"
+                        ? totalRaw
+                        : Number(totalRaw ?? NaN);
+                    const currency =
+                      typeof currencyRaw === "string" ? currencyRaw : "MXN";
+                    if (!Number.isFinite(total)) return null;
+                    return (
+                      <div className="mt-2 flex justify-center">
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            onOpenOfferDialog?.({ amount: total, currency })
+                          }
+                        >
+                          Contratar
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                  {isMe ? (
+                    <div className="mt-1 text-[11px] text-slate-400 text-right">
+                      {isRead ? "Leido" : "Enviado"}
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <Dialog
+          open={!!quoteLightbox}
+          onOpenChange={(o) => {
+            if (!o) setQuoteLightbox(null);
+          }}
+          aria-describedby="quote-lightbox-desc"
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent"
+          >
+            <DialogHeader className="sr-only">
+              <DialogTitle>Previsualización de cotización</DialogTitle>
+              <DialogDescription>
+                Imagen generada de la cotización enviada.
+              </DialogDescription>
+            </DialogHeader>
+            {quoteLightbox ? (
+              <div className="relative" aria-busy={quoteImgLoading}>
+                {quoteImgLoading ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div
+                      className="size-8 animate-spin rounded-full border-2 border-white/70 border-t-transparent"
+                      aria-label="Cargando"
                     />
                   </div>
                 ) : null}
-                {(() => {
-                  if (m.messageType !== "quote" || viewerRole !== "customer")
-                    return null;
-                  const payload = isRecord(m.payload)
-                    ? (m.payload as QuotePayload)
-                    : null;
-                  const totalRaw = payload?.total ?? null;
-                  const currencyRaw = payload?.currency ?? null;
-                  const total =
-                    typeof totalRaw === "number"
-                      ? totalRaw
-                      : Number(totalRaw ?? NaN);
-                  const currency =
-                    typeof currencyRaw === "string" ? currencyRaw : "MXN";
-                  if (!Number.isFinite(total)) return null;
-                  return (
-                    <div className="mt-2 flex justify-center">
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          onOpenOfferDialog?.({ amount: total, currency })
-                        }
-                      >
-                        Contratar
-                      </Button>
-                    </div>
-                  );
-                })()}
-                {isMe ? (
-                  <div className="mt-1 text-[11px] text-slate-400 text-right">
-                    {isRead ? "Leido" : "Enviado"}
-                  </div>
-                ) : null}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={quoteLightbox}
+                  alt="Cotización"
+                  className="h-auto w-full rounded object-contain"
+                  onLoad={() => setQuoteImgLoading(false)}
+                  onError={() => setQuoteImgLoading(false)}
+                />
               </div>
-            </li>
-          );
-        })}
-      </ul>
-      <Dialog
-        open={!!quoteLightbox}
-        onOpenChange={(o) => {
-          if (!o) setQuoteLightbox(null);
-        }}
-        aria-describedby="quote-lightbox-desc"
-      >
-        <DialogContent
-          showCloseButton={false}
-          className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent"
-        >
-          <DialogHeader className="sr-only">
-            <DialogTitle>Previsualización de cotización</DialogTitle>
-            <DialogDescription>
-              Imagen generada de la cotización enviada.
-            </DialogDescription>
-          </DialogHeader>
-          {quoteLightbox ? (
-            <div className="relative" aria-busy={quoteImgLoading}>
-              {quoteImgLoading ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div
-                    className="size-8 animate-spin rounded-full border-2 border-white/70 border-t-transparent"
-                    aria-label="Cargando"
-                  />
-                </div>
-              ) : null}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={quoteLightbox}
-                alt="Cotización"
-                className="h-auto w-full rounded object-contain"
-                onLoad={() => setQuoteImgLoading(false)}
-                onError={() => setQuoteImgLoading(false)}
-              />
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+            ) : null}
+          </DialogContent>
+        </Dialog>
         <OfferPaymentDialog
           open={paymentOpen}
           onOpenChange={setPaymentOpen}
@@ -1220,8 +1277,8 @@ export default function MessageList({
           <DialogHeader>
             <DialogTitle>Ayuda</DialogTitle>
             <DialogDescription>
-              Para gestionar cualquier detalle con tu servicio habla directamente
-              con un asesor al +52 81 3087 8691.
+              Para gestionar cualquier detalle con tu servicio habla
+              directamente con un asesor al +52 81 3087 8691.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
