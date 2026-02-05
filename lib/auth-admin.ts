@@ -1,9 +1,18 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { createClient as createSupabaseServerClient } from "@/utils/supabase/server";
 
 export const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
+function isLocalAdminBypassAllowed() {
+  // E2E-only admin bypass: requires explicit env, non-production, localhost host.
+  if (process.env.E2E_ADMIN_BYPASS !== "1") return false;
+  if (process.env.NODE_ENV === "production") return false;
+  const host = headers().get("x-forwarded-host") || headers().get("host") || "";
+  const hostname = host.split(":")[0].toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
 
 function isEmailAllowed(email?: string | null): boolean {
   if (!email) return false;
@@ -26,8 +35,7 @@ export async function assertAdminOrJson(): Promise<
 
   // DEV/CI bypass: permite cookie 'handi_role' con rol de admin en entornos no productivos
   if (!user) {
-    const allowDev = process.env.NODE_ENV !== "production" || process.env.CI === "true";
-    if (allowDev) {
+    if (isLocalAdminBypassAllowed()) {
       const role = (cookies().get("handi_role")?.value || "").toLowerCase();
       const allowed = new Set(["owner", "admin", "ops", "finance", "support", "reviewer"]);
       if (role && allowed.has(role)) {

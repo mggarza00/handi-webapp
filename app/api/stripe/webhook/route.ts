@@ -8,6 +8,7 @@ import { ReceiptTemplate } from "@/components/pdf/ReceiptTemplate";
 import { getReceiptForPdf } from "@/lib/receipts";
 import type { Database } from "@/types/supabase";
 import { computeClientTotalsCents } from "@/lib/payments/fees";
+import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -82,7 +83,24 @@ export async function POST(req: Request) {
           const scheduledTimeMeta = (
             (session.metadata as any)?.scheduled_time || ""
           ).trim();
+          const paymentIntentId =
+            typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : ((session.payment_intent as { id?: string } | null)?.id ??
+                null);
           const nowIso = new Date().toISOString();
+          if (offerId) {
+            try {
+              const finalized = await finalizeOfferPayment({
+                offerId,
+                paymentIntentId,
+                source: "webhook",
+              });
+              if (finalized.requestId) requestIdTouched = finalized.requestId;
+            } catch {
+              /* ignore finalize failures */
+            }
+          }
 
           const ensureAgreement = async (args: {
             requestId?: string | null;
@@ -735,9 +753,9 @@ export async function POST(req: Request) {
                     | undefined;
                   if (requestId) {
                     requestIdTouched = requestId;
-                    // Actualiza estado a in_process/scheduled, pro asignado y fecha/hora
+                    // Actualiza estado a scheduled, pro asignado y fecha/hora
                     let patch: Record<string, unknown> = {
-                      status: "in_process",
+                      status: "scheduled",
                       is_explorable: false,
                       visible_in_explore: false,
                     } as any;
@@ -969,9 +987,7 @@ export async function POST(req: Request) {
               if (reqId) {
                 requestIdTouched = reqId as any;
                 const patchReq: Record<string, unknown> = {
-                  status: scheduleFromMeta.sd
-                    ? ("scheduled" as any)
-                    : ("in_process" as any),
+                  status: "scheduled" as any,
                   is_explorable: false as any,
                   visible_in_explore: false as any,
                   agreement_id: agreementIdEnsured ?? agreementId,
@@ -981,10 +997,11 @@ export async function POST(req: Request) {
                   (patchReq as any).professional_id = proResolved;
                   (patchReq as any).accepted_professional_id = proResolved;
                 }
-                if (scheduleFromMeta.sd)
-                  (patchReq as any).scheduled_date = scheduleFromMeta.sd;
-                if (scheduleFromMeta.st)
-                  (patchReq as any).scheduled_time = scheduleFromMeta.st;
+                const fallbackDate =
+                  scheduleFromMeta.sd || new Date().toISOString().slice(0, 10);
+                const fallbackTime = scheduleFromMeta.st || "09:00";
+                (patchReq as any).scheduled_date = fallbackDate;
+                (patchReq as any).scheduled_time = fallbackTime;
                 try {
                   await admin.from("requests").update(patchReq).eq("id", reqId);
                 } catch {
@@ -1116,7 +1133,7 @@ export async function POST(req: Request) {
             try {
               requestIdTouched = requestIdFromMeta;
               const patchReq: Record<string, unknown> = {
-                status: "in_process" as any,
+                status: "scheduled" as any,
                 is_explorable: false as any,
                 visible_in_explore: false as any,
                 updated_at: new Date().toISOString(),
@@ -1130,7 +1147,6 @@ export async function POST(req: Request) {
                 (patchReq as any).scheduled_date = scheduledDateMeta;
                 if (scheduledTimeMeta)
                   (patchReq as any).scheduled_time = scheduledTimeMeta as any;
-                (patchReq as any).status = "scheduled" as any;
               }
               try {
                 if (!(patchReq as any).scheduled_date) {
@@ -1144,8 +1160,9 @@ export async function POST(req: Request) {
                   if (!sd) sd = new Date().toISOString().slice(0, 10);
                   (patchReq as any).scheduled_date = sd;
                 }
-                if ((patchReq as any).scheduled_date) {
-                  (patchReq as any).status = "scheduled" as any;
+                if (!(patchReq as any).scheduled_time) {
+                  (patchReq as any).scheduled_time =
+                    scheduledTimeMeta || "09:00";
                 }
                 await admin
                   .from("requests")
@@ -1348,6 +1365,20 @@ export async function POST(req: Request) {
             (meta["scheduled_time"] as string | undefined) || ""
           ).trim();
           const payment_intent_id = intent.id;
+          let finalizedOk = false;
+          if (offerId) {
+            try {
+              const finalized = await finalizeOfferPayment({
+                offerId,
+                paymentIntentId: payment_intent_id,
+                source: "webhook",
+              });
+              finalizedOk = !!finalized.ok;
+              if (finalized.requestId) requestIdTouched = finalized.requestId;
+            } catch {
+              /* ignore finalize failures */
+            }
+          }
           let currency: string = (intent.currency || "MXN").toUpperCase();
           let receipt_url: string | null = null;
           try {
@@ -1439,7 +1470,7 @@ export async function POST(req: Request) {
             }
           }
           if (requestId) requestIdTouched = requestId;
-          if (offerId) {
+          if (offerId && !finalizedOk) {
             try {
               await admin
                 .from("offers")
@@ -1455,9 +1486,9 @@ export async function POST(req: Request) {
               /* ignore */
             }
           }
-          if (requestId) {
+          if (requestId && !finalizedOk) {
             const patchReq: Record<string, unknown> = {
-              status: "in_process" as any,
+              status: "scheduled" as any,
               is_explorable: false as any,
               visible_in_explore: false as any,
             };
@@ -1468,11 +1499,21 @@ export async function POST(req: Request) {
               (patchReq as any).professional_id = proIdMeta;
               (patchReq as any).accepted_professional_id = proIdMeta;
             }
-            if (scheduledDateMeta) {
-              (patchReq as any).scheduled_date = scheduledDateMeta;
-              if (scheduledTimeMeta)
-                (patchReq as any).scheduled_time = scheduledTimeMeta as any;
+            let finalDate = scheduledDateMeta || null;
+            let finalTime = scheduledTimeMeta || null;
+            if (!finalDate && serviceDateIso) {
+              try {
+                const dt = new Date(serviceDateIso);
+                finalDate = dt.toISOString().slice(0, 10);
+                finalTime = dt.toISOString().slice(11, 16);
+              } catch {
+                /* ignore */
+              }
             }
+            if (!finalDate) finalDate = new Date().toISOString().slice(0, 10);
+            if (!finalTime) finalTime = "09:00";
+            (patchReq as any).scheduled_date = finalDate;
+            (patchReq as any).scheduled_time = finalTime;
             try {
               await admin.from("requests").update(patchReq).eq("id", requestId);
             } catch {

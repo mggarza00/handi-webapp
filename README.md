@@ -117,6 +117,10 @@ Endpoints canónicos para Web Push:
 ## E2E con Playwright (dev/CI)
 
 - Ruta de **mock de rol** (solo dev/CI): `/api/test-auth/:role` con `role` en `guest|client|professional|admin`.
+- Bypass admin (solo E2E local/CI): exporta `E2E_ADMIN_BYPASS=1` y corre contra `localhost`/`127.0.0.1`.
+  - El bypass nunca se activa en `NODE_ENV=production`.
+  - Cuando `E2E_ADMIN_BYPASS=1`, Playwright usa `pnpm dev` (no `pnpm start`) para que los endpoints de test esten habilitados.
+- Seed opcional para e2e: exporta `E2E_SEED=1` para ejecutar `/api/test-seed?action=seed` en `beforeAll`.
 - La UI debe exponer testids en el header:
   - Invitado: `data-testid="btn-login"`
 - Autenticado: `data-testid="avatar"`

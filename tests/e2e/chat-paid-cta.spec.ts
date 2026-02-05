@@ -75,5 +75,31 @@ test.describe('Chat CTAs hidden after payment and request scheduled', () => {
     expect(statusRes.ok(), 'request status endpoint ok').toBeTruthy();
     const statusJson = await statusRes.json();
     expect(statusJson?.data?.status).toBe('scheduled');
+
+    // Agreements summary should show only one item with "Servicio agendado"
+    await page.goto(`/requests/${requestId}`, { waitUntil: 'domcontentloaded' });
+    const agreementsCard = page.locator('div', {
+      has: page.getByRole('heading', { name: 'Acuerdos' }),
+    }).first();
+    await expect(agreementsCard).toBeVisible({ timeout: 15000 });
+    const agreementItems = agreementsCard.locator('li');
+    await expect(agreementItems).toHaveCount(1);
+    await expect(agreementsCard.getByText('Servicio agendado')).toBeVisible();
+
+    // Pro dashboard should show an in-progress service
+    const proPage = await proContext.newPage();
+    await loginUI(proPage, 'pro');
+    await proPage.goto('/pro', { waitUntil: 'domcontentloaded' });
+    const inProcessCard = proPage
+      .locator('div', { has: proPage.getByRole('heading', { name: 'En proceso' }) })
+      .first();
+    await expect(inProcessCard).toBeVisible({ timeout: 15000 });
+    await expect(inProcessCard.getByText('Sin servicios en proceso.')).toHaveCount(0);
+
+    // Pro calendar should list the scheduled service
+    await proPage.goto('/pro/calendar', { waitUntil: 'domcontentloaded' });
+    await expect(proPage.getByText('Mi calendario')).toBeVisible({ timeout: 15000 });
+    await expect(proPage.getByText('No hay servicios agendados.')).toHaveCount(0);
+    await proPage.close();
   });
 });

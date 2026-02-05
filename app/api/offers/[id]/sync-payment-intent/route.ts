@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
+import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -14,6 +15,7 @@ type OfferRow = {
   payment_intent_id: string | null;
   checkout_url: string | null;
   service_date: string | null;
+  amount: number | null;
 };
 
 function supaAdmin() {
@@ -62,7 +64,7 @@ export async function POST(
     const { data: offer, error } = await supabase
       .from("offers")
       .select(
-        "id,status,conversation_id,client_id,professional_id,payment_intent_id,checkout_url,service_date",
+        "id,status,conversation_id,client_id,professional_id,payment_intent_id,checkout_url,service_date,amount",
       )
       .eq("id", offerId)
       .single<OfferRow>();
@@ -115,75 +117,16 @@ export async function POST(
       );
     }
 
-    const receiptUrl =
-      typeof (paymentIntent.latest_charge as any)?.receipt_url === "string"
-        ? ((paymentIntent.latest_charge as any).receipt_url as string)
-        : null;
-
-    // Update offer status to paid (idempotent)
-    await supabase
-      .from("offers")
-      .update({
-        status: "paid",
-        payment_intent_id: paymentIntent.id,
-        checkout_url: null,
-        accepting_at: null,
-      })
-      .eq("id", offer.id);
-
-    // Mark request as in_process best-effort
-    let requestId: string | null = null;
-    if (offer.conversation_id) {
-      const { data: conv } = await supabase
-        .from("conversations")
-        .select("request_id")
-        .eq("id", offer.conversation_id)
-        .maybeSingle<{ request_id: string | null }>();
-      requestId = conv?.request_id ?? null;
-      if (requestId) {
-        try {
-          await supabase
-            .from("requests")
-            .update({
-              status: "in_process" as any,
-              is_explorable: false as any,
-              visible_in_explore: false as any,
-            })
-            .eq("id", requestId);
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-
-    // Insert paid message if not exists
-    if (offer.conversation_id && offer.client_id) {
-      try {
-        const { data: existing } = await supabase
-          .from("messages")
-          .select("id")
-          .eq("conversation_id", offer.conversation_id)
-          .eq("message_type", "system")
-          .contains("payload", { offer_id: offer.id, status: "paid" })
-          .limit(1);
-        const has = Array.isArray(existing) && existing.length > 0;
-        if (!has) {
-          const payload: Record<string, unknown> = {
-            offer_id: offer.id,
-            status: "paid",
-          };
-          if (receiptUrl) payload.receipt_url = receiptUrl;
-          await supabase.from("messages").insert({
-            conversation_id: offer.conversation_id,
-            sender_id: offer.client_id,
-            body: "Pago realizado. Servicio agendado.",
-            message_type: "system",
-            payload,
-          } as any);
-        }
-      } catch {
-        /* ignore */
-      }
+    const finalize = await finalizeOfferPayment({
+      offerId,
+      paymentIntentId: paymentIntent.id,
+      source: "sync",
+    });
+    if (!finalize.ok) {
+      return NextResponse.json(
+        { error: "FINALIZE_FAILED" },
+        { status: 500, headers: JSONH },
+      );
     }
 
     return NextResponse.json(

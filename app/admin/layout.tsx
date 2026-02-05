@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Boxes, CreditCard, FileWarning, LayoutDashboard, Settings, ShieldCheck, FileText } from "lucide-react";
 
 import createClient from "@/utils/supabase/server";
@@ -16,6 +16,15 @@ import AdminTopbar from "@/components/admin/AdminTopbar.client";
 
 export const dynamic = "force-dynamic";
 
+function isLocalAdminBypassAllowed() {
+  // E2E-only admin bypass: requires explicit env, non-production, localhost host.
+  if (process.env.E2E_ADMIN_BYPASS !== "1") return false;
+  if (process.env.NODE_ENV === "production") return false;
+  const host = headers().get("x-forwarded-host") || headers().get("host") || "";
+  const hostname = host.split(":")[0].toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const {
@@ -29,7 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const cookieRole = (cookieStore.get("handi_role")?.value || "").toLowerCase();
   const allowDevBypass =
     !user &&
-    (process.env.NODE_ENV !== "production" || process.env.CI === "true") &&
+    isLocalAdminBypassAllowed() &&
     ["owner", "admin", "ops", "finance", "support", "reviewer"].includes(cookieRole);
   if (!user && !allowDevBypass) {
     redirect("/auth/sign-in");
