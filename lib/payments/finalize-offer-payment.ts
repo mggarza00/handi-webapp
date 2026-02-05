@@ -48,7 +48,7 @@ export async function finalizeOfferPayment(
       (offer as { service_date?: string | null }).service_date ?? null,
     );
 
-    let conversationId =
+    const conversationId =
       (offer as { conversation_id?: string | null }).conversation_id ?? null;
     let clientId =
       (offer as { client_id?: string | null }).client_id ?? null;
