@@ -8,6 +8,8 @@ test.skip(isCi, "Skipping this e2e suite in CI until the flow is stabilized");
 let seedLogged = false;
 
 test.describe("/admin MVP navigation", () => {
+  const baseUrl = process.env.E2E_BASE_URL || "http://localhost:3000";
+
   test.beforeAll(async ({ request }) => {
     if (process.env.E2E_SEED !== "1") return;
     const seed = await request.get("/api/test-seed?action=seed");
@@ -36,6 +38,21 @@ test.describe("/admin MVP navigation", () => {
     });
     if (res && !res.ok()) {
       console.warn(`[admin-mvp] auth setup failed: ${res.status()}`);
+    }
+    const hasRole = (await page.context().cookies()).some(
+      (c) => c.name === "handi_role" && c.value === "admin",
+    );
+    if (!hasRole) {
+      await page.context().addCookies([
+        {
+          name: "handi_role",
+          value: "admin",
+          url: baseUrl,
+          path: "/",
+          httpOnly: true,
+          sameSite: "Lax",
+        },
+      ]);
     }
   });
 

@@ -32,7 +32,13 @@ export interface Profile {
   created_at: ISODateTime;
 }
 
-export type RequestStatus = "active" | "in_process" | "completed" | "cancelled";
+export type RequestStatus =
+  | "active"
+  | "scheduled"
+  | "in_process"
+  | "finished"
+  | "completed"
+  | "cancelled";
 export interface RequestItem {
   id: UUID;
   title: string;

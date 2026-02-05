@@ -602,6 +602,52 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     };
   }, []);
 
+  const pickAddress = useCallback(
+    (it: AddressSuggestion) => {
+      const line = it.address || "";
+      setAddressLine(line);
+      setAddress(line);
+      const lat = typeof it.lat === "number" ? it.lat : null;
+      const lng = typeof it.lon === "number" ? it.lon : null;
+      setPlaceId(it.place_id ?? null);
+      setAddressLat(lat);
+      setAddressLng(lng);
+      if (typeof it.city === "string" && it.city) {
+        const canon = toCanon(it.city);
+        if (canon) {
+          setCity(canon);
+          try {
+            setValue("city", canon, { shouldDirty: true });
+          } catch (error) {
+            logFormError("pickAddress:setCity", error);
+          }
+        }
+      }
+      try {
+        setValue("address_line", line, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        setValue("address_lat", lat ?? null, { shouldDirty: true });
+        setValue("address_lng", lng ?? null, { shouldDirty: true });
+      } catch (error) {
+        logFormError("pickAddress:setAddress", error);
+      }
+      setAddrOpen(false);
+    },
+    [
+      setAddrOpen,
+      setAddress,
+      setAddressLat,
+      setAddressLine,
+      setAddressLng,
+      setCity,
+      setPlaceId,
+      setValue,
+      toCanon,
+    ],
+  );
+
   useEffect(() => {
     if (savedAddressAppliedRef.current) return;
     if (addrTouchedRef.current) return;
@@ -883,39 +929,6 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     },
     [fetchAddrSuggestions],
   );
-
-  function pickAddress(it: AddressSuggestion) {
-    const line = it.address || "";
-    setAddressLine(line);
-    setAddress(line);
-    const lat = typeof it.lat === "number" ? it.lat : null;
-    const lng = typeof it.lon === "number" ? it.lon : null;
-    setPlaceId(it.place_id ?? null);
-    setAddressLat(lat);
-    setAddressLng(lng);
-    if (typeof it.city === "string" && it.city) {
-      const canon = toCanon(it.city);
-      if (canon) {
-        setCity(canon);
-        try {
-          setValue("city", canon, { shouldDirty: true });
-        } catch (error) {
-          logFormError("pickAddress:setCity", error);
-        }
-      }
-    }
-    try {
-      setValue("address_line", line, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
-      setValue("address_lat", lat ?? null, { shouldDirty: true });
-      setValue("address_lng", lng ?? null, { shouldDirty: true });
-    } catch (error) {
-      logFormError("pickAddress:setAddress", error);
-    }
-    setAddrOpen(false);
-  }
 
   // Zod schema (same as page)
   const FormSchema = z.object({

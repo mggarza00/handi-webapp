@@ -24,6 +24,9 @@ type Props = {
   // Opcional: si el revisor es pro, se puede enviar el clientId (se valida contra la solicitud)
   clientId?: string | null;
   onSubmitted?: () => void;
+  title?: string;
+  description?: string;
+  showComment?: boolean;
 };
 
 const MAX_COMMENT = 400;
@@ -36,6 +39,9 @@ export default function ReviewModal({
   professionalId,
   clientId,
   onSubmitted,
+  title,
+  description,
+  showComment = true,
 }: Props) {
   const [stars, setStars] = React.useState<number>(5);
   const [hover, setHover] = React.useState<number | null>(null);
@@ -70,6 +76,15 @@ export default function ReviewModal({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => null);
+        if (j?.error === "DUPLICATE_REVIEW") {
+          toast.success("Reseña ya registrada.");
+          onSubmitted?.();
+          setStars(5);
+          setHover(null);
+          setComment("");
+          onClose();
+          return;
+        }
         const msg = j?.detail || j?.error || "No se pudo guardar la reseña";
         toast.error(String(msg));
         return;
@@ -92,9 +107,9 @@ export default function ReviewModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Deja tu reseña</DialogTitle>
+          <DialogTitle>{title ?? "Deja tu reseña"}</DialogTitle>
           <DialogDescription>
-            Valora tu experiencia y deja un comentario opcional.
+            {description ?? "Valora tu experiencia y deja un comentario opcional."}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,7 +131,7 @@ export default function ReviewModal({
                   onMouseLeave={() => setHover(null)}
                   onClick={() => setStars(n)}
                 >
-                  {effective >= n ? "★" : "☆"}
+                  {effective >= n ? "\u2605" : "\u2606"}
                 </span>
               ))}
               <span className="ml-2 align-middle text-sm text-slate-600">
@@ -125,29 +140,31 @@ export default function ReviewModal({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="review-comment">Comentario (opcional)</Label>
-            <Textarea
-              data-testid="review-comment"
-              id="review-comment"
-              value={comment}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v.length <= MAX_COMMENT) setComment(v);
-              }}
-              rows={4}
-              placeholder="¿Cómo fue tu experiencia?"
-              disabled={loading}
-            />
-            <div className="text-right text-xs text-slate-500">
-              {comment.length}/{MAX_COMMENT}
+          {showComment ? (
+            <div className="space-y-2">
+              <Label htmlFor="review-comment">Comentario (opcional)</Label>
+              <Textarea
+                data-testid="review-comment"
+                id="review-comment"
+                value={comment}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v.length <= MAX_COMMENT) setComment(v);
+                }}
+                rows={4}
+                placeholder="Como fue tu experiencia?"
+                disabled={loading}
+              />
+              <div className="text-right text-xs text-slate-500">
+                {comment.length}/{MAX_COMMENT}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
 
         <DialogFooter className="mt-2 grid grid-cols-1 gap-2">
           <Button onClick={handleSubmit} disabled={loading} className="w-full" data-testid="submit-review">
-            {loading ? "Enviando…" : "Enviar reseña"}
+            {loading ? "Enviando..." : "Enviar reseña"}
           </Button>
           <Button
             variant="outline"

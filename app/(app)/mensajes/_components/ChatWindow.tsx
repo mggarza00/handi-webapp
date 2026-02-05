@@ -3,13 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import useCompletionReview from "../../_components/_hooks/useCompletionReview";
-
 import formatPresence from "./presence";
 
 import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 
 type Profile = {
   id: string;
@@ -52,7 +51,7 @@ export default function ChatWindow({
   }, []);
 
   React.useEffect(() => {
-    // Oculta tabbars móviles (pro/cliente) cuando estamos dentro del chat detalle
+    // Oculta tabbars moviles (pro/cliente) cuando estamos dentro del chat detalle
     const cls = "hide-chat-tabbars";
     document.body.classList.add(cls);
     return () => {
@@ -145,23 +144,7 @@ export default function ChatWindow({
   const viewerRole: "client" | "pro" =
     meId && proId && meId === proId ? "pro" : "client";
 
-  // TODO: sustituir conversationId por el requestId real cuando esté disponible en el contexto de la conversación.
-  const {
-    modal: reviewModal,
-    handleCompletionResponse: _handleCompletionResponse,
-    open: openReview,
-  } = useCompletionReview({
-    requestId: requestId ?? conversationId,
-    reviewerRole: viewerRole,
-    professionalId: proId,
-    clientId: customerId,
-    status: null, // pásalo a "completed" para autoabrir
-    viewerId: meId,
-  });
-
-  async function patchStatus(
-    nextStatus: "scheduled" | "in_process" | "completed",
-  ) {
+  async function patchStatus(nextStatus: "scheduled" | "in_process") {
     if (!requestId) return null;
     const res = await fetch(
       `/api/requests/${encodeURIComponent(requestId)}/status`,
@@ -282,32 +265,17 @@ export default function ChatWindow({
                     </button>
                   ) : null}
                   {isScheduled || isInProcess ? (
-                    <button
-                      type="button"
-                      className="inline-flex items-center rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90"
-                      onClick={() => {
-                        openReview(); /* completar se hará tras reseña manualmente */
-                      }}
-                    >
-                      Trabajo realizado
-                    </button>
+                    <FinishJobTrigger
+                      requestId={requestId}
+                      requestTitle={requestTitle}
+                      requestStatus={requestStatus}
+                      clientId={customerId}
+                      clientName={other?.full_name ?? null}
+                      proId={proId}
+                      buttonLabel="Trabajo finalizado"
+                      buttonClassName="bg-brand text-white hover:opacity-90"
+                    />
                   ) : null}
-                </div>
-              );
-            }
-            // viewerRole === 'client'
-            if (isScheduled || isInProcess) {
-              return (
-                <div className="border-b bg-white p-2 flex items-center justify-end">
-                  <button
-                    type="button"
-                    className="inline-flex items-center rounded-md bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90"
-                    onClick={() => {
-                      openReview(); /* completar se hará tras reseña manualmente */
-                    }}
-                  >
-                    Trabajo realizado
-                  </button>
                 </div>
               );
             }
@@ -345,12 +313,6 @@ export default function ChatWindow({
           })()}
         />
       </div>
-      {/* Para disparar manualmente tras llamar a /api/services/[id]/complete o confirm */}
-      {/* Ejemplo: _handleCompletionResponse(jsonDelEndpoint); */}
-      {/* TODO: invoca handleCompletionResponse con la respuesta real al completar el servicio. */}
-      {/* Modal de reseña (inyectado). Reemplaza requestId y status con valores reales del servicio. */}
-      {reviewModal}
     </div>
   );
 }
-/* eslint-disable import/order */

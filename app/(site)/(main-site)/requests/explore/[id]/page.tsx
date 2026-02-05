@@ -18,6 +18,7 @@ import PhotoGallery from "@/components/ui/PhotoGallery";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import { mapConditionToLabel } from "@/lib/conditions";
 import { UI_STATUS_LABELS } from "@/lib/request-status";
+import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 
 // Helpers para normalizar/mostrar fechas como dd-mm-aaaa
 function normalizeDateInput(input?: string | null): string {
@@ -151,6 +152,13 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const budget = typeof d.budget === "number" ? (d.budget as number) : null;
   const requiredAt = (d.required_at as string | null) ?? null;
   const status = (d.status as string | null) ?? null;
+  const assignedProId =
+    ((d as { accepted_professional_id?: string | null }).accepted_professional_id ??
+      (d as { professional_id?: string | null }).professional_id ??
+      null) as string | null;
+  const canFinish =
+    Boolean(user?.id && assignedProId && user.id === assignedProId) &&
+    (status === "scheduled" || status === "in_process");
   const conditions: string[] = ((d.conditions as string | undefined) || "")
     .split(",")
     .map((s) => s.trim())
@@ -229,7 +237,21 @@ export default async function ProRequestDetailPage({ params }: Params) {
 
       <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-4">
-          <h1 className="text-2xl font-semibold">{title ?? "Solicitud"}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold">{title ?? "Solicitud"}</h1>
+            {canFinish ? (
+              <FinishJobTrigger
+                requestId={String(d.id ?? params.id)}
+                requestTitle={title}
+                requestStatus={status}
+                clientId={clientId ?? null}
+                clientName={clientProfile?.full_name ?? null}
+                proId={user?.id ?? null}
+                buttonLabel="Trabajo finalizado"
+                buttonVariant="outline"
+              />
+            ) : null}
+          </div>
           {/* Condiciones: chips bajo el título, sin tarjeta, sin texto "Condiciones" */}
           {conditions.length > 0 ? (
             <div className="flex flex-wrap gap-2 mt-2">

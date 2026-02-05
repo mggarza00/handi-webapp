@@ -143,6 +143,10 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* ignore */ }
 
+    try {
+      if (toUserId) revalidateTag(`profile:${toUserId}`);
+    } catch { /* ignore */ }
+
     return NextResponse.json({ ok: true, id: (ins.data as any)?.id ?? null }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

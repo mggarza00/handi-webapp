@@ -40,7 +40,7 @@
     "check": "next lint && tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
     "prepare": "husky install",
-    "test:e2e": "playwright test",
+    "test:e2e": "cross-env E2E_ADMIN_BYPASS=1 playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:ui": "playwright test --ui",
     "snap": "node scripts/snapshots.js",

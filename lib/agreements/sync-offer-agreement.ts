@@ -2,6 +2,9 @@ import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
 type OfferRow = Database["public"]["Tables"]["offers"]["Row"];
+type AgreementUpdate = Database["public"]["Tables"]["agreements"]["Update"];
+type AgreementInsert = Database["public"]["Tables"]["agreements"]["Insert"];
+type AgreementStatus = Database["public"]["Tables"]["agreements"]["Row"]["status"];
 
 type SyncArgs = {
   offer: OfferRow;
@@ -48,7 +51,7 @@ export async function syncOfferAgreementStatus({ offer, status }: SyncArgs) {
     const now = new Date().toISOString();
     const amountRaw = Number((offer as { amount?: number | null }).amount);
     const amount = Number.isFinite(amountRaw) ? amountRaw : null;
-    const nextStatus = mapAgreementStatus(status);
+    const nextStatus = mapAgreementStatus(status) as AgreementStatus;
 
     const { data: existing, error: existingError } = await admin
       .from("agreements")
@@ -61,8 +64,8 @@ export async function syncOfferAgreementStatus({ offer, status }: SyncArgs) {
     }
 
     if (existing?.id) {
-      const patch: Record<string, unknown> = {
-        status: nextStatus as any,
+      const patch: AgreementUpdate = {
+        status: nextStatus,
         updated_at: now,
       };
       if (amount !== null) patch.amount = amount;
@@ -76,14 +79,15 @@ export async function syncOfferAgreementStatus({ offer, status }: SyncArgs) {
       return;
     }
 
-    const { error: insertError } = await admin.from("agreements").insert({
+    const insertRow: AgreementInsert = {
       request_id: requestId,
       professional_id: proId,
       amount,
-      status: nextStatus as any,
+      status: nextStatus,
       created_at: now,
       updated_at: now,
-    });
+    };
+    const { error: insertError } = await admin.from("agreements").insert(insertRow);
     if (insertError && process.env.NODE_ENV !== "production") {
       console.error("syncOfferAgreementStatus insert failed", insertError);
     }

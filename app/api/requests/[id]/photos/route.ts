@@ -60,7 +60,14 @@ export async function POST(req: Request, { params }: Ctx) {
       .eq("id", requestId)
       .maybeSingle<{ id: string; status: string | null }>();
     const status = reqRow?.status ?? null;
-    if (!(status === "completed" || status === "in_review" || status === "in_process")) {
+    if (
+      !(
+        status === "completed" ||
+        status === "in_review" ||
+        status === "in_process" ||
+        status === "scheduled"
+      )
+    ) {
       return NextResponse.json(
         { ok: false, error: "INVALID_STATUS" },
         { status: 400, headers: JSONH },

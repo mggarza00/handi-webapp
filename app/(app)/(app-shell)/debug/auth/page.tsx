@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { cookies, headers } from "next/headers";
 
+import ClientSessionProbe from "./probe.client";
+
 import { getAuthContext } from "@/lib/_supabase-server";
 import { env } from "@/lib/env";
-import ClientSessionProbe from "./probe.client";
 
 export const dynamic = "force-dynamic";
 
