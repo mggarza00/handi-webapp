@@ -29,6 +29,7 @@ type PaymentIntentState = {
   loading: boolean;
   clientSecret: string | null;
   publishableKey: string | null;
+  paymentMode: "test" | "live" | null;
   breakdown: {
     service: number;
     fee: number;
@@ -79,6 +80,7 @@ function usePaymentIntent(
     loading: false,
     clientSecret: null,
     publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
+    paymentMode: null,
     breakdown: mapTotals(amount),
     currency,
     error: null,
@@ -91,6 +93,7 @@ function usePaymentIntent(
       ...prev,
       loading: true,
       error: null,
+      paymentMode: null,
       breakdown: mapTotals(amount),
       currency,
     }));
@@ -98,6 +101,7 @@ function usePaymentIntent(
       type PaymentIntentResponse = {
         clientSecret?: string | null;
         publishableKey?: string | null;
+        paymentMode?: "test" | "live" | null;
         breakdown?: {
           service?: number;
           fee?: number;
@@ -143,6 +147,7 @@ function usePaymentIntent(
             prev.publishableKey ??
             process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ??
             null,
+          paymentMode: json?.paymentMode ?? null,
           breakdown,
           currency: json?.currency || currency,
           error: null,
@@ -166,6 +171,7 @@ function PaymentContent({
   currency,
   title,
   amount,
+  paymentMode,
   selectedMethod,
   onSelectMethod,
   termsAccepted,
@@ -178,6 +184,7 @@ function PaymentContent({
   currency: string;
   title?: string | null;
   amount: number;
+  paymentMode: PaymentIntentState["paymentMode"];
   selectedMethod: PaymentMethod;
   onSelectMethod: (m: PaymentMethod) => void;
   termsAccepted: boolean;
@@ -247,9 +254,16 @@ function PaymentContent({
               {title || "Confirma tu pago"}
             </p>
           </div>
-          <Badge variant="outline" className="text-xs">
-            Stripe
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              Stripe
+            </Badge>
+            {paymentMode === "test" ? (
+              <Badge variant="secondary" className="text-xs">
+                Pago de prueba
+              </Badge>
+            ) : null}
+          </div>
         </div>
         <div className="grid gap-3 rounded-2xl border bg-white/70 p-4 shadow-sm sm:grid-cols-2">
           <div className="space-y-2">
@@ -511,6 +525,7 @@ export function OfferPaymentDialog({
                 currency={intent.currency}
                 title={title}
                 amount={safeAmount}
+                paymentMode={intent.paymentMode}
                 selectedMethod={method}
                 onSelectMethod={setMethod}
                 termsAccepted={termsAccepted}

@@ -62,6 +62,14 @@ Copia `.env.example` a `.env.local` y rellena:
 - `PRIVATE_KEY` (usar `\n` en una sola línea si el código hace `replace(/\\n/g, '\n')`)
 - `SHEET_ID`
 
+### Stripe dual-mode (produccion)
+
+- `STRIPE_DUAL_MODE_ENABLED=1` para habilitar modo dual.
+- Live: `STRIPE_SECRET_KEY_LIVE`, `STRIPE_WEBHOOK_SECRET_LIVE`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_LIVE`.
+- Test: `STRIPE_SECRET_KEY_TEST`, `STRIPE_WEBHOOK_SECRET_TEST`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_TEST`.
+- Allowlist: `STRIPE_TEST_ALLOWLIST_EMAILS` (emails separados por coma) o `STRIPE_TEST_ALLOWLIST_USER_IDS`.
+- Si `STRIPE_DUAL_MODE_ENABLED` no esta activo, se mantiene el uso de `STRIPE_SECRET_KEY` y `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+
 ### Web Push (VAPID)
 
 - Claves VAPID (generar): `npx web-push generate-vapid-keys`

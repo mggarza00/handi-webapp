@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStripe } from "@/lib/stripe";
+import { getStripeForMode, type StripeMode } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/supabase";
 import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
@@ -16,6 +16,7 @@ type OfferRow = {
   checkout_url: string | null;
   service_date: string | null;
   amount: number | null;
+  payment_mode: string | null;
 };
 
 function supaAdmin() {
@@ -27,6 +28,13 @@ function supaAdmin() {
   });
 }
 
+function isMissingPaymentIntent(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code || "";
+  if (code === "resource_missing") return true;
+  const message = err instanceof Error ? err.message : "";
+  return message.includes("No such payment_intent");
+}
+
 export async function POST(
   req: Request,
   { params }: { params: { id: string } },
@@ -36,13 +44,6 @@ export async function POST(
     if (!supabase) {
       return NextResponse.json(
         { error: "SERVER_MISCONFIGURED:SUPABASE" },
-        { status: 500, headers: JSONH },
-      );
-    }
-    const stripe = await getStripe();
-    if (!stripe) {
-      return NextResponse.json(
-        { error: "SERVER_MISCONFIGURED:STRIPE" },
         { status: 500, headers: JSONH },
       );
     }
@@ -64,7 +65,7 @@ export async function POST(
     const { data: offer, error } = await supabase
       .from("offers")
       .select(
-        "id,status,conversation_id,client_id,professional_id,payment_intent_id,checkout_url,service_date,amount",
+        "id,status,conversation_id,client_id,professional_id,payment_intent_id,checkout_url,service_date,amount,payment_mode",
       )
       .eq("id", offerId)
       .single<OfferRow>();
@@ -103,9 +104,57 @@ export async function POST(
         { status: 400, headers: JSONH },
       );
 
-    const paymentIntent = await stripe.paymentIntents.retrieve(piId, {
-      expand: ["latest_charge"],
-    });
+    let mode: StripeMode = offer.payment_mode === "test" ? "test" : "live";
+    let stripe = await getStripeForMode(mode);
+    if (!stripe) {
+      return NextResponse.json(
+        { error: "SERVER_MISCONFIGURED:STRIPE" },
+        { status: 500, headers: JSONH },
+      );
+    }
+
+    let paymentIntent: Awaited<
+      ReturnType<typeof stripe.paymentIntents.retrieve>
+    >;
+    try {
+      paymentIntent = await stripe.paymentIntents.retrieve(piId, {
+        expand: ["latest_charge"],
+      });
+    } catch (err) {
+      if (!isMissingPaymentIntent(err)) {
+        throw err;
+      }
+      const fallbackMode: StripeMode = mode === "live" ? "test" : "live";
+      const fallbackStripe = await getStripeForMode(fallbackMode);
+      if (!fallbackStripe) {
+        throw err;
+      }
+      paymentIntent = await fallbackStripe.paymentIntents.retrieve(piId, {
+        expand: ["latest_charge"],
+      });
+      mode = fallbackMode;
+      stripe = fallbackStripe;
+      if (offer.payment_mode !== fallbackMode) {
+        try {
+          await supabase
+            .from("offers")
+            .update({ payment_mode: fallbackMode })
+            .eq("id", offer.id);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    if (!offer.payment_mode) {
+      try {
+        await supabase
+          .from("offers")
+          .update({ payment_mode: mode })
+          .eq("id", offer.id);
+      } catch {
+        /* ignore */
+      }
+    }
     if (
       !paymentIntent ||
       (paymentIntent.status !== "succeeded" &&

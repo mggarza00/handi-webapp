@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getStripe } from "@/lib/stripe";
+import { getPublishableKeyForMode, getStripeForMode } from "@/lib/stripe";
 import { computeClientTotalsCents } from "@/lib/payments/fees";
 import type { Database } from "@/types/supabase";
+import { resolveStripeModeForRequestUser } from "@/lib/payments/stripe-mode";
+import { getRouteClient } from "@/lib/supabase/route-client";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -15,6 +17,8 @@ type OfferRow = {
   description: string | null;
   conversation_id: string | null;
   payment_intent_id: string | null;
+  client_id: string | null;
+  payment_mode: string | null;
 };
 
 type ConversationRow = {
@@ -45,13 +49,6 @@ export async function POST(
         { status: 500, headers: JSONH },
       );
     }
-    const stripe = await getStripe();
-    if (!stripe) {
-      return NextResponse.json(
-        { error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY" },
-        { status: 500, headers: JSONH },
-      );
-    }
 
     const offerId = (params?.id || "").trim();
     if (!offerId) {
@@ -61,10 +58,20 @@ export async function POST(
       );
     }
 
+    const routeClient = getRouteClient();
+    const { data: userData } = await routeClient.auth.getUser();
+    const userId = userData?.user?.id || null;
+    if (!userId) {
+      return NextResponse.json(
+        { error: "UNAUTHENTICATED" },
+        { status: 401, headers: JSONH },
+      );
+    }
+
     const { data: offerRow, error: offerErr } = await supabase
       .from("offers")
       .select(
-        "id,status,amount,currency,title,description,conversation_id,payment_intent_id",
+        "id,status,amount,currency,title,description,conversation_id,payment_intent_id,client_id,payment_mode",
       )
       .eq("id", offerId)
       .single();
@@ -75,6 +82,12 @@ export async function POST(
       );
     }
     const offer = offerRow as OfferRow;
+    if (!offer.client_id || offer.client_id !== userId) {
+      return NextResponse.json(
+        { error: "FORBIDDEN" },
+        { status: 403, headers: JSONH },
+      );
+    }
     if (String(offer.status).toLowerCase() !== "accepted") {
       return NextResponse.json(
         { error: "INVALID_STATUS" },
@@ -87,6 +100,22 @@ export async function POST(
       return NextResponse.json(
         { error: "INVALID_AMOUNT" },
         { status: 400, headers: JSONH },
+      );
+    }
+
+    const mode = await resolveStripeModeForRequestUser(routeClient);
+    const stripe = await getStripeForMode(mode);
+    if (!stripe) {
+      return NextResponse.json(
+        { error: "SERVER_MISCONFIGURED:STRIPE_SECRET_KEY" },
+        { status: 500, headers: JSONH },
+      );
+    }
+    const publishableKey = getPublishableKeyForMode(mode);
+    if (!publishableKey) {
+      return NextResponse.json(
+        { error: "SERVER_MISCONFIGURED:STRIPE_PUBLISHABLE_KEY" },
+        { status: 500, headers: JSONH },
       );
     }
 
@@ -113,6 +142,7 @@ export async function POST(
     const metadata: Record<string, string> = {
       offer_id: offer.id,
       conversation_id: offer.conversation_id || "",
+      payment_mode: mode,
       type: "offer_payment",
       base_cents: String(baseCents),
       commission_cents: String(feeCents),
@@ -171,7 +201,11 @@ export async function POST(
       try {
         await supabase
           .from("offers")
-          .update({ payment_intent_id: intentId, checkout_url: null })
+          .update({
+            payment_intent_id: intentId,
+            checkout_url: null,
+            payment_mode: mode,
+          })
           .eq("id", offer.id);
       } catch {
         /* ignore */
@@ -199,7 +233,8 @@ export async function POST(
           total: totalCents / 100,
         },
         paymentIntentId: intentId,
-        publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null,
+        publishableKey,
+        paymentMode: mode === "test" ? "test" : undefined,
       },
       { status: 200, headers: JSONH },
     );
