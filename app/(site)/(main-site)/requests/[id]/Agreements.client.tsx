@@ -23,6 +23,7 @@ type AgreementItem = {
 };
 
 const paidishStatuses = new Set(["paid", "in_progress", "completed"]);
+const hiddenStatuses = new Set(["cancelled", "disputed"]);
 
 function statusLabel(status?: string | null) {
   switch (status) {
@@ -32,6 +33,7 @@ function statusLabel(status?: string | null) {
     case "disputed":
       return "Oferta rechazada";
     case "paid":
+      return "Servicio agendado";
     case "in_progress":
       return "Servicio pagado y agendado";
     case "completed":
@@ -115,11 +117,14 @@ export default function AgreementsClient({ requestId }: Props) {
 
   const viewItems = React.useMemo(() => {
     if (!items) return [] as AgreementItem[];
-    const paidish = items.filter((item) =>
+    const visible = items.filter(
+      (item) => !hiddenStatuses.has(item.status ?? ""),
+    );
+    const paidish = visible.filter((item) =>
       paidishStatuses.has(item.status ?? "negotiating"),
     );
     const mostRecent = pickMostRecent(paidish);
-    return mostRecent ? [mostRecent] : items;
+    return mostRecent ? [mostRecent] : visible;
   }, [items]);
 
   return (
