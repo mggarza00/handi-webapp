@@ -1,6 +1,7 @@
 /* eslint-disable import/order */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
+import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -18,20 +19,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .eq('id', offerId)
       .single();
     if (!offer) return NextResponse.json({ ok: false, error: 'NOT_FOUND' }, { status: 404, headers: JSONH });
-    await admin.from('offers').update({ status: 'paid' as any }).eq('id', offerId);
-    // Insert system paid message (best-effort) similar to /api/offers/:id/paid-message
-    try {
-      await admin
-        .from('messages')
-        .insert({
-          conversation_id: (offer as any).conversation_id,
-          sender_id: (offer as any).client_id,
-          body: 'Pago realizado. Servicio agendado.',
-          message_type: 'system',
-          payload: { offer_id: offerId, status: 'paid' },
-        } as any);
-    } catch { /* ignore */ }
-    return NextResponse.json({ ok: true }, { status: 200, headers: JSONH });
+    const finalize = await finalizeOfferPayment({
+      offerId,
+      source: "sync",
+    });
+    if (!finalize.ok) {
+      return NextResponse.json(
+        { ok: false, error: "FINALIZE_FAILED" },
+        { status: 500, headers: JSONH },
+      );
+    }
+    return NextResponse.json({ ok: true, finalize }, { status: 200, headers: JSONH });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'INTERNAL_ERROR';
     return NextResponse.json({ ok: false, error: msg }, { status: 500, headers: JSONH });
