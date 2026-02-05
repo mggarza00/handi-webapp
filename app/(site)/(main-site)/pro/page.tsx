@@ -36,6 +36,7 @@ import {
   type Profile,
 } from "@/lib/profile";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { UI_STATUS_LABELS, type RequestStatus } from "@/lib/request-status";
 
 export const dynamic = "force-dynamic";
 
@@ -368,7 +369,11 @@ async function InProgressSection({ userId }: { userId: string }) {
                   {j.title}
                 </div>
                 <div className="text-xs text-[#6B7280]">
-                  {j.status ?? "En curso"}
+                  {(() => {
+                    const raw = (j.status || "").toString().trim();
+                    const key = raw as RequestStatus;
+                    return UI_STATUS_LABELS[key] || raw || "En curso";
+                  })()}
                 </div>
               </div>
               <Link

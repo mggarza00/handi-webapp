@@ -137,7 +137,29 @@ export async function getJobsInProgress(
 > {
   try {
     const supa = createClient();
-    // Use agreements as source of truth for pro-request linkage
+    // Prefer calendar events when available (post-pago source of truth)
+    try {
+      const { data: calendar, error: calError } = await (supa as any)
+        .from("pro_calendar_events")
+        .select("request_id, title, scheduled_date, scheduled_time, status")
+        .eq("pro_id", userId)
+        .in("status", ["scheduled", "in_process"])
+        .order("scheduled_date", { ascending: false, nullsFirst: false })
+        .order("scheduled_time", { ascending: false, nullsFirst: false })
+        .limit(Math.max(1, limit));
+      if (!calError && Array.isArray(calendar) && calendar.length > 0) {
+        return (calendar as any[]).map((r) => ({
+          id: String(r.request_id),
+          request_id: String(r.request_id),
+          title: String(r.title || "Servicio"),
+          status: (r.status as string | null) ?? null,
+          updated_at: (r.scheduled_date as string | null) ?? null,
+        }));
+      }
+    } catch {
+      /* ignore and fallback */
+    }
+    // Fallback to agreements for legacy data
     const { data, error } = await (supa as any)
       .from("agreements")
       .select("id, request_id, status, updated_at, requests:title")
@@ -185,7 +207,27 @@ export async function getJobsCompleted(
 > {
   try {
     const supa = createClient();
-    const completedStatuses = ["completed", "finalizada", "paid", "finished"];
+    const completedStatuses = ["completed", "finalizada", "finished"];
+    // Prefer calendar events when available
+    try {
+      const { data: calendar, error: calError } = await (supa as any)
+        .from("pro_calendar_events")
+        .select("request_id, title, scheduled_date, status")
+        .eq("pro_id", userId)
+        .in("status", ["finished", "completed"])
+        .order("scheduled_date", { ascending: false, nullsFirst: false })
+        .limit(Math.max(1, limit));
+      if (!calError && Array.isArray(calendar) && calendar.length > 0) {
+        return (calendar as any[]).map((r) => ({
+          id: String(r.request_id),
+          request_id: String(r.request_id),
+          title: String(r.title || "Servicio"),
+          completed_at: (r.scheduled_date as string | null) ?? null,
+        }));
+      }
+    } catch {
+      /* ignore and fallback */
+    }
     const { data, error } = await (supa as any)
       .from("agreements")
       .select("id, request_id, completed_at, status")
