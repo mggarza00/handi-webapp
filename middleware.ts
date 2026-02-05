@@ -13,6 +13,19 @@ const ADMIN_ROLES = new Set([
   "reviewer",
 ]);
 
+function isLocalAdminBypassAllowed(request: NextRequest) {
+  // E2E-only admin bypass: requires explicit env, non-production, localhost host.
+  if (process.env.E2E_ADMIN_BYPASS !== "1") return false;
+  if (process.env.NODE_ENV === "production") return false;
+  const host =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    request.nextUrl.hostname ||
+    "";
+  const hostname = host.split(":")[0].toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
 function createMiddlewareSupabase(
   request: NextRequest,
   response: NextResponse,
@@ -154,12 +167,9 @@ export async function middleware(request: NextRequest) {
   if (!pathname.startsWith("/admin")) return response;
 
   // Bypass dev/CI por cookie handi_role
-  const allowDev =
-    process.env.NODE_ENV !== "production" || process.env.CI === "true";
-  const devRole = (
-    request.cookies.get("handi_role")?.value || ""
-  ).toLowerCase();
-  if (allowDev && devRole && ADMIN_ROLES.has(devRole)) return response;
+  const devRole = (request.cookies.get("handi_role")?.value || "").toLowerCase();
+  if (isLocalAdminBypassAllowed(request) && devRole && ADMIN_ROLES.has(devRole))
+    return response;
 
   if (!supabase) {
     const u = request.nextUrl.clone();

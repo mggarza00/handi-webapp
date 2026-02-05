@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = Number(process.env.PORT || 3000);
+const useDevServer = process.env.E2E_ADMIN_BYPASS === "1";
 
 export default defineConfig({
   testDir: 'e2e',                 // <-- solo corre tests en e2e/
@@ -14,12 +15,16 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: 'pnpm start',        // requiere "start": "next start -p 3000"
+    command: useDevServer ? "pnpm dev" : "pnpm start", // dev server needed for test-auth endpoints
     url: `http://localhost:${PORT}`,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
     env: {
-      CI: "true",
+      PORT: String(PORT),
+      ...(process.env.E2E_ADMIN_BYPASS
+        ? { E2E_ADMIN_BYPASS: process.env.E2E_ADMIN_BYPASS }
+        : {}),
+      ...(process.env.E2E_SEED ? { E2E_SEED: process.env.E2E_SEED } : {}),
     },
   },
   projects: [
