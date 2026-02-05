@@ -301,10 +301,10 @@ export async function finalizeOfferPayment(
           process.env.NEXT_PUBLIC_SITE_URL ||
           "http://localhost:3000";
         const title = requestTitle || "Servicio";
-        const proUrl = `${base.replace(/\\/$/, "")}/pro`;
-        const calendarUrl = `${base.replace(/\\/$/, "")}/pro/calendar`;
+        const proUrl = `${base.replace(/\/$/, "")}/pro`;
+        const calendarUrl = `${base.replace(/\/$/, "")}/pro/calendar`;
         const chatUrl = conversationId
-          ? `${base.replace(/\\/$/, "")}/mensajes/${encodeURIComponent(
+          ? `${base.replace(/\/$/, "")}/mensajes/${encodeURIComponent(
               conversationId,
             )}`
           : null;
