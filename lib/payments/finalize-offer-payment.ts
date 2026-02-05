@@ -1,7 +1,10 @@
+import { createHash } from "crypto";
+
 import { revalidatePath, revalidateTag } from "next/cache";
 
 import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 import { sendEmail } from "@/lib/email";
+import { getStripeForMode, type StripeMode } from "@/lib/stripe";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 
@@ -39,6 +42,18 @@ function parseServiceDate(raw?: string | null) {
   };
 }
 
+function isMissingPaymentIntent(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code || "";
+  if (code === "resource_missing") return true;
+  const message = err instanceof Error ? err.message : "";
+  return message.includes("No such payment_intent");
+}
+
+function buildStableMessageId(seed: string) {
+  const hex = createHash("sha256").update(seed).digest("hex").slice(0, 32);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export async function finalizeOfferPayment(
   args: FinalizeArgs,
 ): Promise<FinalizeResult> {
@@ -49,7 +64,7 @@ export async function finalizeOfferPayment(
     const { data: offer } = await admin
       .from("offers")
       .select(
-        "id,status,conversation_id,client_id,professional_id,amount,currency,service_date,payment_intent_id",
+        "id,status,conversation_id,client_id,professional_id,amount,currency,service_date,payment_intent_id,payment_mode",
       )
       .eq("id", offerId)
       .maybeSingle();
@@ -140,7 +155,7 @@ export async function finalizeOfferPayment(
       "http://localhost:3000"
     ).replace(/\/$/, "");
     let receiptId: string | null = null;
-    const receiptUrl: string | null = null;
+    let receiptUrl: string | null = null;
     let receiptDownloadUrl: string | null = null;
     try {
       if (offer.id) {
@@ -173,6 +188,74 @@ export async function finalizeOfferPayment(
       }
     } catch {
       /* ignore receipt lookup */
+    }
+    const paymentIntentId =
+      args.paymentIntentId || offer.payment_intent_id || null;
+    if (paymentIntentId) {
+      let mode: StripeMode = offer.payment_mode === "test" ? "test" : "live";
+      let stripe = await getStripeForMode(mode);
+      if (!stripe) {
+        stripe = await getStripeForMode("live");
+        mode = "live";
+      }
+      if (stripe) {
+        try {
+          const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
+            expand: ["latest_charge"],
+          });
+          const charge =
+            (pi as { latest_charge?: unknown } | null)?.latest_charge ?? null;
+          if (typeof charge === "string") {
+            const full = await stripe.charges.retrieve(charge);
+            receiptUrl =
+              typeof (full as { receipt_url?: string } | null)?.receipt_url ===
+              "string"
+                ? ((full as { receipt_url?: string }).receipt_url as string)
+                : null;
+          } else if (
+            charge &&
+            typeof (charge as { receipt_url?: unknown }).receipt_url ===
+              "string"
+          ) {
+            receiptUrl =
+              (charge as { receipt_url?: string }).receipt_url || null;
+          }
+        } catch (err) {
+          if (isMissingPaymentIntent(err)) {
+            const fallbackMode: StripeMode = mode === "live" ? "test" : "live";
+            const fallbackStripe = await getStripeForMode(fallbackMode);
+            if (fallbackStripe) {
+              try {
+                const pi = await fallbackStripe.paymentIntents.retrieve(
+                  paymentIntentId,
+                  { expand: ["latest_charge"] },
+                );
+                const charge =
+                  (pi as { latest_charge?: unknown } | null)?.latest_charge ??
+                  null;
+                if (typeof charge === "string") {
+                  const full = await fallbackStripe.charges.retrieve(charge);
+                  receiptUrl =
+                    typeof (full as { receipt_url?: string } | null)
+                      ?.receipt_url === "string"
+                      ? ((full as { receipt_url?: string })
+                          .receipt_url as string)
+                      : null;
+                } else if (
+                  charge &&
+                  typeof (charge as { receipt_url?: unknown }).receipt_url ===
+                    "string"
+                ) {
+                  receiptUrl =
+                    (charge as { receipt_url?: string }).receipt_url || null;
+                }
+              } catch {
+                /* ignore fallback stripe */
+              }
+            }
+          }
+        }
+      }
     }
     if (receiptId) {
       receiptDownloadUrl = `${baseUrl}/api/receipts/${encodeURIComponent(
@@ -308,7 +391,18 @@ export async function finalizeOfferPayment(
     }
 
     if (conversationId && clientId) {
-      const hasSystemMessage = async (match: Record<string, unknown>) => {
+      const hasSystemMessage = async (
+        match: Record<string, unknown>,
+        messageId?: string,
+      ) => {
+        if (messageId) {
+          const { data: existingById } = await admin
+            .from("messages")
+            .select("id")
+            .eq("id", messageId)
+            .maybeSingle();
+          if (existingById?.id) return true;
+        }
         const { data: existing } = await admin
           .from("messages")
           .select("id")
@@ -323,16 +417,22 @@ export async function finalizeOfferPayment(
           offer_id: offer.id,
           status: "paid",
         };
-        if (!(await hasSystemMessage(paidPayload))) {
+        const paidMessageId = buildStableMessageId(
+          `paid:${conversationId}:${offer.id}`,
+        );
+        if (!(await hasSystemMessage(paidPayload, paidMessageId))) {
           const body = "Pago realizado. Servicio agendado.";
           const messageInsert: MessageInsert = {
+            id: paidMessageId,
             conversation_id: conversationId,
             sender_id: clientId,
             body,
             message_type: "system",
             payload: paidPayload as MessageInsert["payload"],
           };
-          await admin.from("messages").insert(messageInsert);
+          await admin
+            .from("messages")
+            .upsert(messageInsert, { onConflict: "id" });
           await notifyChatMessageByConversation({
             conversationId,
             senderId: clientId,
@@ -349,37 +449,55 @@ export async function finalizeOfferPayment(
             address_line: addressLine || null,
             city: city || null,
           };
-          const hasAddress = await hasSystemMessage({
-            offer_id: offer.id,
-            status: "paid",
-            type: "service_scheduled_address",
-          });
+          const addressMessageId = buildStableMessageId(
+            `paid_address:${conversationId}:${offer.id}`,
+          );
+          const hasAddress = await hasSystemMessage(
+            {
+              offer_id: offer.id,
+              status: "paid",
+              type: "service_scheduled_address",
+            },
+            addressMessageId,
+          );
           if (!hasAddress) {
             const line = [addressLine, city].filter(Boolean).join(", ");
             const body = line
               ? `Servicio agendado en ${line}.`
               : "Servicio agendado.";
             const messageInsert: MessageInsert = {
+              id: addressMessageId,
               conversation_id: conversationId,
               sender_id: clientId,
               body,
               message_type: "system",
               payload: addressPayload as MessageInsert["payload"],
             };
-            await admin.from("messages").insert(messageInsert);
+            await admin
+              .from("messages")
+              .upsert(messageInsert, { onConflict: "id" });
           }
         }
         if (receiptId || receiptUrl) {
           let hasReceipt = false;
+          const receiptMessageId = buildStableMessageId(
+            `paid_receipt:${conversationId}:${offer.id}`,
+          );
           if (receiptId) {
-            hasReceipt = await hasSystemMessage({ receipt_id: receiptId });
+            hasReceipt = await hasSystemMessage(
+              { receipt_id: receiptId },
+              receiptMessageId,
+            );
           }
           if (!hasReceipt) {
-            hasReceipt = await hasSystemMessage({
-              offer_id: offer.id,
-              status: "paid",
-              type: "payment_receipt",
-            });
+            hasReceipt = await hasSystemMessage(
+              {
+                offer_id: offer.id,
+                status: "paid",
+                type: "payment_receipt",
+              },
+              receiptMessageId,
+            );
           }
           if (!hasReceipt) {
             const receiptPayload: Record<string, unknown> = {
@@ -392,13 +510,16 @@ export async function finalizeOfferPayment(
               receiptPayload.download_url = receiptDownloadUrl;
             if (receiptUrl) receiptPayload.receipt_url = receiptUrl;
             const messageInsert: MessageInsert = {
+              id: receiptMessageId,
               conversation_id: conversationId,
               sender_id: clientId,
               body: "Comprobante de pago",
               message_type: "system",
               payload: receiptPayload as MessageInsert["payload"],
             };
-            await admin.from("messages").insert(messageInsert);
+            await admin
+              .from("messages")
+              .upsert(messageInsert, { onConflict: "id" });
           }
         }
       } catch {
