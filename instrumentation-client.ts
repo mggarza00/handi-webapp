@@ -9,3 +9,5 @@ Sentry.init({
   release: process.env.SENTRY_RELEASE,
   enabled: !!process.env.SENTRY_DSN,
 });
+
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
