@@ -24,6 +24,8 @@ export default defineConfig({
     env: {
       PORT: String(PORT),
       E2E_ADMIN_BYPASS: bypassEnv,
+      NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`,
+      NEXT_PUBLIC_SITE_URL: `http://localhost:${PORT}`,
       ...(process.env.E2E_SEED ? { E2E_SEED: process.env.E2E_SEED } : {}),
     },
   },
