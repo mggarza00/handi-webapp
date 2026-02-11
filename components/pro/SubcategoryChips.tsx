@@ -76,7 +76,7 @@ const ChipBadge = ({ name, color }: Chip) => {
   const text = textColorFor(baseBg);
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.08)]"
+      className="inline-flex max-w-full items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold shadow-[0_2px_6px_rgba(0,0,0,0.08)] whitespace-normal break-words"
       style={{ backgroundColor: bg, color: text }}
     >
       {name}
@@ -143,7 +143,7 @@ export default function SubcategoryChips({ items }: { items: Chip[] }) {
   return (
     <div className="flex flex-col gap-2">
       <div className="relative">
-        <div className="flex items-center gap-2 flex-nowrap overflow-visible pb-1">
+        <div className="flex flex-wrap items-center gap-2 overflow-hidden pb-1 max-w-full">
           {visible.map((chip) => (
             <ChipBadge key={chip.name} {...chip} />
           ))}
