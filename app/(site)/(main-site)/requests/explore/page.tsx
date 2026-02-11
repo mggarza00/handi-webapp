@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 
 import ExploreFilters from "@/app/(site)/(main-site)/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
@@ -72,7 +73,12 @@ function parseCatalogResponse(payload: unknown): CatalogResponse | null {
 export default async function ExploreRequestsPage({
   searchParams,
 }: {
-  searchParams?: { page?: string; city?: string; category?: string; subcategory?: string };
+  searchParams?: {
+    page?: string;
+    city?: string;
+    category?: string;
+    subcategory?: string;
+  };
 }) {
   const supabase = getServerClient();
   const {
@@ -153,7 +159,8 @@ export default async function ExploreRequestsPage({
         <div className="rounded-2xl border p-4">
           <p className="font-medium">Completa tu perfil profesional</p>
           <p className="text-sm text-slate-600 mt-1">
-            Para ver solicitudes compatibles, configura tus ciudades y categorías.
+            Para ver solicitudes compatibles, configura tus ciudades y
+            categorías.
           </p>
           <div className="mt-3">
             <Link
@@ -192,7 +199,8 @@ export default async function ExploreRequestsPage({
     if (res.ok && parsed?.ok && Array.isArray(parsed.data)) {
       catalogPairs = parsed.data.map((row) => ({
         category: String(row.category || "").trim(),
-        subcategory: (row.subcategory ? String(row.subcategory) : "").trim() || null,
+        subcategory:
+          (row.subcategory ? String(row.subcategory) : "").trim() || null,
         icon: (row.icon ? String(row.icon) : "").trim() || null,
       }));
     }
@@ -211,19 +219,45 @@ export default async function ExploreRequestsPage({
   });
 
   // Fetch results via util (DB-level paginate and favorites join)
-  const { items, total, page: safePage, pageSize } = await fetchExploreRequests(user.id, {
-    city: paramCity,
-    category: paramCategory,
-    subcategory: paramSubcategory,
-    page,
-    pageSize: PER_PAGE,
-  });
+  let items: Awaited<ReturnType<typeof fetchExploreRequests>>["items"] = [];
+  let total = 0;
+  let safePage = page;
+  let pageSize = PER_PAGE;
+  try {
+    const result = await fetchExploreRequests(user.id, {
+      city: paramCity,
+      category: paramCategory,
+      subcategory: paramSubcategory,
+      page,
+      pageSize: PER_PAGE,
+    });
+    ({ items, total, page: safePage, pageSize } = result);
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: {
+        route: "/requests/explore",
+      },
+      user: { id: user.id },
+      extra: {
+        city: paramCity,
+        category: paramCategory,
+        subcategory: paramSubcategory,
+      },
+    });
+    throw error;
+  }
 
   // Build subcategory -> icon map for cards (lowercased key)
   const subcategoryIconMap: Record<string, string> = Object.fromEntries(
     (catalogPairs || [])
-      .filter((p) => typeof p.subcategory === "string" && !!p.subcategory && typeof p.icon === "string" && !!p.icon)
-      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)])
+      .filter(
+        (p) =>
+          typeof p.subcategory === "string" &&
+          !!p.subcategory &&
+          typeof p.icon === "string" &&
+          !!p.icon,
+      )
+      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)]),
   );
 
   return (
@@ -247,7 +281,11 @@ export default async function ExploreRequestsPage({
         }}
       />
 
-      <RequestsList proId={user.id} initialItems={items} subcategoryIconMap={subcategoryIconMap} />
+      <RequestsList
+        proId={user.id}
+        initialItems={items}
+        subcategoryIconMap={subcategoryIconMap}
+      />
 
       <Pagination page={safePage} pageSize={pageSize} total={total} />
     </div>

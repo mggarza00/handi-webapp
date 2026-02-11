@@ -1,10 +1,15 @@
 import path from 'node:path';
+import { withSentryConfig } from '@sentry/nextjs';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: {
     // Expose VAPID public key to the client
     NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY: process.env.WEB_PUSH_VAPID_PUBLIC_KEY,
+    // Sentry (safe to expose DSN)
+    SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT,
+    SENTRY_RELEASE: process.env.SENTRY_RELEASE,
   },
   experimental: {
     // Permite usar paquetes nativos en el servidor sin que Webpack intente empacarlos
@@ -117,4 +122,18 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+const sentryWebpackPluginOptions = {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  release: process.env.SENTRY_RELEASE,
+  silent: true,
+  dryRun: !process.env.SENTRY_AUTH_TOKEN,
+};
+
+const sentryNextOptions = {
+  hideSourceMaps: true,
+  disableLogger: true,
+};
+
+export default withSentryConfig(nextConfig, sentryWebpackPluginOptions, sentryNextOptions);
