@@ -72,7 +72,12 @@ function parseCatalogResponse(payload: unknown): CatalogResponse | null {
 export default async function ExploreRequestsPage({
   searchParams,
 }: {
-  searchParams?: { page?: string; city?: string; category?: string; subcategory?: string };
+  searchParams?: {
+    page?: string;
+    city?: string;
+    category?: string;
+    subcategory?: string;
+  };
 }) {
   const supabase = getServerClient();
   const {
@@ -153,7 +158,8 @@ export default async function ExploreRequestsPage({
         <div className="rounded-2xl border p-4">
           <p className="font-medium">Completa tu perfil profesional</p>
           <p className="text-sm text-slate-600 mt-1">
-            Para ver solicitudes compatibles, configura tus ciudades y categorías.
+            Para ver solicitudes compatibles, configura tus ciudades y
+            categorías.
           </p>
           <div className="mt-3">
             <Link
@@ -192,7 +198,8 @@ export default async function ExploreRequestsPage({
     if (res.ok && parsed?.ok && Array.isArray(parsed.data)) {
       catalogPairs = parsed.data.map((row) => ({
         category: String(row.category || "").trim(),
-        subcategory: (row.subcategory ? String(row.subcategory) : "").trim() || null,
+        subcategory:
+          (row.subcategory ? String(row.subcategory) : "").trim() || null,
         icon: (row.icon ? String(row.icon) : "").trim() || null,
       }));
     }
@@ -211,19 +218,50 @@ export default async function ExploreRequestsPage({
   });
 
   // Fetch results via util (DB-level paginate and favorites join)
-  const { items, total, page: safePage, pageSize } = await fetchExploreRequests(user.id, {
-    city: paramCity,
-    category: paramCategory,
-    subcategory: paramSubcategory,
-    page,
-    pageSize: PER_PAGE,
-  });
+  let items: Awaited<ReturnType<typeof fetchExploreRequests>>["items"] = [];
+  let total = 0;
+  let safePage = page;
+  let pageSize = PER_PAGE;
+  let loadError = false;
+  try {
+    const result = await fetchExploreRequests(user.id, {
+      city: paramCity,
+      category: paramCategory,
+      subcategory: paramSubcategory,
+      page,
+      pageSize: PER_PAGE,
+    });
+    items = result.items;
+    total = result.total;
+    safePage = result.page;
+    pageSize = result.pageSize;
+  } catch (err) {
+    const error = err as {
+      code?: string;
+      message?: string;
+      details?: string;
+      hint?: string;
+    };
+    console.error("[explore] failed to load requests", {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    });
+    loadError = true;
+  }
 
   // Build subcategory -> icon map for cards (lowercased key)
   const subcategoryIconMap: Record<string, string> = Object.fromEntries(
     (catalogPairs || [])
-      .filter((p) => typeof p.subcategory === "string" && !!p.subcategory && typeof p.icon === "string" && !!p.icon)
-      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)])
+      .filter(
+        (p) =>
+          typeof p.subcategory === "string" &&
+          !!p.subcategory &&
+          typeof p.icon === "string" &&
+          !!p.icon,
+      )
+      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)]),
   );
 
   return (
@@ -247,7 +285,18 @@ export default async function ExploreRequestsPage({
         }}
       />
 
-      <RequestsList proId={user.id} initialItems={items} subcategoryIconMap={subcategoryIconMap} />
+      {loadError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No pudimos cargar trabajos en este momento. Intenta recargar en unos
+          segundos.
+        </div>
+      ) : null}
+
+      <RequestsList
+        proId={user.id}
+        initialItems={items}
+        subcategoryIconMap={subcategoryIconMap}
+      />
 
       <Pagination page={safePage} pageSize={pageSize} total={total} />
     </div>

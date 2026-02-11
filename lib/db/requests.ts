@@ -1,4 +1,4 @@
-'use server';
+"use server";
 
 import { cookies } from "next/headers";
 import type { PostgrestError } from "@supabase/supabase-js";
@@ -7,11 +7,11 @@ import { createBearerClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase-server";
 
 export type ExploreFilters = {
-  city?: string;           // 'Todas'  value
-  category?: string;       // 'Todas'  value
-  subcategory?: string;    // 'Todas'  value
-  page?: number;           // 1-based
-  pageSize?: number;       // default 20
+  city?: string; // 'Todas'  value
+  category?: string; // 'Todas'  value
+  subcategory?: string; // 'Todas'  value
+  page?: number; // 1-based
+  pageSize?: number; // default 20
 };
 
 export type ExploreRequestItem = {
@@ -39,7 +39,12 @@ function clean(v?: string | null): string | null {
 export async function fetchExploreRequests(
   proId: string,
   { page = 1, pageSize = 20, city, category, subcategory }: ExploreFilters,
-): Promise<{ items: ExploreRequestItem[]; total: number; page: number; pageSize: number }> {
+): Promise<{
+  items: ExploreRequestItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
   const supabase = createClient();
 
   const cCity = clean(city);
@@ -64,11 +69,20 @@ export async function fetchExploreRequests(
           .map((x) => (typeof x === "string" ? x : null))
           .filter((s): s is string => !!s && s.length > 0)
       : [];
-    const mainCity = prof?.city && typeof prof.city === "string" && prof.city.length > 0 ? [prof.city] : [];
+    const mainCity =
+      prof?.city && typeof prof.city === "string" && prof.city.length > 0
+        ? [prof.city]
+        : [];
     allowedCities = Array.from(new Set([...(citiesArr || []), ...mainCity]));
     const catsArr: string[] = Array.isArray(prof?.categories)
       ? (prof?.categories as unknown[])
-          .map((x) => (x && typeof x === "object" && (x as Record<string, unknown>).name ? String((x as Record<string, unknown>).name) : typeof x === "string" ? x : null))
+          .map((x) =>
+            x && typeof x === "object" && (x as Record<string, unknown>).name
+              ? String((x as Record<string, unknown>).name)
+              : typeof x === "string"
+                ? x
+                : null,
+          )
           .filter((s): s is string => !!s && s.length > 0)
       : [];
     allowedCategories = Array.from(new Set(catsArr));
@@ -79,39 +93,95 @@ export async function fetchExploreRequests(
   const from = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
   const to = from + Math.max(1, pageSize) - 1;
 
-  let q = supabase
-    .from("requests")
-    .select(
-      `
+  const baseQuery = () =>
+    supabase
+      .from("requests")
+      .select(
+        `
       id, title, city, category, subcategory, status, created_at, attachments,
       subcategories, required_at, estimated_budget:budget
       `,
-      { count: "exact" },
-    )
-    .eq("status", "active");
+        { count: "exact" },
+      )
+      .eq("status", "active");
 
-  if (allowedCities.length > 0) q = q.in("city", allowedCities);
-  if (allowedCategories.length > 0) q = q.in("category", allowedCategories);
-  if (cCity) q = q.eq("city", cCity);
-  if (cCategory) q = q.eq("category", cCategory);
-  if (cSub) {
-    // Match either legacy single text column or JSON array (strings or {name})
-    const eqVal = String(cSub).replace(/"/g, '\\"');
-    const jsonArr = JSON.stringify([cSub]); // ["Subcat"]
-    const jsonObjArr = JSON.stringify([{ name: cSub }]); // [{"name":"Subcat"}]
-    const orFilter = [
-      `subcategory.eq."${eqVal}"`,
-      `subcategories.cs.${jsonArr}`,
-      `subcategories.cs.${jsonObjArr}`,
-    ].join(",");
-    q = q.or(orFilter);
-  }
+  const applyFilters = (
+    query: ReturnType<typeof baseQuery>,
+    opts: { includeJson: boolean },
+  ) => {
+    let q = query;
+    if (allowedCities.length > 0) q = q.in("city", allowedCities);
+    if (allowedCategories.length > 0) q = q.in("category", allowedCategories);
+    if (cCity) q = q.eq("city", cCity);
+    if (cCategory) q = q.eq("category", cCategory);
+    if (cSub) {
+      // Match either legacy single text column or JSON array (strings or {name})
+      const rawVal = String(cSub);
+      const eqVal = rawVal.replace(/"/g, '\\"');
+      if (opts.includeJson) {
+        const jsonArr = JSON.stringify([rawVal]); // ["Subcat"]
+        const jsonObjArr = JSON.stringify([{ name: rawVal }]); // [{"name":"Subcat"}]
+        const orFilter = [
+          `subcategory.eq."${eqVal}"`,
+          `subcategories.cs.${jsonArr}`,
+          `subcategories.cs.${jsonObjArr}`,
+        ].join(",");
+        q = q.or(orFilter);
+      } else {
+        q = q.eq("subcategory", rawVal);
+      }
+    }
+    return q;
+  };
 
   // Ordenar por fecha requerida (más próximas primero)
-  q = q.order("required_at", { ascending: true, nullsFirst: false });
+  const shouldFallbackSubcategory = (err: PostgrestError | null) => {
+    if (!err || !cSub) return false;
+    const msg =
+      `${err.message || ""} ${err.details || ""} ${err.hint || ""}`.toLowerCase();
+    return (
+      msg.includes("subcategories") ||
+      msg.includes("operator") ||
+      msg.includes("invalid input") ||
+      msg.includes("does not exist") ||
+      msg.includes("cs")
+    );
+  };
 
-  const { data, error, count } = await q.range(from, to);
-  if (error) throw error;
+  const runQuery = async (includeJson: boolean) => {
+    const q = applyFilters(baseQuery(), { includeJson }).order("required_at", {
+      ascending: true,
+      nullsFirst: false,
+    });
+    return q.range(from, to);
+  };
+
+  let data: unknown[] | null = null;
+  let count: number | null = null;
+  let error: PostgrestError | null = null;
+
+  ({ data, error, count } = await runQuery(true));
+  if (error && shouldFallbackSubcategory(error)) {
+    console.error(
+      "[explore] subcategory JSON filter failed, retrying legacy filter",
+      {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      },
+    );
+    ({ data, error, count } = await runQuery(false));
+  }
+  if (error) {
+    console.error("[explore] fetchExploreRequests failed", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    throw error;
+  }
 
   const rows = (data || []) as Array<Record<string, unknown>>;
   // Lookup favorites separately to avoid dependency on DB relationship
@@ -123,7 +193,11 @@ export async function fetchExploreRequests(
       .select("request_id")
       .eq("pro_id", proId)
       .in("request_id", ids);
-    favSet = new Set((favRows || []).map((fr) => String((fr as { request_id: string }).request_id)));
+    favSet = new Set(
+      (favRows || []).map((fr) =>
+        String((fr as { request_id: string }).request_id),
+      ),
+    );
   }
 
   const items: ExploreRequestItem[] = rows.map((r) => {
@@ -138,13 +212,15 @@ export async function fetchExploreRequests(
       required_at: (r as { required_at?: string | null }).required_at ?? null,
       attachments: r.attachments,
       estimated_budget:
-        typeof (r as { estimated_budget?: unknown }).estimated_budget === "number"
+        typeof (r as { estimated_budget?: unknown }).estimated_budget ===
+        "number"
           ? ((r as { estimated_budget?: number }).estimated_budget as number)
           : typeof (r as { budget?: unknown }).budget === "number"
             ? ((r as { budget?: number }).budget as number)
             : null,
       budget:
-        typeof (r as { estimated_budget?: unknown }).estimated_budget === "number"
+        typeof (r as { estimated_budget?: unknown }).estimated_budget ===
+        "number"
           ? ((r as { estimated_budget?: number }).estimated_budget as number)
           : typeof (r as { budget?: unknown }).budget === "number"
             ? ((r as { budget?: number }).budget as number)
@@ -162,7 +238,12 @@ export async function fetchExploreRequests(
   });
 
   const total = typeof count === "number" ? count : rows.length;
-  return { items: ordered, total, page: Math.max(1, page), pageSize: Math.max(1, pageSize) };
+  return {
+    items: ordered,
+    total,
+    page: Math.max(1, page),
+    pageSize: Math.max(1, pageSize),
+  };
 }
 
 export async function toggleFavorite(
@@ -172,13 +253,15 @@ export async function toggleFavorite(
 ): Promise<{ ok: boolean; is_favorite: boolean; error?: string }> {
   // Try common cookie names for Supabase access token
   const ck = cookies();
-  let token = ck.get("sb-access-token")?.value || ck.get("sb:token")?.value || null;
+  let token =
+    ck.get("sb-access-token")?.value || ck.get("sb:token")?.value || null;
   if (!token) {
     const legacy = ck.get("supabase-auth-token")?.value || "";
     if (legacy) {
       try {
         const parsed = JSON.parse(decodeURIComponent(legacy));
-        token = parsed?.access_token || parsed?.currentSession?.access_token || null;
+        token =
+          parsed?.access_token || parsed?.currentSession?.access_token || null;
       } catch {
         token = null;
       }
