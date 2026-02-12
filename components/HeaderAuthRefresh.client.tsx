@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
@@ -31,6 +32,14 @@ export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
         ]);
         const user = userData?.user ?? null;
         let session = sessData?.session ?? null;
+        if (user) {
+          Sentry.setUser({
+            id: user.id,
+            email: user.email ?? undefined,
+          });
+        } else {
+          Sentry.setUser(null);
+        }
         if (user && session) {
           try {
             if (session.access_token) {
@@ -41,13 +50,19 @@ export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
           }
           // Check if server sees the session; if not, sync cookies then refresh
           try {
-            const me = await fetch("/api/me", { cache: "no-store", credentials: "include" }).then((r) => r.json()).catch(() => ({}));
+            const me = await fetch("/api/me", {
+              cache: "no-store",
+              credentials: "include",
+            })
+              .then((r) => r.json())
+              .catch(() => ({}));
             const serverHasUser = !!me?.user?.id;
             if (!serverHasUser) {
               // Asegura que tengamos refresh_token; si falta, intenta refrescar primero
               if (!session.refresh_token) {
                 try {
-                  const { data: refreshed } = await supabase.auth.refreshSession();
+                  const { data: refreshed } =
+                    await supabase.auth.refreshSession();
                   if (refreshed?.session) session = refreshed.session;
                 } catch (error) {
                   logHeaderAuthError(error);
@@ -56,7 +71,9 @@ export default function HeaderAuthRefresh({ enabled }: { enabled: boolean }) {
               if (session?.access_token && session?.refresh_token) {
                 await fetch("/api/auth/sync", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json; charset=utf-8" },
+                  headers: {
+                    "Content-Type": "application/json; charset=utf-8",
+                  },
                   credentials: "include",
                   body: JSON.stringify({
                     access_token: session.access_token,

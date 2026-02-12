@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 
 import ExploreFilters from "@/app/(site)/(main-site)/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
@@ -231,10 +232,7 @@ export default async function ExploreRequestsPage({
       page,
       pageSize: PER_PAGE,
     });
-    items = result.items;
-    total = result.total;
-    safePage = result.page;
-    pageSize = result.pageSize;
+    ({ items, total, page: safePage, pageSize } = result);
   } catch (err) {
     const error = err as {
       code?: string;
@@ -247,6 +245,17 @@ export default async function ExploreRequestsPage({
       message: error?.message,
       details: error?.details,
       hint: error?.hint,
+    });
+    Sentry.captureException(error, {
+      tags: {
+        route: "/requests/explore",
+      },
+      user: { id: user.id },
+      extra: {
+        city: paramCity,
+        category: paramCategory,
+        subcategory: paramSubcategory,
+      },
     });
     loadError = true;
   }
