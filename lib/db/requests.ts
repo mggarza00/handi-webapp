@@ -93,17 +93,25 @@ export async function fetchExploreRequests(
   const from = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
   const to = from + Math.max(1, pageSize) - 1;
 
-  const baseQuery = () =>
-    supabase
+  const baseQuery = (includeSubcategories: boolean) => {
+    const columns = [
+      "id",
+      "title",
+      "city",
+      "category",
+      "subcategory",
+      "status",
+      "created_at",
+      "attachments",
+      "required_at",
+      "estimated_budget:budget",
+    ];
+    if (includeSubcategories) columns.push("subcategories");
+    return supabase
       .from("requests")
-      .select(
-        `
-      id, title, city, category, subcategory, status, created_at, attachments,
-      subcategories, required_at, estimated_budget:budget
-      `,
-        { count: "exact" },
-      )
+      .select(columns.join(", "), { count: "exact" })
       .eq("status", "active");
+  };
 
   const applyFilters = (
     query: ReturnType<typeof baseQuery>,
@@ -148,8 +156,20 @@ export async function fetchExploreRequests(
     );
   };
 
-  const runQuery = async (includeJson: boolean) => {
-    const q = applyFilters(baseQuery(), { includeJson }).order("required_at", {
+  const isMissingSubcategoriesColumn = (err: PostgrestError | null) => {
+    if (!err) return false;
+    const msg =
+      `${err.message || ""} ${err.details || ""} ${err.hint || ""}`.toLowerCase();
+    return msg.includes("subcategories") && msg.includes("does not exist");
+  };
+
+  const runQuery = async (
+    includeJson: boolean,
+    includeSubcategories: boolean,
+  ) => {
+    const q = applyFilters(baseQuery(includeSubcategories), {
+      includeJson,
+    }).order("required_at", {
       ascending: true,
       nullsFirst: false,
     });
@@ -160,8 +180,19 @@ export async function fetchExploreRequests(
   let count: number | null = null;
   let error: PostgrestError | null = null;
 
-  ({ data, error, count } = await runQuery(true));
-  if (error && shouldFallbackSubcategory(error)) {
+  ({ data, error, count } = await runQuery(true, true));
+  if (error && isMissingSubcategoriesColumn(error)) {
+    console.error(
+      "[explore] subcategories column missing, retrying legacy schema",
+      {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      },
+    );
+    ({ data, error, count } = await runQuery(false, false));
+  } else if (error && shouldFallbackSubcategory(error)) {
     console.error(
       "[explore] subcategory JSON filter failed, retrying legacy filter",
       {
@@ -171,7 +202,7 @@ export async function fetchExploreRequests(
         hint: error.hint,
       },
     );
-    ({ data, error, count } = await runQuery(false));
+    ({ data, error, count } = await runQuery(false, true));
   }
   if (error) {
     console.error("[explore] fetchExploreRequests failed", {
