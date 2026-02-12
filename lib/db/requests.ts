@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import type { PostgrestError } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
 import { createBearerClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase-server";
@@ -39,13 +39,14 @@ function clean(v?: string | null): string | null {
 export async function fetchExploreRequests(
   proId: string,
   { page = 1, pageSize = 20, city, category, subcategory }: ExploreFilters,
+  client?: SupabaseClient,
 ): Promise<{
   items: ExploreRequestItem[];
   total: number;
   page: number;
   pageSize: number;
 }> {
-  const supabase = createClient();
+  const supabase = client ?? createClient();
 
   const cCity = clean(city);
   const cCategory = clean(category);

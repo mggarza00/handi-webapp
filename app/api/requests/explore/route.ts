@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const limit = Math.max(1, Math.min(50, Number(url.searchParams.get("limit") || "5")));
+    const limit = Math.max(
+      1,
+      Math.min(50, Number(url.searchParams.get("limit") || "5")),
+    );
 
     const supabase = createClient();
     const {
@@ -22,7 +25,11 @@ export async function GET(req: Request) {
       );
     }
 
-    const { items } = await fetchExploreRequests(user.id, { page: 1, pageSize: limit });
+    const { items } = await fetchExploreRequests(
+      user.id,
+      { page: 1, pageSize: limit },
+      supabase,
+    );
     const minimal = (items || []).slice(0, limit).map((it) => ({
       id: String(it.id),
       title: it.title,
@@ -39,4 +46,3 @@ export async function GET(req: Request) {
     );
   }
 }
-
