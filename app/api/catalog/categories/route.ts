@@ -5,9 +5,22 @@ import { getAdminSupabase } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+const CACHEH = {
+  ...JSONH,
+  "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+} as const;
+const MAINTENANCE = process.env.MAINTENANCE_MODE === "true";
+const LOG_TIMING = process.env.LOG_TIMING === "1";
 
 export async function GET() {
+  const t0 = Date.now();
   try {
+    if (MAINTENANCE) {
+      return NextResponse.json(
+        { ok: false, maintenance: true },
+        { status: 503, headers: { ...JSONH, "Cache-Control": "no-store" } },
+      );
+    }
     const admin = getAdminSupabase();
     const selectColumns = "*";
     const { data, error } = await admin.from("categories_subcategories").select(selectColumns);
@@ -65,7 +78,7 @@ export async function GET() {
       });
     return NextResponse.json(
       { ok: true, data: normalized },
-      { headers: JSONH },
+      { headers: CACHEH },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
@@ -73,6 +86,13 @@ export async function GET() {
       { ok: false, error: "INTERNAL_ERROR", detail: msg },
       { status: 500, headers: JSONH },
     );
+  } finally {
+    if (LOG_TIMING) {
+      // eslint-disable-next-line no-console
+      console.info("[timing] /api/catalog/categories", {
+        ms: Date.now() - t0,
+      });
+    }
   }
 }
 

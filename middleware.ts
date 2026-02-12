@@ -12,6 +12,8 @@ const ADMIN_ROLES = new Set([
   "support",
   "reviewer",
 ]);
+const MAINTENANCE = process.env.MAINTENANCE_MODE === "true";
+const LOG_TIMING = process.env.LOG_TIMING === "1";
 
 function isLocalAdminBypassAllowed(request: NextRequest) {
   // E2E-only admin bypass: requires explicit env, non-production, localhost host.
@@ -71,7 +73,23 @@ function createMiddlewareSupabase(
 }
 
 export async function middleware(request: NextRequest) {
+  const t0 = Date.now();
   const { pathname } = request.nextUrl;
+
+  if (MAINTENANCE) {
+    const isAuthPath =
+      pathname.startsWith("/auth") || pathname.startsWith("/api/auth");
+    const isApiPath = pathname.startsWith("/api");
+    if (!isAuthPath && !isApiPath) {
+      return new NextResponse("Maintenance", {
+        status: 503,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+  }
 
   // Rate-limit only for /api/classify-request (per IP, in-memory)
   if (pathname === "/api/classify-request") {
@@ -107,6 +125,15 @@ export async function middleware(request: NextRequest) {
     }
     return NextResponse.next();
   }
+  const hasAuthCookie =
+    request.cookies.has("sb-access-token") ||
+    request.cookies.has("sb:token") ||
+    request.cookies.has("supabase-auth-token");
+
+  if (!hasAuthCookie && !pathname.startsWith("/admin")) {
+    return NextResponse.next();
+  }
+
   // Primero refrescamos sesión para mantener cookies al día
   const response = await updateSession(request);
   const supabase = createMiddlewareSupabase(request, response);
@@ -152,7 +179,7 @@ export async function middleware(request: NextRequest) {
     if (returnTo && returnTo !== "/") u.searchParams.set("next", returnTo);
     return NextResponse.redirect(u);
   }
-  // Redirección condicional del home a /pro si el usuario está en vista Pro
+  // RedirecciÃ³n condicional del home a /pro si el usuario estÃ¡ en vista Pro
   if (pathname === "/") {
     const lowered =
       typeof profileRole === "string" ? profileRole.toLowerCase() : null;
@@ -164,7 +191,16 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if (!pathname.startsWith("/admin")) return response;
+  if (!pathname.startsWith("/admin")) {
+    if (LOG_TIMING) {
+      // eslint-disable-next-line no-console
+      console.info("[timing] middleware", {
+        path: pathname,
+        ms: Date.now() - t0,
+      });
+    }
+    return response;
+  }
 
   // Bypass dev/CI por cookie handi_role
   const devRole = (request.cookies.get("handi_role")?.value || "").toLowerCase();
@@ -194,6 +230,13 @@ export async function middleware(request: NextRequest) {
     allowedByEmail;
 
   if (canAccessAdmin) {
+    if (LOG_TIMING) {
+      // eslint-disable-next-line no-console
+      console.info("[timing] middleware", {
+        path: pathname,
+        ms: Date.now() - t0,
+      });
+    }
     return response;
   }
 
@@ -208,3 +251,4 @@ export const config = {
     "/((?!api/|_next/|_vercel|_static/|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)",
   ],
 };
+
