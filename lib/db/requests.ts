@@ -122,6 +122,7 @@ export async function fetchExploreRequests(
       includeJson: boolean;
       includeSubcategory: boolean;
       jsonObjectOnly?: boolean;
+      jsonUseContains?: boolean;
     },
   ) => {
     let q = query;
@@ -131,6 +132,9 @@ export async function fetchExploreRequests(
     if (cCategory) q = q.eq("category", cCategory);
     if (cSub) {
       const rawVal = String(cSub);
+      if (opts.jsonUseContains) {
+        return q.contains("subcategories", [{ name: rawVal }]);
+      }
       const eqVal = rawVal.replace(/"/g, '\\"');
       const filters: string[] = [];
       if (opts.includeSubcategory) {
@@ -179,11 +183,13 @@ export async function fetchExploreRequests(
     includeSubcategories: boolean;
     includeSubcategory: boolean;
     jsonObjectOnly?: boolean;
+    jsonUseContains?: boolean;
   }) => {
     const q = applyFilters(baseQuery(opts), {
       includeJson: opts.includeJson,
       includeSubcategory: opts.includeSubcategory,
       jsonObjectOnly: opts.jsonObjectOnly,
+      jsonUseContains: opts.jsonUseContains,
     }).order("required_at", {
       ascending: true,
       nullsFirst: false,
@@ -195,12 +201,15 @@ export async function fetchExploreRequests(
   let count: number | null = null;
   let error: PostgrestError | null = null;
 
+  let subcategoryColumnExists: boolean | null = null;
+
   ({ data, error, count } = await runQuery({
     includeJson: true,
     includeSubcategories: true,
     includeSubcategory: true,
   }));
   if (error && isMissingColumn(error, "subcategory")) {
+    subcategoryColumnExists = false;
     console.error("[explore] subcategory column missing, retrying without it", {
       code: error.code,
       message: error.message,
@@ -220,6 +229,33 @@ export async function fetchExploreRequests(
       includeSubcategories: true,
       includeSubcategory: false,
     }));
+    if (error && shouldFallbackSubcategory(error) && cSub) {
+      console.error(
+        "[explore] subcategory JSON filter failed, retrying subcategories-only filter",
+        {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        },
+      );
+      ({ data, error, count } = await runQuery({
+        includeJson: true,
+        includeSubcategories: true,
+        includeSubcategory: false,
+        jsonObjectOnly: true,
+      }));
+      if (error && cSub) {
+        ({ data, error, count } = await runQuery({
+          includeJson: false,
+          includeSubcategories: true,
+          includeSubcategory: false,
+          jsonUseContains: true,
+        }));
+      }
+    }
+  } else if (!error) {
+    subcategoryColumnExists = true;
   } else if (error && isMissingColumn(error, "subcategories")) {
     console.error(
       "[explore] subcategories column missing, retrying legacy schema",
@@ -245,18 +281,43 @@ export async function fetchExploreRequests(
         hint: error.hint,
       },
     );
-    ({ data, error, count } = await runQuery({
-      includeJson: false,
-      includeSubcategories: true,
-      includeSubcategory: true,
-    }));
-    if (error && cSub) {
+    if (subcategoryColumnExists !== false) {
+      ({ data, error, count } = await runQuery({
+        includeJson: false,
+        includeSubcategories: true,
+        includeSubcategory: true,
+      }));
+      if (error && cSub) {
+        ({ data, error, count } = await runQuery({
+          includeJson: true,
+          includeSubcategories: true,
+          includeSubcategory: false,
+          jsonObjectOnly: true,
+        }));
+        if (error && cSub) {
+          ({ data, error, count } = await runQuery({
+            includeJson: false,
+            includeSubcategories: true,
+            includeSubcategory: false,
+            jsonUseContains: true,
+          }));
+        }
+      }
+    } else if (cSub) {
       ({ data, error, count } = await runQuery({
         includeJson: true,
         includeSubcategories: true,
         includeSubcategory: false,
         jsonObjectOnly: true,
       }));
+      if (error && cSub) {
+        ({ data, error, count } = await runQuery({
+          includeJson: false,
+          includeSubcategories: true,
+          includeSubcategory: false,
+          jsonUseContains: true,
+        }));
+      }
     }
   }
   if (error) {
