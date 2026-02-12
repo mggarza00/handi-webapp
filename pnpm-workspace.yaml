@@ -1,0 +1,13 @@
+packages:
+  - "."
+
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "@tailwindcss/oxide"
+  - esbuild
+  - ffmpeg-static
+  - prisma
+  - sharp
+  - supabase
+  - unrs-resolver

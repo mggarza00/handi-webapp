@@ -225,7 +225,7 @@ async function HeaderGreeting({
               <p className="text-xs font-semibold text-[#082877]">
                 Especialidades
               </p>
-              <div className="max-w-3xl rounded-xl bg-white px-3 py-2">
+              <div className="w-full max-w-full rounded-xl bg-white px-3 py-2">
                 <SubcategoryChips items={subcategoryChips} />
               </div>
             </div>

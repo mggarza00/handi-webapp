@@ -223,6 +223,7 @@ export default async function ExploreRequestsPage({
   let total = 0;
   let safePage = page;
   let pageSize = PER_PAGE;
+  let loadError = false;
   try {
     const result = await fetchExploreRequests(user.id, {
       city: paramCity,
@@ -232,7 +233,19 @@ export default async function ExploreRequestsPage({
       pageSize: PER_PAGE,
     });
     ({ items, total, page: safePage, pageSize } = result);
-  } catch (error) {
+  } catch (err) {
+    const error = err as {
+      code?: string;
+      message?: string;
+      details?: string;
+      hint?: string;
+    };
+    console.error("[explore] failed to load requests", {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    });
     Sentry.captureException(error, {
       tags: {
         route: "/requests/explore",
@@ -244,7 +257,7 @@ export default async function ExploreRequestsPage({
         subcategory: paramSubcategory,
       },
     });
-    throw error;
+    loadError = true;
   }
 
   // Build subcategory -> icon map for cards (lowercased key)
@@ -280,6 +293,13 @@ export default async function ExploreRequestsPage({
           page: String(page),
         }}
       />
+
+      {loadError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No pudimos cargar trabajos en este momento. Intenta recargar en unos
+          segundos.
+        </div>
+      ) : null}
 
       <RequestsList
         proId={user.id}
