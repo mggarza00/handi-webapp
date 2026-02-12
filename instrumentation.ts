@@ -3,11 +3,18 @@ import * as Sentry from "@sentry/nextjs";
 const environment =
   process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || "development";
 
+const resolveRelease = () => {
+  if (process.env.SENTRY_RELEASE) return process.env.SENTRY_RELEASE;
+  if (process.env.VERCEL_GIT_COMMIT_SHA)
+    return process.env.VERCEL_GIT_COMMIT_SHA;
+  return environment === "development" ? "development" : undefined;
+};
+
 export function register() {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment,
-    release: process.env.SENTRY_RELEASE,
+    release: resolveRelease(),
     enabled: !!process.env.SENTRY_DSN,
   });
 }

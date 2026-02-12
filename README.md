@@ -72,6 +72,7 @@ Variables recomendadas:
 
 - `SENTRY_ENVIRONMENT` (ej: `production`, `staging`, `development`)
 - `SENTRY_RELEASE` (ej: hash de commit o version)
+  - Recomendado en Vercel: `SENTRY_RELEASE=${VERCEL_GIT_COMMIT_SHA}`
 
 Variables solo CI (sourcemaps):
 
