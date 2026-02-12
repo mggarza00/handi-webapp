@@ -225,13 +225,17 @@ export default async function ExploreRequestsPage({
   let pageSize = PER_PAGE;
   let loadError = false;
   try {
-    const result = await fetchExploreRequests(user.id, {
-      city: paramCity,
-      category: paramCategory,
-      subcategory: paramSubcategory,
-      page,
-      pageSize: PER_PAGE,
-    });
+    const result = await fetchExploreRequests(
+      user.id,
+      {
+        city: paramCity,
+        category: paramCategory,
+        subcategory: paramSubcategory,
+        page,
+        pageSize: PER_PAGE,
+      },
+      supabase,
+    );
     ({ items, total, page: safePage, pageSize } = result);
   } catch (err) {
     const error = err as {
