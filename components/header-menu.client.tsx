@@ -204,11 +204,38 @@ export default function HeaderMenu() {
     }
   }, []);
 
-  // Poll unread notifications count periodically and update localStorage+bubble
+  // Poll unread notifications count with backoff and visibility guard
   React.useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     let aborted = false;
-    async function fetchCount() {
+    let inflight = false;
+    const isProd = process.env.NODE_ENV === "production";
+    const baseInterval = isProd ? 180000 : 60000;
+    const maxInterval = isProd ? 600000 : 180000;
+    let nextInterval = baseInterval;
+
+    const schedule = (delay: number) => {
+      if (aborted) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, delay);
+    };
+
+    async function run() {
+      if (aborted) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        schedule(baseInterval);
+        return;
+      }
+      if (!me) {
+        schedule(baseInterval);
+        return;
+      }
+      if (inflight) {
+        schedule(nextInterval);
+        return;
+      }
+      inflight = true;
+      const start = Date.now();
       try {
         const headers = await buildAuthHeaders();
         const res = await fetch("/api/me/notifications/unread-count", {
@@ -216,7 +243,7 @@ export default function HeaderMenu() {
           credentials: "include",
           headers,
         });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error("bad_status");
         const json = (await res.json()) as { ok?: boolean; count?: number };
         const has = (json.count || 0) > 0;
         if (!aborted) {
@@ -229,23 +256,60 @@ export default function HeaderMenu() {
         } catch {
           // ignore
         }
+        const dur = Date.now() - start;
+        nextInterval = dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
       } catch {
-        // ignore
+        nextInterval = Math.min(maxInterval, nextInterval * 2);
+      } finally {
+        inflight = false;
+        schedule(nextInterval);
       }
     }
-    fetchCount();
-    timer = setInterval(fetchCount, 60000);
+
+    run();
+    const onVis = () => {
+      if (document.visibilityState === "visible") schedule(1000);
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       aborted = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis);
     };
-  }, [buildAuthHeaders]);
+  }, [buildAuthHeaders, me]);
 
-  // Poll unread messages count periodically
+  // Poll unread messages count with backoff and visibility guard
   React.useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     let aborted = false;
-    async function fetchMsgCount() {
+    let inflight = false;
+    const isProd = process.env.NODE_ENV === "production";
+    const baseInterval = isProd ? 180000 : 60000;
+    const maxInterval = isProd ? 600000 : 180000;
+    let nextInterval = baseInterval;
+
+    const schedule = (delay: number) => {
+      if (aborted) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, delay);
+    };
+
+    async function run() {
+      if (aborted) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        schedule(baseInterval);
+        return;
+      }
+      if (!me) {
+        schedule(baseInterval);
+        return;
+      }
+      if (inflight) {
+        schedule(nextInterval);
+        return;
+      }
+      inflight = true;
+      const start = Date.now();
       try {
         const headers = await buildAuthHeaders();
         const res = await fetch("/api/chat/rooms", {
@@ -253,7 +317,7 @@ export default function HeaderMenu() {
           credentials: "include",
           headers,
         });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error("bad_status");
         const json = (await res.json()) as {
           ok?: boolean;
           data?: Array<{ unreadCount?: number }>;
@@ -279,17 +343,27 @@ export default function HeaderMenu() {
         } catch {
           // ignore
         }
+        const dur = Date.now() - start;
+        nextInterval = dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
       } catch {
-        // ignore
+        nextInterval = Math.min(maxInterval, nextInterval * 2);
+      } finally {
+        inflight = false;
+        schedule(nextInterval);
       }
     }
-    void fetchMsgCount();
-    timer = setInterval(fetchMsgCount, 60000);
+
+    run();
+    const onVis = () => {
+      if (document.visibilityState === "visible") schedule(1000);
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       aborted = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis);
     };
-  }, [buildAuthHeaders]);
+  }, [buildAuthHeaders, me]);
 
   // Refresh counts when tab gains focus
   React.useEffect(() => {
