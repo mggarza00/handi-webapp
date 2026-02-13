@@ -1871,13 +1871,32 @@ export default function ChatPanel({
     );
   }, [hasPaid, requestStatus]);
 
+  const latestOfferId = React.useMemo(() => {
+    for (let i = messagesState.length - 1; i >= 0; i--) {
+      const payload = messagesState[i]?.payload as Record<
+        string,
+        unknown
+      > | null;
+      if (!payload) continue;
+      const offerId = payload.offer_id;
+      if (typeof offerId === "string" && offerId.trim().length) return offerId;
+    }
+    return null;
+  }, [messagesState]);
+
+  const offerStatus = React.useMemo(() => {
+    if (hasPaid) return "paid";
+    if (!latestOfferId) return null;
+    return getOfferStatusFromMessages(latestOfferId);
+  }, [hasPaid, latestOfferId]);
+
   const allowContact = React.useMemo(
     () =>
       isContactPolicyLifted({
-        offerStatus: hasPaid ? "paid" : null,
+        offerStatus,
         requestStatus,
       }),
-    [hasPaid, requestStatus],
+    [offerStatus, requestStatus],
   );
 
   // Detect onsite deposit pending (client-side deposit flow)
@@ -2049,8 +2068,7 @@ export default function ChatPanel({
     const headerName =
       (headerProfile?.full_name && headerProfile.full_name.trim().length
         ? headerProfile.full_name
-        : null) ||
-      (viewerRole === "professional" ? "Cliente" : "Usuario");
+        : null) || (viewerRole === "professional" ? "Cliente" : "Usuario");
     return (
       <div className="border-b px-3 py-4 text-xs text-slate-600 flex items-center gap-3 bg-white">
         <button
