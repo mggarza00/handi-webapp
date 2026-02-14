@@ -24,9 +24,27 @@ type ServiceGroup = {
   items: NormalizedService[];
 };
 
-export default function ServiceList({ services }: { services: ScheduledService[] }) {
+function formatStatusLabel(status?: string | null): string {
+  const value = String(status || "").toLowerCase();
+  if (!value) return "Agendado";
+  if (value === "scheduled") return "Agendado";
+  if (value === "in_process" || value === "inprogress") return "En proceso";
+  if (value === "finished" || value === "completed") return "Finalizado";
+  if (value === "canceled" || value === "cancelled") return "Cancelado";
+  if (value === "active" || value === "pending") return "Activa";
+  return value.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
+
+export default function ServiceList({
+  services,
+}: {
+  services: ScheduledService[];
+}) {
   const router = useRouter();
-  const todayKey = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayKey = React.useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    [],
+  );
 
   const groups = React.useMemo<ServiceGroup[]>(() => {
     const normalized: NormalizedService[] = services
@@ -35,7 +53,13 @@ export default function ServiceList({ services }: { services: ScheduledService[]
         const dateKey = service.scheduled_at!.slice(0, 10);
         return { ...service, dateKey, isPast: dateKey < todayKey };
       })
-      .sort((a, b) => (a.scheduled_at < b.scheduled_at ? -1 : a.scheduled_at > b.scheduled_at ? 1 : 0));
+      .sort((a, b) =>
+        a.scheduled_at < b.scheduled_at
+          ? -1
+          : a.scheduled_at > b.scheduled_at
+            ? 1
+            : 0,
+      );
 
     const byDate = new Map<string, ServiceGroup>();
     normalized.forEach((item) => {
@@ -52,7 +76,6 @@ export default function ServiceList({ services }: { services: ScheduledService[]
     return Array.from(byDate.values());
   }, [services, todayKey]);
 
-
   const handleNeedHelp = React.useCallback((requestId: string) => {
     const preset = `Tuve un problema con la solicitud ${requestId}. Necesito que notifiques a profiles.admin y que abras un nuevo chat en /mensajes para comunicarme directamente con el profesional.`;
     openAssistant({ message: preset });
@@ -66,18 +89,26 @@ export default function ServiceList({ services }: { services: ScheduledService[]
   );
 
   if (groups.length === 0) {
-    return <div className="text-sm text-slate-600">No hay servicios agendados.</div>;
+    return (
+      <div className="text-sm text-slate-600">No hay servicios agendados.</div>
+    );
   }
 
   return (
     <div className="space-y-5">
       {groups.map((group) => {
-        const separatorLabel = group.isToday ? "Hoy" : format(group.date, "dd/MM/yyyy", { locale: es });
+        const separatorLabel = group.isToday
+          ? "Hoy"
+          : format(group.date, "dd/MM/yyyy", { locale: es });
         const separatorColor = group.isToday ? "text-sky-600" : "text-blue-900";
-        const separatorBorder = group.isToday ? "border-sky-200" : "border-blue-200";
+        const separatorBorder = group.isToday
+          ? "border-sky-200"
+          : "border-blue-200";
         return (
           <div key={group.dateKey} className="space-y-3">
-            <div className={`flex items-center gap-3 text-sm font-semibold uppercase tracking-wide ${separatorColor}`}>
+            <div
+              className={`flex items-center gap-3 text-sm font-semibold uppercase tracking-wide ${separatorColor}`}
+            >
               <span>{separatorLabel}</span>
               <div className={`flex-1 border-t ${separatorBorder}`} />
             </div>
@@ -95,15 +126,29 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                 );
                 return (
                   <li key={`${ev.id}-${i}`}>
-                    <Card className={ev.isPast ? "border-orange-200 bg-orange-50/60" : undefined}>
+                    <Card
+                      className={
+                        ev.isPast
+                          ? "border-orange-200 bg-orange-50/60"
+                          : undefined
+                      }
+                    >
                       <CardHeader className="pb-2">
-                        <CardTitle className={`text-base flex items-center gap-2 ${ev.isPast ? "text-orange-600" : ""}`}>
-                          <span className="truncate">{ev.title || "Servicio"}</span>
+                        <CardTitle
+                          className={`text-base flex items-center gap-2 ${ev.isPast ? "text-orange-600" : ""}`}
+                        >
+                          <span className="truncate">
+                            {ev.title || "Servicio"}
+                          </span>
                           <Badge
                             variant="secondary"
-                            className={ev.isPast ? "bg-orange-100 text-orange-700 border-orange-200" : undefined}
+                            className={
+                              ev.isPast
+                                ? "bg-orange-100 text-orange-700 border-orange-200"
+                                : undefined
+                            }
                           >
-                            {ev.status || "scheduled"}
+                            {formatStatusLabel(ev.status)}
                           </Badge>
                         </CardTitle>
                       </CardHeader>
@@ -159,7 +204,11 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                                     onCompleted={() => router.refresh()}
                                   />
                                 ) : null}
-                                <Button size="sm" variant="outline" onClick={() => handleViewRequest(ev.id)}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewRequest(ev.id)}
+                                >
                                   Ver solicitud
                                 </Button>
                               </div>
