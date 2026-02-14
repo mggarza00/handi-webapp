@@ -1860,6 +1860,18 @@ export default function ChatPanel({
     return false;
   }, [offerSummaries, messagesState]);
 
+  // Client should not see "Contratar" once an offer is accepted/paid.
+  const hasAcceptedOffer = React.useMemo(() => {
+    for (const m of messagesState) {
+      if (!m?.payload || typeof m.payload !== "object") continue;
+      const p = m.payload as Record<string, unknown>;
+      if (!p.offer_id) continue;
+      const st = typeof p.status === "string" ? p.status.toLowerCase() : "";
+      if (st === "accepted" || st === "paid") return true;
+    }
+    return false;
+  }, [messagesState]);
+
   const isPaidOrScheduled = React.useMemo(() => {
     if (hasPaid) return true;
     const st = (requestStatus || "").toLowerCase();
@@ -2026,18 +2038,20 @@ export default function ChatPanel({
             ) : null}
           </div>
           <div>
-            <Button
-              onClick={() => {
-                if (requestTitle && requestTitle.trim().length)
-                  setOfferTitle(requestTitle);
-                setOfferAmountLocked(false);
-                setOfferServiceDate(resolveOfferServiceDate());
-                setOfferServiceDateError(false);
-                setOfferDialogOpen(true);
-              }}
-            >
-              Contratar
-            </Button>
+            {!hasAcceptedOffer ? (
+              <Button
+                onClick={() => {
+                  if (requestTitle && requestTitle.trim().length)
+                    setOfferTitle(requestTitle);
+                  setOfferAmountLocked(false);
+                  setOfferServiceDate(resolveOfferServiceDate());
+                  setOfferServiceDateError(false);
+                  setOfferDialogOpen(true);
+                }}
+              >
+                Contratar
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}{" "}
