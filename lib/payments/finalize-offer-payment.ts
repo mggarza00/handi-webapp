@@ -157,6 +157,7 @@ export async function finalizeOfferPayment(
     let receiptId: string | null = null;
     let receiptUrl: string | null = null;
     let receiptDownloadUrl: string | null = null;
+    let receiptViewUrl: string | null = null;
     try {
       if (offer.id) {
         const { data: recByOfferRaw } = await admin
@@ -261,6 +262,7 @@ export async function finalizeOfferPayment(
       receiptDownloadUrl = `${baseUrl}/api/receipts/${encodeURIComponent(
         receiptId,
       )}/pdf`;
+      receiptViewUrl = `${baseUrl}/receipts/${encodeURIComponent(receiptId)}`;
     }
 
     await admin
@@ -506,6 +508,7 @@ export async function finalizeOfferPayment(
               type: "payment_receipt",
             };
             if (receiptId) receiptPayload.receipt_id = receiptId;
+            if (receiptViewUrl) receiptPayload.view_url = receiptViewUrl;
             if (receiptDownloadUrl)
               receiptPayload.download_url = receiptDownloadUrl;
             if (receiptUrl) receiptPayload.receipt_url = receiptUrl;
