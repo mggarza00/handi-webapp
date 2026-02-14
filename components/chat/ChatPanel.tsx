@@ -281,11 +281,12 @@ export default function ChatPanel({
         parsed = Number.isNaN(tmp.getTime()) ? null : tmp;
       }
       if (parsed) {
-        base = new Date(
+        const parsedStart = new Date(
           parsed.getFullYear(),
           parsed.getMonth(),
           parsed.getDate(),
         );
+        base = parsedStart < todayStart ? todayStart : parsedStart;
       }
     }
     return toYMD(base);
