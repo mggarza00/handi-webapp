@@ -1,9 +1,9 @@
-﻿import { createClient } from '@supabase/supabase-js';
-import type { SupabaseClient } from '@supabase/supabase-js';
+﻿import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Database } from '@/types/supabase';
-import type { ServerReceipt } from '@/types/receipt';
-import { generateSimpleFolio } from '@/lib/folio';
+import type { Database } from "@/types/supabase";
+import type { ServerReceipt } from "@/types/receipt";
+import { generateSimpleFolio } from "@/lib/folio";
 
 type MessageLookupRow = {
   conversation_id: string | null;
@@ -11,10 +11,22 @@ type MessageLookupRow = {
   created_at: string | null;
 };
 
-type RequestLite = Pick<Database["public"]["Tables"]["requests"]["Row"], "id" | "title" | "description">;
-type ProfileLite = Pick<Database["public"]["Tables"]["profiles"]["Row"], "id" | "full_name" | "email">;
-type OfferLite = Pick<Database["public"]["Tables"]["offers"]["Row"], "amount" | "currency" | "created_at" | "status">;
-type ConversationLite = Pick<Database["public"]["Tables"]["conversations"]["Row"], "id" | "request_id" | "customer_id" | "pro_id" | "created_at">;
+type RequestLite = Pick<
+  Database["public"]["Tables"]["requests"]["Row"],
+  "id" | "title" | "description"
+>;
+type ProfileLite = Pick<
+  Database["public"]["Tables"]["profiles"]["Row"],
+  "id" | "full_name" | "email"
+>;
+type OfferLite = Pick<
+  Database["public"]["Tables"]["offers"]["Row"],
+  "amount" | "currency" | "created_at" | "status"
+>;
+type ConversationLite = Pick<
+  Database["public"]["Tables"]["conversations"]["Row"],
+  "id" | "request_id" | "customer_id" | "pro_id" | "created_at"
+>;
 
 type MessagesTable = {
   Row: MessageLookupRow;
@@ -22,9 +34,9 @@ type MessagesTable = {
   Update: Partial<MessageLookupRow>;
 };
 
-type DatabaseWithMessages = Omit<Database, 'public'> & {
-  public: Omit<Database['public'], 'Tables'> & {
-    Tables: Database['public']['Tables'] & {
+type DatabaseWithMessages = Omit<Database, "public"> & {
+  public: Omit<Database["public"], "Tables"> & {
+    Tables: Database["public"]["Tables"] & {
       messages: MessagesTable;
     };
   };
@@ -50,7 +62,9 @@ function supaAdmin(): SupabaseClient<DatabaseWithMessages> | null {
   });
 }
 
-const round2 = (n: number) => Math.round(((Number.isFinite(n) ? Number(n) : 0) + Number.EPSILON) * 100) / 100;
+const round2 = (n: number) =>
+  Math.round(((Number.isFinite(n) ? Number(n) : 0) + Number.EPSILON) * 100) /
+  100;
 
 type _ReceiptViewRow = {
   receipt_id: string;
@@ -64,14 +78,16 @@ type _ReceiptViewRow = {
   professional_name: string | null;
 } & ReceiptAmountFields;
 
-export async function getReceipt(receiptId: string): Promise<ServerReceipt | null> {
+export async function getReceipt(
+  receiptId: string,
+): Promise<ServerReceipt | null> {
   const admin = supaAdmin();
   if (!admin) return null;
 
   const { data: row } = await admin
-    .from('v_receipt_pdf')
-    .select('*')
-    .eq('receipt_id', receiptId)
+    .from("v_receipt_pdf")
+    .select("*")
+    .eq("receipt_id", receiptId)
     .maybeSingle<_ReceiptViewRow>();
 
   if (!row) return null;
@@ -97,9 +113,13 @@ export async function getReceipt(receiptId: string): Promise<ServerReceipt | nul
 
   const createdISO = row.created_at ?? new Date().toISOString();
   const rawFolio = row.folio;
-  const displayFolio = rawFolio && rawFolio.trim()
-    ? rawFolio.trim()
-    : generateSimpleFolio(String(row.receipt_id || receiptId), new Date(createdISO));
+  const displayFolio =
+    rawFolio && rawFolio.trim()
+      ? rawFolio.trim()
+      : generateSimpleFolio(
+          String(row.receipt_id || receiptId),
+          new Date(createdISO),
+        );
 
   // Best-effort: persist the generated folio if receipts table exists and folio is null
   try {
@@ -107,10 +127,10 @@ export async function getReceipt(receiptId: string): Promise<ServerReceipt | nul
       const admin = supaAdmin();
       if (admin) {
         await admin
-          .from('receipts')
+          .from("receipts")
           .update({ folio: displayFolio })
-          .eq('id', row.receipt_id)
-          .is('folio', null);
+          .eq("id", row.receipt_id)
+          .is("folio", null);
       }
     }
   } catch {
@@ -119,29 +139,47 @@ export async function getReceipt(receiptId: string): Promise<ServerReceipt | nul
   const data: ServerReceipt = {
     receiptId: displayFolio,
     createdAtISO: row.created_at ?? new Date().toISOString(),
-    customer: { name: row.client_name || '', email: row.client_email || '' },
+    customer: { name: row.client_name || "", email: row.client_email || "" },
     service: {
-      title: row.service_title || 'Servicio',
-      requestId: row.request_id || '',
-      professionalName: row.professional_name || '',
+      title: row.service_title || "Servicio",
+      requestId: row.request_id || "",
+      professionalName: row.professional_name || "",
       dateISO: null,
     },
     payment: {
-      method: 'card', brand: null, last4: null,
-      amountMXN: total, amountIsCents: false,
+      method: "card",
+      brand: null,
+      last4: null,
+      amountMXN: total,
+      amountIsCents: false,
       items: [
-        { description: 'Servicio', amount: servicio },
-        { description: 'ComisiÃ³n', amount: comision },
-        { description: 'IVA', amount: iva },
+        { description: "Servicio", amount: servicio },
+        { description: "ComisiÃ³n", amount: comision },
+        { description: "IVA", amount: iva },
       ],
       subtotal: servicio,
       tax: iva,
       total,
-      currency: 'MXN',
-      notes: null, paymentIntentId: null, sessionId: null,
+      currency: "MXN",
+      notes: null,
+      paymentIntentId: null,
+      sessionId: null,
     },
-    business: { name: 'Handi', website: null, legalName: null, rfc: null, taxInfo: null, logoUrl: null, address: null, addressText: null, supportEmail: null, supportPhone: null },
-    meta: row.service_description ? { service_description: row.service_description } : null,
+    business: {
+      name: "Handi",
+      website: null,
+      legalName: null,
+      rfc: null,
+      taxInfo: null,
+      logoUrl: null,
+      address: null,
+      addressText: null,
+      supportEmail: "soporte@handi.mx",
+      supportPhone: "+52 81 3087 8691",
+    },
+    meta: row.service_description
+      ? { service_description: row.service_description }
+      : null,
   };
 
   return data;
@@ -161,46 +199,52 @@ export type ReceiptViewRow = {
   request_id?: string | null;
 } & ReceiptAmountFields;
 
-export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: string): Promise<ReceiptViewRow | null> {
-  const supabaseWithMessages = supabase as unknown as SupabaseClient<DatabaseWithMessages>;
+export async function getReceiptForPdf(
+  supabase: SupabaseClient<Database>,
+  id: string,
+): Promise<ReceiptViewRow | null> {
+  const supabaseWithMessages =
+    supabase as unknown as SupabaseClient<DatabaseWithMessages>;
 
   // Try primary key match first (receipts.id)
   const primary = await supabase
-    .from('v_receipt_pdf')
-    .select('*')
-    .eq('receipt_id', id)
+    .from("v_receipt_pdf")
+    .select("*")
+    .eq("receipt_id", id)
     .maybeSingle<ReceiptViewRow>();
   let data: ReceiptViewRow | null = primary.data ?? null;
 
   // If not found, try by folio (human-readable RCPT-YYYY-XXXXX)
   if (!data) {
     const byFolio = await supabase
-      .from('v_receipt_pdf')
-      .select('*')
-      .eq('folio', id)
+      .from("v_receipt_pdf")
+      .select("*")
+      .eq("folio", id)
       .maybeSingle<ReceiptViewRow>();
     if (byFolio.data) data = byFolio.data;
   }
 
   // If still not found and looks like our fallback token (RCPT-<cs_...> or RCPT-<pi_...>) or raw cs_/pi_
   if (!data) {
-    const token = id?.startsWith('RCPT-') ? id.slice(5) : id;
-    const isSession = typeof token === 'string' && token.startsWith('cs_');
-    const isPI = typeof token === 'string' && token.startsWith('pi_');
+    const token = id?.startsWith("RCPT-") ? id.slice(5) : id;
+    const isSession = typeof token === "string" && token.startsWith("cs_");
+    const isPI = typeof token === "string" && token.startsWith("pi_");
     if (isSession || isPI) {
       // Look up the real receipt id from receipts table
       try {
         const { data: rec } = await supabase
-          .from('receipts')
-          .select('id')
-          .eq(isSession ? 'checkout_session_id' : 'payment_intent_id', token)
-          .maybeSingle<Pick<Database["public"]["Tables"]["receipts"]["Row"], 'id'>>();
+          .from("receipts")
+          .select("id")
+          .eq(isSession ? "checkout_session_id" : "payment_intent_id", token)
+          .maybeSingle<
+            Pick<Database["public"]["Tables"]["receipts"]["Row"], "id">
+          >();
         const realId = rec?.id;
         if (realId) {
           const byReal = await supabase
-            .from('v_receipt_pdf')
-            .select('*')
-            .eq('receipt_id', realId)
+            .from("v_receipt_pdf")
+            .select("*")
+            .eq("receipt_id", realId)
             .maybeSingle<ReceiptViewRow>();
           if (byReal.data) data = byReal.data;
         }
@@ -216,20 +260,20 @@ export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: s
     try {
       // Find the conversation via the system message carrying this receipt_id
       const { data: msg } = await supabaseWithMessages
-        .from('messages')
-        .select('conversation_id, request_id, created_at')
-        .eq('message_type', 'system')
-        .contains('payload', { receipt_id: id })
-        .order('created_at', { ascending: false })
+        .from("messages")
+        .select("conversation_id, request_id, created_at")
+        .eq("message_type", "system")
+        .contains("payload", { receipt_id: id })
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle<MessageLookupRow>();
       const convId = msg?.conversation_id ?? undefined;
       const createdAt = msg?.created_at ?? undefined;
       if (convId) {
         const { data: conv } = await supabase
-          .from('conversations')
-          .select('id, request_id, customer_id, pro_id')
-          .eq('id', convId)
+          .from("conversations")
+          .select("id, request_id, customer_id, pro_id")
+          .eq("id", convId)
           .maybeSingle<ConversationLite>();
         const requestId = msg?.request_id ?? conv?.request_id ?? null;
         const customerId = conv?.customer_id ?? null;
@@ -237,64 +281,76 @@ export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: s
         const [reqRow, clientRow, proRow] = await Promise.all([
           requestId
             ? supabase
-                .from('requests')
-                .select('id, title, description')
-                .eq('id', requestId)
+                .from("requests")
+                .select("id, title, description")
+                .eq("id", requestId)
                 .maybeSingle<RequestLite>()
                 .then(({ data: request }) => request ?? null)
             : Promise.resolve<RequestLite | null>(null),
           customerId
             ? supabase
-                .from('profiles')
-                .select('id, full_name, email')
-                .eq('id', customerId)
+                .from("profiles")
+                .select("id, full_name, email")
+                .eq("id", customerId)
                 .maybeSingle<ProfileLite>()
                 .then(({ data: profile }) => profile ?? null)
             : Promise.resolve<ProfileLite | null>(null),
           proId
             ? supabase
-                .from('profiles')
-                .select('id, full_name, email')
-                .eq('id', proId)
+                .from("profiles")
+                .select("id, full_name, email")
+                .eq("id", proId)
                 .maybeSingle<ProfileLite>()
                 .then(({ data: profile }) => profile ?? null)
             : Promise.resolve<ProfileLite | null>(null),
         ]);
         // Heuristic for amount: prefer paid offer, else accepted, else latest
         let amount = 0;
-        let currency = 'MXN';
+        let currency = "MXN";
         try {
           const { data: paid } = await supabase
-            .from('offers')
-            .select('amount, currency, created_at, status')
-            .eq('conversation_id', convId)
-            .eq('status', 'paid')
-            .order('created_at', { ascending: false })
+            .from("offers")
+            .select("amount, currency, created_at, status")
+            .eq("conversation_id", convId)
+            .eq("status", "paid")
+            .order("created_at", { ascending: false })
             .maybeSingle<OfferLite>();
           const { data: accepted } = await supabase
-            .from('offers')
-            .select('amount, currency, created_at, status')
-            .eq('conversation_id', convId)
-            .eq('status', 'accepted')
-            .order('created_at', { ascending: false })
+            .from("offers")
+            .select("amount, currency, created_at, status")
+            .eq("conversation_id", convId)
+            .eq("status", "accepted")
+            .order("created_at", { ascending: false })
             .maybeSingle<OfferLite>();
           const { data: latest } = await supabase
-            .from('offers')
-            .select('amount, currency, created_at, status')
-            .eq('conversation_id', convId)
-            .order('created_at', { ascending: false })
+            .from("offers")
+            .select("amount, currency, created_at, status")
+            .eq("conversation_id", convId)
+            .order("created_at", { ascending: false })
             .maybeSingle<OfferLite>();
           const pick = paid ?? accepted ?? latest ?? null;
           if (pick) {
-            const rawAmount = typeof pick.amount === 'number' ? pick.amount : Number(pick.amount ?? 0);
+            const rawAmount =
+              typeof pick.amount === "number"
+                ? pick.amount
+                : Number(pick.amount ?? 0);
             if (Number.isFinite(rawAmount)) amount = rawAmount;
             const cur = pick.currency;
-            if (typeof cur === 'string' && cur.trim()) currency = cur.toUpperCase();
+            if (typeof cur === "string" && cur.trim())
+              currency = cur.toUpperCase();
           }
-        } catch { /* ignore */ }
-        const baseCents = Math.round(((Number.isFinite(amount) ? amount : 0) + Number.EPSILON) * 100);
-        const feeCents = baseCents > 0 ? Math.min(150000, Math.max(5000, Math.round(baseCents * 0.05))) : 0; // 50-1500 MXN
-        const ivaCents = baseCents > 0 ? Math.round((baseCents + feeCents) * 0.16) : 0;
+        } catch {
+          /* ignore */
+        }
+        const baseCents = Math.round(
+          ((Number.isFinite(amount) ? amount : 0) + Number.EPSILON) * 100,
+        );
+        const feeCents =
+          baseCents > 0
+            ? Math.min(150000, Math.max(5000, Math.round(baseCents * 0.05)))
+            : 0; // 50-1500 MXN
+        const ivaCents =
+          baseCents > 0 ? Math.round((baseCents + feeCents) * 0.16) : 0;
         const totalCents = baseCents + feeCents + ivaCents;
         data = {
           receipt_id: id,
@@ -308,7 +364,7 @@ export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: s
           client_name: clientRow?.full_name || null,
           client_email: clientRow?.email || null,
           professional_name: proRow?.full_name || null,
-          service_title: reqRow?.title || 'Servicio',
+          service_title: reqRow?.title || "Servicio",
           service_description: reqRow?.description || null,
           request_id: requestId || null,
         } as ReceiptViewRow;
@@ -321,18 +377,22 @@ export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: s
   if (!data) return null;
 
   const createdISO = data.created_at ?? new Date().toISOString();
-  const folio = (data.folio && data.folio.trim())
-    ? data.folio.trim()
-    : generateSimpleFolio(String(data.receipt_id || id), new Date(createdISO));
+  const folio =
+    data.folio && data.folio.trim()
+      ? data.folio.trim()
+      : generateSimpleFolio(
+          String(data.receipt_id || id),
+          new Date(createdISO),
+        );
 
   // Persist folio if missing (idempotent), best‑effort
   try {
     if (!data.folio || !data.folio.trim()) {
       await supabase
-        .from('receipts')
+        .from("receipts")
         .update({ folio })
-        .eq('id', data.receipt_id)
-        .is('folio', null);
+        .eq("id", data.receipt_id)
+        .is("folio", null);
       data = { ...data, folio };
     }
   } catch {
@@ -345,65 +405,73 @@ export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: s
   let commission_amount = nn(data.commission_amount);
   let iva_amount = nn(data.iva_amount);
   let total_amount = nn(data.total_amount);
-  if (total_amount === 0) total_amount = service_amount + commission_amount + iva_amount;
+  if (total_amount === 0)
+    total_amount = service_amount + commission_amount + iva_amount;
 
   // If commission and IVA are both zero but we have context, derive them from business rule (5% fee, IVA 16%).
-  if ((commission_amount === 0 && iva_amount === 0) && total_amount > 0) {
+  if (commission_amount === 0 && iva_amount === 0 && total_amount > 0) {
     try {
       // Try to derive base amount from latest offer of the related conversation
       const reqId = data.request_id ?? null;
       let convId: string | null = null;
       if (reqId) {
         const { data: convRow } = await supabase
-          .from('conversations')
-          .select('id, created_at')
-          .eq('request_id', reqId)
-          .order('created_at', { ascending: false })
+          .from("conversations")
+          .select("id, created_at")
+          .eq("request_id", reqId)
+          .order("created_at", { ascending: false })
           .limit(1)
-          .maybeSingle<Pick<Database["public"]["Tables"]["conversations"]["Row"], 'id'>>();
+          .maybeSingle<
+            Pick<Database["public"]["Tables"]["conversations"]["Row"], "id">
+          >();
         convId = convRow?.id ?? null;
       }
       if (convId) {
         const { data: offersPaid } = await supabase
-          .from('offers')
-          .select('amount, currency, created_at')
-          .eq('conversation_id', convId)
-          .eq('status', 'paid')
-          .order('created_at', { ascending: false })
+          .from("offers")
+          .select("amount, currency, created_at")
+          .eq("conversation_id", convId)
+          .eq("status", "paid")
+          .order("created_at", { ascending: false })
           .maybeSingle<OfferLite>();
         const { data: offersAcc } = await supabase
-          .from('offers')
-          .select('amount, currency, created_at')
-          .eq('conversation_id', convId)
-          .eq('status', 'accepted')
-          .order('created_at', { ascending: false })
+          .from("offers")
+          .select("amount, currency, created_at")
+          .eq("conversation_id", convId)
+          .eq("status", "accepted")
+          .order("created_at", { ascending: false })
           .maybeSingle<OfferLite>();
         const { data: offersAny } = await supabase
-          .from('offers')
-          .select('amount, currency, created_at')
-          .eq('conversation_id', convId)
-          .order('created_at', { ascending: false })
+          .from("offers")
+          .select("amount, currency, created_at")
+          .eq("conversation_id", convId)
+          .order("created_at", { ascending: false })
           .maybeSingle<OfferLite>();
         const pick = offersPaid ?? offersAcc ?? offersAny ?? null;
         const base = pick ? Number(pick.amount ?? NaN) : NaN;
         const baseC = Number.isFinite(base) ? Math.round(base * 100) : 0;
         if (baseC > 0) {
           service_amount = baseC;
-          const feeC = Math.min(150000, Math.max(5000, Math.round(baseC * 0.05)));
+          const feeC = Math.min(
+            150000,
+            Math.max(5000, Math.round(baseC * 0.05)),
+          );
           const ivaC = Math.round((baseC + feeC) * 0.16);
           commission_amount = feeC;
           iva_amount = ivaC;
           total_amount = service_amount + commission_amount + iva_amount;
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   return {
     receipt_id: data.receipt_id,
     created_at: createdISO,
     folio,
-    currency: data.currency || 'MXN',
+    currency: data.currency || "MXN",
     service_amount,
     commission_amount,
     iva_amount,
@@ -416,7 +484,3 @@ export async function getReceiptForPdf(supabase: SupabaseClient<Database>, id: s
     request_id: data.request_id ?? null,
   };
 }
-
-
-
-
