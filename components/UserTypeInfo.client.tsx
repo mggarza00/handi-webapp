@@ -99,11 +99,11 @@ export default function UserTypeInfo({
           : "Tipo activo actualizado",
       );
       // Asegura que la página de destino reciba el rol actualizado desde el servidor.
-      // Si ya estamos en "/", solo refrescamos. Si no, navegamos primero y luego refrescamos.
-      if (pathname === "/") {
+      const targetPath = nextRole === "pro" ? "/pro" : "/";
+      if (pathname === targetPath) {
         router.refresh();
       } else {
-        const url = `/?r=${Date.now()}`; // rompe posibles cachés del router
+        const url = `${targetPath}?r=${Date.now()}`; // rompe posibles cachés del router
         router.push(url);
         setTimeout(() => {
           try {
