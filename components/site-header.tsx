@@ -215,7 +215,7 @@ export default async function SiteHeader() {
     cookieStore.get("handee_pro_apply")?.value === "1";
 
   // El logo siempre debe redirigir a la pÃ¡gina de inicio
-  const leftHref = "/";
+  const leftHref = role === "pro" ? "/pro" : "/";
   const publicNavItems = [
     {
       href: "/#servicios-populares",

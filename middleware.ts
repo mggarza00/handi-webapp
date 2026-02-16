@@ -125,7 +125,10 @@ export async function middleware(request: NextRequest) {
     }
     return NextResponse.next();
   }
+  const allCookies = request.cookies.getAll();
+  const hasSbPrefix = allCookies.some((cookie) => cookie.name.startsWith("sb-"));
   const hasAuthCookie =
+    hasSbPrefix ||
     request.cookies.has("sb-access-token") ||
     request.cookies.has("sb:token") ||
     request.cookies.has("supabase-auth-token");
@@ -181,8 +184,17 @@ export async function middleware(request: NextRequest) {
   }
   // RedirecciÃ³n condicional del home a /pro si el usuario estÃ¡ en vista Pro
   if (pathname === "/") {
+    const activeRole = (
+      request.cookies.get("active_role")?.value || ""
+    ).toLowerCase();
     const lowered =
       typeof profileRole === "string" ? profileRole.toLowerCase() : null;
+    if (activeRole === "pro") {
+      const u = request.nextUrl.clone();
+      u.pathname = "/pro";
+      return NextResponse.redirect(u);
+    }
+    if (activeRole === "client") return response;
     if (lowered === "pro") {
       const u = request.nextUrl.clone();
       u.pathname = "/pro";
