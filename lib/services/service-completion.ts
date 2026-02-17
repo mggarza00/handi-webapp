@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { notifyAgreementUpdated } from "@/lib/notifications";
@@ -304,6 +305,15 @@ export async function handleServiceCompletion(
       status: updatedAgreement.status,
       operation: options.operation,
     });
+
+    if (updatedAgreement.status === "completed") {
+      try {
+        revalidatePath("/pro");
+        revalidatePath("/pro/calendar");
+      } catch {
+        /* ignore */
+      }
+    }
 
     return NextResponse.json(
       {
