@@ -1,51 +1,37 @@
+import {
+  escapeAttribute,
+  escapeHtml,
+  renderHandiEmailLayoutHtml,
+} from "@/lib/emails/handi-email-layout";
+
 type LayoutOpts = {
+  headerLabel: string;
   title: string;
   preheader?: string;
-  childrenHtml: string;
+  bodyHtml: string;
+  cta?: { label: string; url: string } | null;
+  fallbackLinkUrl?: string;
+  securityNoteHtml?: string;
 };
 
-export function emailLayout({ title, preheader, childrenHtml }: LayoutOpts) {
-  const safePre = preheader ? preheader.replace(/</g, "&lt;") : "";
-  const rawBase =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://handi.mx');
-  const siteBase = rawBase.replace(/\/$/, "");
-  const logoUrl = `${siteBase}/images/LOGO_HANDI_DB.png`;
-  return `<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${title}</title>
-    <style>
-      body { background:#f6f7fb; color:#0f172a; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"; margin:0; padding:0; }
-      .preheader { display:none; visibility:hidden; opacity:0; height:0; width:0; overflow:hidden; }
-      .container { max-width: 600px; margin: 0 auto; padding: 24px 16px; }
-      .card { background:#ffffff; border:1px solid #e5e7eb; border-radius:12px; padding: 24px; }
-      .brand { font-weight: 700; font-size: 18px; color:#0f172a; text-decoration:none; }
-      .muted { color:#64748b; font-size: 12px; }
-      h1 { font-size: 18px; margin: 0 0 12px; }
-      p { line-height: 1.6; margin: 0 0 12px; }
-      .footer { margin-top: 16px; text-align:center; }
-      .btn { display:inline-block; background:#0f172a; color:#fff; text-decoration:none; padding:10px 16px; border-radius:8px; font-size:14px; }
-    </style>
-  </head>
-  <body>
-    <span class="preheader">${safePre}</span>
-    <div class="container">
-      <div style="margin: 0 0 12px; text-align:center;">
-        <a href="${siteBase}"><img src="${logoUrl}" alt="Handi" height="80" style="height:80px" /></a>
-      </div>
-      <div class="card">
-        ${childrenHtml}
-      </div>
-      <div class="footer">
-        <p class="muted">Este es un mensaje automático. No respondas a este correo.</p>
-      </div>
-    </div>
-  </body>
- </html>`;
+export function emailLayout({
+  headerLabel,
+  title,
+  preheader,
+  bodyHtml,
+  cta,
+  fallbackLinkUrl,
+  securityNoteHtml,
+}: LayoutOpts) {
+  return renderHandiEmailLayoutHtml({
+    headerLabel,
+    title,
+    preheader,
+    bodyHtml,
+    cta,
+    fallbackLinkUrl,
+    securityNoteHtml,
+  });
 }
 
 export function applicationCreatedHtml(opts: {
@@ -53,16 +39,18 @@ export function applicationCreatedHtml(opts: {
   linkUrl?: string;
 }) {
   const title = "Nueva postulación";
+  const safeTitle = escapeHtml(opts.requestTitle ?? "tu solicitud");
   const body = `
-    <h1>${title}</h1>
-    <p>Recibiste una nueva postulación en: <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
+    <p>Recibiste una nueva postulación en: <strong>${safeTitle}</strong>.</p>
     <p>Ingresa a Handi para revisar el perfil y crear un acuerdo.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir solicitud</a></p>` : ""}
   `;
   return emailLayout({
+    headerLabel: "Notificación",
     title,
     preheader: "Tienes una nueva postulación",
-    childrenHtml: body,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Abrir solicitud", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
   });
 }
 
@@ -72,12 +60,19 @@ export function applicationUpdatedHtml(opts: {
   linkUrl?: string;
 }) {
   const title = `Tu postulación cambió a: ${opts.status}`;
+  const safeStatus = escapeHtml(opts.status);
+  const safeRequest = escapeHtml(opts.requestId);
   const body = `
-    <h1>${title}</h1>
-    <p>La postulación de la solicitud <code>${opts.requestId}</code> cambió a estado <strong>${opts.status}</strong>.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir solicitud</a></p>` : ""}
+    <p>La postulación de la solicitud <code>${safeRequest}</code> cambió a estado <strong>${safeStatus}</strong>.</p>
   `;
-  return emailLayout({ title, preheader: title, childrenHtml: body });
+  return emailLayout({
+    headerLabel: "Actualización",
+    title,
+    preheader: title,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Abrir solicitud", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
+  });
 }
 
 export function agreementCreatedHtml(opts: {
@@ -86,13 +81,20 @@ export function agreementCreatedHtml(opts: {
   linkUrl?: string;
 }) {
   const title = `Nuevo acuerdo #${opts.agreementIdShort}`;
+  const safeReq = escapeHtml(opts.requestTitle ?? "");
+  const safeId = escapeHtml(opts.agreementIdShort);
   const body = `
-    <h1>${title}</h1>
-    <p>Se creó un acuerdo para la solicitud <strong>${opts.requestTitle ?? ""}</strong>.</p>
+    <p>Se creó un acuerdo para la solicitud <strong>${safeReq}</strong>.</p>
     <p>Revisa los detalles y continúa el flujo de pago o aceptación.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ver acuerdo</a></p>` : ""}
   `;
-  return emailLayout({ title, preheader: title, childrenHtml: body });
+  return emailLayout({
+    headerLabel: "Notificación",
+    title,
+    preheader: `Nuevo acuerdo #${safeId}`,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Ver acuerdo", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
+  });
 }
 
 export function agreementUpdatedHtml(opts: {
@@ -102,12 +104,20 @@ export function agreementUpdatedHtml(opts: {
   linkUrl?: string;
 }) {
   const title = `Acuerdo actualizado: ${opts.status}`;
+  const safeReq = escapeHtml(opts.requestTitle ?? "");
+  const safeId = escapeHtml(opts.agreementIdShort);
+  const safeStatus = escapeHtml(opts.status);
   const body = `
-    <h1>${title}</h1>
-    <p>El acuerdo <strong>#${opts.agreementIdShort}</strong> de la solicitud <strong>${opts.requestTitle ?? ""}</strong> cambió a estado <strong>${opts.status}</strong>.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Abrir solicitud</a></p>` : ""}
+    <p>El acuerdo <strong>#${safeId}</strong> de la solicitud <strong>${safeReq}</strong> cambió a estado <strong>${safeStatus}</strong>.</p>
   `;
-  return emailLayout({ title, preheader: title, childrenHtml: body });
+  return emailLayout({
+    headerLabel: "Actualización",
+    title,
+    preheader: title,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Abrir solicitud", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
+  });
 }
 
 export function messageReceivedHtml(opts: {
@@ -117,16 +127,22 @@ export function messageReceivedHtml(opts: {
   linkUrl?: string;
 }) {
   const title = "Nuevo mensaje";
+  const safeSender = escapeHtml(opts.senderName ?? "usuario");
+  const safeReq = escapeHtml(opts.requestTitle ?? "");
+  const safePreview = escapeHtml(opts.preview);
   const body = `
-    <h1>${title}</h1>
-    <p>Recibiste un nuevo mensaje de <strong>${opts.senderName ?? "usuario"}</strong> para: <strong>${opts.requestTitle ?? ""}</strong>.</p>
-    <blockquote>${opts.preview}</blockquote>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}" style="background:#0B3949;color:#ffffff">Abrir conversación</a></p>` : ""}
+    <p>Recibiste un nuevo mensaje de <strong>${safeSender}</strong> para: <strong>${safeReq}</strong>.</p>
+    <blockquote style="margin:0 0 16px;padding:12px 14px;border-left:4px solid #082877;background:#f1f5ff;color:#1f2a44;border-radius:10px;line-height:1.6;">
+      ${safePreview}
+    </blockquote>
   `;
   return emailLayout({
+    headerLabel: "Nuevo mensaje",
     title,
     preheader: "Tienes un nuevo mensaje",
-    childrenHtml: body,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Abrir conversación", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
   });
 }
 
@@ -136,38 +152,52 @@ export function firstProfessionalAvailableHtml(opts: {
   linkUrl?: string;
 }) {
   const title = "Encontramos un profesional para tu solicitud";
+  const safeReq = escapeHtml(opts.requestTitle ?? "tu solicitud");
+  const safePro = escapeHtml(opts.professionalName ?? "Un profesional");
   const body = `
-    <h1>${title}</h1>
-    <p>${opts.professionalName ? `<strong>${opts.professionalName}</strong>` : "Un profesional"} está listo para apoyarte en <strong>${opts.requestTitle ?? "tu solicitud"}</strong>.</p>
+    <p>${opts.professionalName ? `<strong>${safePro}</strong>` : "Un profesional"} está listo para apoyarte en <strong>${safeReq}</strong>.</p>
     <p>Entra a Handi para revisar su perfil y continuar con el proceso.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ver solicitud</a></p>` : ""}
   `;
   return emailLayout({
+    headerLabel: "Notificación",
     title,
     preheader: "Ya tenemos un profesional disponible para tu solicitud",
-    childrenHtml: body,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Ver solicitud", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
   });
 }
 
 export function proApplicationAcceptedHtml(opts: { linkUrl?: string; imageUrl?: string }) {
   const title = "¡Has sido aceptado como profesional!";
+  const safeImage = opts.imageUrl ? escapeAttribute(opts.imageUrl) : "";
   const body = `
-    <h1>${title}</h1>
-    ${opts.imageUrl ? `<p style="margin:12px 0 16px;"><img src="${opts.imageUrl}" alt="Solicitud aceptada" style="max-width:100%; border-radius:12px; display:block;" /></p>` : ""}
+    ${opts.imageUrl ? `<p style="margin:12px 0 16px;"><img src="${safeImage}" alt="Solicitud aceptada" style="max-width:100%; border-radius:12px; display:block;" /></p>` : ""}
     <p>Tu solicitud para unirte como profesional en Handi fue <strong>aceptada</strong>.</p>
     <p>Ya puedes completar tu perfil y comenzar a recibir oportunidades.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Ir a mi perfil</a></p>` : ""}
   `;
-  return emailLayout({ title, preheader: title, childrenHtml: body });
+  return emailLayout({
+    headerLabel: "Notificación",
+    title,
+    preheader: title,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Ir a mi perfil", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
+  });
 }
 
 export function proApplicationRejectedHtml(opts: { linkUrl?: string }) {
   const title = "Resultado de tu solicitud";
   const body = `
-    <h1>${title}</h1>
     <p>Tu solicitud para unirte como profesional fue <strong>rechazada</strong> en esta ocasión.</p>
     <p>Puedes actualizar tu información y volver a intentarlo más adelante.</p>
-    ${opts.linkUrl ? `<p><a class="btn" href="${opts.linkUrl}">Revisar mi perfil</a></p>` : ""}
   `;
-  return emailLayout({ title, preheader: title, childrenHtml: body });
+  return emailLayout({
+    headerLabel: "Notificación",
+    title,
+    preheader: title,
+    bodyHtml: body,
+    cta: opts.linkUrl ? { label: "Revisar mi perfil", url: opts.linkUrl } : null,
+    fallbackLinkUrl: opts.linkUrl,
+  });
 }
