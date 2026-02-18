@@ -317,10 +317,15 @@ export async function getPotentialJobs(
   }>
 > {
   try {
-    const { items } = await fetchExploreRequests(userId, {
-      page: 1,
-      pageSize: Math.max(1, limit),
-    });
+    const supa = createClient();
+    const { items } = await fetchExploreRequests(
+      userId,
+      {
+        page: 1,
+        pageSize: Math.max(1, limit),
+      },
+      supa as any,
+    );
     return (items || []).map((it) => ({
       id: String(it.id),
       title: it.title,
