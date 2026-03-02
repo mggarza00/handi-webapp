@@ -14,20 +14,31 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ASSISTANT_OPEN_EVENT, type AssistantOpenPayload } from "@/lib/assistant/events";
+import {
+  ASSISTANT_OPEN_EVENT,
+  type AssistantOpenPayload,
+} from "@/lib/assistant/events";
+import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_LINK } from "@/lib/support/contact";
 
 type Role = "user" | "assistant";
 type Msg = { role: Role; content: string };
 
 export default function AssistantPanel() {
   const pathname = usePathname();
-  const isAdmin = pathname === "/admin" || (pathname ?? "").startsWith("/admin/");
+  const isAdmin =
+    pathname === "/admin" || (pathname ?? "").startsWith("/admin/");
   const [open, setOpen] = useState(false);
   const [hasBottomBar, setHasBottomBar] = useState(false);
-  const onChatDetail = useMemo(() => /^\/mensajes\/[\w-]+/i.test(pathname || ""), [pathname]);
+  const onChatDetail = useMemo(
+    () => /^\/mensajes\/[\w-]+/i.test(pathname || ""),
+    [pathname],
+  );
 
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: "Hola, soy el asistente de Handi. ¿En qué te ayudo?" },
+    {
+      role: "assistant",
+      content: "Hola, soy el asistente de Handi. ¿En qué te ayudo?",
+    },
   ]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -49,15 +60,24 @@ export default function AssistantPanel() {
       }
       setOpen(true);
     };
-    window.addEventListener(ASSISTANT_OPEN_EVENT, handleAssistantOpen as EventListener);
+    window.addEventListener(
+      ASSISTANT_OPEN_EVENT,
+      handleAssistantOpen as EventListener,
+    );
     return () => {
-      window.removeEventListener(ASSISTANT_OPEN_EVENT, handleAssistantOpen as EventListener);
+      window.removeEventListener(
+        ASSISTANT_OPEN_EVENT,
+        handleAssistantOpen as EventListener,
+      );
     };
   }, []);
 
   useEffect(() => {
     // autoscroll on new message
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, open]);
 
   function handleClose() {
@@ -72,7 +92,11 @@ export default function AssistantPanel() {
   async function handleSend() {
     if (!canSend) return;
     const userMsg: Msg = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMsg, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { role: "assistant", content: "" },
+    ]);
     setInput("");
     setIsSending(true);
 
@@ -113,7 +137,10 @@ export default function AssistantPanel() {
             const next = [...prev];
             const lastIdx = next.length - 1;
             if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
-              next[lastIdx] = { role: "assistant", content: (next[lastIdx].content || "") + payload };
+              next[lastIdx] = {
+                role: "assistant",
+                content: (next[lastIdx].content || "") + payload,
+              };
             }
             return next;
           });
@@ -123,7 +150,11 @@ export default function AssistantPanel() {
       console.error("[AssistantPanel]", error);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Lo siento, ocurrió un error al responder. Intenta de nuevo." },
+        {
+          role: "assistant",
+          content:
+            "Lo siento, ocurrió un error al responder. Intenta de nuevo.",
+        },
       ]);
     } finally {
       setIsSending(false);
@@ -188,7 +219,9 @@ export default function AssistantPanel() {
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <span className="flex-1 text-center md:text-left md:ml-10 text-[22px]">Asistente Handi</span>
+              <span className="flex-1 text-center md:text-left md:ml-10 text-[22px]">
+                Asistente Handi
+              </span>
               <Image
                 src="/images/handee_mascota.gif"
                 alt="Handee mascota"
@@ -207,15 +240,44 @@ export default function AssistantPanel() {
               className="h-full overflow-auto overscroll-contain p-3 bg-background/50 space-y-3"
             >
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"} max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words`}>{m.content}</div>
+                <div
+                  key={i}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"} max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words`}
+                  >
+                    {m.content}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
+          <div className="mt-3 rounded-2xl border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <div className="font-semibold text-foreground">
+              ¿Necesitas hablar con alguien?
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={SUPPORT_WHATSAPP_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button size="sm" className="gap-2">
+                  Abrir WhatsApp
+                </Button>
+              </a>
+              <a href={`mailto:${SUPPORT_EMAIL}?subject=Soporte%20Handi`}>
+                <Button size="sm" variant="outline">
+                  Enviar correo
+                </Button>
+              </a>
+            </div>
+          </div>
+
           {/* Input anclado al fondo del panel */}
-          <div className="border-t p-3 pb-[env(safe-area-inset-bottom)]">
+          <div className="border-t p-3 pb-[env(safe-area-inset-bottom)] mb-2">
             <div className="flex items-start gap-2">
               <Textarea
                 rows={2}
@@ -234,7 +296,11 @@ export default function AssistantPanel() {
                 }}
                 placeholder="Escribe tu mensaje…"
               />
-              <Button onClick={handleSend} disabled={!canSend} className="gap-2 h-10 self-start">
+              <Button
+                onClick={handleSend}
+                disabled={!canSend}
+                className="gap-2 h-10 self-start"
+              >
                 {isSending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />

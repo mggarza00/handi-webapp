@@ -42,6 +42,11 @@ import {
   getContactPolicyMessage,
   getContactPolicyMode,
 } from "@/lib/safety/policy";
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_WHATSAPP_DISPLAY,
+  SUPPORT_WHATSAPP_LINK,
+} from "@/lib/support/contact";
 
 type Category = "General" | "Clientes" | "Profesionales" | "Pagos" | "Cuenta";
 
@@ -59,8 +64,6 @@ type QuickFix = {
   steps: string[];
 };
 
-const SUPPORT_EMAIL =
-  process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "soporte@handi.mx";
 const CONTACT_POLICY_MESSAGE = getContactPolicyMessage();
 const CONTACT_POLICY_MODE = getContactPolicyMode();
 
@@ -818,9 +821,9 @@ export default function Help() {
                   <p className="font-medium text-slate-900">WhatsApp</p>
                   <Link
                     className="text-emerald-700 underline"
-                    href="https://wa.me/528130878691"
+                    href={SUPPORT_WHATSAPP_LINK}
                   >
-                    81 3087 8691
+                    {SUPPORT_WHATSAPP_DISPLAY}
                   </Link>
                 </div>
                 <Separator />
@@ -901,7 +904,7 @@ export default function Help() {
                 responder más rápido.
               </p>
               <div className="flex flex-wrap gap-3">
-                <Link href="https://wa.me/528130878691">
+                <Link href={SUPPORT_WHATSAPP_LINK}>
                   <Button className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700">
                     <MessageCircle className="h-4 w-4" />
                     WhatsApp

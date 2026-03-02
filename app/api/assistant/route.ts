@@ -1,7 +1,17 @@
 import { NextRequest } from "next/server";
 
 import { SYSTEM_PROMPT } from "@/lib/assistant/prompt";
-import { getHelpEntry, openAppLink, whoAmI } from "@/lib/assistant/tools";
+import {
+  getHelpEntry,
+  getSupportContact,
+  openAppLink,
+  whoAmI,
+} from "@/lib/assistant/tools";
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_WHATSAPP_DISPLAY,
+  SUPPORT_WHATSAPP_LINK,
+} from "@/lib/support/contact";
 import type { ChatMessage } from "@/types/assistant";
 
 export const runtime = "nodejs";
@@ -21,7 +31,11 @@ type OpenAIAssistantToolCall = {
 
 type OpenAIMessage =
   | { role: "system" | "user" | "assistant"; content: string }
-  | { role: "assistant"; content: string | null; tool_calls: OpenAIAssistantToolCall[] }
+  | {
+      role: "assistant";
+      content: string | null;
+      tool_calls: OpenAIAssistantToolCall[];
+    }
   | { role: "tool"; content: string; tool_call_id: string };
 
 type ToolCall = {
@@ -32,9 +46,43 @@ type ToolCall = {
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+const SUPPORT_INTENT_REGEX =
+  /(hablar con (alguien|una persona|un humano)|asesor|humano|soporte|contacto|tel[eé]fono|whatsapp|correo|email|ayuda personalizada)/i;
 
 function sse(data: string) {
   return `data: ${data}\n\n`;
+}
+
+function isSupportIntent(text: string): boolean {
+  return SUPPORT_INTENT_REGEX.test(String(text || "").toLowerCase());
+}
+
+function buildSupportReply(): string {
+  return [
+    "Claro. Puedes contactar a soporte de Handi por:",
+    `WhatsApp: ${SUPPORT_WHATSAPP_DISPLAY} (${SUPPORT_WHATSAPP_LINK})`,
+    `Correo: ${SUPPORT_EMAIL}`,
+    "También puedes ir a /mensajes para compartir el ID de tu conversación y acelerar la revisión.",
+    "Más ayuda en /help.",
+  ].join("\n");
+}
+
+function supportSseResponse(): Response {
+  const enc = new TextEncoder();
+  const text = buildSupportReply();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(enc.encode(sse(text)));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 function toolSpecs() {
@@ -43,7 +91,8 @@ function toolSpecs() {
       type: "function",
       function: {
         name: "getHelpEntry",
-        description: "Busca en FAQs internas de Handi y devuelve un resumen con score y links.",
+        description:
+          "Busca en FAQs internas de Handi y devuelve un resumen con score y links.",
         parameters: {
           type: "object",
           properties: {
@@ -58,7 +107,8 @@ function toolSpecs() {
       type: "function",
       function: {
         name: "openAppLink",
-        description: "Devuelve rutas internas seguras (por ejemplo /help, /requests/new, /pro/apply).",
+        description:
+          "Devuelve rutas internas seguras (por ejemplo /help, /requests/new, /pro/apply).",
         parameters: {
           type: "object",
           properties: {
@@ -74,7 +124,23 @@ function toolSpecs() {
       function: {
         name: "whoAmI",
         description: "Retorna el rol del usuario autenticado si se conoce.",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
+        parameters: {
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "getSupportContact",
+        description: "Devuelve los canales oficiales de soporte de Handi.",
+        parameters: {
+          type: "object",
+          properties: {},
+          additionalProperties: false,
+        },
       },
     },
   ];
@@ -114,20 +180,28 @@ export async function POST(req: NextRequest) {
   const userRole = body?.user?.role || null;
   const pathname = body?.page?.pathname || "/";
   const msgs = body?.messages || [];
+  const lastUser = [...msgs].reverse().find((m) => m.role === "user");
+  const lastUserContent = lastUser?.content || "";
+
+  if (isSupportIntent(lastUserContent)) {
+    return supportSseResponse();
+  }
 
   // If there's no OpenAI key, fall back to local FAQs (RAG) so the bot still works.
   if (!process.env.OPENAI_API_KEY) {
     const enc = new TextEncoder();
-    const lastUser = [...msgs].reverse().find((m) => m.role === "user");
-    const query = (lastUser?.content || "").slice(0, 2000);
+    const query = lastUserContent.slice(0, 2000);
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
           const res = await getHelpEntry(query);
-          const text = res.answer + (res.links?.[0] ? `\n\nVer: ${res.links[0]}` : "");
+          const text =
+            res.answer + (res.links?.[0] ? `\n\nVer: ${res.links[0]}` : "");
           controller.enqueue(enc.encode(sse(text)));
         } catch {
-          controller.enqueue(enc.encode(sse("Configura OPENAI_API_KEY en .env.local")));
+          controller.enqueue(
+            enc.encode(sse("Configura OPENAI_API_KEY en .env.local")),
+          );
         } finally {
           controller.close();
         }
@@ -146,7 +220,7 @@ export async function POST(req: NextRequest) {
     { role: "system", content: SYSTEM_PROMPT },
     { role: "system", content: `APP_PATHNAME: ${pathname}` },
     { role: "system", content: `USER_ROLE: ${userRole || "unknown"}` },
-    ...msgs.map((m) => ({ role: m.role, content: m.content } as OpenAIMessage)),
+    ...msgs.map((m) => ({ role: m.role, content: m.content }) as OpenAIMessage),
   ];
 
   // SSE pipe to client while orchestrating tool calls
@@ -182,15 +256,27 @@ export async function POST(req: NextRequest) {
                 write(delta.content);
               }
               const tc = delta.tool_calls as
-                | Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>
+                | Array<{
+                    index: number;
+                    id?: string;
+                    function?: { name?: string; arguments?: string };
+                  }>
                 | undefined;
               if (tc && tc.length) {
                 for (const item of tc) {
                   const idx = item.index;
-                  const current = partialTool[idx] || ({ id: "", type: "function", function: { name: "", arguments: "" } } as ToolCall);
+                  const current =
+                    partialTool[idx] ||
+                    ({
+                      id: "",
+                      type: "function",
+                      function: { name: "", arguments: "" },
+                    } as ToolCall);
                   if (item.id) current.id = item.id;
-                  if (item.function?.name) current.function.name = item.function.name;
-                  if (item.function?.arguments) current.function.arguments += item.function.arguments;
+                  if (item.function?.name)
+                    current.function.name = item.function.name;
+                  if (item.function?.arguments)
+                    current.function.arguments += item.function.arguments;
                   partialTool[idx] = current;
                 }
               }
@@ -217,11 +303,16 @@ export async function POST(req: NextRequest) {
                 result = openAppLink(String(parsed.slug || "help"));
               } else if (name === "whoAmI") {
                 result = whoAmI({ userRole });
+              } else if (name === "getSupportContact") {
+                result = getSupportContact();
               } else {
                 result = { ok: false, error: "UNKNOWN_TOOL" };
               }
             } catch (err) {
-              result = { ok: false, error: String((err as Error).message || err) };
+              result = {
+                ok: false,
+                error: String((err as Error).message || err),
+              };
             }
             toolMessages.push({
               role: "tool",
@@ -237,7 +328,10 @@ export async function POST(req: NextRequest) {
             tool_calls: toolCalls.map((c) => ({
               id: c.id,
               type: "function",
-              function: { name: c.function.name, arguments: c.function.arguments },
+              function: {
+                name: c.function.name,
+                arguments: c.function.arguments,
+              },
             })),
           };
 
@@ -277,10 +371,10 @@ export async function POST(req: NextRequest) {
         console.error("[assistant] OpenAI stream error:", err);
         // Fallback: answer via local FAQs if OpenAI fails
         try {
-          const lastUser = [...msgs].reverse().find((m) => m.role === "user");
-          const query = (lastUser?.content || "").slice(0, 2000);
+          const query = lastUserContent.slice(0, 2000);
           const res = await getHelpEntry(query);
-          const text = res.answer + (res.links?.[0] ? `\n\nVer: ${res.links[0]}` : "");
+          const text =
+            res.answer + (res.links?.[0] ? `\n\nVer: ${res.links[0]}` : "");
           write(text);
         } catch {
           write("Lo siento, hubo un problema generando la respuesta.");
