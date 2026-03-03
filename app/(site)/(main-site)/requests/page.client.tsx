@@ -4,22 +4,46 @@ import * as React from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SquarePen, Save, X, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  SquarePen,
+  Save,
+  X,
+  Trash2,
+} from "lucide-react";
 
 import type { RequestDetail as RequestDetailType } from "./[id]/RequestDetailClient";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import StatusMultiSelect from "@/components/filters/StatusMultiSelect";
 import CreateRequestButton from "@/components/requests/CreateRequestButton";
 
-const RequestDetailClient = dynamic(() => import("./[id]/RequestDetailClient"), {
-  ssr: false,
-  loading: () => (
-    <div className="px-4 py-3 text-sm text-slate-500">Cargando detalle...</div>
-  ),
-});
+const RequestDetailClient = dynamic(
+  () => import("./[id]/RequestDetailClient"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="px-4 py-3 text-sm text-slate-500">
+        Cargando detalle...
+      </div>
+    ),
+  },
+);
 
 type RequestItem = {
   id: string;
@@ -34,21 +58,126 @@ type RequestItem = {
 const DEFAULT_REQUEST_IMAGE = "/images/default-requests-image.png";
 
 const STATUS_OPTIONS = [
-  { value: "active", label: "Activas" },
+  { value: "active", label: "Activa" },
   { value: "in_process", label: "En proceso" },
-  { value: "completed", label: "Completadas" },
-  { value: "cancelled", label: "Canceladas" },
+  { value: "completed", label: "Completada" },
+  { value: "cancelled", label: "Cancelada" },
+] as const;
+
+const SORT_OPTIONS = [
+  { value: "recent", label: "Más recientes" },
+  { value: "oldest", label: "Más antiguas" },
+  { value: "status", label: "Por estatus" },
 ] as const;
 
 function statusLabel(status?: string | null) {
   const key = (status ?? "").toLowerCase();
   // Compat mapeos
-  if (key === "canceled") return "Canceladas";
-  if (key === "finished") return "Completadas";
+  if (key === "canceled") return "Cancelada";
+  if (key === "finished") return "Completada";
   const option = STATUS_OPTIONS.find((opt) => opt.value === key);
   if (option) return option.label;
   if (!key) return "Sin estatus";
   return key.replace(/_/g, " ");
+}
+
+function OrderSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selected =
+    SORT_OPTIONS.find((opt) => opt.value === value) ?? SORT_OPTIONS[0];
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="justify-between rounded-lg w-full whitespace-normal text-left h-auto"
+        >
+          <span className="flex-1 min-w-0 break-words">{selected.label}</span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+        <Command>
+          <CommandEmpty>Sin resultados</CommandEmpty>
+          <CommandList>
+            <CommandGroup>
+              {SORT_OPTIONS.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <CommandItem
+                    key={opt.value}
+                    onSelect={() => onChange(opt.value)}
+                    className="cursor-pointer"
+                  >
+                    <Check
+                      className={
+                        isSelected
+                          ? "mr-2 h-4 w-4 opacity-100"
+                          : "mr-2 h-4 w-4 opacity-0"
+                      }
+                    />
+                    {opt.label}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function statusUi(status?: string | null) {
+  const key = (status ?? "").toLowerCase();
+  const label = statusLabel(status);
+  if (key === "active") {
+    return {
+      label,
+      badgeClass: "bg-blue-100 text-blue-800 border-blue-200",
+      cardClass: "border-2 border-blue-200 bg-white",
+    };
+  }
+  if (key === "in_process") {
+    return {
+      label,
+      badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      cardClass: "border-2 border-emerald-200 bg-white",
+    };
+  }
+  if (key === "completed" || key === "finished") {
+    return {
+      label,
+      badgeClass: "bg-purple-100 text-purple-800 border-purple-200",
+      cardClass: "border-2 border-purple-200 bg-white",
+    };
+  }
+  if (key === "cancelled" || key === "canceled" || key === "deleted") {
+    return {
+      label,
+      badgeClass: "bg-red-100 text-red-800 border-red-200",
+      cardClass: "border-2 border-red-200 bg-white",
+    };
+  }
+  return {
+    label,
+    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+    cardClass: "border border-slate-200 bg-white",
+  };
+}
+
+function formatShortMeta(item: RequestItem) {
+  const cityText = (item.city ?? "").trim() || "Sin ciudad";
+  const dateText = formatDate(item.created_at);
+  return `${cityText} · ${dateText}`;
 }
 
 function formatDate(value?: string | null) {
@@ -88,6 +217,7 @@ export default function RequestsClientPage() {
   const status = searchParams?.get("status") ?? undefined;
   const city = searchParams?.get("city") ?? undefined;
   const mine = searchParams?.get("mine") ?? undefined;
+  const sort = searchParams?.get("sort") ?? "recent";
   const isMy = mine === "1" || mine === "true";
 
   const [items, setItems] = React.useState<RequestItem[]>([]);
@@ -95,29 +225,40 @@ export default function RequestsClientPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
-  const [details, setDetails] = React.useState<Record<string, RequestDetailType | undefined>>({});
+  const [details, setDetails] = React.useState<
+    Record<string, RequestDetailType | undefined>
+  >({});
   const [loadingDetail, setLoadingDetail] = React.useState<string | null>(null);
 
-  const handleNavigate = React.useCallback((id: string) => {
-    router.push(`/requests/${id}`);
-  }, [router]);
+  const handleNavigate = React.useCallback(
+    (id: string) => {
+      router.push(`/requests/${id}`);
+    },
+    [router],
+  );
 
   const fetchList = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const qs = new URLSearchParams();
-      const effectiveStatus = status || (isMy ? "active,in_process" : undefined);
+      const effectiveStatus =
+        status || (isMy ? "active,in_process" : undefined);
       if (effectiveStatus) qs.set("status", effectiveStatus);
       if (city) qs.set("city", city);
       if (isMy) qs.set("mine", "1");
-      const res = await fetch(`/api/requests${qs.toString() ? `?${qs.toString()}` : ""}`, {
-        cache: "no-store",
-        credentials: "include",
-      });
+      const res = await fetch(
+        `/api/requests${qs.toString() ? `?${qs.toString()}` : ""}`,
+        {
+          cache: "no-store",
+          credentials: "include",
+        },
+      );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || "Request failed");
-      const data = Array.isArray(json?.data) ? (json.data as RequestItem[]) : [];
+      const data = Array.isArray(json?.data)
+        ? (json.data as RequestItem[])
+        : [];
       setItems(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "UNKNOWN");
@@ -153,7 +294,10 @@ export default function RequestsClientPage() {
         });
         const json = await res.json().catch(() => ({}));
         if (res.ok && json?.data) {
-          setDetails((prev) => ({ ...prev, [id]: json.data as RequestDetailType }));
+          setDetails((prev) => ({
+            ...prev,
+            [id]: json.data as RequestDetailType,
+          }));
         }
       } finally {
         setLoadingDetail(null);
@@ -167,16 +311,50 @@ export default function RequestsClientPage() {
     const base = !term
       ? items
       : items.filter((item) => {
-        const title = (item.title ?? "").toLowerCase();
-        const cityValue = (item.city ?? "").toLowerCase();
-        const statusValue = (item.status ?? "").toLowerCase();
-        return title.includes(term) || cityValue.includes(term) || statusValue.includes(term);
-      });
+          const title = (item.title ?? "").toLowerCase();
+          const cityValue = (item.city ?? "").toLowerCase();
+          const statusValue = (item.status ?? "").toLowerCase();
+          return (
+            title.includes(term) ||
+            cityValue.includes(term) ||
+            statusValue.includes(term)
+          );
+        });
     // Priorizar 'in_process' al inicio manteniendo orden relativo
-    const inProc = base.filter((it) => (it.status ?? "").toLowerCase() === "in_process");
-    const rest = base.filter((it) => (it.status ?? "").toLowerCase() !== "in_process");
+    const inProc = base.filter(
+      (it) => (it.status ?? "").toLowerCase() === "in_process",
+    );
+    const rest = base.filter(
+      (it) => (it.status ?? "").toLowerCase() !== "in_process",
+    );
     return [...inProc, ...rest];
   }, [items, query]);
+
+  const sortedItems = React.useMemo(() => {
+    const list = [...visibleItems];
+    if (sort === "oldest") {
+      return list.sort((a, b) => {
+        const diff = getDateMs(a) - getDateMs(b);
+        if (diff !== 0) return diff;
+        return a.id.localeCompare(b.id);
+      });
+    }
+    if (sort === "status") {
+      return list.sort((a, b) => {
+        const ra = statusRank(a.status);
+        const rb = statusRank(b.status);
+        if (ra !== rb) return ra - rb;
+        const diff = getDateMs(b) - getDateMs(a);
+        if (diff !== 0) return diff;
+        return a.id.localeCompare(b.id);
+      });
+    }
+    return list.sort((a, b) => {
+      const diff = getDateMs(b) - getDateMs(a);
+      if (diff !== 0) return diff;
+      return a.id.localeCompare(b.id);
+    });
+  }, [visibleItems, sort]);
 
   function updateSearch(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -216,17 +394,25 @@ export default function RequestsClientPage() {
             {isMy ? "Mis solicitudes" : "Solicitudes"}
           </h1>
           <p className="text-sm text-slate-500">
-            Administra tus solicitudes activas, filtra por estatus y consulta los detalles.
+            Administra tus solicitudes activas, filtra por estatus y consulta
+            los detalles.
           </p>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(180px,1fr)_auto] md:items-end">
-        <div className="space-y-1.5">
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="space-y-1.5 sm:flex-1">
           <Label>Status</Label>
           <StatusMultiSelect
             value={status ?? (isMy ? "active,in_process" : "")}
             onChange={(csv) => updateSearch({ status: csv || undefined })}
+          />
+        </div>
+        <div className="space-y-1.5 sm:w-48">
+          <Label>Ordenar</Label>
+          <OrderSelect
+            value={sort}
+            onChange={(value) => updateSearch({ sort: value })}
           />
         </div>
         {!isMy ? (
@@ -256,7 +442,13 @@ export default function RequestsClientPage() {
             </div>
             <Button
               variant="outline"
-              onClick={() => updateSearch({ status: undefined, city: undefined, mine: undefined })}
+              onClick={() =>
+                updateSearch({
+                  status: undefined,
+                  city: undefined,
+                  mine: undefined,
+                })
+              }
             >
               Limpiar filtros
             </Button>
@@ -269,17 +461,18 @@ export default function RequestsClientPage() {
 
       {!loading && !error ? (
         <div className="space-y-3">
-          {visibleItems.length ? (
-            visibleItems.map((item) => {
+          {sortedItems.length ? (
+            sortedItems.map((item) => {
               const preview = extractImage(item) ?? DEFAULT_REQUEST_IMAGE;
               const isExpanded = expandedId === item.id;
               const detail = details[item.id];
+              const ui = statusUi(item.status);
               return (
                 <div
                   key={item.id}
                   className={[
-                    "rounded-3xl border shadow-sm transition hover:shadow-md",
-                    (item.status ?? "").toLowerCase() === "in_process" ? "bg-blue-50" : "bg-white",
+                    "rounded-3xl shadow-sm transition hover:shadow-md",
+                    ui.cardClass,
                   ].join(" ")}
                 >
                   <div
@@ -309,7 +502,15 @@ export default function RequestsClientPage() {
                         {item.title ?? "Solicitud"}
                       </h2>
                       <div className="text-sm text-slate-500">
-                        {(item.city ?? "").trim() || "Sin ciudad"} - {statusLabel(item.status)} - {formatDate(item.created_at)}
+                        {formatShortMeta(item)}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-sm text-slate-600">
+                        <span className="text-slate-500">Estado:</span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${ui.badgeClass}`}
+                        >
+                          {ui.label}
+                        </span>
                       </div>
                     </div>
                     <Button
@@ -335,7 +536,8 @@ export default function RequestsClientPage() {
                             {(detail?.title ?? item.title) || "Solicitud"}
                           </h3>
                           <p className="text-xs text-slate-500">
-                            {(detail?.city ?? item.city) || "Sin ciudad"} - {statusLabel(detail?.status ?? item.status)}
+                            {(detail?.city ?? item.city) || "Sin ciudad"} -{" "}
+                            {statusLabel(detail?.status ?? item.status)}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -377,7 +579,9 @@ export default function RequestsClientPage() {
                         </div>
                       </div>
                       {loadingDetail === item.id && !detail ? (
-                        <div className="px-2 py-4 text-sm text-slate-500">Cargando detalle...</div>
+                        <div className="px-2 py-4 text-sm text-slate-500">
+                          Cargando detalle...
+                        </div>
                       ) : detail ? (
                         <RequestDetailClient
                           initial={detail}
@@ -407,9 +611,15 @@ export default function RequestsClientPage() {
             <div className="rounded-3xl border border-dashed p-6 text-center text-sm text-slate-500">
               {isMy ? (
                 <div className="space-y-2">
-                  <p className="font-medium text-slate-700">Aun no tienes solicitudes.</p>
-                  <p>Crea una solicitud para recibir propuestas de profesionales.</p>
-                  <CreateRequestButton variant="outline">Crear nueva solicitud</CreateRequestButton>
+                  <p className="font-medium text-slate-700">
+                    Aun no tienes solicitudes.
+                  </p>
+                  <p>
+                    Crea una solicitud para recibir propuestas de profesionales.
+                  </p>
+                  <CreateRequestButton variant="outline">
+                    Crear nueva solicitud
+                  </CreateRequestButton>
                 </div>
               ) : (
                 <span>No hay solicitudes que coincidan con los filtros.</span>
@@ -420,4 +630,26 @@ export default function RequestsClientPage() {
       ) : null}
     </div>
   );
+}
+
+function getDateMs(item: RequestItem): number {
+  const value = item.updated_at || item.created_at;
+  if (!value) return 0;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+function statusRank(status?: string | null): number {
+  const key = (status ?? "").toLowerCase();
+  if (
+    ["in_process", "scheduled", "paid", "accepted", "in_progress"].includes(key)
+  )
+    return 0;
+  if (["active", "open", "activa"].includes(key)) return 1;
+  if (["completed", "finished", "finalizada"].includes(key)) return 2;
+  if (
+    ["cancelled", "canceled", "deleted", "cancelada", "eliminada"].includes(key)
+  )
+    return 3;
+  return 99;
 }
