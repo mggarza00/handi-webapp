@@ -93,21 +93,37 @@ export async function fetchExploreRequests(
   const from = Math.max(0, (Math.max(1, page) - 1) * Math.max(1, pageSize));
   const to = from + Math.max(1, pageSize) - 1;
 
-  const baseQuery = () =>
-    supabase
+  const baseQuery = (opts: {
+    includeSubcategories: boolean;
+    includeSubcategory: boolean;
+  }) => {
+    const columns = [
+      "id",
+      "title",
+      "city",
+      "category",
+      "status",
+      "created_at",
+      "attachments",
+      "required_at",
+      "estimated_budget:budget",
+    ];
+    if (opts.includeSubcategory) columns.push("subcategory");
+    if (opts.includeSubcategories) columns.push("subcategories");
+    return supabase
       .from("requests")
-      .select(
-        `
-      id, title, city, category, subcategory, status, created_at, attachments,
-      subcategories, required_at, estimated_budget:budget
-      `,
-        { count: "exact" },
-      )
+      .select(columns.join(", "), { count: "exact" })
       .eq("status", "active");
+  };
 
   const applyFilters = (
     query: ReturnType<typeof baseQuery>,
-    opts: { includeJson: boolean },
+    opts: {
+      includeJson: boolean;
+      includeSubcategory: boolean;
+      jsonObjectOnly?: boolean;
+      jsonUseContains?: boolean;
+    },
   ) => {
     let q = query;
     if (allowedCities.length > 0) q = q.in("city", allowedCities);
@@ -115,20 +131,27 @@ export async function fetchExploreRequests(
     if (cCity) q = q.eq("city", cCity);
     if (cCategory) q = q.eq("category", cCategory);
     if (cSub) {
-      // Match either legacy single text column or JSON array (strings or {name})
       const rawVal = String(cSub);
+      if (opts.jsonUseContains) {
+        return q.contains("subcategories", [{ name: rawVal }]);
+      }
       const eqVal = rawVal.replace(/"/g, '\\"');
+      const filters: string[] = [];
+      if (opts.includeSubcategory) {
+        filters.push(`subcategory.eq."${eqVal}"`);
+      }
       if (opts.includeJson) {
         const jsonArr = JSON.stringify([rawVal]); // ["Subcat"]
         const jsonObjArr = JSON.stringify([{ name: rawVal }]); // [{"name":"Subcat"}]
-        const orFilter = [
-          `subcategory.eq."${eqVal}"`,
-          `subcategories.cs.${jsonArr}`,
-          `subcategories.cs.${jsonObjArr}`,
-        ].join(",");
-        q = q.or(orFilter);
-      } else {
-        q = q.eq("subcategory", rawVal);
+        if (opts.jsonObjectOnly) {
+          filters.push(`subcategories.cs.${jsonObjArr}`);
+        } else {
+          filters.push(`subcategories.cs.${jsonArr}`);
+          filters.push(`subcategories.cs.${jsonObjArr}`);
+        }
+      }
+      if (filters.length > 0) {
+        q = q.or(filters.join(","));
       }
     }
     return q;
@@ -148,8 +171,26 @@ export async function fetchExploreRequests(
     );
   };
 
-  const runQuery = async (includeJson: boolean) => {
-    const q = applyFilters(baseQuery(), { includeJson }).order("required_at", {
+  const isMissingColumn = (err: PostgrestError | null, column: string) => {
+    if (!err) return false;
+    const msg =
+      `${err.message || ""} ${err.details || ""} ${err.hint || ""}`.toLowerCase();
+    return msg.includes(column) && msg.includes("does not exist");
+  };
+
+  const runQuery = async (opts: {
+    includeJson: boolean;
+    includeSubcategories: boolean;
+    includeSubcategory: boolean;
+    jsonObjectOnly?: boolean;
+    jsonUseContains?: boolean;
+  }) => {
+    const q = applyFilters(baseQuery(opts), {
+      includeJson: opts.includeJson,
+      includeSubcategory: opts.includeSubcategory,
+      jsonObjectOnly: opts.jsonObjectOnly,
+      jsonUseContains: opts.jsonUseContains,
+    }).order("required_at", {
       ascending: true,
       nullsFirst: false,
     });
@@ -160,8 +201,77 @@ export async function fetchExploreRequests(
   let count: number | null = null;
   let error: PostgrestError | null = null;
 
-  ({ data, error, count } = await runQuery(true));
-  if (error && shouldFallbackSubcategory(error)) {
+  let subcategoryColumnExists: boolean | null = null;
+
+  ({ data, error, count } = await runQuery({
+    includeJson: true,
+    includeSubcategories: true,
+    includeSubcategory: true,
+  }));
+  if (error && isMissingColumn(error, "subcategory")) {
+    subcategoryColumnExists = false;
+    console.error("[explore] subcategory column missing, retrying without it", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+    try {
+      const Sentry = await import("@sentry/nextjs");
+      Sentry.captureException(error, {
+        tags: { schema: "subcategories_only" },
+      });
+    } catch {
+      /* noop */
+    }
+    ({ data, error, count } = await runQuery({
+      includeJson: true,
+      includeSubcategories: true,
+      includeSubcategory: false,
+    }));
+    if (error && shouldFallbackSubcategory(error) && cSub) {
+      console.error(
+        "[explore] subcategory JSON filter failed, retrying subcategories-only filter",
+        {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        },
+      );
+      ({ data, error, count } = await runQuery({
+        includeJson: true,
+        includeSubcategories: true,
+        includeSubcategory: false,
+        jsonObjectOnly: true,
+      }));
+      if (error && cSub) {
+        ({ data, error, count } = await runQuery({
+          includeJson: false,
+          includeSubcategories: true,
+          includeSubcategory: false,
+          jsonUseContains: true,
+        }));
+      }
+    }
+  } else if (!error) {
+    subcategoryColumnExists = true;
+  } else if (error && isMissingColumn(error, "subcategories")) {
+    console.error(
+      "[explore] subcategories column missing, retrying legacy schema",
+      {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      },
+    );
+    ({ data, error, count } = await runQuery({
+      includeJson: false,
+      includeSubcategories: false,
+      includeSubcategory: true,
+    }));
+  } else if (error && shouldFallbackSubcategory(error)) {
     console.error(
       "[explore] subcategory JSON filter failed, retrying legacy filter",
       {
@@ -171,7 +281,44 @@ export async function fetchExploreRequests(
         hint: error.hint,
       },
     );
-    ({ data, error, count } = await runQuery(false));
+    if (subcategoryColumnExists !== false) {
+      ({ data, error, count } = await runQuery({
+        includeJson: false,
+        includeSubcategories: true,
+        includeSubcategory: true,
+      }));
+      if (error && cSub) {
+        ({ data, error, count } = await runQuery({
+          includeJson: true,
+          includeSubcategories: true,
+          includeSubcategory: false,
+          jsonObjectOnly: true,
+        }));
+        if (error && cSub) {
+          ({ data, error, count } = await runQuery({
+            includeJson: false,
+            includeSubcategories: true,
+            includeSubcategory: false,
+            jsonUseContains: true,
+          }));
+        }
+      }
+    } else if (cSub) {
+      ({ data, error, count } = await runQuery({
+        includeJson: true,
+        includeSubcategories: true,
+        includeSubcategory: false,
+        jsonObjectOnly: true,
+      }));
+      if (error && cSub) {
+        ({ data, error, count } = await runQuery({
+          includeJson: false,
+          includeSubcategories: true,
+          includeSubcategory: false,
+          jsonUseContains: true,
+        }));
+      }
+    }
   }
   if (error) {
     console.error("[explore] fetchExploreRequests failed", {
@@ -200,13 +347,28 @@ export async function fetchExploreRequests(
     );
   }
 
+  const extractSubcategory = (row: Record<string, unknown>) => {
+    const direct = (row as { subcategory?: string | null }).subcategory ?? null;
+    if (direct) return direct;
+    const raw = row.subcategories as unknown;
+    if (Array.isArray(raw) && raw.length > 0) {
+      const first = raw[0] as { name?: string } | string;
+      if (typeof first === "string") return first;
+      if (first && typeof first === "object" && "name" in first) {
+        const name = (first as { name?: string }).name;
+        return name ? String(name) : null;
+      }
+    }
+    return null;
+  };
+
   const items: ExploreRequestItem[] = rows.map((r) => {
     return {
       id: String(r.id),
       title: String(r.title ?? "Solicitud"),
       city: (r.city as string | null) ?? null,
       category: (r.category as string | null) ?? null,
-      subcategory: (r as { subcategory?: string | null }).subcategory ?? null,
+      subcategory: extractSubcategory(r),
       status: (r.status as string | null) ?? null,
       created_at: (r.created_at as string | null) ?? null,
       required_at: (r as { required_at?: string | null }).required_at ?? null,

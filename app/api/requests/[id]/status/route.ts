@@ -39,7 +39,7 @@ export async function PATCH(
     const admin = getAdminSupabase() as any;
     const { data: reqRow } = await admin
       .from("requests")
-      .select("id, created_by, status")
+      .select("id, created_by, status, title")
       .eq("id", requestId)
       .maybeSingle();
     if (!reqRow)
@@ -49,6 +49,10 @@ export async function PATCH(
       );
     const current = String((reqRow as any).status ?? "").toLowerCase();
     const ownerId = String((reqRow as any).created_by ?? "");
+    const requestTitle =
+      typeof (reqRow as any)?.title === "string"
+        ? ((reqRow as any).title as string)
+        : "Servicio";
 
     // Permisos: dueño del request o pro participante con conversación
     let allowed = me === ownerId;
@@ -108,19 +112,17 @@ export async function PATCH(
       const proId = (conv as any)?.pro_id as string | undefined;
       const convId = (conv as any)?.id as string | undefined;
       if (proId) {
-        await admin
-          .from("pro_calendar_events")
-          .upsert(
-            {
-              request_id: requestId,
-              pro_id: proId,
-              title: "Servicio",
-              status: normalizedNext,
-            } as any,
-            {
-              onConflict: "request_id",
-            },
-          );
+        await admin.from("pro_calendar_events").upsert(
+          {
+            request_id: requestId,
+            pro_id: proId,
+            title: requestTitle || "Servicio",
+            status: normalizedNext,
+          } as any,
+          {
+            onConflict: "request_id",
+          },
+        );
       }
 
       if (normalizedNext === "finished" && proId) {
@@ -152,7 +154,7 @@ export async function PATCH(
               try {
                 const { data: offs } = await admin
                   .from("offers")
-                  .select("amount, currency, status")
+                  .select("amount, currency")
                   .eq("conversation_id", convId)
                   .eq("professional_id", proId)
                   .order("created_at", { ascending: false })
@@ -196,7 +198,8 @@ export async function PATCH(
                   <ul>
                     <li>Monto: <strong>${amountText}</strong></li>
                     <li>Request ID: ${requestId}</li>
-                    <li>Professional ID: ${proId}</li>
+                    <li>Profesional: ${proId}</li>
+                    <li>Servicio: ${requestTitle || "Servicio"}</li>
                   </ul>
                   <p><a href="${base}/admin/payouts">Abrir payouts</a></p>
                 `;

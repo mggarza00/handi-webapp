@@ -609,9 +609,12 @@ export async function POST(req: Request) {
                   // Best-effort: provide helpful URLs so UI can render a link if attachment creation fails
                   try {
                     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-                    if (baseUrl)
+                    if (baseUrl) {
                       (payload as any).download_url =
                         `${baseUrl}/api/receipts/${encodeURIComponent(receiptIdPersist)}/pdf`;
+                      (payload as any).view_url =
+                        `${baseUrl}/receipts/${encodeURIComponent(receiptIdPersist)}`;
+                    }
                   } catch {
                     /* ignore */
                   }
@@ -1803,6 +1806,18 @@ export async function POST(req: Request) {
                   offer_id: offerId,
                   status: "paid",
                 };
+                if (receiptIdPersist) {
+                  try {
+                    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+                    payload.receipt_id = receiptIdPersist;
+                    if (baseUrl) {
+                      payload.download_url = `${baseUrl}/api/receipts/${encodeURIComponent(receiptIdPersist)}/pdf`;
+                      payload.view_url = `${baseUrl}/receipts/${encodeURIComponent(receiptIdPersist)}`;
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                }
                 if (receipt_url) payload.receipt_url = receipt_url;
                 const paidBody = whenStr
                   ? `Pago confirmado. Servicio agendado para ${whenStr}`

@@ -4,7 +4,10 @@ import { redirect } from "next/navigation";
 import Breadcrumbs from "@/components/breadcrumbs";
 import CalendarGrid from "@/components/pro-calendar/CalendarGrid";
 import ServiceList from "@/components/pro-calendar/ServiceList";
-import type { ScheduledService, CalendarEvent } from "@/components/pro-calendar/types";
+import type {
+  ScheduledService,
+  CalendarEvent,
+} from "@/components/pro-calendar/types";
 import { fmtDateKey } from "@/lib/calendar/date";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,21 +21,30 @@ type ApiCalendarItem = {
   scheduled_date?: string | null;
   scheduled_time?: string | null;
   status?: string | null;
+  client_name?: string | null;
+  city?: string | null;
 };
 
-async function getScheduledFromApi(cookieHeader: string | null): Promise<ScheduledService[]> {
+async function getScheduledFromApi(
+  cookieHeader: string | null,
+): Promise<ScheduledService[]> {
   try {
-    const url = new URL('/api/pro/calendar', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+    const url = new URL(
+      "/api/pro/calendar",
+      process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+    );
     const res = await fetch(url.toString(), {
       headers: {
-        'Content-Type': 'application/json; charset=utf-8',
+        "Content-Type": "application/json; charset=utf-8",
         ...(cookieHeader ? { cookie: cookieHeader } : {}),
       },
-      cache: 'no-store',
-      next: { tags: ['pro-calendar'] },
+      cache: "no-store",
+      next: { tags: ["pro-calendar"] },
     });
     const j = await res.json().catch(() => ({}));
-    const items: ApiCalendarItem[] = Array.isArray(j?.items) ? (j.items as ApiCalendarItem[]) : [];
+    const items: ApiCalendarItem[] = Array.isArray(j?.items)
+      ? (j.items as ApiCalendarItem[])
+      : [];
     const out: ScheduledService[] = [];
     items.forEach((r, index) => {
       const sd = r.scheduled_date?.toString() ?? null;
@@ -44,13 +56,15 @@ async function getScheduledFromApi(cookieHeader: string | null): Promise<Schedul
         title: r.title || "Servicio",
         scheduled_at,
         scheduled_end_at: null,
-        client_name: null,
-        city: null,
+        client_name: r.client_name ?? null,
+        city: r.city ?? null,
         status: r.status ?? null,
       });
     });
     return out;
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export default async function Page() {
@@ -70,7 +84,10 @@ export default async function Page() {
 
   // Forward cookies to API so it can read auth and tag for revalidateTag
   const ck = cookies();
-  const cookieHeader = ck.getAll().map((c) => `${c.name}=${c.value}`).join('; ');
+  const cookieHeader = ck
+    .getAll()
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
   const services = await getScheduledFromApi(cookieHeader || null);
 
   const calendarEvents: CalendarEvent[] = services.map((s) => ({
@@ -81,7 +98,9 @@ export default async function Page() {
   return (
     <div className="p-4 lg:p-6">
       <div className="mb-4">
-        <Breadcrumbs items={[{ label: "Inicio", href: "/" }, { label: "Calendario" }]} />
+        <Breadcrumbs
+          items={[{ label: "Inicio", href: "/" }, { label: "Calendario" }]}
+        />
         <h1 className="text-2xl font-semibold mt-2">Mi calendario</h1>
         <p className="text-sm text-slate-600">Servicios pagados y agendados.</p>
       </div>
