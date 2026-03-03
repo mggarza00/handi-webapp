@@ -9,8 +9,23 @@ import { getReceiptForPdf } from "@/lib/receipts";
 import type { Database } from "@/types/supabase";
 import { computeClientTotalsCents } from "@/lib/payments/fees";
 import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
+import { recordPayment } from "@/lib/payments/record-payment";
+import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+
+function formatMoney(amount: number, currency: string) {
+  const safe = Number.isFinite(amount) ? amount : 0;
+  try {
+    return new Intl.NumberFormat("es-MX", {
+      style: "currency",
+      currency: currency || "MXN",
+      maximumFractionDigits: 2,
+    }).format(safe);
+  } catch {
+    return `$${safe.toFixed(2)} ${currency || "MXN"}`;
+  }
+}
 
 export async function POST(req: Request) {
   const liveSecret =
@@ -490,6 +505,71 @@ export async function POST(req: Request) {
                 },
               ];
               await admin.from("receipt_items").insert(items);
+            }
+          } catch {
+            /* ignore */
+          }
+          // Persist payment record (admin analytics + payments list)
+          try {
+            const requestIdForPayment =
+              requestIdFromMeta || requestIdTouched || null;
+            let requestTitleForPayment: string | null = null;
+            if (requestIdForPayment) {
+              const { data: reqRow } = await admin
+                .from("requests")
+                .select("title")
+                .eq("id", requestIdForPayment)
+                .maybeSingle();
+              requestTitleForPayment =
+                (reqRow as { title?: string | null } | null)?.title ?? null;
+            }
+            const paymentMeta = {
+              offer_id: offerId || null,
+              checkout_session_id: session.id,
+              payment_mode: eventMode,
+              receipt_id: receiptIdPersist,
+              receipt_url,
+            } as Record<string, unknown>;
+            const result = await recordPayment({
+              admin,
+              requestId: requestIdForPayment,
+              amount: service_cents / 100,
+              fee: commission_cents / 100,
+              vat: iva_cents / 100,
+              currency,
+              status: "paid",
+              paymentIntentId: payment_intent_id,
+              createdAt: nowIso,
+              metadata: paymentMeta,
+            });
+            if (result.inserted) {
+              const amountText = formatMoney(service_cents / 100, currency);
+              const title = requestTitleForPayment || "Servicio";
+              await notifyAdminsInApp(admin, {
+                type: "payment:new",
+                title: "Nuevo pago recibido",
+                body: `Pago recibido por ${amountText} (Servicio: ${title})`,
+                link: "/admin/payments",
+              });
+              const base =
+                process.env.NEXT_PUBLIC_APP_URL ||
+                process.env.NEXT_PUBLIC_SITE_URL ||
+                "http://localhost:3000";
+              const html = `
+                <p>Se registro un nuevo pago.</p>
+                <ul>
+                  <li>Monto: <strong>${amountText}</strong></li>
+                  <li>Servicio: <strong>${title}</strong></li>
+                  <li>Request ID: ${requestIdForPayment ?? "-"}</li>
+                  <li>Payment Intent: ${payment_intent_id ?? "-"}</li>
+                  <li>Modo: ${eventMode}</li>
+                </ul>
+                <p><a href="${base}/admin/payments">Abrir pagos</a></p>
+              `;
+              await notifyAdminsEmail({
+                subject: "HANDI - Nuevo pago recibido",
+                html,
+              });
             }
           } catch {
             /* ignore */
@@ -1629,6 +1709,67 @@ export async function POST(req: Request) {
                 },
               ];
               await admin.from("receipt_items").insert(items);
+            }
+          } catch {
+            /* ignore */
+          }
+          // Persist payment record (admin analytics + payments list)
+          try {
+            let requestTitleForPayment: string | null = null;
+            if (requestId) {
+              const { data: reqRow } = await admin
+                .from("requests")
+                .select("title")
+                .eq("id", requestId)
+                .maybeSingle();
+              requestTitleForPayment =
+                (reqRow as { title?: string | null } | null)?.title ?? null;
+            }
+            const paymentMeta = {
+              offer_id: offerId || null,
+              payment_mode: eventMode,
+              receipt_url,
+            } as Record<string, unknown>;
+            const result = await recordPayment({
+              admin,
+              requestId,
+              amount: service_cents / 100,
+              fee: commission_cents / 100,
+              vat: iva_cents / 100,
+              currency,
+              status: "paid",
+              paymentIntentId: payment_intent_id,
+              createdAt: new Date().toISOString(),
+              metadata: paymentMeta,
+            });
+            if (result.inserted) {
+              const amountText = formatMoney(service_cents / 100, currency);
+              const title = requestTitleForPayment || "Servicio";
+              await notifyAdminsInApp(admin, {
+                type: "payment:new",
+                title: "Nuevo pago recibido",
+                body: `Pago recibido por ${amountText} (Servicio: ${title})`,
+                link: "/admin/payments",
+              });
+              const base =
+                process.env.NEXT_PUBLIC_APP_URL ||
+                process.env.NEXT_PUBLIC_SITE_URL ||
+                "http://localhost:3000";
+              const html = `
+                <p>Se registro un nuevo pago.</p>
+                <ul>
+                  <li>Monto: <strong>${amountText}</strong></li>
+                  <li>Servicio: <strong>${title}</strong></li>
+                  <li>Request ID: ${requestId ?? "-"}</li>
+                  <li>Payment Intent: ${payment_intent_id ?? "-"}</li>
+                  <li>Modo: ${eventMode}</li>
+                </ul>
+                <p><a href="${base}/admin/payments">Abrir pagos</a></p>
+              `;
+              await notifyAdminsEmail({
+                subject: "HANDI - Nuevo pago recibido",
+                html,
+              });
             }
           } catch {
             /* ignore */

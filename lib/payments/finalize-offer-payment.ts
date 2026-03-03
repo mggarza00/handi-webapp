@@ -4,6 +4,9 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 import { sendEmail } from "@/lib/email";
+import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
+import { computeClientTotals } from "@/lib/payments/fees";
+import { recordPayment } from "@/lib/payments/record-payment";
 import { getStripeForMode, type StripeMode } from "@/lib/stripe";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
@@ -261,6 +264,63 @@ export async function finalizeOfferPayment(
       receiptDownloadUrl = `${baseUrl}/api/receipts/${encodeURIComponent(
         receiptId,
       )}/pdf`;
+    }
+
+    // Best-effort: persist payment row for admin reports
+    try {
+      const amount = typeof offer.amount === "number" ? offer.amount : 0;
+      if (paymentIntentId && amount > 0) {
+        const totals = computeClientTotals(amount);
+        const paymentMeta: Record<string, unknown> = {
+          offer_id: offer.id,
+          payment_mode: offer.payment_mode || null,
+          receipt_id: receiptId,
+          receipt_url: receiptUrl,
+          source: args.source,
+        };
+        const result = await recordPayment({
+          admin,
+          requestId,
+          amount: totals.amount,
+          fee: totals.fee,
+          vat: totals.iva,
+          currency: (offer.currency || "MXN").toUpperCase(),
+          status: "paid",
+          paymentIntentId,
+          createdAt: nowIso,
+          metadata: paymentMeta,
+        });
+        if (result.inserted) {
+          const amountText = totals.amount.toFixed(2);
+          const title = requestTitle || "Servicio";
+          await notifyAdminsInApp(admin, {
+            type: "payment:new",
+            title: "Nuevo pago recibido",
+            body: `Pago recibido por $${amountText} ${offer.currency || "MXN"} (Servicio: ${title})`,
+            link: "/admin/payments",
+          });
+          const base =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_SITE_URL ||
+            "http://localhost:3000";
+          const html = `
+            <p>Se registro un nuevo pago.</p>
+            <ul>
+              <li>Monto: <strong>$${amountText} ${offer.currency || "MXN"}</strong></li>
+              <li>Servicio: <strong>${title}</strong></li>
+              <li>Request ID: ${requestId ?? "-"}</li>
+              <li>Payment Intent: ${paymentIntentId}</li>
+            </ul>
+            <p><a href="${base}/admin/payments">Abrir pagos</a></p>
+          `;
+          await notifyAdminsEmail({
+            subject: "HANDI - Nuevo pago recibido",
+            html,
+          });
+        }
+      }
+    } catch {
+      /* ignore */
     }
 
     await admin
