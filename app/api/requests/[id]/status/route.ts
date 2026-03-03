@@ -5,6 +5,7 @@ import createClient from "@/utils/supabase/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import type { Database } from "@/types/supabase";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
 
 const Body = z.object({
   nextStatus: z.enum(["scheduled", "in_process", "completed"]),
@@ -100,7 +101,7 @@ export async function PATCH(
         { status: 400, headers: JSONH },
       );
 
-    // Espejo en calendario del pro (best-effort)
+    // Espejo en calendario del pro (best-effort) + payout pending
     try {
       const { data: conv } = await admin
         .from("conversations")
@@ -109,26 +110,118 @@ export async function PATCH(
         .order("created_at", { ascending: false })
         .maybeSingle();
       const proId = (conv as any)?.pro_id as string | undefined;
+      const convId = (conv as any)?.id as string | undefined;
       if (proId) {
-        await admin
-          .from("pro_calendar_events")
-          .upsert(
-            {
-              request_id: requestId,
-              pro_id: proId,
-              title: requestTitle || "Servicio",
-              status: normalizedNext,
-            } as any,
-            {
-              onConflict: "request_id",
-            },
-          );
+        await admin.from("pro_calendar_events").upsert(
+          {
+            request_id: requestId,
+            pro_id: proId,
+            title: requestTitle || "Servicio",
+            status: normalizedNext,
+          } as any,
+          {
+            onConflict: "request_id",
+          },
+        );
       }
+
+      if (normalizedNext === "finished" && proId) {
+        try {
+          const { data: existingPayout } = await admin
+            .from("payouts")
+            .select("id")
+            .eq("request_id", requestId)
+            .eq("professional_id", proId)
+            .maybeSingle();
+          if (!existingPayout?.id) {
+            let agreementId: string | null = null;
+            let amount: number | null = null;
+            let currency: string = "MXN";
+            try {
+              const { data: agr } = await admin
+                .from("agreements")
+                .select("id, amount")
+                .eq("request_id", requestId)
+                .eq("professional_id", proId)
+                .maybeSingle();
+              agreementId = (agr as any)?.id ?? null;
+              const amt = Number((agr as any)?.amount ?? NaN);
+              if (Number.isFinite(amt) && amt > 0) amount = amt;
+            } catch {
+              /* ignore */
+            }
+            if ((amount ?? 0) <= 0 && convId) {
+              try {
+                const { data: offs } = await admin
+                  .from("offers")
+                  .select("amount, currency")
+                  .eq("conversation_id", convId)
+                  .eq("professional_id", proId)
+                  .order("created_at", { ascending: false })
+                  .limit(1);
+                const off = Array.isArray(offs) && offs.length ? offs[0] : null;
+                const amt = Number((off as any)?.amount ?? NaN);
+                if (Number.isFinite(amt) && amt > 0) amount = amt;
+                const cur = ((off as any)?.currency as string | null) || null;
+                if (cur) currency = cur.toUpperCase();
+              } catch {
+                /* ignore */
+              }
+            }
+            if (amount && amount > 0) {
+              try {
+                await admin.from("payouts").insert({
+                  agreement_id: agreementId,
+                  request_id: requestId,
+                  professional_id: proId,
+                  amount,
+                  currency,
+                  status: "pending",
+                  metadata: {
+                    source: "request_status",
+                    request_status: normalizedNext,
+                  },
+                });
+                const amountText = `$${amount.toFixed(2)} ${currency}`;
+                await notifyAdminsInApp(admin, {
+                  type: "payout:pending",
+                  title: "Payout pendiente",
+                  body: `Trabajo finalizado. Pagar ${amountText} a profesional`,
+                  link: "/admin/payouts",
+                });
+                const base =
+                  process.env.NEXT_PUBLIC_APP_URL ||
+                  process.env.NEXT_PUBLIC_SITE_URL ||
+                  "http://localhost:3000";
+                const html = `
+                  <p>Se genero un payout pendiente.</p>
+                  <ul>
+                    <li>Monto: <strong>${amountText}</strong></li>
+                    <li>Request ID: ${requestId}</li>
+                    <li>Profesional: ${proId}</li>
+                    <li>Servicio: ${requestTitle || "Servicio"}</li>
+                  </ul>
+                  <p><a href="${base}/admin/payouts">Abrir payouts</a></p>
+                `;
+                await notifyAdminsEmail({
+                  subject: "HANDI - Trabajo finalizado (payout pendiente)",
+                  html,
+                });
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
       // Revalidar calendario y chat
       try {
         revalidatePath("/pro/calendar");
         revalidateTag("pro-calendar");
-        if ((conv as any)?.id) revalidatePath(`/mensajes/${(conv as any).id}`);
+        if (convId) revalidatePath(`/mensajes/${convId}`);
       } catch {
         /* ignore */
       }
