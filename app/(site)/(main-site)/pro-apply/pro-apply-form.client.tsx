@@ -168,6 +168,13 @@ export default function ProApplyForm({
   const [selectedSubcategories, setSelectedSubcategories] = React.useState<
     string[]
   >([]);
+  const [isSuggestingCategories, setIsSuggestingCategories] =
+    React.useState(false);
+  const classifyAbortRef = React.useRef<AbortController | null>(null);
+  const lastUserEditRef = React.useRef(0);
+  const lastAutoAppliedRef = React.useRef<string>("");
+  const selectedCatsRef = React.useRef<string[]>([]);
+  const selectedSubsRef = React.useRef<string[]>([]);
   const [availableCategories, setAvailableCategories] = React.useState<
     string[]
   >([]);
@@ -397,6 +404,14 @@ export default function ProApplyForm({
     accountType,
   ]);
 
+  React.useEffect(() => {
+    selectedCatsRef.current = selectedCategories;
+  }, [selectedCategories]);
+
+  React.useEffect(() => {
+    selectedSubsRef.current = selectedSubcategories;
+  }, [selectedSubcategories]);
+
   // Prefill bank account from existing record; fallback to full name
   React.useEffect(() => {
     let cancelled = false;
@@ -558,6 +573,94 @@ export default function ProApplyForm({
       setSelectedSubcategories(filtered);
     }
   }, [selectedCategories, groupedSubcats, selectedSubcategories]);
+
+  const taxonomyPairs = React.useMemo(() => {
+    const pairs: Array<{ category: string; subcategory: string }> = [];
+    availableCategories.forEach((category) => {
+      const subs = groupedSubcats[category] || [];
+      if (subs.length) {
+        subs.forEach((subcategory) => {
+          pairs.push({ category, subcategory });
+        });
+      } else {
+        pairs.push({ category, subcategory: "" });
+      }
+    });
+    return pairs;
+  }, [availableCategories, groupedSubcats]);
+
+  // Auto-suggest categories/subcategories from services description (debounced).
+  React.useEffect(() => {
+    const desc = servicesDesc.trim();
+    if (desc.length < 12) return;
+    if (!taxonomyPairs.length) return;
+
+    const handle = window.setTimeout(async () => {
+      if (Date.now() - lastUserEditRef.current < 1200) return;
+      classifyAbortRef.current?.abort();
+      const controller = new AbortController();
+      classifyAbortRef.current = controller;
+      setIsSuggestingCategories(true);
+      try {
+        const res = await fetch("/api/classify-pro-services", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({
+            services_desc: desc,
+            taxonomy: taxonomyPairs,
+          }),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => null);
+        const confidence = Number(data?.confidence ?? 0) || 0;
+        const nextCats = Array.isArray(data?.categories)
+          ? (data.categories as string[]).map((c) => String(c))
+          : [];
+        const nextSubs = Array.isArray(data?.subcategories)
+          ? (data.subcategories as Array<{ subcategory?: string }>).map((s) =>
+              String(s?.subcategory ?? ""),
+            )
+          : [];
+
+        const dedupe = (arr: string[]) =>
+          Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
+        const cats = dedupe(nextCats);
+        const subs = dedupe(nextSubs);
+
+        const hasExisting =
+          selectedCatsRef.current.length > 0 ||
+          selectedSubsRef.current.length > 0;
+        if (confidence < 0.35 && hasExisting) return;
+
+        const key = JSON.stringify({
+          c: [...cats].sort(),
+          s: [...subs].sort(),
+        });
+        if (!cats.length && !subs.length) return;
+        if (key === lastAutoAppliedRef.current) return;
+        const currentKey = JSON.stringify({
+          c: [...selectedCatsRef.current].sort(),
+          s: [...selectedSubsRef.current].sort(),
+        });
+        if (key === currentKey) return;
+
+        lastAutoAppliedRef.current = key;
+        setSelectedCategories(cats);
+        setSelectedSubcategories(subs);
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name !== "AbortError") {
+          /* ignore */
+        }
+      } finally {
+        setIsSuggestingCategories(false);
+      }
+    }, 750);
+
+    return () => {
+      window.clearTimeout(handle);
+      classifyAbortRef.current?.abort();
+    };
+  }, [servicesDesc, taxonomyPairs]);
 
   React.useEffect(() => {
     if (!fieldErrs.subcategories) return;
@@ -1295,6 +1398,11 @@ export default function ProApplyForm({
               onChange={(e) => setServicesDesc(e.target.value)}
               placeholder="Ej. Electricidad residencial, mantenimiento e instalaciones…"
             />
+            {isSuggestingCategories && (
+              <p className="mt-2 text-xs text-slate-500">
+                Sugiriendo categorias segun tu descripcion…
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
             <label className="block text-sm mb-1">
@@ -1323,7 +1431,10 @@ export default function ProApplyForm({
               }
               options={availableCategories}
               value={selectedCategories}
-              onChange={setSelectedCategories}
+              onChange={(v) => {
+                lastUserEditRef.current = Date.now();
+                setSelectedCategories(v);
+              }}
               disabled={loadingCats}
               error={fieldErrs.categories}
             />
@@ -1361,6 +1472,7 @@ export default function ProApplyForm({
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                lastUserEditRef.current = Date.now();
                                 const all = new Set<string>(
                                   selectedSubcategories,
                                 );
@@ -1383,6 +1495,7 @@ export default function ProApplyForm({
                                     type="checkbox"
                                     checked={checked}
                                     onChange={(e) => {
+                                      lastUserEditRef.current = Date.now();
                                       const next = e.currentTarget.checked
                                         ? Array.from(
                                             new Set([
