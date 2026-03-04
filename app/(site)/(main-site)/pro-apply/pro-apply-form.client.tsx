@@ -280,6 +280,7 @@ export default function ProApplyForm({
   const sigCanvasRef = React.useRef<HTMLCanvasElement | null>(null); // persistent/offscreen canvas used for upload
   const sigDialogCanvasRef = React.useRef<HTMLCanvasElement | null>(null); // dialog-visible canvas for drawing
   const [sigDirty, setSigDirty] = React.useState(false);
+  const [sigBlob, setSigBlob] = React.useState<Blob | null>(null);
   const [sigPreviewUrl, setSigPreviewUrl] = React.useState<string | null>(null);
   const [sigOpen, setSigOpen] = React.useState(false);
   type UploadResponse = {
@@ -689,7 +690,7 @@ export default function ProApplyForm({
       canvas = sigDialogCanvasRef.current;
       if (!canvas) {
         rafSetup = requestAnimationFrame(setup);
-        return { ok: false, errorStep: 3 };
+        return;
       }
       // Ensure touch-action none
       try {
@@ -700,7 +701,7 @@ export default function ProApplyForm({
       ctx = canvas.getContext("2d");
       if (!ctx) {
         rafSetup = requestAnimationFrame(setup);
-        return { ok: false, errorStep: 3 };
+        return;
       }
       const setupSize = () => {
         const dpr = Math.max(1, window.devicePixelRatio || 1);
@@ -790,6 +791,8 @@ export default function ProApplyForm({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setSigDirty(false);
+    setSigBlob(null);
+    setSigPreviewUrl(null);
   }
 
   function acceptSignature() {
@@ -797,12 +800,12 @@ export default function ProApplyForm({
     const dest = sigCanvasRef.current;
     if (!source || !dest) {
       setSigOpen(false);
-      return { ok: false, errorStep: 1 };
+      return;
     }
     const dctx = dest.getContext("2d");
     if (!dctx) {
       setSigOpen(false);
-      return { ok: false, errorStep: 1 };
+      return;
     }
     // Copy scaled content into a fixed-size destination for upload
     const targetW = 640;
@@ -818,6 +821,9 @@ export default function ProApplyForm({
     const dy = (targetH - dh) / 2;
     dctx.drawImage(source, 0, 0, source.width, source.height, dx, dy, dw, dh);
 
+    dest.toBlob((blob) => {
+      if (blob) setSigBlob(blob);
+    }, "image/png");
     try {
       const url = dest.toDataURL("image/png");
       setSigPreviewUrl(url);
@@ -1407,11 +1413,31 @@ export default function ProApplyForm({
         );
         uploads.bank_cover_url = bankUp.url;
       }
-      const canvas = sigCanvasRef.current!;
-      const blob: Blob = await new Promise((resolve) =>
-        canvas.toBlob((b) => resolve(b as Blob), "image/png"),
-      );
-      const sigFile = new File([blob], "signature.png", { type: "image/png" });
+      let signatureBlob = sigBlob;
+      if (!signatureBlob) {
+        const canvas = sigCanvasRef.current;
+        if (!canvas) {
+          const msg = "No se pudo leer la firma. Vuelve a firmar, por favor.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, sig: true }));
+          return { ok: false, errorStep: 5 };
+        }
+        signatureBlob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob((b) => resolve(b), "image/png"),
+        );
+        if (!signatureBlob) {
+          const msg =
+            "No se pudo procesar la firma. Vuelve a firmar, por favor.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, sig: true }));
+          return { ok: false, errorStep: 5 };
+        }
+      }
+      const sigFile = new File([signatureBlob], "signature.png", {
+        type: "image/png",
+      });
       const sigUp = await uploadViaApi(
         sigFile,
         `${prefix}signature-${Date.now()}.png`,
@@ -1652,11 +1678,11 @@ export default function ProApplyForm({
                   rows={4}
                   value={servicesDesc}
                   onChange={(e) => setServicesDesc(e.target.value)}
-                  placeholder="Ej. Electricidad residencial, mantenimiento e instalaciones&"
+                  placeholder="Ej. Electricidad residencial, mantenimiento e instalaciones"
                 />
                 {isSuggestingCategories && (
                   <p className="mt-2 text-xs text-slate-500">
-                    Sugiriendo categorias segun tu descripcion&
+                    Sugiriendo categorias según tu descripcion
                   </p>
                 )}
               </div>
@@ -1791,10 +1817,19 @@ export default function ProApplyForm({
                   Años de experiencia en el oficio
                 </label>
                 <Input
+                  type="number"
+                  min={0}
+                  max={80}
+                  step={1}
                   aria-invalid={fieldErrs.years_experience}
                   value={years}
                   onChange={(e) => setYears(e.target.value)}
                   inputMode="numeric"
+                  placeholder="0"
+                  className={cn(
+                    fieldErrs.years_experience &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
                 />
               </div>
             </div>
@@ -1802,78 +1837,76 @@ export default function ProApplyForm({
         </Step>
 
         <Step label="Documentos">
-          {!empresa && (
-            <section className="rounded-xl border bg-white p-5 shadow-sm">
-              <h2 className="mb-3 text-base font-semibold">Documentos</h2>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm mb-1">
-                    Sube tu CV (PDF o DOC)
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.cv &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={(e) =>
-                      setCvFile(e.currentTarget.files?.[0] ?? null)
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Cartas de recomendación (al menos una)
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.letters &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept="image/*,.pdf"
-                    multiple
-                    onChange={(e) =>
-                      setLetters(Array.from(e.currentTarget.files ?? []))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Identificación oficial (frente)
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.idFront &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      setIdFront(e.currentTarget.files?.[0] ?? null)
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Identificación oficial (reverso)
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.idBack &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      setIdBack(e.currentTarget.files?.[0] ?? null)
-                    }
-                  />
-                </div>
+          <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-base font-semibold">Documentos</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm mb-1">
+                  Sube tu CV (PDF o DOC)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.cv &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) =>
+                    setCvFile(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
               </div>
-            </section>
-          )}
+              <div>
+                <label className="block text-sm mb-1">
+                  Cartas de recomendación (al menos una)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.letters &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  onChange={(e) =>
+                    setLetters(Array.from(e.currentTarget.files ?? []))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Identificación oficial (frente)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.idFront &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setIdFront(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Identificación oficial (reverso)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.idBack &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setIdBack(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
+              </div>
+            </div>
+          </section>
 
           <SlideDown open={empresa}>
             <section className="rounded-xl border bg-white p-5 shadow-sm">

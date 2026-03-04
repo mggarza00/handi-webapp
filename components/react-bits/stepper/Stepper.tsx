@@ -269,15 +269,17 @@ function StepContentWrapper({
   }
 
   return (
-    // Allow stepper to grow with content; avoid clipping long forms.
-    <div className={cn(className, "h-auto overflow-visible")}>
-      <AnimatePresence initial={false} mode="wait" custom={direction}>
-        {!isCompleted && (
-          <SlideTransition key={currentStep} direction={direction}>
-            {children}
-          </SlideTransition>
-        )}
-      </AnimatePresence>
+    <div className={cn(className, "h-auto overflow-y-visible")}>
+      {/* Clip horizontal overflow so step transitions dont bleed outside container. */}
+      <div className="relative isolate w-full overflow-x-hidden overflow-y-visible">
+        <AnimatePresence initial={false} mode="wait" custom={direction}>
+          {!isCompleted && (
+            <SlideTransition key={currentStep} direction={direction}>
+              {children}
+            </SlideTransition>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
@@ -296,7 +298,7 @@ function SlideTransition({ children, direction }: SlideTransitionProps) {
       animate="center"
       exit="exit"
       transition={{ duration: 0.4 }}
-      style={{ position: "relative" }}
+      style={{ position: "relative", width: "100%", maxWidth: "100%" }}
     >
       {children}
     </motion.div>
