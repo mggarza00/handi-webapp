@@ -8,8 +8,6 @@ import React, {
   type SVGProps,
   useCallback,
   useEffect,
-  useLayoutEffect,
-  useRef,
   useState,
 } from "react";
 import * as Motion from "motion/react";
@@ -264,7 +262,6 @@ function StepContentWrapper({
   completionContent,
   className,
 }: StepContentWrapperProps) {
-  const [parentHeight, setParentHeight] = useState(0);
   const shouldShowCompletion = isCompleted && completionContent;
 
   if (shouldShowCompletion) {
@@ -272,56 +269,36 @@ function StepContentWrapper({
   }
 
   return (
-    <motion.div
-      style={{ position: "relative", overflow: "hidden" }}
-      animate={{ height: isCompleted ? 0 : parentHeight }}
-      transition={{ type: "spring", duration: 0.4 }}
-      className={className}
-    >
-      <AnimatePresence initial={false} mode="sync" custom={direction}>
-        {!isCompleted && (
-          <SlideTransition
-            key={currentStep}
-            direction={direction}
-            onHeightReady={(h) => setParentHeight(h)}
-          >
-            {children}
-          </SlideTransition>
-        )}
-      </AnimatePresence>
-    </motion.div>
+    <div className={cn(className, "h-auto overflow-y-visible")}>
+      {/* Clip horizontal overflow so step transitions dont bleed outside container. */}
+      <div className="relative isolate w-full overflow-x-hidden overflow-y-visible">
+        <AnimatePresence initial={false} mode="wait" custom={direction}>
+          {!isCompleted && (
+            <SlideTransition key={currentStep} direction={direction}>
+              {children}
+            </SlideTransition>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 }
 
 interface SlideTransitionProps {
   children: ReactNode;
   direction: number;
-  onHeightReady: (height: number) => void;
 }
 
-function SlideTransition({
-  children,
-  direction,
-  onHeightReady,
-}: SlideTransitionProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      onHeightReady(containerRef.current.offsetHeight);
-    }
-  }, [children, onHeightReady]);
-
+function SlideTransition({ children, direction }: SlideTransitionProps) {
   return (
     <motion.div
-      ref={containerRef}
       custom={direction}
       variants={stepVariants}
       initial="enter"
       animate="center"
       exit="exit"
       transition={{ duration: 0.4 }}
-      style={{ position: "absolute", left: 0, right: 0, top: 0 }}
+      style={{ position: "relative", width: "100%", maxWidth: "100%" }}
     >
       {children}
     </motion.div>

@@ -96,6 +96,18 @@ export default function RoleOnboarding({
       });
       const j = await res.json().catch(() => null);
       if (!res.ok) {
+        if (
+          selected === "profesional" &&
+          (j?.error === "PRO_NOT_APPROVED" || res.status === 403)
+        ) {
+          // When pro is not approved yet, onboarding must continue in /pro-apply instead of blocking with an error.
+          const infoMessage =
+            j?.detail ||
+            "Para usar Handi como profesional, primero completa tu postulacion.";
+          toast.info(infoMessage);
+          router.replace("/pro-apply");
+          return;
+        }
         throw new Error(j?.detail || j?.error || "No se pudo guardar tu rol");
       }
       try {

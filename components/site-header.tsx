@@ -340,7 +340,7 @@ export default async function SiteHeader() {
   if (
     !proApply &&
     isAuth &&
-    (role === "client" || role == null || role === "admin" || is_admin)
+    (role === "client" || role === "admin" || is_admin)
   ) {
     const hasRequestsLink = rightLinks.some((l) =>
       l.href.startsWith("/requests"),

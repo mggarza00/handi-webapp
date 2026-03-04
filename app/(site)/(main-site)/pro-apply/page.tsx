@@ -1,9 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import ProApplyForm from "./pro-apply-form.client";
 
+import ProApplyIntroModal from "@/components/pro-apply/ProApplyIntroModal.client";
 import type { Database } from "@/types/supabase";
 import createClient from "@/utils/supabase/server";
 
@@ -39,7 +40,10 @@ async function getProfileDefaults(
     .from("profiles")
     .select("full_name, role")
     .eq("id", userId)
-    .maybeSingle<{ full_name: string | null; role: ProfileRow["role"] | null }>();
+    .maybeSingle<{
+      full_name: string | null;
+      role: ProfileRow["role"] | null;
+    }>();
 
   if (error) {
     console.error("Error fetching profile defaults:", error);
@@ -86,7 +90,8 @@ export default async function ProApplyPage() {
           .
         </p>
         <p className="text-sm text-muted-foreground">
-          Si quieres ingresar una nueva solicitud desde otra cuenta sal de la cuenta actual.
+          Si quieres ingresar una nueva solicitud desde otra cuenta sal de la
+          cuenta actual.
         </p>
       </section>
     );
@@ -94,9 +99,11 @@ export default async function ProApplyPage() {
 
   return (
     <section className="mx-auto max-w-5xl px-4 py-8">
+      <ProApplyIntroModal />
       {isPending ? (
         <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Estamos revisando tu postulación. Te avisaremos apenas la aprobemos.
+          Estamos revisando tu postulaci&oacute;n. Te avisaremos apenas la
+          aprobemos.
         </div>
       ) : null}
       <ProApplyForm
