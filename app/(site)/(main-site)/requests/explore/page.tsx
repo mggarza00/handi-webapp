@@ -78,6 +78,7 @@ export default async function ExploreRequestsPage({
     city?: string;
     category?: string;
     subcategory?: string;
+    sort?: string;
   };
 }) {
   const supabase = getServerClient();
@@ -179,6 +180,7 @@ export default async function ExploreRequestsPage({
   const paramCity = (searchParams?.city ?? "Todas").trim();
   const paramCategory = (searchParams?.category ?? "Todas").trim();
   const paramSubcategory = (searchParams?.subcategory ?? "Todas").trim();
+  const paramSort = (searchParams?.sort ?? "date_desc").trim() || "date_desc";
   const page = Math.max(1, Number(searchParams?.page || "1"));
 
   // Catálogo oficial desde Supabase: categories_subcategories
@@ -229,6 +231,7 @@ export default async function ExploreRequestsPage({
       city: paramCity,
       category: paramCategory,
       subcategory: paramSubcategory,
+      sort: paramSort,
       page,
       pageSize: PER_PAGE,
     });
@@ -290,6 +293,7 @@ export default async function ExploreRequestsPage({
           city: paramCity,
           category: paramCategory,
           subcategory: paramSubcategory,
+          sort: paramSort,
           page: String(page),
         }}
       />

@@ -10,6 +10,7 @@ export type ExploreFilters = {
   city?: string; // 'Todas'  value
   category?: string; // 'Todas'  value
   subcategory?: string; // 'Todas'  value
+  sort?: string;
   page?: number; // 1-based
   pageSize?: number; // default 20
 };
@@ -38,7 +39,14 @@ function clean(v?: string | null): string | null {
 
 export async function fetchExploreRequests(
   proId: string,
-  { page = 1, pageSize = 20, city, category, subcategory }: ExploreFilters,
+  {
+    page = 1,
+    pageSize = 20,
+    city,
+    category,
+    subcategory,
+    sort,
+  }: ExploreFilters,
 ): Promise<{
   items: ExploreRequestItem[];
   total: number;
@@ -50,6 +58,13 @@ export async function fetchExploreRequests(
   const cCity = clean(city);
   const cCategory = clean(category);
   const cSub = clean(subcategory);
+  const cSort =
+    sort === "date_asc" ||
+    sort === "budget_desc" ||
+    sort === "budget_asc" ||
+    sort === "subcategory_az"
+      ? sort
+      : "date_desc";
 
   // Restringir por perfil del profesional (ciudades/categorías)
   let allowedCities: string[] = [];
@@ -185,15 +200,31 @@ export async function fetchExploreRequests(
     jsonObjectOnly?: boolean;
     jsonUseContains?: boolean;
   }) => {
-    const q = applyFilters(baseQuery(opts), {
+    let q = applyFilters(baseQuery(opts), {
       includeJson: opts.includeJson,
       includeSubcategory: opts.includeSubcategory,
       jsonObjectOnly: opts.jsonObjectOnly,
       jsonUseContains: opts.jsonUseContains,
-    }).order("required_at", {
-      ascending: true,
-      nullsFirst: false,
     });
+
+    if (cSort === "date_asc") {
+      q = q.order("created_at", { ascending: true, nullsFirst: false });
+    } else if (cSort === "budget_desc") {
+      q = q
+        .order("budget", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
+    } else if (cSort === "budget_asc") {
+      q = q
+        .order("budget", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
+    } else if (cSort === "subcategory_az" && opts.includeSubcategory) {
+      q = q
+        .order("subcategory", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
+    } else {
+      q = q.order("created_at", { ascending: false, nullsFirst: false });
+    }
+
     return q.range(from, to);
   };
 
@@ -391,13 +422,25 @@ export async function fetchExploreRequests(
     };
   });
 
-  // Reordenar favoritos arriba dentro de la página actual
-  const ordered = items.slice().sort((a, b) => {
-    if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-    const ad = a.required_at || "";
-    const bd = b.required_at || "";
-    return ad.localeCompare(bd);
-  });
+  // If schema lacks `subcategory`, keep DB order by created_at and sort current page client-side.
+  if (cSort === "subcategory_az" && subcategoryColumnExists === false) {
+    items.sort((a, b) =>
+      (a.subcategory || "").localeCompare(b.subcategory || "", "es", {
+        sensitivity: "base",
+      }),
+    );
+  }
+
+  // Reordenar favoritos arriba dentro de la página actual conservando orden base.
+  const ordered = items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      if (a.item.is_favorite !== b.item.is_favorite) {
+        return a.item.is_favorite ? -1 : 1;
+      }
+      return a.index - b.index;
+    })
+    .map(({ item }) => item);
 
   const total = typeof count === "number" ? count : rows.length;
   return {
