@@ -12,24 +12,13 @@ import {
 } from "@/components/ui/select";
 
 type Pair = { category: string; subcategory: string | null };
-type SortValue =
-  | "date_desc"
-  | "date_asc"
-  | "budget_desc"
-  | "budget_asc"
-  | "subcategory_az";
+type SortValue = "recent" | "required";
 
-const DEFAULT_SORT: SortValue = "date_desc";
+const DEFAULT_SORT: SortValue = "recent";
 const ALL = "Todas";
 
 function isSortValue(value: string): value is SortValue {
-  return (
-    value === "date_desc" ||
-    value === "date_asc" ||
-    value === "budget_desc" ||
-    value === "budget_asc" ||
-    value === "subcategory_az"
-  );
+  return value === "recent" || value === "required";
 }
 
 export default function ExploreFilters({
@@ -224,15 +213,8 @@ export default function ExploreFilters({
             <SelectValue placeholder="Ordenar" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="date_desc">Más recientes</SelectItem>
-            <SelectItem value="date_asc">Más antiguas</SelectItem>
-            <SelectItem value="budget_desc">
-              Presupuesto: mayor a menor
-            </SelectItem>
-            <SelectItem value="budget_asc">
-              Presupuesto: menor a mayor
-            </SelectItem>
-            <SelectItem value="subcategory_az">Subcategoría: A-Z</SelectItem>
+            <SelectItem value="recent">Más recientes</SelectItem>
+            <SelectItem value="required">Fecha requerida</SelectItem>
           </SelectContent>
         </Select>
       </div>

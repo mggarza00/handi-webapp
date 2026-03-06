@@ -6,6 +6,7 @@ import ExploreFilters from "@/app/(site)/(main-site)/requests/explore/ExploreFil
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,12 @@ type CatalogPair = {
   subcategory: string | null;
   icon?: string | null;
 };
+
+type ExploreSort = "recent" | "required";
+
+function parseSort(value?: string): ExploreSort {
+  return value === "required" ? "required" : "recent";
+}
 
 function getBaseUrl() {
   const h = headers();
@@ -180,7 +187,7 @@ export default async function ExploreRequestsPage({
   const paramCity = (searchParams?.city ?? "Todas").trim();
   const paramCategory = (searchParams?.category ?? "Todas").trim();
   const paramSubcategory = (searchParams?.subcategory ?? "Todas").trim();
-  const paramSort = (searchParams?.sort ?? "date_desc").trim() || "date_desc";
+  const paramSort = parseSort((searchParams?.sort ?? "recent").trim());
   const page = Math.max(1, Number(searchParams?.page || "1"));
 
   // Catálogo oficial desde Supabase: categories_subcategories
@@ -263,6 +270,51 @@ export default async function ExploreRequestsPage({
     loadError = true;
   }
 
+  // Resolve client profile fields with service role (RLS-safe fallback).
+  const createdByIds = Array.from(
+    new Set(
+      items
+        .map((item) => item.created_by)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+  const clientById = new Map<
+    string,
+    { full_name: string | null; avatar_url: string | null }
+  >();
+  if (createdByIds.length > 0) {
+    try {
+      const admin = getAdminSupabase();
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", createdByIds);
+      const rows = (profiles || []) as Array<{
+        id?: string | null;
+        full_name?: string | null;
+        avatar_url?: string | null;
+      }>;
+      for (const profile of rows) {
+        if (!profile?.id) continue;
+        clientById.set(String(profile.id), {
+          full_name: profile.full_name ?? null,
+          avatar_url: profile.avatar_url ?? null,
+        });
+      }
+    } catch {
+      // Keep null fallbacks when service role is unavailable.
+    }
+  }
+
+  const enrichedItems = items.map((item) => {
+    const profile = item.created_by ? clientById.get(item.created_by) : null;
+    return {
+      ...item,
+      client_name: profile?.full_name ?? null,
+      client_avatar_url: profile?.avatar_url ?? null,
+    };
+  });
+
   // Build subcategory -> icon map for cards (lowercased key)
   const subcategoryIconMap: Record<string, string> = Object.fromEntries(
     (catalogPairs || [])
@@ -307,7 +359,8 @@ export default async function ExploreRequestsPage({
 
       <RequestsList
         proId={user.id}
-        initialItems={items}
+        initialItems={enrichedItems}
+        sort={paramSort}
         subcategoryIconMap={subcategoryIconMap}
       />
 

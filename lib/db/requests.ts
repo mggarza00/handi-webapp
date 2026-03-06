@@ -10,7 +10,7 @@ export type ExploreFilters = {
   city?: string; // 'Todas'  value
   category?: string; // 'Todas'  value
   subcategory?: string; // 'Todas'  value
-  sort?: string;
+  sort?: "recent" | "required";
   page?: number; // 1-based
   pageSize?: number; // default 20
 };
@@ -22,6 +22,7 @@ export type ExploreRequestItem = {
   category: string | null;
   subcategory?: string | null;
   status: string | null;
+  created_by?: string | null;
   created_at: string | null;
   required_at?: string | null;
   budget?: number | null;
@@ -58,13 +59,7 @@ export async function fetchExploreRequests(
   const cCity = clean(city);
   const cCategory = clean(category);
   const cSub = clean(subcategory);
-  const cSort =
-    sort === "date_asc" ||
-    sort === "budget_desc" ||
-    sort === "budget_asc" ||
-    sort === "subcategory_az"
-      ? sort
-      : "date_desc";
+  const cSort = sort === "required" ? "required" : "recent";
 
   // Restringir por perfil del profesional (ciudades/categorías)
   let allowedCities: string[] = [];
@@ -115,6 +110,7 @@ export async function fetchExploreRequests(
     const columns = [
       "id",
       "title",
+      "created_by",
       "city",
       "category",
       "status",
@@ -207,20 +203,8 @@ export async function fetchExploreRequests(
       jsonUseContains: opts.jsonUseContains,
     });
 
-    if (cSort === "date_asc") {
-      q = q.order("created_at", { ascending: true, nullsFirst: false });
-    } else if (cSort === "budget_desc") {
-      q = q
-        .order("budget", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false, nullsFirst: false });
-    } else if (cSort === "budget_asc") {
-      q = q
-        .order("budget", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false, nullsFirst: false });
-    } else if (cSort === "subcategory_az" && opts.includeSubcategory) {
-      q = q
-        .order("subcategory", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false, nullsFirst: false });
+    if (cSort === "required") {
+      q = q.order("required_at", { ascending: true, nullsFirst: false });
     } else {
       q = q.order("created_at", { ascending: false, nullsFirst: false });
     }
@@ -401,6 +385,7 @@ export async function fetchExploreRequests(
       category: (r.category as string | null) ?? null,
       subcategory: extractSubcategory(r),
       status: (r.status as string | null) ?? null,
+      created_by: (r.created_by as string | null) ?? null,
       created_at: (r.created_at as string | null) ?? null,
       required_at: (r as { required_at?: string | null }).required_at ?? null,
       attachments: r.attachments,
@@ -422,25 +407,16 @@ export async function fetchExploreRequests(
     };
   });
 
-  // If schema lacks `subcategory`, keep DB order by created_at and sort current page client-side.
-  if (cSort === "subcategory_az" && subcategoryColumnExists === false) {
-    items.sort((a, b) =>
-      (a.subcategory || "").localeCompare(b.subcategory || "", "es", {
-        sensitivity: "base",
-      }),
-    );
-  }
-
-  // Reordenar favoritos arriba dentro de la página actual conservando orden base.
-  const ordered = items
-    .map((item, index) => ({ item, index }))
-    .sort((a, b) => {
-      if (a.item.is_favorite !== b.item.is_favorite) {
-        return a.item.is_favorite ? -1 : 1;
-      }
-      return a.index - b.index;
-    })
-    .map(({ item }) => item);
+  // Reordenar favoritos arriba dentro de la página actual y luego según sort activo.
+  const ordered = items.slice().sort((a, b) => {
+    if (a.is_favorite !== b.is_favorite) {
+      return a.is_favorite ? -1 : 1;
+    }
+    if (cSort === "required") {
+      return (a.required_at || "").localeCompare(b.required_at || "");
+    }
+    return (b.created_at || "").localeCompare(a.created_at || "");
+  });
 
   const total = typeof count === "number" ? count : rows.length;
   return {
