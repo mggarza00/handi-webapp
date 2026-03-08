@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BriefcaseBusiness,
@@ -32,8 +31,6 @@ import {
   Zap,
 } from "lucide-react";
 
-import type { RequestDetail as RequestDetailType } from "./[id]/RequestDetailClient";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,21 +46,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import StatusMultiSelect from "@/components/filters/StatusMultiSelect";
 import CreateRequestButton from "@/components/requests/CreateRequestButton";
+import { CITIES } from "@/lib/cities";
 import { formatCurrencyMXN } from "@/lib/format";
-
-const RequestDetailClient = dynamic(
-  () => import("./[id]/RequestDetailClient"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="px-4 py-3 text-sm text-slate-500">
-        Cargando detalle...
-      </div>
-    ),
-  },
-);
+import { supabaseBrowser } from "@/lib/supabase-browser";
+import { toast } from "@/components/ui/use-toast";
 
 type RequestItem = {
   id: string;
@@ -78,9 +73,33 @@ type RequestItem = {
   subcategories?: unknown;
   budget?: number | null;
   estimated_budget?: number | null;
-  attachments?: Array<{ url?: string | null }> | null;
+  attachments?: Array<{
+    url?: string | null;
+    path?: string | null;
+    mime?: string | null;
+    size?: number | null;
+  }> | null;
   photos?: Array<{ url?: string | null }> | null;
 };
+
+type Attachment = {
+  url?: string;
+  path?: string;
+  mime: string;
+  size: number;
+};
+
+type Draft = {
+  title: string;
+  city: string;
+  required_at: string;
+  category: string;
+  subcategory: string;
+  budget: string;
+  attachments: Attachment[];
+};
+
+type CatalogSub = { name: string; icon?: string | null };
 
 const STATUS_OPTIONS = [
   { value: "active", label: "Activa" },
@@ -329,31 +348,57 @@ function formatDate(value?: string | null) {
   }).format(d);
 }
 
-function extractImage(item: RequestItem): string | null {
-  const consume = (value?: string | null) => {
-    const url = typeof value === "string" ? value.trim() : "";
-    return url.length > 0 ? url : null;
-  };
+function toDateInput(value?: string | null): string {
+  if (!value) return "";
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
+function extractAttachments(item: RequestItem): Attachment[] {
+  const out: Attachment[] = [];
   if (Array.isArray(item.attachments)) {
-    for (const att of item.attachments) {
-      const next = consume(att?.url ?? null);
-      if (next) return next;
+    for (const a of item.attachments) {
+      const url = (a?.url || "").trim();
+      if (!url) continue;
+      out.push({
+        url,
+        path: (a?.path || "").trim() || undefined,
+        mime: (a?.mime || "image/*").trim() || "image/*",
+        size: typeof a?.size === "number" ? a.size : Number(a?.size || 0),
+      });
     }
   }
-  if (Array.isArray(item.photos)) {
-    for (const photo of item.photos) {
-      const next = consume(photo?.url ?? null);
-      if (next) return next;
+  if (out.length === 0 && Array.isArray(item.photos)) {
+    for (const p of item.photos) {
+      const url = (p?.url || "").trim();
+      if (!url) continue;
+      out.push({ url, mime: "image/*", size: 0 });
     }
   }
-  return null;
+  return out.slice(0, 5);
 }
 
 function getBudget(item: RequestItem): number | null {
   if (typeof item.estimated_budget === "number") return item.estimated_budget;
   if (typeof item.budget === "number") return item.budget;
   return null;
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 25000,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function OrderSelect({
@@ -425,11 +470,24 @@ export default function RequestsClientPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
-  const [details, setDetails] = React.useState<
-    Record<string, RequestDetailType | undefined>
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [drafts, setDrafts] = React.useState<Record<string, Draft>>({});
+  const [savingById, setSavingById] = React.useState<Record<string, boolean>>(
+    {},
+  );
+  const [uploadingById, setUploadingById] = React.useState<
+    Record<string, boolean>
   >({});
-  const [loadingDetail, setLoadingDetail] = React.useState<string | null>(null);
+  const [uploadErrorById, setUploadErrorById] = React.useState<
+    Record<string, string | null>
+  >({});
+  const [deletingById, setDeletingById] = React.useState<
+    Record<string, boolean>
+  >({});
+  const [catOptions, setCatOptions] = React.useState<string[]>([]);
+  const [subOptions, setSubOptions] = React.useState<
+    Record<string, CatalogSub[]>
+  >({});
 
   const fetchList = React.useCallback(async () => {
     setLoading(true);
@@ -471,29 +529,46 @@ export default function RequestsClientPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMy]);
 
-  const loadDetail = React.useCallback(
-    async (id: string) => {
-      if (details[id]) return;
-      setLoadingDetail(id);
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
       try {
-        const res = await fetch(`/api/requests/${id}`, {
+        const res = await fetch("/api/catalog/categories", {
           cache: "no-store",
-          credentials: "include",
-          headers: { "Content-Type": "application/json; charset=utf-8" },
         });
-        const json = await res.json().catch(() => ({}));
-        if (res.ok && json?.data) {
-          setDetails((prev) => ({
-            ...prev,
-            [id]: json.data as RequestDetailType,
-          }));
+        const j = await res.json().catch(() => ({}));
+        if (!alive || !res.ok || !j?.ok || !Array.isArray(j?.data)) return;
+        const cats = new Map<string, Map<string, CatalogSub>>();
+        for (const row of j.data as Array<{
+          category?: string;
+          subcategory?: string | null;
+          icon?: string | null;
+        }>) {
+          const c = String(row.category || "").trim();
+          const s = String(row.subcategory || "").trim();
+          if (!c) continue;
+          if (!cats.has(c)) cats.set(c, new Map());
+          if (s) cats.get(c)!.set(s, { name: s, icon: row.icon || null });
         }
-      } finally {
-        setLoadingDetail(null);
+        const nextCats = Array.from(cats.keys()).sort((a, b) =>
+          a.localeCompare(b, "es"),
+        );
+        const nextSubs: Record<string, CatalogSub[]> = {};
+        for (const [categoryName, subs] of cats.entries()) {
+          nextSubs[categoryName] = Array.from(subs.values()).sort((a, b) =>
+            a.name.localeCompare(b.name, "es"),
+          );
+        }
+        setCatOptions(nextCats);
+        setSubOptions(nextSubs);
+      } catch {
+        // ignore
       }
-    },
-    [details],
-  );
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const visibleItems = React.useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -560,25 +635,258 @@ export default function RequestsClientPage() {
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  function handleExpand(id: string) {
-    setExpandedId((prev) => {
-      const next = prev === id ? null : id;
-      if (next) void loadDetail(id);
+  function buildDraft(item: RequestItem): Draft {
+    return {
+      title: item.title ?? "",
+      city: item.city ?? "",
+      required_at: toDateInput(item.required_at),
+      category: item.category ?? "",
+      subcategory: extractSubcategory(item) ?? "",
+      budget:
+        typeof getBudget(item) === "number" ? String(getBudget(item)) : "",
+      attachments: extractAttachments(item),
+    };
+  }
+
+  function startEditing(item: RequestItem) {
+    setEditingId(item.id);
+    setUploadErrorById((prev) => ({ ...prev, [item.id]: null }));
+    setDrafts((prev) => ({
+      ...prev,
+      [item.id]: prev[item.id] ?? buildDraft(item),
+    }));
+  }
+
+  function cancelEditing(itemId: string) {
+    setEditingId(null);
+    setUploadErrorById((prev) => ({ ...prev, [itemId]: null }));
+    setDrafts((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
       return next;
     });
   }
 
-  function handleSave(id: string) {
-    window.dispatchEvent(new CustomEvent("request-save", { detail: { id } }));
+  function setDraft(itemId: string, patch: Partial<Draft>) {
+    setDrafts((prev) => {
+      const current = prev[itemId];
+      if (!current) return prev;
+      return {
+        ...prev,
+        [itemId]: { ...current, ...patch },
+      };
+    });
   }
 
-  function handleCancel(id: string) {
-    window.dispatchEvent(new CustomEvent("request-cancel", { detail: { id } }));
-    setExpandedId(null);
+  function removeAttachment(itemId: string, index: number) {
+    const draft = drafts[itemId];
+    if (!draft) return;
+    const next = draft.attachments.filter((_, i) => i !== index);
+    setDraft(itemId, { attachments: next });
   }
 
-  function handleDelete(id: string) {
-    window.dispatchEvent(new CustomEvent("request-delete", { detail: { id } }));
+  function setCover(itemId: string, index: number) {
+    const draft = drafts[itemId];
+    if (!draft) return;
+    if (index <= 0 || index >= draft.attachments.length) return;
+    const selected = draft.attachments[index];
+    const rest = draft.attachments.filter((_, i) => i !== index);
+    setDraft(itemId, { attachments: [selected, ...rest] });
+  }
+
+  async function addFiles(item: RequestItem, files: FileList | null) {
+    const itemId = item.id;
+    const selectedFiles = files ? Array.from(files) : [];
+    if (selectedFiles.length === 0) return;
+    setUploadErrorById((prev) => ({ ...prev, [itemId]: null }));
+    setUploadingById((prev) => ({ ...prev, [itemId]: true }));
+
+    try {
+      await fetchWithTimeout(
+        "/api/storage/ensure?b=requests",
+        { method: "POST" },
+        15000,
+      ).catch(() => undefined);
+
+      const meRes = await fetchWithTimeout("/api/me", {
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        credentials: "include",
+      }).catch(() => null);
+      let currentUserId: string | null = null;
+      if (meRes) {
+        const meJson = await meRes.json().catch(() => ({}));
+        currentUserId = meRes.ok
+          ? ((meJson?.user?.id as string | undefined) ?? null)
+          : null;
+      }
+      const prefix = currentUserId ?? "anon";
+
+      const baseDraft = drafts[itemId] ?? buildDraft(item);
+      if (!drafts[itemId]) {
+        setDrafts((prev) => ({ ...prev, [itemId]: baseDraft }));
+      }
+      const initialCount = baseDraft.attachments.length;
+      const next: Attachment[] = [...baseDraft.attachments];
+      for (const f of selectedFiles) {
+        if (next.length >= 5) break;
+        const max = 5 * 1024 * 1024;
+        if (f.size > max) throw new Error(`El archivo ${f.name} excede 5MB`);
+        if (!/^image\//i.test(f.type))
+          throw new Error(`Tipo invalido para ${f.name}`);
+
+        const path = `${prefix}/${Date.now()}-${encodeURIComponent(f.name)}`;
+        let uploadedUrl: string | null = null;
+
+        // Prefer server-side upload path (service role) for reliability in client flows.
+        try {
+          const fd = new FormData();
+          fd.append("file", f);
+          fd.append("path", path);
+          fd.append("bucket", "requests");
+          const r = await fetchWithTimeout(
+            "/api/storage/upload",
+            {
+              method: "POST",
+              body: fd,
+            },
+            30000,
+          );
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok || !j?.ok) throw new Error(j?.error || "upload_failed");
+          uploadedUrl =
+            typeof j?.url === "string" && j.url.trim().length > 0
+              ? j.url.trim()
+              : null;
+        } catch {
+          const up = await Promise.race([
+            supabaseBrowser.storage
+              .from("requests")
+              .upload(path, f, { contentType: f.type, upsert: false }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("upload_timeout")), 30000),
+            ),
+          ]).catch((e) => {
+            throw e;
+          });
+          if (up && typeof up === "object" && "error" in up && up.error) {
+            throw up.error;
+          }
+          const pub = supabaseBrowser.storage
+            .from("requests")
+            .getPublicUrl(path);
+          uploadedUrl = pub.data.publicUrl?.trim() || null;
+        }
+        if (!uploadedUrl)
+          throw new Error(`No se pudo obtener URL para ${f.name}`);
+
+        next.push({
+          url: uploadedUrl || undefined,
+          path,
+          mime: f.type || "image/*",
+          size: f.size,
+        });
+      }
+      setDrafts((prev) => {
+        const current = prev[itemId] ?? baseDraft;
+        return {
+          ...prev,
+          [itemId]: {
+            ...current,
+            attachments: next.slice(0, 5),
+          },
+        };
+      });
+      const addedCount = Math.max(0, Math.min(5, next.length) - initialCount);
+      toast("Imagenes agregadas", {
+        description: `${addedCount} archivo(s) listos para guardar`,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      const friendly =
+        message === "upload_timeout" || message.includes("aborted")
+          ? "El upload tardo demasiado. Intenta de nuevo."
+          : message;
+      setError(friendly);
+      setUploadErrorById((prev) => ({ ...prev, [itemId]: friendly }));
+      toast("No se pudo subir la imagen", { description: friendly });
+    } finally {
+      setUploadingById((prev) => ({ ...prev, [itemId]: false }));
+    }
+  }
+
+  async function saveEdit(itemId: string) {
+    const draft = drafts[itemId];
+    if (!draft) return;
+
+    setSavingById((prev) => ({ ...prev, [itemId]: true }));
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        title: draft.title || undefined,
+        city: draft.city || undefined,
+        category: draft.category || undefined,
+        subcategories: draft.subcategory ? [draft.subcategory] : undefined,
+        budget: draft.budget ? Number(draft.budget) : null,
+        required_at: draft.required_at
+          ? new Date(`${draft.required_at}T00:00:00.000Z`).toISOString()
+          : undefined,
+        attachments: draft.attachments
+          .filter(
+            (a) =>
+              (typeof a.url === "string" && a.url.trim().length > 0) ||
+              (typeof a.path === "string" && a.path.trim().length > 0),
+          )
+          .map((a) => ({
+            ...(a.url ? { url: a.url } : {}),
+            ...(a.path ? { path: a.path } : {}),
+            mime: a.mime || "image/*",
+            size: Number.isFinite(a.size) ? a.size : 0,
+          })),
+      };
+
+      const res = await fetch(`/api/requests/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.detail || json?.error || `Error ${res.status}`);
+      }
+
+      setUploadErrorById((prev) => ({ ...prev, [itemId]: null }));
+      toast("Solicitud actualizada");
+      cancelEditing(itemId);
+      await fetchList();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(message);
+      toast("No se pudo guardar", { description: message });
+    } finally {
+      setSavingById((prev) => ({ ...prev, [itemId]: false }));
+    }
+  }
+
+  async function deleteRequest(itemId: string) {
+    setDeletingById((prev) => ({ ...prev, [itemId]: true }));
+    setError(null);
+    try {
+      const res = await fetch(`/api/requests/${itemId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.detail || json?.error || `Error ${res.status}`);
+      }
+      if (editingId === itemId) cancelEditing(itemId);
+      await fetchList();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingById((prev) => ({ ...prev, [itemId]: false }));
+    }
   }
 
   return (
@@ -659,13 +967,42 @@ export default function RequestsClientPage() {
           {sortedItems.length ? (
             <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
               {sortedItems.map((item) => {
-                const isExpanded = expandedId === item.id;
-                const detail = details[item.id];
+                const isEditing = editingId === item.id;
+                const draft = drafts[item.id];
                 const ui = statusUi(item.status);
-                const budget = getBudget(item);
-                const icon = resolvePlaceholderIcon(item);
-                const categoryLabel = simplifyCategory(item);
-                const imageUrl = extractImage(item);
+                const imageList =
+                  isEditing && draft
+                    ? draft.attachments
+                    : extractAttachments(item);
+                const icon = resolvePlaceholderIcon(
+                  isEditing && draft
+                    ? {
+                        category: draft.category,
+                        subcategory: draft.subcategory,
+                        subcategories: [draft.subcategory],
+                      }
+                    : item,
+                );
+                const categoryLabel = simplifyCategory(
+                  isEditing && draft
+                    ? {
+                        category: draft.category,
+                        subcategory: draft.subcategory,
+                        subcategories: [draft.subcategory],
+                      }
+                    : item,
+                );
+                const showBudget = isEditing
+                  ? draft?.budget
+                    ? formatCurrencyMXN(Number(draft.budget))
+                    : "Sin definir"
+                  : typeof getBudget(item) === "number"
+                    ? formatCurrencyMXN(getBudget(item) as number)
+                    : "Sin definir";
+                const saving = !!savingById[item.id];
+                const deleting = !!deletingById[item.id];
+                const uploading = !!uploadingById[item.id];
+                const uploadError = uploadErrorById[item.id];
 
                 return (
                   <li key={item.id} className="h-full">
@@ -675,82 +1012,352 @@ export default function RequestsClientPage() {
                         ui.cardClass,
                       ].join(" ")}
                     >
-                      <Link href={`/requests/${item.id}`} className="block">
-                        {imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={imageUrl}
-                            alt={item.title ?? "Solicitud"}
-                            className="h-32 w-full object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-32 w-full items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-                            {React.createElement(icon, {
-                              className:
-                                icon === SecurityBadgeIcon
-                                  ? "h-10 w-10 text-slate-400"
-                                  : "h-9 w-9 text-slate-400",
-                            })}
-                          </div>
-                        )}
-                      </Link>
+                      {!isEditing ? (
+                        <Link href={`/requests/${item.id}`} className="block">
+                          {imageList.length > 0 ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={imageList[0].url || ""}
+                              alt={item.title ?? "Solicitud"}
+                              className="h-32 w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-32 w-full items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+                              {React.createElement(icon, {
+                                className:
+                                  icon === SecurityBadgeIcon
+                                    ? "h-10 w-10 text-slate-400"
+                                    : "h-9 w-9 text-slate-400",
+                              })}
+                            </div>
+                          )}
+                        </Link>
+                      ) : (
+                        <div className="relative h-32 overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+                          {imageList.length > 0 ? (
+                            <div className="flex h-full gap-2 overflow-x-auto px-2 py-2 pr-12">
+                              {imageList.map((att, index) => (
+                                <div
+                                  key={`${att.url || att.path || "photo"}-${index}`}
+                                  className="group relative h-full w-20 shrink-0 overflow-hidden rounded-md border border-white/70 bg-slate-200"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={att.url || ""}
+                                    alt="Foto"
+                                    className="h-full w-full object-cover"
+                                  />
+                                  {index === 0 ? (
+                                    <span className="absolute left-1 top-1 rounded bg-slate-900/70 px-1.5 py-0.5 text-[10px] text-white">
+                                      Portada
+                                    </span>
+                                  ) : null}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removeAttachment(item.id, index)
+                                    }
+                                    className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+                                    aria-label="Eliminar foto"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                  {index > 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCover(item.id, index)}
+                                      className="absolute inset-x-1 bottom-1 rounded bg-black/55 px-1.5 py-1 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                    >
+                                      Seleccionar como portada
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {imageList.length === 0 ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-3">
+                              {React.createElement(icon, {
+                                className:
+                                  icon === SecurityBadgeIcon
+                                    ? "h-10 w-10 text-slate-400"
+                                    : "h-9 w-9 text-slate-400",
+                              })}
+                              <label className="inline-flex h-8 cursor-pointer items-center justify-center rounded-md border border-slate-300 bg-white/95 px-3 text-xs font-medium text-slate-700 shadow-sm hover:bg-white">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    void addFiles(item, e.target.files);
+                                    e.currentTarget.value = "";
+                                  }}
+                                />
+                                Agregar imagenes
+                              </label>
+                            </div>
+                          ) : null}
+                          {imageList.length > 0 && imageList.length < 5 ? (
+                            <label className="absolute right-2 top-1/2 inline-flex h-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-white/80 bg-white/95 px-2.5 text-[11px] font-medium text-slate-700 shadow hover:bg-white">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => {
+                                  void addFiles(item, e.target.files);
+                                  e.currentTarget.value = "";
+                                }}
+                              />
+                              + Agregar
+                            </label>
+                          ) : null}
+                          {uploading ? (
+                            <div className="absolute bottom-1 left-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
+                              Subiendo...
+                            </div>
+                          ) : null}
+                          {uploadError ? (
+                            <div className="absolute bottom-1 right-2 max-w-[70%] truncate rounded bg-red-600/85 px-1.5 py-0.5 text-[10px] text-white">
+                              {uploadError}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
 
-                      <div className="flex flex-1 flex-col p-3.5">
-                        <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-1 flex-col p-3.5">
+                        <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                           <span
-                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${ui.badgeClass}`}
+                            className={`inline-flex max-w-full items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${ui.badgeClass}`}
                           >
                             {ui.label}
                           </span>
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            onClick={() => handleExpand(item.id)}
-                            aria-label="Editar solicitud"
-                            className="h-8 w-8 rounded-lg"
-                          >
-                            <SquarePen className="h-4 w-4" />
-                          </Button>
+                          {isMy ? (
+                            !isEditing ? (
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                onClick={() => startEditing(item)}
+                                aria-label="Editar solicitud"
+                                className="h-8 w-8 rounded-lg"
+                              >
+                                <SquarePen className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <Button
+                                  size="icon"
+                                  className="h-8 w-8 rounded-lg"
+                                  onClick={() => void saveEdit(item.id)}
+                                  disabled={saving}
+                                  aria-label="Guardar"
+                                >
+                                  <Save className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8 rounded-lg"
+                                  onClick={() => cancelEditing(item.id)}
+                                  aria-label="Cancelar"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="destructive"
+                                  className="h-8 w-8 rounded-lg"
+                                  onClick={() => void deleteRequest(item.id)}
+                                  disabled={deleting}
+                                  aria-label="Eliminar"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )
+                          ) : null}
                         </div>
 
-                        <h3 className="line-clamp-2 text-[0.95rem] font-semibold leading-5 text-slate-900">
-                          {item.title ?? "Solicitud"}
-                        </h3>
+                        {isEditing && draft ? (
+                          <Input
+                            value={draft.title}
+                            onChange={(e) =>
+                              setDraft(item.id, { title: e.target.value })
+                            }
+                            className="h-8 w-full min-w-0 max-w-full text-sm"
+                            placeholder="Titulo"
+                          />
+                        ) : (
+                          <h3 className="line-clamp-2 text-[0.95rem] font-semibold leading-5 text-slate-900">
+                            {item.title ?? "Solicitud"}
+                          </h3>
+                        )}
 
                         <div className="mt-3 space-y-0.5">
                           <p className="text-[11px] uppercase tracking-wide text-slate-500">
                             Presupuesto estimado
                           </p>
-                          <p className="text-base font-semibold text-slate-900">
-                            {typeof budget === "number"
-                              ? formatCurrencyMXN(budget)
-                              : "Sin definir"}
-                          </p>
+                          {isEditing && draft ? (
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              value={draft.budget}
+                              onChange={(e) =>
+                                setDraft(item.id, { budget: e.target.value })
+                              }
+                              className="h-8 w-full min-w-0 max-w-full text-sm"
+                              placeholder="Sin definir"
+                            />
+                          ) : null}
+                          {!isEditing ? (
+                            <p className="text-base font-semibold text-slate-900">
+                              {showBudget}
+                            </p>
+                          ) : null}
                         </div>
 
                         <div className="mt-3 grid grid-cols-1 gap-y-2 text-xs text-slate-600">
-                          <p className="flex items-center gap-1.5">
+                          <div className="flex min-w-0 items-start gap-1.5">
                             <MapPin className="h-3.5 w-3.5 text-slate-500" />
-                            <span className="truncate">
-                              {item.city || "Ciudad no definida"}
-                            </span>
-                          </p>
-                          <p className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-slate-500" />
-                            <span>Creada: {formatDate(item.created_at)}</span>
-                          </p>
-                          <p className="flex items-center gap-1.5">
-                            <CalendarClock className="h-3.5 w-3.5 text-slate-500" />
-                            <span>
-                              Requerida: {formatDate(item.required_at)}
-                            </span>
-                          </p>
-                          <div>
-                            <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                              <Tag className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{categoryLabel}</span>
-                            </span>
+                            {isEditing && draft ? (
+                              <div className="min-w-0 flex-1">
+                                <Select
+                                  value={draft.city || undefined}
+                                  onValueChange={(value) =>
+                                    setDraft(item.id, { city: value })
+                                  }
+                                >
+                                  <SelectTrigger className="h-7 min-h-7 w-full min-w-0 max-w-full text-xs">
+                                    <SelectValue placeholder="Ciudad" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {draft.city &&
+                                    !(CITIES as readonly string[]).includes(
+                                      draft.city,
+                                    ) ? (
+                                      <SelectItem value={draft.city}>
+                                        {draft.city}
+                                      </SelectItem>
+                                    ) : null}
+                                    {CITIES.map((c) => (
+                                      <SelectItem key={c} value={c}>
+                                        {c}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            ) : (
+                              <span className="min-w-0 truncate">
+                                {item.city || "Ciudad no definida"}
+                              </span>
+                            )}
                           </div>
+                          <p className="flex min-w-0 items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                            <span className="min-w-0 truncate">
+                              Creada: {formatDate(item.created_at)}
+                            </span>
+                          </p>
+                          <div className="flex min-w-0 items-start gap-1.5">
+                            <CalendarClock className="h-3.5 w-3.5 text-slate-500" />
+                            {isEditing && draft ? (
+                              <Input
+                                type="date"
+                                value={draft.required_at}
+                                onChange={(e) =>
+                                  setDraft(item.id, {
+                                    required_at: e.target.value,
+                                  })
+                                }
+                                className="h-7 w-full min-w-0 max-w-full text-xs"
+                              />
+                            ) : (
+                              <span className="min-w-0 truncate">
+                                Requerida: {formatDate(item.required_at)}
+                              </span>
+                            )}
+                          </div>
+                          {!isEditing ? (
+                            <div>
+                              <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                                <Tag className="h-3 w-3 shrink-0" />
+                                <span className="truncate">
+                                  {categoryLabel}
+                                </span>
+                              </span>
+                            </div>
+                          ) : draft ? (
+                            <div className="grid min-w-0 grid-cols-1 gap-1.5">
+                              <Select
+                                value={draft.category || undefined}
+                                onValueChange={(value) => {
+                                  const subs = subOptions[value] || [];
+                                  const keepsCurrent = subs.some(
+                                    (s) => s.name === draft.subcategory,
+                                  );
+                                  setDraft(item.id, {
+                                    category: value,
+                                    subcategory: keepsCurrent
+                                      ? draft.subcategory
+                                      : subs[0]?.name || "",
+                                  });
+                                }}
+                              >
+                                <SelectTrigger className="h-7 min-h-7 w-full min-w-0 max-w-full text-xs">
+                                  <SelectValue placeholder="Categoria" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {catOptions.map((c) => (
+                                    <SelectItem key={c} value={c}>
+                                      {c}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+
+                              <Select
+                                value={draft.subcategory || undefined}
+                                onValueChange={(value) =>
+                                  setDraft(item.id, { subcategory: value })
+                                }
+                                disabled={!draft.category}
+                              >
+                                <SelectTrigger className="h-7 min-h-7 w-full min-w-0 max-w-full text-xs">
+                                  <SelectValue placeholder="Subcategoria" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(subOptions[draft.category] || []).map(
+                                    (sub) => (
+                                      <SelectItem
+                                        key={sub.name}
+                                        value={sub.name}
+                                      >
+                                        <span className="inline-flex items-center gap-1.5">
+                                          {sub.icon ? (
+                                            sub.icon.startsWith("http") ? (
+                                              // eslint-disable-next-line @next/next/no-img-element
+                                              <img
+                                                src={sub.icon}
+                                                alt=""
+                                                className="h-3.5 w-3.5 object-contain"
+                                              />
+                                            ) : (
+                                              <span className="text-xs">
+                                                {sub.icon}
+                                              </span>
+                                            )
+                                          ) : null}
+                                          <span>{sub.name}</span>
+                                        </span>
+                                      </SelectItem>
+                                    ),
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="mt-4 pt-1">
@@ -762,78 +1369,6 @@ export default function RequestsClientPage() {
                           </Link>
                         </div>
                       </div>
-
-                      {isExpanded ? (
-                        <div
-                          className="border-t px-3.5 pb-3.5"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <div className="flex items-center justify-between gap-3 py-3">
-                            <div className="min-w-0">
-                              <h3 className="truncate text-base font-semibold text-slate-900">
-                                {(detail?.title ?? item.title) || "Solicitud"}
-                              </h3>
-                              <p className="text-xs text-slate-500">
-                                {(detail?.city ?? item.city) || "Sin ciudad"} -{" "}
-                                {statusLabel(detail?.status ?? item.status)}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="icon"
-                                onClick={() => handleSave(item.id)}
-                                title="Guardar"
-                                aria-label="Guardar"
-                              >
-                                <Save className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                onClick={() => handleCancel(item.id)}
-                                title="Cerrar"
-                                aria-label="Cerrar"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="destructive"
-                                onClick={() => handleDelete(item.id)}
-                                title="Eliminar"
-                                aria-label="Eliminar"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-
-                          {loadingDetail === item.id && !detail ? (
-                            <div className="px-2 py-4 text-sm text-slate-500">
-                              Cargando detalle...
-                            </div>
-                          ) : detail ? (
-                            <RequestDetailClient
-                              initial={detail}
-                              startInEdit
-                              compactActions
-                              hideHeader
-                              onSaved={async () => {
-                                await fetchList();
-                                setExpandedId(null);
-                              }}
-                              onDeleted={async () => {
-                                await fetchList();
-                                setExpandedId(null);
-                              }}
-                            />
-                          ) : (
-                            <div className="px-2 py-4 text-sm text-slate-500">
-                              No se pudo cargar el detalle.
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
                     </article>
                   </li>
                 );
