@@ -20,51 +20,33 @@ export type RequestsListItem = {
   is_favorite: boolean;
 };
 
-type SortValue = "recent" | "required";
-
-function sortItems(a: RequestsListItem, b: RequestsListItem, sort: SortValue) {
-  if (a.is_favorite !== b.is_favorite) return a.is_favorite ? -1 : 1;
-  if (sort === "required") {
-    return (a.required_at || "").localeCompare(b.required_at || "");
-  }
-  return (b.created_at || "").localeCompare(a.created_at || "");
-}
+type SortValue = "recent" | "budget_desc" | "category_asc";
 
 export default function RequestsList({
-  proId,
+  proId: _proId,
   initialItems,
   sort,
   subcategoryIconMap = {},
+  categoryIconMap = {},
+  subcategoryColorMap = {},
+  categoryColorMap = {},
 }: {
   proId: string;
   initialItems: RequestsListItem[];
   sort: SortValue;
   subcategoryIconMap?: Record<string, string>;
+  categoryIconMap?: Record<string, string>;
+  subcategoryColorMap?: Record<string, string>;
+  categoryColorMap?: Record<string, string>;
 }) {
   const [items, setItems] = React.useState<RequestsListItem[]>(
-    Array.isArray(initialItems)
-      ? initialItems.slice().sort((a, b) => sortItems(a, b, sort))
-      : [],
+    Array.isArray(initialItems) ? initialItems.slice() : [],
   );
 
   // Sync local state when server-provided items change (filter/page updates)
   React.useEffect(() => {
-    setItems(
-      Array.isArray(initialItems)
-        ? initialItems.slice().sort((a, b) => sortItems(a, b, sort))
-        : [],
-    );
+    setItems(Array.isArray(initialItems) ? initialItems.slice() : []);
   }, [initialItems, sort]);
-
-  function handleToggled(id: string, fav: boolean) {
-    setItems((prev) => {
-      const next = prev.map((it) =>
-        it.id === id ? { ...it, is_favorite: fav } : it,
-      );
-      next.sort((a, b) => sortItems(a, b, sort));
-      return next;
-    });
-  }
 
   if (!items.length) {
     return (
@@ -82,14 +64,15 @@ export default function RequestsList({
   }
 
   return (
-    <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <ul className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
       {items.map((request) => (
-        <li key={request.id}>
+        <li key={request.id} className="h-full">
           <RequestCard
-            proId={proId}
             request={request}
-            onFavoriteToggled={handleToggled}
             subcategoryIconMap={subcategoryIconMap}
+            categoryIconMap={categoryIconMap}
+            subcategoryColorMap={subcategoryColorMap}
+            categoryColorMap={categoryColorMap}
           />
         </li>
       ))}

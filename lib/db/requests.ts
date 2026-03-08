@@ -7,10 +7,10 @@ import { createBearerClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase-server";
 
 export type ExploreFilters = {
-  city?: string; // 'Todas'  value
-  category?: string; // 'Todas'  value
-  subcategory?: string; // 'Todas'  value
-  sort?: "recent" | "required";
+  city?: string | string[]; // csv or array
+  category?: string | string[]; // csv or array
+  subcategory?: string | string[]; // csv or array
+  sort?: "recent" | "budget_desc" | "category_asc";
   page?: number; // 1-based
   pageSize?: number; // default 20
 };
@@ -38,6 +38,29 @@ function clean(v?: string | null): string | null {
   return s;
 }
 
+function parseCsv(value?: string | string[] | null): string[] {
+  if (Array.isArray(value)) return value.flatMap((v) => parseCsv(v));
+  if (typeof value !== "string") return [];
+  return value
+    .split(",")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+}
+
+function cleanMulti(value?: string | string[] | null): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of parseCsv(value)) {
+    const cleaned = clean(token);
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+  return out;
+}
+
 export async function fetchExploreRequests(
   proId: string,
   {
@@ -56,10 +79,11 @@ export async function fetchExploreRequests(
 }> {
   const supabase = createClient();
 
-  const cCity = clean(city);
-  const cCategory = clean(category);
-  const cSub = clean(subcategory);
-  const cSort = sort === "required" ? "required" : "recent";
+  const cCities = cleanMulti(city);
+  const cCategories = cleanMulti(category);
+  const cSubs = cleanMulti(subcategory);
+  const cSort =
+    sort === "budget_desc" || sort === "category_asc" ? sort : "recent";
 
   // Restringir por perfil del profesional (ciudades/categorías)
   let allowedCities: string[] = [];
@@ -139,38 +163,34 @@ export async function fetchExploreRequests(
     let q = query;
     if (allowedCities.length > 0) q = q.in("city", allowedCities);
     if (allowedCategories.length > 0) q = q.in("category", allowedCategories);
-    if (cCity) q = q.eq("city", cCity);
-    if (cCategory) q = q.eq("category", cCategory);
-    if (cSub) {
-      const rawVal = String(cSub);
-      if (opts.jsonUseContains) {
-        return q.contains("subcategories", [{ name: rawVal }]);
-      }
-      const eqVal = rawVal.replace(/"/g, '\\"');
+    if (cCities.length > 0) q = q.in("city", cCities);
+    if (cCategories.length > 0) q = q.in("category", cCategories);
+    if (cSubs.length > 0) {
       const filters: string[] = [];
-      if (opts.includeSubcategory) {
-        filters.push(`subcategory.eq."${eqVal}"`);
-      }
-      if (opts.includeJson) {
-        const jsonArr = JSON.stringify([rawVal]); // ["Subcat"]
-        const jsonObjArr = JSON.stringify([{ name: rawVal }]); // [{"name":"Subcat"}]
-        if (opts.jsonObjectOnly) {
-          filters.push(`subcategories.cs.${jsonObjArr}`);
-        } else {
-          filters.push(`subcategories.cs.${jsonArr}`);
-          filters.push(`subcategories.cs.${jsonObjArr}`);
+      for (const rawVal of cSubs) {
+        const eqVal = rawVal.replace(/"/g, '\\"');
+        if (opts.includeSubcategory) {
+          filters.push(`subcategory.eq."${eqVal}"`);
+        }
+        if (opts.includeJson || opts.jsonUseContains) {
+          const jsonObjArr = JSON.stringify([{ name: rawVal }]); // [{"name":"Subcat"}]
+          if (opts.jsonObjectOnly || opts.jsonUseContains) {
+            filters.push(`subcategories.cs.${jsonObjArr}`);
+          } else {
+            const jsonArr = JSON.stringify([rawVal]); // ["Subcat"]
+            filters.push(`subcategories.cs.${jsonArr}`);
+            filters.push(`subcategories.cs.${jsonObjArr}`);
+          }
         }
       }
-      if (filters.length > 0) {
-        q = q.or(filters.join(","));
-      }
+      if (filters.length > 0) q = q.or(filters.join(","));
     }
     return q;
   };
 
   // Ordenar por fecha requerida (más próximas primero)
   const shouldFallbackSubcategory = (err: PostgrestError | null) => {
-    if (!err || !cSub) return false;
+    if (!err || cSubs.length === 0) return false;
     const msg =
       `${err.message || ""} ${err.details || ""} ${err.hint || ""}`.toLowerCase();
     return (
@@ -203,8 +223,14 @@ export async function fetchExploreRequests(
       jsonUseContains: opts.jsonUseContains,
     });
 
-    if (cSort === "required") {
-      q = q.order("required_at", { ascending: true, nullsFirst: false });
+    if (cSort === "budget_desc") {
+      q = q
+        .order("budget", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
+    } else if (cSort === "category_asc") {
+      q = q
+        .order("category", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false });
     } else {
       q = q.order("created_at", { ascending: false, nullsFirst: false });
     }
@@ -244,7 +270,7 @@ export async function fetchExploreRequests(
       includeSubcategories: true,
       includeSubcategory: false,
     }));
-    if (error && shouldFallbackSubcategory(error) && cSub) {
+    if (error && shouldFallbackSubcategory(error) && cSubs.length > 0) {
       console.error(
         "[explore] subcategory JSON filter failed, retrying subcategories-only filter",
         {
@@ -260,7 +286,7 @@ export async function fetchExploreRequests(
         includeSubcategory: false,
         jsonObjectOnly: true,
       }));
-      if (error && cSub) {
+      if (error && cSubs.length > 0) {
         ({ data, error, count } = await runQuery({
           includeJson: false,
           includeSubcategories: true,
@@ -302,14 +328,14 @@ export async function fetchExploreRequests(
         includeSubcategories: true,
         includeSubcategory: true,
       }));
-      if (error && cSub) {
+      if (error && cSubs.length > 0) {
         ({ data, error, count } = await runQuery({
           includeJson: true,
           includeSubcategories: true,
           includeSubcategory: false,
           jsonObjectOnly: true,
         }));
-        if (error && cSub) {
+        if (error && cSubs.length > 0) {
           ({ data, error, count } = await runQuery({
             includeJson: false,
             includeSubcategories: true,
@@ -318,14 +344,14 @@ export async function fetchExploreRequests(
           }));
         }
       }
-    } else if (cSub) {
+    } else if (cSubs.length > 0) {
       ({ data, error, count } = await runQuery({
         includeJson: true,
         includeSubcategories: true,
         includeSubcategory: false,
         jsonObjectOnly: true,
       }));
-      if (error && cSub) {
+      if (error && cSubs.length > 0) {
         ({ data, error, count } = await runQuery({
           includeJson: false,
           includeSubcategories: true,
@@ -407,20 +433,9 @@ export async function fetchExploreRequests(
     };
   });
 
-  // Reordenar favoritos arriba dentro de la página actual y luego según sort activo.
-  const ordered = items.slice().sort((a, b) => {
-    if (a.is_favorite !== b.is_favorite) {
-      return a.is_favorite ? -1 : 1;
-    }
-    if (cSort === "required") {
-      return (a.required_at || "").localeCompare(b.required_at || "");
-    }
-    return (b.created_at || "").localeCompare(a.created_at || "");
-  });
-
   const total = typeof count === "number" ? count : rows.length;
   return {
-    items: ordered,
+    items: items,
     total,
     page: Math.max(1, page),
     pageSize: Math.max(1, pageSize),

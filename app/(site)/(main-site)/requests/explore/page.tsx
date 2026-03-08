@@ -17,6 +17,7 @@ type CatalogApiRow = {
   category?: string | null;
   subcategory?: string | null;
   icon?: string | null;
+  color?: string | null;
 };
 
 type CatalogResponse = {
@@ -28,12 +29,23 @@ type CatalogPair = {
   category: string;
   subcategory: string | null;
   icon?: string | null;
+  color?: string | null;
 };
 
-type ExploreSort = "recent" | "required";
+type ExploreSort = "recent" | "budget_desc" | "category_asc";
 
 function parseSort(value?: string): ExploreSort {
-  return value === "required" ? "required" : "recent";
+  if (value === "budget_desc") return "budget_desc";
+  if (value === "category_asc") return "category_asc";
+  return "recent";
+}
+
+function normalizeCatalogKey(value?: string | null): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 }
 
 function getBaseUrl() {
@@ -64,7 +76,7 @@ function parseCatalogResponse(payload: unknown): CatalogResponse | null {
     const row = value as Record<string, unknown>;
     const validateField = (key: string) =>
       !(key in row) || typeof row[key] === "string" || row[key] == null;
-    return ["category", "subcategory", "icon"].every(validateField);
+    return ["category", "subcategory", "icon", "color"].every(validateField);
   };
 
   if (!candidateData.every(isValidRow)) {
@@ -157,36 +169,10 @@ export default async function ExploreRequestsPage({
         .filter((s): s is string => !!s && s.length > 0)
     : [];
 
-  // Requerimos ciudades y categorías. Las subcategorías afinan resultados si existen.
-  const hasFilters = allCities.length > 0 && categoryNames.length > 0;
-
-  if (!hasFilters) {
-    return (
-      <div className="mx-auto max-w-5xl px-4 py-6">
-        <h1 className="text-2xl font-semibold mb-2">Trabajos disponibles</h1>
-        <div className="rounded-2xl border p-4">
-          <p className="font-medium">Completa tu perfil profesional</p>
-          <p className="text-sm text-slate-600 mt-1">
-            Para ver solicitudes compatibles, configura tus ciudades y
-            categorías.
-          </p>
-          <div className="mt-3">
-            <Link
-              href="/profile/setup"
-              className="inline-flex items-center rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
-            >
-              Configurar mi perfil
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // URL params with defaults (SSR state)
-  const paramCity = (searchParams?.city ?? "Todas").trim();
-  const paramCategory = (searchParams?.category ?? "Todas").trim();
-  const paramSubcategory = (searchParams?.subcategory ?? "Todas").trim();
+  const paramCity = (searchParams?.city ?? "").trim();
+  const paramCategory = (searchParams?.category ?? "").trim();
+  const paramSubcategory = (searchParams?.subcategory ?? "").trim();
   const paramSort = parseSort((searchParams?.sort ?? "recent").trim());
   const page = Math.max(1, Number(searchParams?.page || "1"));
 
@@ -211,6 +197,7 @@ export default async function ExploreRequestsPage({
         subcategory:
           (row.subcategory ? String(row.subcategory) : "").trim() || null,
         icon: (row.icon ? String(row.icon) : "").trim() || null,
+        color: (row.color ? String(row.color) : "").trim() || null,
       }));
     }
   } catch {
@@ -226,6 +213,36 @@ export default async function ExploreRequestsPage({
     // Mantener sólo subcategorías activas para ese profesional
     return !!p.subcategory && subcategoryNames.includes(p.subcategory);
   });
+  const allowedCatalogCategories = Array.from(
+    new Set(filteredPairs.map((p) => p.category).filter(Boolean)),
+  );
+
+  // Requerimos ciudades y categorías derivadas del catálogo oficial permitido.
+  const hasFilters =
+    allCities.length > 0 && allowedCatalogCategories.length > 0;
+
+  if (!hasFilters) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <h1 className="text-2xl font-semibold mb-2">Trabajos disponibles</h1>
+        <div className="rounded-2xl border p-4">
+          <p className="font-medium">Completa tu perfil profesional</p>
+          <p className="text-sm text-slate-600 mt-1">
+            Para ver solicitudes compatibles, configura tus ciudades y
+            categorías.
+          </p>
+          <div className="mt-3">
+            <Link
+              href="/profile/setup"
+              className="inline-flex items-center rounded-md border px-3 py-2 text-sm hover:bg-slate-50"
+            >
+              Configurar mi perfil
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Fetch results via util (DB-level paginate and favorites join)
   let items: Awaited<ReturnType<typeof fetchExploreRequests>>["items"] = [];
@@ -325,7 +342,43 @@ export default async function ExploreRequestsPage({
           typeof p.icon === "string" &&
           !!p.icon,
       )
-      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)]),
+      .map((p) => [normalizeCatalogKey(String(p.subcategory)), String(p.icon)]),
+  );
+  const categoryIconMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter(
+        (p) =>
+          typeof p.category === "string" &&
+          !!p.category &&
+          typeof p.icon === "string" &&
+          !!p.icon,
+      )
+      .map((p) => [normalizeCatalogKey(String(p.category)), String(p.icon)]),
+  );
+  const subcategoryColorMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter(
+        (p) =>
+          typeof p.subcategory === "string" &&
+          !!p.subcategory &&
+          typeof p.color === "string" &&
+          !!p.color,
+      )
+      .map((p) => [
+        normalizeCatalogKey(String(p.subcategory)),
+        String(p.color),
+      ]),
+  );
+  const categoryColorMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter(
+        (p) =>
+          typeof p.category === "string" &&
+          !!p.category &&
+          typeof p.color === "string" &&
+          !!p.color,
+      )
+      .map((p) => [normalizeCatalogKey(String(p.category)), String(p.color)]),
   );
 
   return (
@@ -337,8 +390,8 @@ export default async function ExploreRequestsPage({
       <ExploreFilters
         // Ciudades: sólo las del profesional (incluyendo su ciudad principal)
         cities={allCities}
-        // Categorías: sólo las activas del profesional
-        categories={categoryNames}
+        // Categorías: derivadas del catálogo oficial permitido al profesional
+        categories={allowedCatalogCategories}
         // Pairs restringidos a subcategorías activas del profesional
         pairs={filteredPairs}
         selected={{
@@ -362,6 +415,9 @@ export default async function ExploreRequestsPage({
         initialItems={enrichedItems}
         sort={paramSort}
         subcategoryIconMap={subcategoryIconMap}
+        categoryIconMap={categoryIconMap}
+        subcategoryColorMap={subcategoryColorMap}
+        categoryColorMap={categoryColorMap}
       />
 
       <Pagination page={safePage} pageSize={pageSize} total={total} />
