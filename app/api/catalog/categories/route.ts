@@ -23,7 +23,9 @@ export async function GET() {
     }
     const admin = getAdminSupabase();
     const selectColumns = "*";
-    const { data, error } = await admin.from("categories_subcategories").select(selectColumns);
+    const { data, error } = await admin
+      .from("categories_subcategories")
+      .select(selectColumns);
 
     let rows: unknown[] | null = data;
     let finalError = error;
@@ -51,7 +53,11 @@ export async function GET() {
     const pick = (rec: Record<string, unknown>, keys: string[]) => {
       for (const k of keys) {
         const val = rec?.[k];
-        if (val !== undefined && val !== null && String(val).trim().length > 0) {
+        if (
+          val !== undefined &&
+          val !== null &&
+          String(val).trim().length > 0
+        ) {
           return String(val).trim();
         }
       }
@@ -71,9 +77,24 @@ export async function GET() {
           icon: (String(rec["Emoji"] ?? "")
             .toString()
             .trim() || null) as string | null,
-          iconUrl: pick(rec, ["ícono", "icono", "icon", "icono_url", "icon_url", "iconUrl", "Ícono URL"]),
+          iconUrl: pick(rec, [
+            "ícono",
+            "icono",
+            "icon",
+            "icono_url",
+            "icon_url",
+            "iconUrl",
+            "Ícono URL",
+          ]),
           image: pick(rec, ["imagen", "image"]),
-          color: pick(rec, ["color"]),
+          color: pick(rec, [
+            "color",
+            "color_hex",
+            "colorHex",
+            "Color",
+            "Color HEX",
+            "Color Hex",
+          ]),
         };
       });
     return NextResponse.json(

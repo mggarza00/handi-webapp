@@ -6,6 +6,7 @@ import ExploreFilters from "@/app/(site)/(main-site)/requests/explore/ExploreFil
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,7 @@ type CatalogApiRow = {
   category?: string | null;
   subcategory?: string | null;
   icon?: string | null;
+  color?: string | null;
 };
 
 type CatalogResponse = {
@@ -27,7 +29,24 @@ type CatalogPair = {
   category: string;
   subcategory: string | null;
   icon?: string | null;
+  color?: string | null;
 };
+
+type ExploreSort = "recent" | "budget_desc" | "category_asc";
+
+function parseSort(value?: string): ExploreSort {
+  if (value === "budget_desc") return "budget_desc";
+  if (value === "category_asc") return "category_asc";
+  return "recent";
+}
+
+function normalizeCatalogKey(value?: string | null): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
 
 function getBaseUrl() {
   const h = headers();
@@ -57,7 +76,7 @@ function parseCatalogResponse(payload: unknown): CatalogResponse | null {
     const row = value as Record<string, unknown>;
     const validateField = (key: string) =>
       !(key in row) || typeof row[key] === "string" || row[key] == null;
-    return ["category", "subcategory", "icon"].every(validateField);
+    return ["category", "subcategory", "icon", "color"].every(validateField);
   };
 
   if (!candidateData.every(isValidRow)) {
@@ -78,6 +97,7 @@ export default async function ExploreRequestsPage({
     city?: string;
     category?: string;
     subcategory?: string;
+    sort?: string;
   };
 }) {
   const supabase = getServerClient();
@@ -149,8 +169,57 @@ export default async function ExploreRequestsPage({
         .filter((s): s is string => !!s && s.length > 0)
     : [];
 
-  // Requerimos ciudades y categorías. Las subcategorías afinan resultados si existen.
-  const hasFilters = allCities.length > 0 && categoryNames.length > 0;
+  // URL params with defaults (SSR state)
+  const paramCity = (searchParams?.city ?? "").trim();
+  const paramCategory = (searchParams?.category ?? "").trim();
+  const paramSubcategory = (searchParams?.subcategory ?? "").trim();
+  const paramSort = parseSort((searchParams?.sort ?? "recent").trim());
+  const page = Math.max(1, Number(searchParams?.page || "1"));
+
+  // Catálogo oficial desde Supabase: categories_subcategories
+  const base = getBaseUrl();
+  // Forward raw cookies for SSR fetch
+  const ck = headers();
+  const cookie = ck.get("cookie");
+  let catalogPairs: CatalogPair[] = [];
+  try {
+    const res = await fetch(`${base}/api/catalog/categories`, {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        ...(cookie ? { cookie } : {}),
+      },
+      cache: "no-store",
+    });
+    const parsed = parseCatalogResponse(await res.json().catch(() => null));
+    if (res.ok && parsed?.ok && Array.isArray(parsed.data)) {
+      catalogPairs = parsed.data.map((row) => ({
+        category: String(row.category || "").trim(),
+        subcategory:
+          (row.subcategory ? String(row.subcategory) : "").trim() || null,
+        icon: (row.icon ? String(row.icon) : "").trim() || null,
+        color: (row.color ? String(row.color) : "").trim() || null,
+      }));
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Filtrar catálogo a las categorías/subcategorías activas del profesional
+  const filteredPairs = catalogPairs.filter((p) => {
+    const inCategory = categoryNames.includes(p.category);
+    if (!inCategory) return false;
+    // Si el profesional no tiene subcategorías declaradas, no ofrecemos ninguna subcategoría
+    if (!subcategoryNames || subcategoryNames.length === 0) return false;
+    // Mantener sólo subcategorías activas para ese profesional
+    return !!p.subcategory && subcategoryNames.includes(p.subcategory);
+  });
+  const allowedCatalogCategories = Array.from(
+    new Set(filteredPairs.map((p) => p.category).filter(Boolean)),
+  );
+
+  // Requerimos ciudades y categorías derivadas del catálogo oficial permitido.
+  const hasFilters =
+    allCities.length > 0 && allowedCatalogCategories.length > 0;
 
   if (!hasFilters) {
     return (
@@ -175,49 +244,6 @@ export default async function ExploreRequestsPage({
     );
   }
 
-  // URL params with defaults (SSR state)
-  const paramCity = (searchParams?.city ?? "Todas").trim();
-  const paramCategory = (searchParams?.category ?? "Todas").trim();
-  const paramSubcategory = (searchParams?.subcategory ?? "Todas").trim();
-  const page = Math.max(1, Number(searchParams?.page || "1"));
-
-  // Catálogo oficial desde Supabase: categories_subcategories
-  const base = getBaseUrl();
-  // Forward raw cookies for SSR fetch
-  const ck = headers();
-  const cookie = ck.get("cookie");
-  let catalogPairs: CatalogPair[] = [];
-  try {
-    const res = await fetch(`${base}/api/catalog/categories`, {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        ...(cookie ? { cookie } : {}),
-      },
-      cache: "no-store",
-    });
-    const parsed = parseCatalogResponse(await res.json().catch(() => null));
-    if (res.ok && parsed?.ok && Array.isArray(parsed.data)) {
-      catalogPairs = parsed.data.map((row) => ({
-        category: String(row.category || "").trim(),
-        subcategory:
-          (row.subcategory ? String(row.subcategory) : "").trim() || null,
-        icon: (row.icon ? String(row.icon) : "").trim() || null,
-      }));
-    }
-  } catch {
-    /* ignore */
-  }
-
-  // Filtrar catálogo a las categorías/subcategorías activas del profesional
-  const filteredPairs = catalogPairs.filter((p) => {
-    const inCategory = categoryNames.includes(p.category);
-    if (!inCategory) return false;
-    // Si el profesional no tiene subcategorías declaradas, no ofrecemos ninguna subcategoría
-    if (!subcategoryNames || subcategoryNames.length === 0) return false;
-    // Mantener sólo subcategorías activas para ese profesional
-    return !!p.subcategory && subcategoryNames.includes(p.subcategory);
-  });
-
   // Fetch results via util (DB-level paginate and favorites join)
   let items: Awaited<ReturnType<typeof fetchExploreRequests>>["items"] = [];
   let total = 0;
@@ -229,6 +255,7 @@ export default async function ExploreRequestsPage({
       city: paramCity,
       category: paramCategory,
       subcategory: paramSubcategory,
+      sort: paramSort,
       page,
       pageSize: PER_PAGE,
     });
@@ -260,6 +287,51 @@ export default async function ExploreRequestsPage({
     loadError = true;
   }
 
+  // Resolve client profile fields with service role (RLS-safe fallback).
+  const createdByIds = Array.from(
+    new Set(
+      items
+        .map((item) => item.created_by)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
+  const clientById = new Map<
+    string,
+    { full_name: string | null; avatar_url: string | null }
+  >();
+  if (createdByIds.length > 0) {
+    try {
+      const admin = getAdminSupabase();
+      const { data: profiles } = await admin
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", createdByIds);
+      const rows = (profiles || []) as Array<{
+        id?: string | null;
+        full_name?: string | null;
+        avatar_url?: string | null;
+      }>;
+      for (const profile of rows) {
+        if (!profile?.id) continue;
+        clientById.set(String(profile.id), {
+          full_name: profile.full_name ?? null,
+          avatar_url: profile.avatar_url ?? null,
+        });
+      }
+    } catch {
+      // Keep null fallbacks when service role is unavailable.
+    }
+  }
+
+  const enrichedItems = items.map((item) => {
+    const profile = item.created_by ? clientById.get(item.created_by) : null;
+    return {
+      ...item,
+      client_name: profile?.full_name ?? null,
+      client_avatar_url: profile?.avatar_url ?? null,
+    };
+  });
+
   // Build subcategory -> icon map for cards (lowercased key)
   const subcategoryIconMap: Record<string, string> = Object.fromEntries(
     (catalogPairs || [])
@@ -270,7 +342,43 @@ export default async function ExploreRequestsPage({
           typeof p.icon === "string" &&
           !!p.icon,
       )
-      .map((p) => [String(p.subcategory).toLowerCase(), String(p.icon)]),
+      .map((p) => [normalizeCatalogKey(String(p.subcategory)), String(p.icon)]),
+  );
+  const categoryIconMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter(
+        (p) =>
+          typeof p.category === "string" &&
+          !!p.category &&
+          typeof p.icon === "string" &&
+          !!p.icon,
+      )
+      .map((p) => [normalizeCatalogKey(String(p.category)), String(p.icon)]),
+  );
+  const subcategoryColorMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter(
+        (p) =>
+          typeof p.subcategory === "string" &&
+          !!p.subcategory &&
+          typeof p.color === "string" &&
+          !!p.color,
+      )
+      .map((p) => [
+        normalizeCatalogKey(String(p.subcategory)),
+        String(p.color),
+      ]),
+  );
+  const categoryColorMap: Record<string, string> = Object.fromEntries(
+    (catalogPairs || [])
+      .filter(
+        (p) =>
+          typeof p.category === "string" &&
+          !!p.category &&
+          typeof p.color === "string" &&
+          !!p.color,
+      )
+      .map((p) => [normalizeCatalogKey(String(p.category)), String(p.color)]),
   );
 
   return (
@@ -282,14 +390,15 @@ export default async function ExploreRequestsPage({
       <ExploreFilters
         // Ciudades: sólo las del profesional (incluyendo su ciudad principal)
         cities={allCities}
-        // Categorías: sólo las activas del profesional
-        categories={categoryNames}
+        // Categorías: derivadas del catálogo oficial permitido al profesional
+        categories={allowedCatalogCategories}
         // Pairs restringidos a subcategorías activas del profesional
         pairs={filteredPairs}
         selected={{
           city: paramCity,
           category: paramCategory,
           subcategory: paramSubcategory,
+          sort: paramSort,
           page: String(page),
         }}
       />
@@ -303,8 +412,12 @@ export default async function ExploreRequestsPage({
 
       <RequestsList
         proId={user.id}
-        initialItems={items}
+        initialItems={enrichedItems}
+        sort={paramSort}
         subcategoryIconMap={subcategoryIconMap}
+        categoryIconMap={categoryIconMap}
+        subcategoryColorMap={subcategoryColorMap}
+        categoryColorMap={categoryColorMap}
       />
 
       <Pagination page={safePage} pageSize={pageSize} total={total} />
