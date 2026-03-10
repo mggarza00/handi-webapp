@@ -35,13 +35,31 @@ type ConversationRow = {
 };
 
 function parseServiceDate(raw?: string | null) {
-  if (!raw) return { date: null as string | null, time: null as string | null };
+  if (!raw)
+    return {
+      date: null as string | null,
+      time: null as string | null,
+      displayTime: null as string | null,
+    };
+  const trimmed = raw.trim();
+  if (!trimmed)
+    return {
+      date: null as string | null,
+      time: null as string | null,
+      displayTime: null as string | null,
+    };
   const dt = new Date(raw);
   if (Number.isNaN(dt.getTime()))
-    return { date: null as string | null, time: null as string | null };
+    return {
+      date: null as string | null,
+      time: null as string | null,
+      displayTime: trimmed,
+    };
+  const hhmm = dt.toISOString().slice(11, 16);
   return {
     date: dt.toISOString().slice(0, 10),
-    time: dt.toISOString().slice(11, 16),
+    time: hhmm,
+    displayTime: hhmm,
   };
 }
 
@@ -55,6 +73,21 @@ function isMissingPaymentIntent(err: unknown): boolean {
 function buildStableMessageId(seed: string) {
   const hex = createHash("sha256").update(seed).digest("hex").slice(0, 32);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function toTextOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
+
+function toDbTimeOrNull(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) return null;
+  return `${match[1]}:${match[2]}`;
 }
 
 export async function finalizeOfferPayment(
@@ -88,6 +121,9 @@ export async function finalizeOfferPayment(
     let requestCity: string | null = null;
     let proEmail: string | null = null;
     let proName: string | null = null;
+    let agreementId: string | null = null;
+    let agreementScheduledDate: string | null = null;
+    let agreementScheduledTime: string | null = null;
 
     if (conversationId) {
       const { data: conv } = await admin
@@ -146,12 +182,62 @@ export async function finalizeOfferPayment(
       }
     }
 
+    if (requestId && proId) {
+      try {
+        const { data: agreementRows } = await admin
+          .from("agreements")
+          .select("id,status,scheduled_date,scheduled_time,updated_at")
+          .eq("request_id", requestId)
+          .eq("professional_id", proId)
+          .order("updated_at", { ascending: false })
+          .limit(10);
+        const rows = Array.isArray(agreementRows)
+          ? (agreementRows as Array<{
+              id?: string | null;
+              status?: string | null;
+              scheduled_date?: string | null;
+              scheduled_time?: string | null;
+            }>)
+          : [];
+        const prioritized = rows.find(
+          (row) =>
+            Boolean(row?.scheduled_date || row?.scheduled_time) &&
+            ["paid", "accepted", "in_progress", "completed"].includes(
+              String(row?.status ?? "").toLowerCase(),
+            ),
+        );
+        const selected =
+          prioritized ||
+          rows.find((row) =>
+            Boolean(row?.scheduled_date || row?.scheduled_time),
+          ) ||
+          rows[0];
+        if (selected?.id) {
+          agreementId = selected.id;
+          agreementScheduledDate = toTextOrNull(selected.scheduled_date);
+          agreementScheduledTime = toTextOrNull(selected.scheduled_time);
+        }
+      } catch {
+        /* ignore agreement prefetch */
+      }
+    }
+
     const scheduledDate =
+      agreementScheduledDate ||
       parsedService.date ||
       requestScheduledDate ||
       (requestRequiredAt ? requestRequiredAt.slice(0, 10) : null) ||
       nowIso.slice(0, 10);
-    const scheduledTime = parsedService.time || requestScheduledTime || "09:00";
+    const scheduledTimeForDb =
+      toDbTimeOrNull(agreementScheduledTime) ||
+      toDbTimeOrNull(parsedService.time) ||
+      toDbTimeOrNull(requestScheduledTime) ||
+      "09:00";
+    const scheduledTimeForMessage =
+      agreementScheduledTime ||
+      parsedService.displayTime ||
+      requestScheduledTime ||
+      scheduledTimeForDb;
     const baseUrl = (
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
@@ -337,15 +423,32 @@ export async function finalizeOfferPayment(
       })
       .eq("id", offer.id);
 
-    let agreementId: string | null = null;
     if (requestId && proId) {
       try {
-        const { data: existing } = await admin
-          .from("agreements")
-          .select("id,status,scheduled_date,scheduled_time")
-          .eq("request_id", requestId)
-          .eq("professional_id", proId)
-          .maybeSingle();
+        let existing: {
+          id?: string | null;
+          status?: string | null;
+          scheduled_date?: string | null;
+          scheduled_time?: string | null;
+        } | null = null;
+        if (agreementId) {
+          const { data } = await admin
+            .from("agreements")
+            .select("id,status,scheduled_date,scheduled_time")
+            .eq("id", agreementId)
+            .maybeSingle();
+          existing = (data ?? null) as typeof existing;
+        } else {
+          const { data } = await admin
+            .from("agreements")
+            .select("id,status,scheduled_date,scheduled_time")
+            .eq("request_id", requestId)
+            .eq("professional_id", proId)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          existing = (data ?? null) as typeof existing;
+        }
         if (existing?.id) {
           const patch: AgreementUpdate = { updated_at: nowIso };
           const st = String(existing.status ?? "").toLowerCase();
@@ -356,8 +459,8 @@ export async function finalizeOfferPayment(
           if (scheduledDate && !existing.scheduled_date) {
             patch.scheduled_date = scheduledDate;
           }
-          if (scheduledTime && !existing.scheduled_time) {
-            patch.scheduled_time = scheduledTime;
+          if (scheduledTimeForDb && !existing.scheduled_time) {
+            patch.scheduled_time = scheduledTimeForDb;
           }
           if (Object.keys(patch).length > 1) {
             await admin.from("agreements").update(patch).eq("id", existing.id);
@@ -375,7 +478,7 @@ export async function finalizeOfferPayment(
             amount: typeof offer.amount === "number" ? offer.amount : null,
             status: "paid",
             scheduled_date: scheduledDate || null,
-            scheduled_time: scheduledTime || null,
+            scheduled_time: scheduledTimeForDb || null,
             created_at: nowIso,
             updated_at: nowIso,
           };
@@ -418,7 +521,7 @@ export async function finalizeOfferPayment(
         patch.accepted_professional_id = proId;
       }
       if (scheduledDate) patch.scheduled_date = scheduledDate;
-      if (scheduledTime) patch.scheduled_time = scheduledTime;
+      if (scheduledTimeForDb) patch.scheduled_time = scheduledTimeForDb;
       if (agreementId) patch.agreement_id = agreementId;
       if (!requestRequiredAt && scheduledDate)
         patch.required_at = scheduledDate;
@@ -442,7 +545,7 @@ export async function finalizeOfferPayment(
             request_id: requestId,
             title: requestTitle || "Servicio",
             scheduled_date: scheduledDate || null,
-            scheduled_time: scheduledTime || null,
+            scheduled_time: scheduledTimeForDb || null,
             status: "scheduled",
           },
           { onConflict: "request_id" },
@@ -477,68 +580,44 @@ export async function finalizeOfferPayment(
       try {
         const paidPayload: Record<string, unknown> = {
           offer_id: offer.id,
+          agreement_id: agreementId,
           status: "paid",
+          type: "service_scheduled_address",
+          scheduled_date: scheduledDate || null,
+          scheduled_time: scheduledTimeForMessage || null,
+          address_line: toTextOrNull(requestAddressLine),
+          city: toTextOrNull(requestCity),
+          receipt_id: receiptId,
+          receipt_url: receiptUrl,
+          receipt_view_url: receiptViewUrl,
+          receipt_download_url: receiptDownloadUrl,
         };
         const paidMessageId = buildStableMessageId(
           `paid:${conversationId}:${offer.id}`,
         );
-        if (!(await hasSystemMessage(paidPayload, paidMessageId))) {
-          const body = "Pago realizado. Servicio agendado.";
-          const messageInsert: MessageInsert = {
-            id: paidMessageId,
-            conversation_id: conversationId,
-            sender_id: clientId,
-            body,
-            message_type: "system",
-            payload: paidPayload as MessageInsert["payload"],
-          };
-          await admin
-            .from("messages")
-            .upsert(messageInsert, { onConflict: "id" });
+        const { data: existingPaidById } = await admin
+          .from("messages")
+          .select("id")
+          .eq("id", paidMessageId)
+          .maybeSingle();
+        const body = "Servicio agendado";
+        const messageInsert: MessageInsert = {
+          id: paidMessageId,
+          conversation_id: conversationId,
+          sender_id: clientId,
+          body,
+          message_type: "system",
+          payload: paidPayload as MessageInsert["payload"],
+        };
+        await admin
+          .from("messages")
+          .upsert(messageInsert, { onConflict: "id" });
+        if (!existingPaidById?.id) {
           await notifyChatMessageByConversation({
             conversationId,
             senderId: clientId,
             text: body,
           });
-        }
-        const addressLine = requestAddressLine?.toString().trim() || "";
-        const city = requestCity?.toString().trim() || "";
-        if (addressLine || city) {
-          const addressPayload: Record<string, unknown> = {
-            offer_id: offer.id,
-            status: "paid",
-            type: "service_scheduled_address",
-            address_line: addressLine || null,
-            city: city || null,
-          };
-          const addressMessageId = buildStableMessageId(
-            `paid_address:${conversationId}:${offer.id}`,
-          );
-          const hasAddress = await hasSystemMessage(
-            {
-              offer_id: offer.id,
-              status: "paid",
-              type: "service_scheduled_address",
-            },
-            addressMessageId,
-          );
-          if (!hasAddress) {
-            const line = [addressLine, city].filter(Boolean).join(", ");
-            const body = line
-              ? `Servicio agendado en ${line}.`
-              : "Servicio agendado.";
-            const messageInsert: MessageInsert = {
-              id: addressMessageId,
-              conversation_id: conversationId,
-              sender_id: clientId,
-              body,
-              message_type: "system",
-              payload: addressPayload as MessageInsert["payload"],
-            };
-            await admin
-              .from("messages")
-              .upsert(messageInsert, { onConflict: "id" });
-          }
         }
         if (receiptId || receiptUrl) {
           let hasReceipt = false;

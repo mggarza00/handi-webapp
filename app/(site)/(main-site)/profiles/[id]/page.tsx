@@ -9,9 +9,9 @@ import type { Database } from "@/types/supabase";
 import Breadcrumbs from "@/components/breadcrumbs";
 import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
 import ProfileHeaderCard from "@/components/profiles/ProfileHeaderCard";
+import ServiceTagOverflow from "@/components/profiles/ServiceTagOverflow.client";
 import CertChip from "@/components/profiles/CertChip";
 import CompletedWorks from "@/components/profiles/CompletedWorks";
-import ExpandableText from "@/components/profiles/ExpandableText.client";
 import PhotoMasonry from "@/components/profiles/PhotoMasonry";
 import ReviewsListClient from "@/components/profiles/ReviewsList.client";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,6 @@ import {
 import { getProJobsWithPhotos } from "@/lib/profiles/jobs";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import createClient from "@/utils/supabase/server";
-
-import "./profile-layout.css";
 
 const stackSansHeading = localFont({
   src: "../../../../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",
@@ -41,6 +39,44 @@ const getNumber = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 const getBoolean = (value: unknown): boolean | null =>
   typeof value === "boolean" ? value : null;
+const getNamePart = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
+const getComposedName = (
+  value: Record<string, unknown> | null | undefined,
+): string | null => {
+  if (!value) return null;
+  const first = getNamePart(value.first_name);
+  const last = getNamePart(value.last_name);
+  if (first && last) return `${first} ${last}`;
+  return first || last || null;
+};
+const getPreferredName = (
+  proData: Record<string, unknown> | null | undefined,
+  profileData: Record<string, unknown> | null | undefined,
+): string | null => {
+  const candidates: Array<string | null> = [
+    getNamePart(profileData?.full_name),
+    getNamePart(proData?.full_name),
+    getNamePart(profileData?.display_name),
+    getNamePart(proData?.display_name),
+    getNamePart(profileData?.name),
+    getNamePart(proData?.name),
+    getComposedName(profileData),
+    getComposedName(proData),
+  ];
+  return candidates.find((value): value is string => Boolean(value)) ?? null;
+};
+const toRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+const getProfileRecord = (value: unknown): Record<string, unknown> | null => {
+  if (Array.isArray(value)) return toRecord(value[0]);
+  return toRecord(value);
+};
 
 function getBaseUrl() {
   const h = headers();
@@ -61,21 +97,17 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     const supa = getAdminSupabase() as SupabaseClient<Database>;
     const ov = await getProfessionalOverview(supa, params.id);
     const proData = ov.pro;
-    const profileData = proData?.profiles ?? null;
-    const name =
-      getString(profileData?.full_name) ||
-      getString(proData?.full_name) ||
-      "Perfil profesional";
+    const profileData = getProfileRecord(proData?.profiles);
+    const name = getPreferredName(proData, profileData) || "Perfil profesional";
     const rawBio = (getString(proData?.bio) || "").toString();
     const firstLine = rawBio.split(/\r?\n/)[0] || "";
     const bioText = firstLine;
     const titleName = `${name} Perfil profesional`;
     const desc =
       bioText.length > 160
-        ? `${bioText.slice(0, 157)}…`
+        ? `${bioText.slice(0, 157)}...`
         : bioText || "Perfil profesional en Handi";
 
-    // Prefer avatar as OG if available, else fallback
     const imageUrl =
       getString(profileData?.avatar_url) ||
       getString(proData?.avatar_url) ||
@@ -108,11 +140,9 @@ export default async function PublicProfilePage({ params }: Ctx) {
   const supa = getAdminSupabase() as SupabaseClient<Database>;
   const proId = params.id;
 
-  // 1) Perfil + métricas
   const overview = await getProfessionalOverview(supa, proId);
   const pro = overview.pro;
   if (!pro) {
-    // Si no existe perfil público y el usuario autenticado es el dueño, redirige a setup
     try {
       const rls = createClient();
       const { data: auth } = await rls.auth.getUser();
@@ -125,18 +155,15 @@ export default async function PublicProfilePage({ params }: Ctx) {
     return notFound();
   }
 
-  const categories = overview.categories;
-  const subcategories = overview.subcategories;
+  const coloredTags = overview.coloredTags;
 
   const [portfolio, reviewsData] = await Promise.all([
     loadPortfolio(supa, proId, 18),
     loadReviews(supa, proId, 5),
   ]);
 
-  // Jobs with photos list (distinct requests completed by this pro)
   const jobsWithPhotos = await getProJobsWithPhotos(supa, proId, 6);
 
-  // Determine if viewer should see Favorite button: only for logged-in clients viewing other profiles
   const rls = createClient();
   const { data: auth } = await rls.auth.getUser();
   let showFavorite = false;
@@ -154,10 +181,8 @@ export default async function PublicProfilePage({ params }: Ctx) {
     }
   }
 
-  // Jobs done (completed agreements)
   const jobsDone = overview.jobsDone;
 
-  // Certifications (best-effort, optional column)
   let certifications: string[] = [];
   try {
     const prow = await supa
@@ -203,26 +228,30 @@ export default async function PublicProfilePage({ params }: Ctx) {
   }
 
   const proData = pro;
-  const profileData = proData.profiles ?? null;
-  const displayName =
-    getString(profileData?.full_name) ||
-    getString(proData?.full_name) ||
-    "Profesional";
+  const profileData = getProfileRecord(proData.profiles);
+  let resolvedDisplayName = getPreferredName(proData, profileData);
+  if (!resolvedDisplayName) {
+    const fallbackProfile = await supa
+      .from("profiles")
+      .select("full_name")
+      .eq("id", proId)
+      .maybeSingle<{ full_name: string | null }>();
+    resolvedDisplayName = getNamePart(fallbackProfile.data?.full_name);
+  }
+  const displayName = resolvedDisplayName || "Profesional";
   const avatarUrl =
     getString(profileData?.avatar_url) ||
     getString(proData?.avatar_url) ||
     "/avatar.png";
   const cityLabel =
     getString(profileData?.city) || getString(proData?.city) || null;
-  const categoriesLabel =
-    (categories.length ? categories : subcategories).join(", ") || "—";
-  const subcategoriesLabel = subcategories.join(", ") || "—";
   const serviceCities = overview.cities ?? [];
   const yearsExperience = getNumber(proData.years_experience) ?? null;
   const averageRating =
-    typeof reviewsData.average === "number"
+    typeof reviewsData.average === "number" &&
+    Number.isFinite(reviewsData.average)
       ? reviewsData.average
-      : (getNumber(proData.rating) ?? null);
+      : null;
   const bio = getString(proData.bio);
   const isVerified = Boolean(
     getBoolean(proData.verified) || getBoolean(proData.is_featured),
@@ -244,8 +273,8 @@ export default async function PublicProfilePage({ params }: Ctx) {
         cityLabel={cityLabel}
         yearsExperience={yearsExperience}
         jobsDone={jobsDone}
-        categoriesLabel={categoriesLabel}
         serviceCities={serviceCities}
+        bio={bio}
         averageRating={averageRating}
         reviewsCount={reviewsData.count}
         headingClassName={stackSansHeading.className}
@@ -261,261 +290,145 @@ export default async function PublicProfilePage({ params }: Ctx) {
         }
       />
 
-      <section className="profile-layout">
-        <div className="space-y-4">
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Información general
-              </h2>
-              <dl className="mt-4 space-y-3 text-sm text-slate-600">
-                <InfoRow
-                  label="Años de experiencia"
-                  value={
-                    typeof yearsExperience === "number"
-                      ? `${yearsExperience} años`
-                      : "—"
-                  }
-                />
-                <InfoRow
-                  label="Trabajos finalizados"
-                  value={
-                    typeof jobsDone === "number" ? jobsDone.toString() : "—"
-                  }
-                />
-                <InfoRow
-                  label="Calificación promedio"
-                  value={
-                    typeof averageRating === "number"
-                      ? `${averageRating.toFixed(1)} / 5`
-                      : "—"
-                  }
-                />
-                <InfoRow label="Ciudad" value={cityLabel ?? "—"} />
-                <InfoRow label="Categorías" value={categoriesLabel || "—"} />
-                <InfoRow
-                  label="Subcategorías"
-                  value={subcategoriesLabel || "—"}
-                />
-                <InfoRow
-                  label="Ciudades de servicio"
-                  value={
-                    serviceCities.length
-                      ? serviceCities.join(", ")
-                      : "Sin ciudades adicionales"
-                  }
-                />
-              </dl>
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5">
-              <h2 className="text-lg font-semibold text-slate-900">Resumen</h2>
-              <div className="mt-3 text-sm text-slate-600">
-                {bio ? (
-                  <ExpandableText
-                    text={bio}
-                    maxParagraphs={35}
-                    previewParagraphs={4}
-                  />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Aún no agregas una bio como profesional.
-                  </p>
-                )}
+      <section className="space-y-4">
+        <Card className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-5 space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Servicios y experiencia
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Experiencia, calidad y alcance del profesional.
+                </p>
               </div>
             </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Estadísticas
-              </h2>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-slate-700">
-                <StatPill
-                  label="Calificación"
-                  value={
-                    typeof averageRating === "number"
-                      ? averageRating.toFixed(1)
-                      : "—"
-                  }
-                />
-                <StatPill
-                  label="Trabajos"
-                  value={
-                    typeof jobsDone === "number" ? jobsDone.toString() : "—"
-                  }
-                />
-                <StatPill
-                  label="Años exp."
-                  value={
-                    typeof yearsExperience === "number"
-                      ? yearsExperience.toString()
-                      : "—"
-                  }
-                />
-                <StatPill
-                  label="Reseñas"
-                  value={
-                    typeof reviewsData.count === "number"
-                      ? reviewsData.count.toString()
-                      : "0"
-                  }
-                />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5 space-y-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    Servicios y experiencia
-                  </h2>
-                  <p className="text-sm text-slate-600">
-                    Experiencia, calidad y alcance del profesional.
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <StatPill
-                  label="Experiencia"
-                  value={
-                    typeof yearsExperience === "number"
-                      ? `${yearsExperience} años`
-                      : "—"
-                  }
-                />
-                <StatPill
-                  label="Trabajos finalizados"
-                  value={
-                    typeof jobsDone === "number" ? jobsDone.toString() : "—"
-                  }
-                />
-                <StatPill
-                  label="Calificación"
-                  value={
-                    typeof averageRating === "number"
-                      ? averageRating.toFixed(1)
-                      : "—"
-                  }
-                />
-              </div>
-              <div className="flex flex-wrap gap-2 text-sm text-slate-700">
-                {categoriesLabel && categoriesLabel !== "—" ? (
-                  <span className="rounded-full bg-slate-100 px-3 py-1">
-                    {categoriesLabel}
-                  </span>
-                ) : null}
-                {serviceCities.map((c) => (
-                  <span
-                    key={c}
-                    className="rounded-full bg-slate-100 px-3 py-1 text-slate-800"
-                  >
-                    {c}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Trabajos realizados
-              </h2>
-              <div className="mt-3">
-                {jobsWithPhotos.length ? (
-                  <CompletedWorks
-                    items={jobsWithPhotos.map((j) => ({
-                      request_id: j.request_id,
-                      title: j.request_title || "Solicitud",
-                      photos: j.photos.slice(0, 6).map((u, i) => ({
-                        id: `${j.request_id}-${i}`,
-                        url: u,
-                        alt: `Foto del trabajo: ${
-                          j.request_title || "Solicitud"
-                        }`,
-                      })),
-                    }))}
-                  />
-                ) : (
-                  <p className="text-sm text-slate-600">
-                    Aún no hay trabajos realizados.
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Certificaciones
-              </h2>
-              <div className="mt-3">
-                {certifications.length ? (
-                  <div className="flex flex-wrap gap-2">
-                    {certifications.map((c) => (
-                      <CertChip key={c}>{c}</CertChip>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    Sin certificaciones registradas.
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Galería de trabajos
-              </h2>
-              <div className="mt-3">
-                {portfolio && portfolio.length ? (
-                  <PhotoMasonry photos={portfolio} />
-                ) : (
-                  <p className="text-sm text-slate-600">
-                    Aún no hay fotos en el portafolio.
-                  </p>
-                )}
-              </div>
-            </div>
-          </Card>
-
-          <Card className="rounded-2xl border bg-white shadow-sm">
-            <div className="p-5 space-y-3">
-              <h2 className="text-lg font-semibold text-slate-900">Reseñas</h2>
-              <ReviewsListClient
-                professionalId={proId}
-                initial={reviewsData.items}
-                nextCursor={reviewsData.nextCursor}
-                total={reviewsData.count}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <StatPill
+                label="Experiencia"
+                value={
+                  typeof yearsExperience === "number"
+                    ? `${yearsExperience} años`
+                    : "-"
+                }
+              />
+              <StatPill
+                label="Trabajos finalizados"
+                value={typeof jobsDone === "number" ? jobsDone.toString() : "-"}
+              />
+              <StatPill
+                label="Calificacion"
+                value={
+                  typeof averageRating === "number"
+                    ? averageRating.toFixed(1)
+                    : "-"
+                }
               />
             </div>
-          </Card>
-        </div>
+            <div className="space-y-3 text-sm text-slate-700">
+              {coloredTags.length ? (
+                <ServiceTagOverflow tags={coloredTags} maxVisible={7} />
+              ) : null}
+              {serviceCities.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {serviceCities.map((city) => (
+                    <span
+                      key={`city-${city}`}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-slate-800"
+                    >
+                      {city}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {!coloredTags.length && !serviceCities.length ? (
+                <p className="text-sm text-muted-foreground">
+                  Este profesional aun no ha agregado categorias ni ciudades de
+                  servicio.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-5">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Trabajos realizados
+            </h2>
+            <div className="mt-3">
+              {jobsWithPhotos.length ? (
+                <CompletedWorks
+                  items={jobsWithPhotos.map((j) => ({
+                    request_id: j.request_id,
+                    title: j.request_title || "Solicitud",
+                    photos: j.photos.slice(0, 6).map((u, i) => ({
+                      id: `${j.request_id}-${i}`,
+                      url: u,
+                      alt: `Foto del trabajo: ${j.request_title || "Solicitud"}`,
+                    })),
+                  }))}
+                />
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Aun no hay trabajos realizados.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-5">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Certificaciones
+            </h2>
+            <div className="mt-3">
+              {certifications.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {certifications.map((c) => (
+                    <CertChip key={c}>{c}</CertChip>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Sin certificaciones registradas.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-5">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Galeria de trabajos
+            </h2>
+            <div className="mt-3">
+              {portfolio && portfolio.length ? (
+                <PhotoMasonry photos={portfolio} />
+              ) : (
+                <p className="text-sm text-slate-600">
+                  Aun no hay fotos en el portafolio.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border bg-white shadow-sm">
+          <div className="p-5 space-y-3">
+            <h2 className="text-lg font-semibold text-slate-900">Resenas</h2>
+            <ReviewsListClient
+              professionalId={proId}
+              initial={reviewsData.items}
+              nextCursor={reviewsData.nextCursor}
+              total={reviewsData.count}
+            />
+          </div>
+        </Card>
       </section>
     </main>
-  );
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-500">
-        {label}
-      </dt>
-      <dd className="mt-1 text-base text-slate-900">{value || "—"}</dd>
-    </div>
   );
 }
 

@@ -9,8 +9,8 @@ type ProfileHeaderCardProps = {
   cityLabel?: string | null;
   yearsExperience?: number | null;
   jobsDone?: number | null;
-  categoriesLabel?: string | null;
   serviceCities?: string[];
+  bio?: string | null;
   rightAction?: React.ReactNode;
   averageRating?: number | null;
   reviewsCount?: number | null;
@@ -25,8 +25,8 @@ export default function ProfileHeaderCard({
   cityLabel,
   yearsExperience,
   jobsDone,
-  categoriesLabel,
   serviceCities = [],
+  bio,
   rightAction,
   averageRating,
   reviewsCount,
@@ -34,22 +34,25 @@ export default function ProfileHeaderCard({
   roleLabel = "Profesional",
   isVerified = false,
 }: ProfileHeaderCardProps) {
-  const chips = [
-    categoriesLabel && categoriesLabel !== "-" ? categoriesLabel : null,
-    ...serviceCities,
-  ].filter(Boolean) as string[];
+  const chips = Array.from(
+    new Set(
+      serviceCities
+        .map((city) => city.trim())
+        .filter((city) => city.length > 0),
+    ),
+  );
 
   return (
-    <section className="overflow-hidden rounded-3xl border bg-white shadow-sm">
+    <section className="overflow-visible rounded-3xl border bg-white shadow-sm">
       <div className="h-16 w-full bg-gradient-to-r from-[var(--color-primary)] via-[var(--color-secondary)] to-[var(--color-primary)]" />
       <div className="flex flex-col gap-4 px-6 pb-6 pt-0">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col items-center gap-4 md:flex-row md:items-start">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={avatarUrl || "/avatar.png"}
               alt={displayName}
-              className="h-16 w-16 rounded-full border-4 border-white bg-white object-cover shadow -mt-8 md:h-20 md:w-20 md:-mt-10"
+              className="-mt-16 h-32 w-32 self-center rounded-full border-4 border-white bg-white object-cover shadow md:-mt-[4.5rem] md:h-36 md:w-36 md:self-auto"
               referrerPolicy="no-referrer"
               crossOrigin="anonymous"
               loading="lazy"
@@ -104,24 +107,29 @@ export default function ProfileHeaderCard({
                   ) : null}
                 </div>
               ) : null}
+              {chips.length ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                  {chips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-slate-700"
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {typeof bio === "string" && bio.trim().length ? (
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-slate-600">
+                  {bio.trim()}
+                </p>
+              ) : null}
             </div>
           </div>
           {rightAction ? (
             <div className="self-start md:self-center">{rightAction}</div>
           ) : null}
         </div>
-        {chips.length ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700">
-            {chips.map((chip) => (
-              <span
-                key={chip}
-                className="rounded-full bg-slate-100 px-3 py-1 text-slate-700"
-              >
-                {chip}
-              </span>
-            ))}
-          </div>
-        ) : null}
       </div>
     </section>
   );

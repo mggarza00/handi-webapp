@@ -1015,62 +1015,8 @@ export async function POST(req: Request) {
                     } catch {
                       /* ignore calendar errors */
                     }
-                    const mapsUrl =
-                      address_lat != null && address_lng != null
-                        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address_lat},${address_lng}`)}`
-                        : address_line
-                          ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address_line)}`
-                          : null;
-                    const pubToken =
-                      process.env.NEXT_PUBLIC_MAPBOX_TOKEN || null;
-                    const mapImg =
-                      pubToken && address_lat != null && address_lng != null
-                        ? `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/pin-l+ff0000(${address_lng},${address_lat})/${address_lng},${address_lat},15/600x300@2x?access_token=${encodeURIComponent(pubToken)}`
-                        : null;
-                    const whenStr = scheduled_date
-                      ? `${scheduled_date}${scheduled_time ? ` ${scheduled_time}` : ""}`
-                      : serviceDateIso || null;
-                    const body = [
-                      address_line ? `Dirección: ${address_line}` : null,
-                      whenStr ? `Día y horario: ${whenStr}` : null,
-                      mapsUrl ? `Abrir en Google Maps: ${mapsUrl}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join("\n");
-                    const payload2: Record<string, unknown> = {
-                      offer_id: offerId,
-                      type: "schedule_details",
-                      address_line,
-                      coords:
-                        address_lat != null && address_lng != null
-                          ? { lat: address_lat, lng: address_lng }
-                          : null,
-                      map_image_url: mapImg,
-                      maps_url: mapsUrl,
-                      scheduled_date,
-                      scheduled_time,
-                    };
-                    await admin.from("messages").insert({
-                      conversation_id: convId,
-                      sender_id: clientId,
-                      body: body || "Detalles de servicio",
-                      message_type: "system",
-                      payload: payload2,
-                    });
-                    try {
-                      const { notifyChatMessageByConversation } = await import(
-                        "@/lib/chat-notifier"
-                      );
-                      if (convId && clientId) {
-                        await notifyChatMessageByConversation({
-                          conversationId: convId,
-                          senderId: clientId,
-                          text: body || "Detalles de servicio",
-                        });
-                      }
-                    } catch {
-                      /* ignore */
-                    }
+                    // Do not insert an extra schedule/location system message for offer-paid flows.
+                    // The enriched paid payload is the single source of truth in chat rendering.
                     try {
                       revalidatePath("/pro/calendar");
                       revalidateTag("pro-calendar");
@@ -1195,7 +1141,7 @@ export async function POST(req: Request) {
                   } catch {
                     /* ignore calendar errors */
                   }
-                  if (convId && clientId) {
+                  if (convId && clientId && !offerId) {
                     const mapsUrl =
                       address_lat != null && address_lng != null
                         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address_lat},${address_lng}`)}`

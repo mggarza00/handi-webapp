@@ -5,9 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AttachmentList } from "@/app/(app)/(app-shell)/messages/_components/AttachmentList";
+import NextStepsDialog from "@/components/chat/NextStepsDialog";
 import LocationCard, {
   type LocationPayload,
 } from "@/components/chat/LocationCard";
+import PaidScheduledMessage from "@/components/chat/PaidScheduledMessage";
 import AcceptOfferButton from "@/app/(app)/(app-shell)/offers/_components/AcceptOfferButton";
 import {
   extractOfferId,
@@ -52,7 +54,7 @@ type MessageListProps = {
   conversationId?: string | null;
   currentUserId?: string | null;
   otherUserId?: string | null;
-  viewerRole?: "customer" | "professional" | "guest";
+  viewerRole?: "customer" | "professional" | "guest" | "client" | "pro";
   onAcceptOffer?: (offerId: string) => void;
   onOfferAcceptedUI?: (
     offerId: string,
@@ -89,6 +91,7 @@ type QuotePayload = {
 };
 
 type SystemMessagePayload = LocationPayload & {
+  offer_id?: string | null;
   type?: string | null;
   request_id?: string | null;
   pro_id?: string | null;
@@ -96,7 +99,11 @@ type SystemMessagePayload = LocationPayload & {
   status?: string | null;
   reason?: string | null;
   city?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
   receipt_url?: string | null;
+  receipt_view_url?: string | null;
+  receipt_download_url?: string | null;
   receipt_id?: string | null;
   download_url?: string | null;
   view_url?: string | null;
@@ -107,6 +114,17 @@ type SystemMessagePayload = LocationPayload & {
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object";
+
+const toTrimmedString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
+
+const isCustomerRole = (role: MessageListProps["viewerRole"]): boolean =>
+  role === "customer" || role === "client";
+const isProfessionalRole = (role: MessageListProps["viewerRole"]): boolean =>
+  role === "professional" || role === "pro";
 
 function formatRelative(ts: string): string {
   const d = new Date(ts);
@@ -182,6 +200,9 @@ export default function MessageList({
     proId: string;
   } | null>(null);
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [nextStepsOpen, setNextStepsOpen] = React.useState(false);
+  const [nextStepsRole, setNextStepsRole] =
+    React.useState<MessageListProps["viewerRole"]>(viewerRole);
   const [reviewed, setReviewed] = React.useState(false);
   const [otherName, setOtherName] = React.useState<string | null>(null);
 
@@ -241,6 +262,10 @@ export default function MessageList({
   }, [reviewStorageKey]);
 
   React.useEffect(() => {
+    setNextStepsRole(viewerRole);
+  }, [viewerRole]);
+
+  React.useEffect(() => {
     if (!otherUserId) return;
     let cancelled = false;
     (async () => {
@@ -291,10 +316,113 @@ export default function MessageList({
   const handlePaymentSuccess = React.useCallback(() => {
     setPaymentOpen(false);
   }, []);
+  const paidContextByOfferId = React.useMemo(() => {
+    const context = new Map<string, SystemMessagePayload>();
+    for (const message of items) {
+      if (message.messageType !== "system" || !isRecord(message.payload)) {
+        continue;
+      }
+      const payload = message.payload as SystemMessagePayload;
+      const offerId = toTrimmedString(payload.offer_id);
+      if (!offerId) continue;
+      const prev = context.get(offerId) ?? {};
+      const merged: SystemMessagePayload = { ...prev };
+      const keys: Array<keyof SystemMessagePayload> = [
+        "scheduled_date",
+        "scheduled_time",
+        "address_line",
+        "city",
+        "receipt_id",
+        "receipt_url",
+        "receipt_view_url",
+        "receipt_download_url",
+        "view_url",
+        "download_url",
+      ];
+      for (const key of keys) {
+        const current = toTrimmedString(payload[key]);
+        if (current) merged[key] = current;
+      }
+      context.set(offerId, merged);
+    }
+    return context;
+  }, [items]);
+  const paidOfferIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const message of items) {
+      if (message.messageType !== "system" || !isRecord(message.payload)) {
+        continue;
+      }
+      const payload = message.payload as SystemMessagePayload;
+      const status = extractStatus(
+        typeof payload.status === "string" ? payload.status : undefined,
+      );
+      if (status !== "paid") continue;
+      const offerId = toTrimmedString(payload.offer_id);
+      if (offerId) ids.add(offerId);
+    }
+    return ids;
+  }, [items]);
+  const richPaidOfferIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const message of items) {
+      if (message.messageType !== "system" || !isRecord(message.payload)) {
+        continue;
+      }
+      const payload = message.payload as SystemMessagePayload;
+      const payloadType = toTrimmedString(payload.type);
+      if (payloadType !== "offer_paid_scheduled") continue;
+      const offerId = toTrimmedString(payload.offer_id);
+      if (offerId) ids.add(offerId);
+    }
+    return ids;
+  }, [items]);
+  const visibleItems = React.useMemo(() => {
+    return items.filter((message) => {
+      if (message.messageType !== "system" || !isRecord(message.payload)) {
+        return true;
+      }
+      const payload = message.payload as SystemMessagePayload;
+      const payloadType = toTrimmedString(payload.type) ?? "";
+      const offerId = toTrimmedString(payload.offer_id);
+      const status = extractStatus(
+        typeof payload.status === "string" ? payload.status : undefined,
+      );
+
+      if (payloadType === "payment_receipt" && !isCustomerRole(viewerRole)) {
+        return false;
+      }
+      if (status === "receipt" && !isCustomerRole(viewerRole)) {
+        return false;
+      }
+      if (
+        payloadType === "service_scheduled_address" &&
+        offerId &&
+        richPaidOfferIds.has(offerId)
+      ) {
+        return false;
+      }
+      if (
+        payloadType === "schedule_details" &&
+        offerId &&
+        paidOfferIds.has(offerId)
+      ) {
+        return false;
+      }
+      if (
+        payloadType === "payment_receipt" &&
+        offerId &&
+        paidOfferIds.has(offerId)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, paidOfferIds, richPaidOfferIds, viewerRole]);
   const ref = React.useRef<HTMLDivElement | null>(null);
   // Auto-scroll: ensure last message is visible on mount and when new items arrive
-  const lastKey = items.length
-    ? `${items[items.length - 1]?.id}-${items[items.length - 1]?.createdAt}`
+  const lastKey = visibleItems.length
+    ? `${visibleItems[visibleItems.length - 1]?.id}-${visibleItems[visibleItems.length - 1]?.createdAt}`
     : "";
   const lastKeyRef = React.useRef<string>("");
   const scrollToBottom = React.useCallback((smooth = false) => {
@@ -327,7 +455,7 @@ export default function MessageList({
   React.useEffect(() => {
     const el = ref.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [items]);
+  }, [visibleItems]);
 
   const offerStates = React.useMemo(() => {
     const map = new Map<string, OfferState>();
@@ -414,7 +542,7 @@ export default function MessageList({
     return map;
   }, [items]);
 
-  if (!items.length)
+  if (!visibleItems.length)
     return (
       <div
         ref={ref}
@@ -423,7 +551,7 @@ export default function MessageList({
         data-testid={`${dataPrefix}-list`}
       >
         <div className="w-full max-w-xl mx-auto text-center py-10 space-y-4">
-          {viewerRole === "customer" ? (
+          {isCustomerRole(viewerRole) ? (
             <div
               className="space-y-2"
               data-testid={`${dataPrefix}-empty-state-customer`}
@@ -459,7 +587,7 @@ export default function MessageList({
                 </Badge>
               </div>
             </div>
-          ) : viewerRole === "professional" ? (
+          ) : isProfessionalRole(viewerRole) ? (
             <div
               className="space-y-2"
               data-testid={`${dataPrefix}-empty-state-professional`}
@@ -541,10 +669,10 @@ export default function MessageList({
     const viewerIds = extractViewerIds(viewer ?? undefined, sessionUser);
     const ownerOK = isOwnerPro(offerObj, viewer ?? undefined, sessionUser);
     const pendingOK = isPending;
-    let canAct = viewerRole === "professional" && isPending;
+    let canAct = isProfessionalRole(viewerRole) && isPending;
     if (
       !canAct &&
-      viewerRole === "professional" &&
+      isProfessionalRole(viewerRole) &&
       proIds.length === 0 &&
       viewer &&
       isPending
@@ -792,11 +920,25 @@ export default function MessageList({
       message.payload &&
       typeof message.payload === "object"
     ) {
+      const resolvePaidViewerRole = (): MessageListProps["viewerRole"] => {
+        if (isCustomerRole(viewerRole) || isProfessionalRole(viewerRole)) {
+          return viewerRole;
+        }
+        if (currentUserId && message.senderId === currentUserId) {
+          return "customer";
+        }
+        return "professional";
+      };
+      const openNextSteps = (role: MessageListProps["viewerRole"]) => {
+        setNextStepsRole(role);
+        setNextStepsOpen(true);
+      };
       const payloadRecord = message.payload as SystemMessagePayload;
       // LocationCard: type 'system/location' o 'schedule_details'
       const payloadType =
         typeof payloadRecord.type === "string" ? payloadRecord.type : "";
       if (payloadType === "service_scheduled_address") {
+        const effectiveRole = resolvePaidViewerRole();
         const addressLine =
           typeof payloadRecord.address_line === "string"
             ? payloadRecord.address_line.trim()
@@ -805,11 +947,44 @@ export default function MessageList({
           typeof payloadRecord.city === "string"
             ? payloadRecord.city.trim()
             : "";
-        const parts = [addressLine, city].filter(Boolean);
-        const line = parts.length
-          ? `Servicio agendado en ${parts.join(", ")}.`
-          : "Servicio agendado.";
-        return <div className="text-sm font-medium text-slate-800">{line}</div>;
+        const address = addressLine || city;
+        const dateRaw =
+          typeof payloadRecord.date === "string"
+            ? payloadRecord.date.trim()
+            : "";
+        const scheduledDate =
+          typeof payloadRecord.scheduled_date === "string"
+            ? payloadRecord.scheduled_date.trim()
+            : "";
+        const scheduledTime =
+          typeof payloadRecord.scheduled_time === "string"
+            ? payloadRecord.scheduled_time.trim()
+            : "";
+        const dateLine =
+          dateRaw || [scheduledDate, scheduledTime].filter(Boolean).join(" ");
+
+        return (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">
+              Servicio pagado y agendado
+            </div>
+            {address ? (
+              <div className="whitespace-pre-wrap text-sm text-slate-800">
+                {address}
+              </div>
+            ) : null}
+            {dateLine ? (
+              <div className="text-xs text-slate-600">{dateLine}</div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => openNextSteps(effectiveRole)}
+              className="text-sm font-medium text-orange-600 underline underline-offset-2 transition-colors hover:text-orange-700"
+            >
+              Que sigue?
+            </button>
+          </div>
+        );
       }
       const hasLocationFlat =
         typeof payloadRecord.map_image_url === "string" ||
@@ -846,7 +1021,7 @@ export default function MessageList({
             ? payloadRecord.customer_id
             : (serviceFinished?.clientId ?? null);
         const canConfirm =
-          viewerRole === "customer" &&
+          isCustomerRole(viewerRole) &&
           (!customerId || customerId === currentUserId);
         if (!canConfirm) {
           return (
@@ -885,7 +1060,24 @@ export default function MessageList({
           </div>
         );
       }
+      const offerId = toTrimmedString(payloadRecord.offer_id);
+      const paidContext = offerId ? paidContextByOfferId.get(offerId) : null;
+      const paidPayload: SystemMessagePayload = {
+        ...(paidContext ?? {}),
+        ...payloadRecord,
+      };
+      if (payloadType === "offer_paid_scheduled") {
+        const effectiveRole = resolvePaidViewerRole();
+        return (
+          <PaidScheduledMessage
+            payload={paidPayload}
+            viewerRole={effectiveRole}
+            onOpenNextSteps={() => openNextSteps(effectiveRole)}
+          />
+        );
+      }
       if (payloadType === "payment_receipt") {
+        if (!isCustomerRole(viewerRole)) return null;
         const rid =
           typeof payloadRecord.receipt_id === "string"
             ? (payloadRecord.receipt_id as string)
@@ -953,49 +1145,17 @@ export default function MessageList({
         );
       }
       if (status === "paid") {
-        const rid =
-          typeof payloadRecord.receipt_id === "string"
-            ? (payloadRecord.receipt_id as string)
-            : null;
-        const viewUrl =
-          typeof payloadRecord.view_url === "string" &&
-          payloadRecord.view_url.trim().length
-            ? (payloadRecord.view_url as string)
-            : null;
-        const dl =
-          typeof payloadRecord.download_url === "string" &&
-          payloadRecord.download_url.trim().length
-            ? (payloadRecord.download_url as string)
-            : rid
-              ? `/api/receipts/${encodeURIComponent(rid)}/pdf`
-              : null;
-        const receiptUrl =
-          viewUrl ||
-          dl ||
-          (typeof payloadRecord.receipt_url === "string" &&
-          payloadRecord.receipt_url.trim().length
-            ? (payloadRecord.receipt_url as string)
-            : null);
+        const effectiveRole = resolvePaidViewerRole();
         return (
-          <div className="text-sm font-medium text-blue-700">
-            Pago realizado. Servicio agendado.
-            {receiptUrl ? (
-              <>
-                {" "}
-                <a
-                  href={receiptUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline text-blue-700 hover:text-blue-800"
-                >
-                  Ver recibo
-                </a>
-              </>
-            ) : null}
-          </div>
+          <PaidScheduledMessage
+            payload={paidPayload}
+            viewerRole={effectiveRole}
+            onOpenNextSteps={() => openNextSteps(effectiveRole)}
+          />
         );
       }
       if (status === "receipt") {
+        if (!isCustomerRole(viewerRole)) return null;
         const rid =
           typeof payloadRecord.receipt_id === "string"
             ? (payloadRecord.receipt_id as string)
@@ -1050,7 +1210,7 @@ export default function MessageList({
         style={bgStyle}
         data-testid={`${dataPrefix}-list`}
       >
-        {!hideQuoteCta && viewerRole === "customer" ? (
+        {!hideQuoteCta && isCustomerRole(viewerRole) ? (
           <div
             className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
             data-testid={`${dataPrefix}-conversation-header-customer`}
@@ -1086,7 +1246,7 @@ export default function MessageList({
               </Badge>
             </div>
           </div>
-        ) : !hideQuoteCta && viewerRole === "professional" ? (
+        ) : !hideQuoteCta && isProfessionalRole(viewerRole) ? (
           <div
             className="w-full max-w-xl mx-auto text-center py-4 space-y-2"
             data-testid={`${dataPrefix}-conversation-header-professional`}
@@ -1125,7 +1285,7 @@ export default function MessageList({
           </div>
         ) : null}
         <ul className="space-y-2">
-          {items.map((m) => {
+          {visibleItems.map((m) => {
             const isMe =
               currentUserId &&
               (m.senderId === currentUserId || m.senderId === "me");
@@ -1133,16 +1293,15 @@ export default function MessageList({
               isMe && otherUserId
                 ? (m.readBy ?? []).includes(otherUserId)
                 : false;
-            const author =
-              viewerRole === "customer"
+            const author = isCustomerRole(viewerRole)
+              ? isMe
+                ? "client"
+                : "pro"
+              : isProfessionalRole(viewerRole)
                 ? isMe
-                  ? "client"
-                  : "pro"
-                : viewerRole === "professional"
-                  ? isMe
-                    ? "pro"
-                    : "client"
-                  : "unknown";
+                  ? "pro"
+                  : "client"
+                : "unknown";
             return (
               <li
                 key={m.id}
@@ -1204,7 +1363,10 @@ export default function MessageList({
                     </div>
                   ) : null}
                   {(() => {
-                    if (m.messageType !== "quote" || viewerRole !== "customer")
+                    if (
+                      m.messageType !== "quote" ||
+                      !isCustomerRole(viewerRole)
+                    )
                       return null;
                     const payload = isRecord(m.payload)
                       ? (m.payload as QuotePayload)
@@ -1319,6 +1481,11 @@ export default function MessageList({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <NextStepsDialog
+        open={nextStepsOpen}
+        onOpenChange={setNextStepsOpen}
+        viewerRole={nextStepsRole}
+      />
     </>
   );
 }
