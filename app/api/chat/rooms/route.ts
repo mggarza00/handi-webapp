@@ -6,6 +6,7 @@ import {
   getDbClientForRequest,
   getDevUserFromHeader,
 } from "@/lib/auth-route";
+import { getSafeChatTitle } from "@/lib/chat/chat-title";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -98,7 +99,9 @@ export async function GET(req: Request) {
         .select("id, full_name, avatar_url")
         .in("id", peerIds);
       for (const p of profs || []) {
-        names.set(p.id, p.full_name ?? null);
+        const fullName =
+          typeof p.full_name === "string" ? p.full_name.trim() : "";
+        names.set(p.id, fullName || null);
         avatars.set(p.id, p.avatar_url ?? null);
       }
     }
@@ -111,7 +114,9 @@ export async function GET(req: Request) {
     if (convIds.length) {
       const { data: msgs } = await db
         .from("messages")
-        .select("id, conversation_id, sender_id, body, text, created_at, read_by")
+        .select(
+          "id, conversation_id, sender_id, body, text, created_at, read_by",
+        )
         .in("conversation_id", convIds)
         .order("created_at", { ascending: false })
         .limit(Math.min(120, convIds.length * 2));
@@ -125,7 +130,9 @@ export async function GET(req: Request) {
             body: bodyStr,
             sender_id: String(m.sender_id ?? ""),
             created_at: String(m.created_at ?? ""),
-            read_by: Array.isArray(m.read_by) ? (m.read_by as unknown[]).map((x) => String(x)) : [],
+            read_by: Array.isArray(m.read_by)
+              ? (m.read_by as unknown[]).map((x) => String(x))
+              : [],
           });
         }
       }
@@ -136,10 +143,14 @@ export async function GET(req: Request) {
       const pv = previews.get(c.id);
       const lastBody = pv?.body ?? null;
       const lastAt = pv?.created_at || c.last_message_at || null;
-      const unreadCount = pv ? (pv.sender_id !== user.id && !pv.read_by.includes(user.id) ? 1 : 0) : 0; // simple heuristic
+      const unreadCount = pv
+        ? pv.sender_id !== user.id && !pv.read_by.includes(user.id)
+          ? 1
+          : 0
+        : 0; // simple heuristic
       return {
         id: c.id,
-        title: names.get(peer) || `${String(peer).slice(0, 8)}…`,
+        title: getSafeChatTitle(names.get(peer), String(peer)),
         avatarUrl: avatars.get(peer) || null,
         lastMessagePreview: lastBody,
         lastMessageTime: lastAt,
