@@ -34,26 +34,37 @@ type ConversationRow = {
   pro_id?: string | null;
 };
 
-function parseServiceDate(raw?: string | null) {
+type ParsedServiceDate = {
+  date: string | null;
+  time: string | null;
+  displayTime: string | null;
+};
+
+type OfferScheduleResolution = {
+  displayTime: string | null;
+  dbTime: string | null;
+};
+
+function parseServiceDate(raw?: string | null): ParsedServiceDate {
   if (!raw)
     return {
-      date: null as string | null,
-      time: null as string | null,
-      displayTime: null as string | null,
+      date: null,
+      time: null,
+      displayTime: null,
     };
   const trimmed = raw.trim();
   if (!trimmed)
     return {
-      date: null as string | null,
-      time: null as string | null,
-      displayTime: null as string | null,
+      date: null,
+      time: null,
+      displayTime: null,
     };
   const dt = new Date(raw);
   if (Number.isNaN(dt.getTime()))
     return {
-      date: null as string | null,
-      time: null as string | null,
-      displayTime: trimmed,
+      date: null,
+      time: null,
+      displayTime: null,
     };
   const hhmm = dt.toISOString().slice(11, 16);
   return {
@@ -61,6 +72,175 @@ function parseServiceDate(raw?: string | null) {
     time: hhmm,
     displayTime: hhmm,
   };
+}
+
+function hasExplicitTimeInIso(raw?: string | null): boolean {
+  if (!raw || typeof raw !== "string") return false;
+  const match = raw.trim().match(/T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) return false;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  const ss = Number(match[3] || "0");
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || !Number.isFinite(ss)) {
+    return false;
+  }
+  // If seconds/minutes are all zero, this is frequently a normalized day-only value.
+  return mm > 0 || ss > 0;
+}
+
+function formatSingleTimeEsMx(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/horario\s+flexible/i.test(trimmed)) return "Horario flexible";
+  if (/a\.?m\.?|p\.?m\.?/i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) return trimmed;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const am = hour < 12;
+  const h12Raw = hour % 12;
+  const h12 = h12Raw === 0 ? 12 : h12Raw;
+  const mm = String(minute).padStart(2, "0");
+  return `${h12}:${mm} ${am ? "a.m." : "p.m."}`;
+}
+
+function formatHourValueEsMx(value: number): string | null {
+  if (!Number.isFinite(value)) return null;
+  const normalized = Math.max(0, Math.min(24, value));
+  const hour = Math.floor(normalized) % 24;
+  const minute = Math.round((normalized - Math.floor(normalized)) * 60);
+  const mm = String(Math.max(0, Math.min(59, minute))).padStart(2, "0");
+  const am = hour < 12;
+  const h12Raw = hour % 12;
+  const h12 = h12Raw === 0 ? 12 : h12Raw;
+  return `${h12}:${mm} ${am ? "a.m." : "p.m."}`;
+}
+
+function formatHourRangeEsMx(start: number, end: number): string | null {
+  const from = formatHourValueEsMx(start);
+  const to = formatHourValueEsMx(end);
+  if (!from || !to) return null;
+  if (start === end) return from;
+  return `de ${from} a ${to}`;
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length) {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getMetadataSchedule(metadata: unknown): {
+  flexible: boolean;
+  start: number | null;
+  end: number | null;
+} {
+  if (!metadata || typeof metadata !== "object") {
+    return { flexible: false, start: null, end: null };
+  }
+  const record = metadata as Record<string, unknown>;
+  const flexible = record.flexible_schedule === true;
+  const schedule =
+    record.schedule && typeof record.schedule === "object"
+      ? (record.schedule as Record<string, unknown>)
+      : null;
+  const start =
+    toNumberOrNull(schedule?.start_hour) ??
+    toNumberOrNull(record.schedule_start_hour);
+  const end =
+    toNumberOrNull(schedule?.end_hour) ??
+    toNumberOrNull(record.schedule_end_hour);
+  return { flexible, start, end };
+}
+
+function extractScheduleFromDescription(
+  description: string | null | undefined,
+): OfferScheduleResolution {
+  const raw = toTextOrNull(description);
+  if (!raw) return { displayTime: null, dbTime: null };
+  if (/horario\s+flexible/i.test(raw)) {
+    return { displayTime: "Horario flexible", dbTime: null };
+  }
+  const lineMatch = raw.match(/horario:\s*([^\r\n]+)/i);
+  const line = lineMatch?.[1]?.trim() || null;
+  if (!line) return { displayTime: null, dbTime: null };
+  const rangeParts = line
+    .split(/\s*[—-]\s*/)
+    .filter((part) => part.trim().length);
+  if (rangeParts.length >= 2) {
+    return {
+      displayTime: `de ${rangeParts[0].trim()} a ${rangeParts[1].trim()}`,
+      dbTime: null,
+    };
+  }
+  return {
+    displayTime: formatSingleTimeEsMx(line),
+    dbTime: toDbTimeOrNull(line),
+  };
+}
+
+function resolveOfferScheduleDisplay(input: {
+  agreementScheduledTime?: string | null;
+  offerMetadata?: unknown;
+  offerDescription?: string | null;
+  requestScheduledTime?: string | null;
+  parsedService: ParsedServiceDate;
+  rawServiceDate?: string | null;
+}): OfferScheduleResolution {
+  const agreement = toTextOrNull(input.agreementScheduledTime);
+  if (agreement) {
+    return {
+      displayTime: formatSingleTimeEsMx(agreement),
+      dbTime: toDbTimeOrNull(agreement),
+    };
+  }
+
+  const metadataSchedule = getMetadataSchedule(input.offerMetadata);
+  if (metadataSchedule.flexible) {
+    return { displayTime: "Horario flexible", dbTime: null };
+  }
+  if (metadataSchedule.start != null && metadataSchedule.end != null) {
+    const start = Math.min(metadataSchedule.start, metadataSchedule.end);
+    const end = Math.max(metadataSchedule.start, metadataSchedule.end);
+    return {
+      displayTime: formatHourRangeEsMx(start, end),
+      dbTime: toDbTimeOrNull(
+        `${String(Math.floor(start)).padStart(2, "0")}:00`,
+      ),
+    };
+  }
+  if (metadataSchedule.start != null) {
+    const db = `${String(Math.floor(metadataSchedule.start)).padStart(2, "0")}:00`;
+    return {
+      displayTime: formatHourValueEsMx(metadataSchedule.start),
+      dbTime: toDbTimeOrNull(db),
+    };
+  }
+
+  const fromDescription = extractScheduleFromDescription(
+    input.offerDescription,
+  );
+  if (fromDescription.displayTime) return fromDescription;
+
+  const requestTime = toTextOrNull(input.requestScheduledTime);
+  if (requestTime) {
+    return {
+      displayTime: formatSingleTimeEsMx(requestTime),
+      dbTime: toDbTimeOrNull(requestTime),
+    };
+  }
+
+  if (hasExplicitTimeInIso(input.rawServiceDate) && input.parsedService.time) {
+    return {
+      displayTime: formatSingleTimeEsMx(input.parsedService.time),
+      dbTime: toDbTimeOrNull(input.parsedService.time),
+    };
+  }
+
+  return { displayTime: null, dbTime: null };
 }
 
 function isMissingPaymentIntent(err: unknown): boolean {
@@ -100,7 +280,7 @@ export async function finalizeOfferPayment(
     const { data: offer } = await admin
       .from("offers")
       .select(
-        "id,status,conversation_id,client_id,professional_id,amount,currency,service_date,payment_intent_id,payment_mode",
+        "id,status,conversation_id,client_id,professional_id,amount,currency,service_date,payment_intent_id,payment_mode,description,metadata",
       )
       .eq("id", offerId)
       .maybeSingle();
@@ -222,22 +402,26 @@ export async function finalizeOfferPayment(
       }
     }
 
+    const offerSchedule = resolveOfferScheduleDisplay({
+      agreementScheduledTime,
+      offerMetadata: (offer as { metadata?: unknown } | null)?.metadata,
+      offerDescription: toTextOrNull(
+        (offer as { description?: string | null } | null)?.description,
+      ),
+      requestScheduledTime,
+      parsedService,
+      rawServiceDate: offer.service_date ?? null,
+    });
+
     const scheduledDate =
       agreementScheduledDate ||
       parsedService.date ||
       requestScheduledDate ||
       (requestRequiredAt ? requestRequiredAt.slice(0, 10) : null) ||
       nowIso.slice(0, 10);
-    const scheduledTimeForDb =
-      toDbTimeOrNull(agreementScheduledTime) ||
-      toDbTimeOrNull(parsedService.time) ||
-      toDbTimeOrNull(requestScheduledTime) ||
-      "09:00";
+    const scheduledTimeForDb = offerSchedule.dbTime || "09:00";
     const scheduledTimeForMessage =
-      agreementScheduledTime ||
-      parsedService.displayTime ||
-      requestScheduledTime ||
-      scheduledTimeForDb;
+      offerSchedule.displayTime || formatSingleTimeEsMx(scheduledTimeForDb);
     const baseUrl = (
       process.env.NEXT_PUBLIC_APP_URL ||
       process.env.NEXT_PUBLIC_SITE_URL ||
@@ -769,3 +953,10 @@ export async function finalizeOfferPayment(
     return { ok: false };
   }
 }
+
+export const __finalizeOfferPaymentInternals = {
+  hasExplicitTimeInIso,
+  formatHourRangeEsMx,
+  formatSingleTimeEsMx,
+  resolveOfferScheduleDisplay,
+};
