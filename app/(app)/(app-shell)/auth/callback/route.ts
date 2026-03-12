@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import getRouteClient from "@/lib/supabase/route-client";
+import { isExpiredOrUsedAuthLink } from "@/lib/auth/flow";
 import { env } from "@/lib/env";
 import type { Database } from "@/types/supabase";
 
@@ -84,6 +85,19 @@ export async function GET(req: Request) {
     if (status) redirectUrl.searchParams.set("status", String(status));
     if (code) redirectUrl.searchParams.set("code", code);
     redirectUrl.searchParams.set("error", message);
+    if (
+      isExpiredOrUsedAuthLink({
+        status: status ? String(status) : null,
+        code,
+        error: message,
+      })
+    ) {
+      redirectUrl.searchParams.set("auth_link", "expired_or_used");
+    }
+    const callbackEmail = (url.searchParams.get("email") || "").trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(callbackEmail)) {
+      redirectUrl.searchParams.set("email", callbackEmail.toLowerCase());
+    }
     return NextResponse.redirect(redirectUrl, { status: 302 });
   }
 

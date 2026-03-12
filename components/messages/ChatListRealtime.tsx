@@ -22,6 +22,7 @@ type Props = {
   onUnreadIncrement: (chatId: string, row: MessagePayload, isActive: boolean) => void;
   getChatTitle?: (chatId: string) => string | null | undefined;
   showToast?: boolean;
+  onRecoveryNeeded?: (reason: "reconnected" | "channel-error" | "timed-out" | "closed" | "new-thread") => void;
 };
 
 const logRealtimeError = (error: unknown) => {
@@ -30,12 +31,14 @@ const logRealtimeError = (error: unknown) => {
   }
 };
 
-export default function ChatListRealtime({ meId, ids, onUnreadIncrement, getChatTitle, showToast = true }: Props) {
+export default function ChatListRealtime({ meId, ids, onUnreadIncrement, getChatTitle, showToast = true, onRecoveryNeeded }: Props) {
   const supabase = useRealtime();
   const pathname = usePathname() || "";
   const idsKey = React.useMemo(() => (Array.isArray(ids) && ids.length ? ids.join(",") : "*"), [ids]);
   const channelName = React.useMemo(() => (idsKey === "*" ? "chat:inbox:rt" : `chat:inbox:ids:${idsKey.length}`), [idsKey]);
   const meRef = React.useRef<string | null>(meId ?? null);
+  const hadSubscribedRef = React.useRef(false);
+  const lastRecoveryAtRef = React.useRef(0);
   React.useEffect(() => { meRef.current = meId ?? null; }, [meId]);
 
   React.useEffect(() => {
@@ -63,6 +66,9 @@ export default function ChatListRealtime({ meId, ids, onUnreadIncrement, getChat
               }
               const cid = String(row?.conversation_id ?? row?.chat_id ?? "");
               if (!cid) return;
+              if (Array.isArray(ids) && ids.length > 0 && !ids.includes(cid)) {
+                onRecoveryNeeded?.("new-thread");
+              }
               const senderId = String(row?.sender_id ?? "");
               if (meRef.current && senderId === meRef.current) return; // own message
               const isActive = /\/mensajes\//.test(pathname) && pathname.endsWith(`/${cid}`);
@@ -103,6 +109,22 @@ export default function ChatListRealtime({ meId, ids, onUnreadIncrement, getChat
             // eslint-disable-next-line no-console
             console.debug("rt inbox status", channelName, status);
           }
+          const requestRecovery = (
+            reason: "reconnected" | "channel-error" | "timed-out" | "closed",
+          ) => {
+            const now = Date.now();
+            if (now - lastRecoveryAtRef.current < 1500) return;
+            lastRecoveryAtRef.current = now;
+            onRecoveryNeeded?.(reason);
+          };
+          if (status === "SUBSCRIBED") {
+            if (hadSubscribedRef.current) requestRecovery("reconnected");
+            hadSubscribedRef.current = true;
+            return;
+          }
+          if (status === "CHANNEL_ERROR") requestRecovery("channel-error");
+          if (status === "TIMED_OUT") requestRecovery("timed-out");
+          if (status === "CLOSED") requestRecovery("closed");
         });
       } catch (error) {
         logRealtimeError(error);
@@ -118,7 +140,7 @@ export default function ChatListRealtime({ meId, ids, onUnreadIncrement, getChat
         }
       }
     };
-  }, [supabase, channelName, idsKey, ids, pathname, onUnreadIncrement, getChatTitle, showToast]);
+  }, [supabase, channelName, idsKey, ids, pathname, onUnreadIncrement, getChatTitle, showToast, onRecoveryNeeded]);
 
   return null;
 }

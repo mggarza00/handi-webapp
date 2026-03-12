@@ -266,7 +266,16 @@ export async function POST(
           status: "accepted",
         });
         return NextResponse.json(
-          { ok: true, offer: updated, checkoutUrl: stripeSession?.url ?? null },
+          {
+            ok: true,
+            offer: updated,
+            checkoutUrl: stripeSession?.url ?? null,
+            sync_hint: {
+              conversation_id: row.conversation_id,
+              offer_id: row.id,
+              server_time: new Date().toISOString(),
+            },
+          },
           { status: 200, headers: JSONH },
         );
       }
@@ -380,7 +389,16 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { ok: true, offer: updated, checkoutUrl: stripeSession?.url ?? null },
+      {
+        ok: true,
+        offer: updated,
+        checkoutUrl: stripeSession?.url ?? null,
+        sync_hint: {
+          conversation_id: offer.conversation_id,
+          offer_id: offer.id,
+          server_time: new Date().toISOString(),
+        },
+      },
       { status: 200, headers: JSONH },
     );
   } catch (error) {

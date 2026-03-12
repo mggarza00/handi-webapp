@@ -12,6 +12,10 @@ import {
 import { toast } from "sonner";
 
 import EmailPasswordForm from "@/components/auth/EmailPasswordForm";
+import {
+  EXPIRED_AUTH_LINK_MESSAGE,
+  isExpiredOrUsedAuthLink,
+} from "@/lib/auth/flow";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
@@ -46,6 +50,8 @@ export function SignInFlowCard({
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+  const [callbackRecoveryMessage, setCallbackRecoveryMessage] =
+    useState<string | null>(null);
 
   const next = useMemo(() => {
     const n = sp?.get("next");
@@ -61,6 +67,12 @@ export function SignInFlowCard({
     return "/";
   }, [sp]);
 
+  const prefilledEmail = useMemo(() => {
+    const email = (sp?.get("email") || "").trim();
+    if (!email) return "";
+    return email;
+  }, [sp]);
+
   const resolveBaseUrl = useCallback(() => {
     if (typeof window === "undefined") return "";
     return window.location.origin.replace(/\/$/, "");
@@ -70,20 +82,32 @@ export function SignInFlowCard({
     const err = sp?.get("error");
     const code = sp?.get("code");
     const status = sp?.get("status");
-    if (!err) return;
-    if (err === "missing_oauth_params") {
-      setError(
-        "El enlace que usaste es inválido o ya fue utilizado. Solicita un nuevo enlace para continuar.",
-      );
+    const authLink = sp?.get("auth_link");
+
+    if (
+      isExpiredOrUsedAuthLink({
+        status,
+        code,
+        error: err,
+        authLink,
+      })
+    ) {
+      setStep("email");
+      setError(null);
+      setCallbackRecoveryMessage(EXPIRED_AUTH_LINK_MESSAGE);
       return;
     }
+
+    setCallbackRecoveryMessage(null);
+    if (!err) return;
+
     if (
       code === "over_request_rate_limit" ||
       status === "429" ||
       /rate limit/i.test(err)
     ) {
       setError(
-        "Demasiados intentos al iniciar sesión. Espera 1-2 minutos e inténtalo de nuevo, o usa el enlace por correo.",
+        "Demasiados intentos al iniciar sesion. Espera 1-2 minutos e intentalo de nuevo.",
       );
     } else {
       setError(err);
@@ -94,9 +118,9 @@ export function SignInFlowCard({
     if (!sessionChecked || hasSession) return;
     const t = sp?.get("toast");
     if (t === "new-request") {
-      toast.info("Inicia sesión para crear una solicitud de servicio");
+      toast.info("Inicia sesion para crear una solicitud de servicio");
     } else if (t === "pro-apply") {
-      toast.info("Inicia sesión para postularte como profesional");
+      toast.info("Inicia sesion para postularte como profesional");
     }
   }, [sp, sessionChecked, hasSession]);
 
@@ -144,7 +168,7 @@ export function SignInFlowCard({
       setError(
         err instanceof Error
           ? err.message
-          : "No se pudo iniciar sesión con Google en este momento.",
+          : "No se pudo iniciar sesion con Google en este momento.",
       );
     }
   };
@@ -161,7 +185,7 @@ export function SignInFlowCard({
           className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow hover:bg-white hover:text-slate-700"
           aria-label="Cerrar"
         >
-          ×
+          X
         </button>
       ) : null}
       <div className="grid md:grid-cols-[1.05fr_0.95fr]">
@@ -175,7 +199,7 @@ export function SignInFlowCard({
             priority={isModal}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/45 to-black/25" />
-          <div className="space-y-6 relative z-10">
+          <div className="relative z-10 space-y-6">
             <p
               className={`${stackSansMedium.className} text-3xl font-semibold leading-tight text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)]`}
             >
@@ -183,7 +207,7 @@ export function SignInFlowCard({
             </p>
             <ul className="space-y-3">
               <FeatureBullet>
-                Categorías desde mantenimiento hasta cuidado para personas.
+                Categorias desde mantenimiento hasta cuidado para personas.
               </FeatureBullet>
               <FeatureBullet>
                 Expertos certificados y aprobados por Handi.
@@ -201,10 +225,10 @@ export function SignInFlowCard({
                 Paso {step === "method" ? "1" : "2"} de 2
               </p>
               <h2 className="text-2xl font-semibold text-slate-900">
-                Inicia sesión o crea tu cuenta
+                Inicia sesion o crea tu cuenta
               </h2>
               <p className="text-sm text-slate-500">
-                Selecciona cómo quieres continuar
+                Selecciona como quieres continuar
               </p>
             </div>
 
@@ -240,12 +264,17 @@ export function SignInFlowCard({
                   onClick={goToEmailStep}
                   className="w-full rounded-xl bg-[#0b835e] py-6 text-base font-semibold hover:bg-[#0a7654]"
                 >
-                  Continuar con el correo electrónico
+                  Continuar con el correo electronico
                 </Button>
               </div>
             ) : (
               <div className="space-y-4">
-                <EmailPasswordForm next={next} onAuthSuccess={onClose} />
+                <EmailPasswordForm
+                  next={next}
+                  onAuthSuccess={onClose}
+                  initialEmail={prefilledEmail}
+                  externalRecoveryMessage={callbackRecoveryMessage}
+                />
 
                 <div className="flex items-center justify-between text-sm text-slate-500">
                   <button
@@ -256,7 +285,7 @@ export function SignInFlowCard({
                       setError(null);
                     }}
                   >
-                    ← Elegir otro método
+                    Volver y elegir otro metodo
                   </button>
                   {variant === "page" ? (
                     <a href="/" className="hover:underline">

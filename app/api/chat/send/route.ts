@@ -368,7 +368,15 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { ok: true, data: ins.data },
+      {
+        ok: true,
+        data: ins.data,
+        sync_hint: {
+          conversation_id: conversationId,
+          message_id: ins.data.id,
+          server_time: new Date().toISOString(),
+        },
+      },
       { status: 201, headers: JSONH },
     );
   } catch (e) {

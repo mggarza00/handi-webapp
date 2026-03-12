@@ -30,6 +30,8 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   useEffect(() => { itemsRef.current = items; }, [items]);
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const [typingMap, setTypingMap] = useState<Record<string, boolean>>({});
+  const roomsReloadInFlightRef = useRef(false);
+  const lastRoomsReloadAtRef = useRef(0);
   const channelKey = useMemo(() => {
     if (!items.length) return "";
     const ids = Array.from(new Set(items.map((chat) => chat.id))).filter(Boolean);
@@ -171,6 +173,70 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
     return () => { cancelled = true; };
   }, [initial.length]);
 
+  const revalidateRoomsBestEffort = React.useCallback(async () => {
+    const now = Date.now();
+    if (roomsReloadInFlightRef.current) return;
+    if (now - lastRoomsReloadAtRef.current < 2500) return;
+    roomsReloadInFlightRef.current = true;
+    lastRoomsReloadAtRef.current = now;
+    try {
+      const res = await fetch("/api/chat/rooms", {
+        credentials: "include",
+        cache: "no-store",
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !Array.isArray(j?.data)) return;
+      const incoming: ChatSummary[] = (j.data as ChatRoomsApiItem[]).map((it) => ({
+        id: String(it.id),
+        title: typeof it.title === "string" ? it.title : "Contacto",
+        preview:
+          typeof it.lastMessagePreview === "string" ? it.lastMessagePreview : null,
+        lastMessageAt:
+          typeof it.lastMessageTime === "string" ? it.lastMessageTime : null,
+        unread: typeof it.unreadCount === "number" ? it.unreadCount > 0 : false,
+        avatarUrl: typeof it.avatarUrl === "string" ? it.avatarUrl : null,
+        requestTitle: null,
+        unreadCount: typeof it.unreadCount === "number" ? it.unreadCount : 0,
+        otherLastActiveAt: null,
+      }));
+      setItems((prev) => {
+        const map = new Map<string, ChatSummary>();
+        for (const row of prev) map.set(row.id, row);
+        for (const row of incoming) {
+          const existing = map.get(row.id);
+          if (!existing) {
+            map.set(row.id, row);
+            continue;
+          }
+          map.set(row.id, {
+            ...existing,
+            ...row,
+            title:
+              row.title && row.title.trim().length ? row.title : existing.title,
+            avatarUrl: row.avatarUrl ?? existing.avatarUrl ?? null,
+            preview: row.preview ?? existing.preview ?? null,
+            lastMessageAt: row.lastMessageAt ?? existing.lastMessageAt ?? null,
+            unreadCount:
+              typeof row.unreadCount === "number"
+                ? row.unreadCount
+                : existing.unreadCount,
+            unread:
+              typeof row.unread === "boolean" ? row.unread : existing.unread,
+          });
+        }
+        return Array.from(map.values()).sort((a, b) => {
+          const ta = new Date(a.lastMessageAt || 0).getTime();
+          const tb = new Date(b.lastMessageAt || 0).getTime();
+          return tb - ta;
+        });
+      });
+    } catch {
+      /* ignore */
+    } finally {
+      roomsReloadInFlightRef.current = false;
+    }
+  }, []);
+
   // Clear unread on navigation into a conversation
   useEffect(() => {
     if (!activeId) return;
@@ -234,6 +300,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
             );
           } catch { /* ignore */ }
         })();
+        void revalidateRoomsBestEffort();
         return copy;
       }
       const prevItem = copy[i];
@@ -271,7 +338,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
       }, 1300);
       timersRef.current.set(id, t);
     }
-  }, []);
+  }, [revalidateRoomsBestEffort]);
 
   const onDelete = async (id: string) => {
     if (busyId) return;
@@ -326,6 +393,9 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           meId={meId}
           onUnreadIncrement={handleGlobalInsert}
           getChatTitle={(id) => (itemsRef.current.find((x) => x.id === id)?.title || "")}
+          onRecoveryNeeded={() => {
+            void revalidateRoomsBestEffort();
+          }}
         />
         {items.map((c) => (
           <ChatListItem

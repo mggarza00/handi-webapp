@@ -2,9 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { requestResendConfirmation } from "./recovery-actions";
 import type { EmailAuthMode } from "./useEmailPasswordAuth";
 import { useEmailPasswordAuth } from "./useEmailPasswordAuth";
 
+import {
+  PASSWORD_RESET_SENT_MESSAGE,
+  SIGNUP_CONFIRMATION_MESSAGE,
+  getLoginErrorPresentation,
+  isValidEmailForRecovery,
+} from "@/lib/auth/flow";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { isBlockedDomain } from "@/lib/utils/validateEmailDomain";
@@ -16,16 +23,14 @@ type EmailPasswordFormProps = {
   initialEmail?: string;
   onAuthSuccess?: () => void;
   showTitle?: boolean;
+  externalRecoveryMessage?: string | null;
 };
-
-const isValidEmail = (value: string) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 const buildPasswordRequirements = (password: string): PasswordRequirement[] => [
   { label: "Al menos 8 caracteres", pass: password.length >= 8 },
-  { label: "Al menos 1 letra mayúscula", pass: /[A-Z]/.test(password) },
-  { label: "Al menos 1 letra minúscula", pass: /[a-z]/.test(password) },
-  { label: "Al menos 1 número", pass: /\d/.test(password) },
+  { label: "Al menos 1 letra mayuscula", pass: /[A-Z]/.test(password) },
+  { label: "Al menos 1 letra minuscula", pass: /[a-z]/.test(password) },
+  { label: "Al menos 1 numero", pass: /\d/.test(password) },
 ];
 
 export default function EmailPasswordForm({
@@ -33,6 +38,7 @@ export default function EmailPasswordForm({
   initialEmail = "",
   onAuthSuccess,
   showTitle = false,
+  externalRecoveryMessage = null,
 }: EmailPasswordFormProps) {
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
@@ -43,6 +49,8 @@ export default function EmailPasswordForm({
   const [info, setInfo] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
+  const [showRecoveryActions, setShowRecoveryActions] = useState(false);
 
   const { loading: authLoading, submit } = useEmailPasswordAuth({
     next,
@@ -50,23 +58,40 @@ export default function EmailPasswordForm({
   });
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const emailLooksValid = isValidEmail(email);
+  const trimmedEmail = email.trim();
+  const emailLooksValid = isValidEmailForRecovery(email);
+  const canUseRecoveryActions =
+    emailLooksValid &&
+    trimmedEmail.length >= 6 &&
+    !isBlockedDomain(trimmedEmail) &&
+    !authLoading &&
+    !resetting &&
+    !resendingConfirmation;
   const requirements = buildPasswordRequirements(password);
 
   useEffect(() => {
     setMode(null);
     setInfo(null);
     setPendingConfirmation(false);
+    setShowRecoveryActions(false);
   }, [email]);
+
+  useEffect(() => {
+    if (!externalRecoveryMessage) return;
+    setError(externalRecoveryMessage);
+    setInfo(null);
+    setPendingConfirmation(false);
+    setShowRecoveryActions(true);
+  }, [externalRecoveryMessage]);
 
   const determineMode = useCallback(async (): Promise<EmailAuthMode | null> => {
     if (!emailLooksValid) {
       setMode(null);
       return null;
     }
-    if (email.trim().length < 6 || isBlockedDomain(email)) {
+    if (trimmedEmail.length < 6 || isBlockedDomain(trimmedEmail)) {
       setError(
-        "Usa un correo válido y evita dominios genéricos (ej: test.com, example.com, mailinator.com).",
+        "Usa un correo valido y evita dominios genericos (ej: test.com, example.com, mailinator.com).",
       );
       setMode(null);
       return null;
@@ -76,7 +101,7 @@ export default function EmailPasswordForm({
       const res = await fetch("/api/auth/check-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
       const data = await res.json().catch(() => ({ exists: false }));
       const exists = Boolean(data?.exists);
@@ -89,72 +114,73 @@ export default function EmailPasswordForm({
     } finally {
       setCheckingEmail(false);
     }
-  }, [email, emailLooksValid]);
+  }, [emailLooksValid, trimmedEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (authLoading) return;
-    if (!email.trim()) {
-      setError("Por favor ingresa tu correo electrónico.");
+    if (!trimmedEmail) {
+      setError("Por favor ingresa tu correo electronico.");
       return;
     }
-    if (!emailLooksValid || email.trim().length < 6 || isBlockedDomain(email)) {
+    if (!emailLooksValid || trimmedEmail.length < 6 || isBlockedDomain(trimmedEmail)) {
       setError(
-        "Usa un correo válido y evita dominios genéricos (ej: test.com, example.com, mailinator.com).",
+        "Usa un correo valido y evita dominios genericos (ej: test.com, example.com, mailinator.com).",
       );
       return;
     }
     setError(null);
     setInfo(null);
     setPendingConfirmation(false);
+    setShowRecoveryActions(false);
 
     let targetMode = mode;
     if (!targetMode) {
       targetMode = await determineMode();
     }
     if (!targetMode) {
-      setError("Ingresa un correo válido para continuar.");
+      setError("Ingresa un correo valido para continuar.");
       return;
     }
     if (!password.trim()) {
-      setError("Ingresa tu contraseña para continuar.");
+      setError("Ingresa tu contrasena para continuar.");
       return;
     }
 
-    const result = await submit(targetMode, email.trim(), password);
+    const result = await submit(targetMode, trimmedEmail, password);
     if (!result.ok) {
-      setError(result.error);
+      const presentation = getLoginErrorPresentation(result.error);
+      setError(presentation.message);
+      setShowRecoveryActions(presentation.showRecoveryActions);
       return;
     }
     if (result.pendingEmailConfirmation) {
       setPendingConfirmation(true);
-      setInfo(
-        "Te enviamos un enlace para confirmar tu cuenta. Revisa tu correo.",
-      );
+      setInfo(null);
+      setShowRecoveryActions(false);
     }
   };
 
   const handleForgotPassword = async () => {
-    const trimmed = email.trim();
-    console.log("Forgot password clicked", trimmed);
-    if (!trimmed) {
+    if (!trimmedEmail) {
       setError(
-        "Por favor escribe tu correo para enviarte el enlace de recuperación.",
+        "Por favor escribe tu correo para enviarte el enlace de recuperacion.",
       );
       setSuccessMessage(null);
       return;
     }
     if (
-      !isValidEmail(trimmed) ||
-      trimmed.length < 6 ||
-      isBlockedDomain(trimmed)
+      !isValidEmailForRecovery(trimmedEmail) ||
+      trimmedEmail.length < 6 ||
+      isBlockedDomain(trimmedEmail)
     ) {
       setError(
-        "Usa un correo válido y evita dominios genéricos (ej: test.com, example.com, mailinator.com).",
+        "Usa un correo valido y evita dominios genericos (ej: test.com, example.com, mailinator.com).",
       );
       setSuccessMessage(null);
       return;
     }
+
     setResetting(true);
     setError(null);
     setInfo(null);
@@ -162,7 +188,7 @@ export default function EmailPasswordForm({
       const res = await fetch("/api/auth/send-password-reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
       const data = (await res.json().catch(() => null)) as {
@@ -180,25 +206,65 @@ export default function EmailPasswordForm({
         setError(
           data?.message ||
             data?.error ||
-            "No pudimos enviar el correo de recuperación. Inténtalo de nuevo en unos minutos.",
+            "No pudimos enviar el correo de recuperacion. Intentalo de nuevo en unos minutos.",
         );
         setSuccessMessage(null);
         return;
       }
 
-      console.log("Reset password request sent");
-      setSuccessMessage(
-        "Te enviamos un correo con un enlace para restablecer tu contraseña. Revisa también tu carpeta de spam o promociones.",
-      );
+      setSuccessMessage(PASSWORD_RESET_SENT_MESSAGE);
       setError(null);
+      setShowRecoveryActions(false);
     } catch (err) {
       console.error("Unexpected error sending reset password:", err);
       setError(
-        "Ocurrió un error inesperado al enviar el correo. Inténtalo de nuevo más tarde.",
+        "Ocurrio un error inesperado al enviar el correo. Intentalo de nuevo mas tarde.",
       );
       setSuccessMessage(null);
     } finally {
       setResetting(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!trimmedEmail) {
+      setError("Escribe tu correo para reenviar la confirmacion.");
+      setSuccessMessage(null);
+      return;
+    }
+    if (
+      !isValidEmailForRecovery(trimmedEmail) ||
+      trimmedEmail.length < 6 ||
+      isBlockedDomain(trimmedEmail)
+    ) {
+      setError(
+        "Usa un correo valido y evita dominios genericos (ej: test.com, example.com, mailinator.com).",
+      );
+      setSuccessMessage(null);
+      return;
+    }
+
+    setResendingConfirmation(true);
+    setError(null);
+    setInfo(null);
+    setPendingConfirmation(false);
+    try {
+      const result = await requestResendConfirmation(trimmedEmail);
+      if (!result.ok) {
+        setError(result.message);
+        setSuccessMessage(null);
+        return;
+      }
+      setSuccessMessage(result.message);
+      setShowRecoveryActions(false);
+    } catch (err) {
+      console.error("Unexpected error resending confirmation:", err);
+      setError(
+        "No pudimos reenviar el correo de confirmacion. Intenta de nuevo mas tarde.",
+      );
+      setSuccessMessage(null);
+    } finally {
+      setResendingConfirmation(false);
     }
   };
 
@@ -210,7 +276,7 @@ export default function EmailPasswordForm({
             Accede con tu correo
           </h3>
           <p className="text-sm text-slate-500">
-            Ingresa tu correo y contraseña para continuar. Si es tu primera vez,
+            Ingresa tu correo y contrasena para continuar. Si es tu primera vez,
             crea tu clave.
           </p>
         </div>
@@ -218,7 +284,7 @@ export default function EmailPasswordForm({
 
       <div className="space-y-1">
         <label className="text-sm font-medium text-slate-700" htmlFor="email">
-          Correo electrónico
+          Correo electronico
         </label>
         <input
           id="email"
@@ -244,7 +310,7 @@ export default function EmailPasswordForm({
           className="text-sm font-medium text-slate-700"
           htmlFor="password"
         >
-          Contraseña
+          Contrasena
         </label>
         <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 shadow-sm focus-within:border-[#0b835e]">
           <input
@@ -253,7 +319,7 @@ export default function EmailPasswordForm({
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Ingresa tu contraseña"
+            placeholder="Ingresa tu contrasena"
             className="w-full bg-transparent px-1 py-1 text-sm focus:outline-none"
             autoComplete="current-password"
           />
@@ -279,10 +345,63 @@ export default function EmailPasswordForm({
               Enviando enlace...
             </span>
           ) : (
-            "¿Olvidaste tu contraseña?"
+            "Olvidaste tu contrasena?"
           )}
         </button>
       </div>
+
+      {showRecoveryActions ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="mb-3 text-sm font-medium text-slate-700">
+            Recupera el acceso con una de estas opciones:
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="sm:flex-1"
+              onClick={() => {
+                if (!resendingConfirmation) void handleResendConfirmation();
+              }}
+              disabled={!canUseRecoveryActions}
+            >
+              {resendingConfirmation ? (
+                <>
+                  <Spinner className="h-3.5 w-3.5" />
+                  <span className="ml-2">Reenviando...</span>
+                </>
+              ) : (
+                "Reenviar correo de confirmacion"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="sm:flex-1"
+              onClick={() => {
+                if (!resetting) void handleForgotPassword();
+              }}
+              disabled={!canUseRecoveryActions}
+            >
+              {resetting ? (
+                <>
+                  <Spinner className="h-3.5 w-3.5" />
+                  <span className="ml-2">Enviando...</span>
+                </>
+              ) : (
+                "Restablecer contrasena"
+              )}
+            </Button>
+          </div>
+          {!canUseRecoveryActions ? (
+            <p className="mt-2 text-xs text-slate-500">
+              Escribe un correo valido para habilitar estas acciones.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {successMessage ? (
         <p className="text-sm text-green-700">{successMessage}</p>
@@ -291,7 +410,7 @@ export default function EmailPasswordForm({
       {mode === "signup" ? (
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
           <p className="mb-2 text-sm font-semibold text-slate-700">
-            Requisitos de contraseña
+            Requisitos de contrasena
           </p>
           <ul className="space-y-1.5 text-sm">
             {requirements.map((req) => (
@@ -307,7 +426,7 @@ export default function EmailPasswordForm({
                   }`}
                   aria-hidden
                 >
-                  {req.pass ? "✓" : "•"}
+                  {req.pass ? "OK" : "-"}
                 </span>
                 <span>{req.label}</span>
               </li>
@@ -328,7 +447,7 @@ export default function EmailPasswordForm({
             <span className="ml-2">Enviando</span>
           </>
         ) : mode === "login" ? (
-          "Iniciar sesión"
+          "Iniciar sesion"
         ) : mode === "signup" ? (
           "Crear cuenta"
         ) : (
@@ -340,7 +459,7 @@ export default function EmailPasswordForm({
       {info ? <p className="text-sm text-slate-600">{info}</p> : null}
       {pendingConfirmation ? (
         <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          Te enviamos un enlace para confirmar tu cuenta. Revisa tu correo.
+          {SIGNUP_CONFIRMATION_MESSAGE}
         </div>
       ) : null}
     </form>

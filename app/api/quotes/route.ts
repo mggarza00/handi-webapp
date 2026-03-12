@@ -372,14 +372,36 @@ export async function POST(req: Request) {
       }
       const signed = await getSignedUrl(uploadedKey, 600);
       return NextResponse.json(
-        { ok: true, id: quoteId, total, image_url: signed ?? null },
+        {
+          ok: true,
+          id: quoteId,
+          total,
+          image_url: signed ?? null,
+          sync_hint: {
+            conversation_id: conversationId,
+            quote_id: quoteId,
+            message_id: messageId,
+            server_time: new Date().toISOString(),
+          },
+        },
         { status: 201, headers: JSONH },
       );
     }
 
     // Si no se pudo renderizar ni subir imagen, continuar sin imagen
     return NextResponse.json(
-      { ok: true, id: quoteId, total, image_url: null },
+      {
+        ok: true,
+        id: quoteId,
+        total,
+        image_url: null,
+        sync_hint: {
+          conversation_id: conversationId,
+          quote_id: quoteId,
+          message_id: messageId,
+          server_time: new Date().toISOString(),
+        },
+      },
       { status: 201, headers: JSONH },
     );
   } catch (e) {

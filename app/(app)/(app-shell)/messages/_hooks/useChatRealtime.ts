@@ -38,6 +38,8 @@ export type Handlers = {
     message_id: string;
     conversation_id: string;
   }) => void; // optional
+  onStatusChange?: (status: string) => void;
+  onRecoverNeeded?: (reason: "reconnected" | "channel-error" | "timed-out" | "closed") => void;
 };
 
 /**
@@ -47,10 +49,22 @@ export type Handlers = {
 export function useChatRealtime(conversationId: string, h: Handlers) {
   const handlersRef = React.useRef<Handlers>(h);
   handlersRef.current = h;
+  const hadSubscribedRef = React.useRef(false);
+  const lastRecoverAtRef = React.useRef(0);
 
   React.useEffect(() => {
     if (!conversationId) return;
+    hadSubscribedRef.current = false;
     const sb = createSupabaseBrowser();
+    const requestRecover = (
+      reason: "reconnected" | "channel-error" | "timed-out" | "closed",
+    ) => {
+      const now = Date.now();
+      // Prevent tight loops when realtime flaps.
+      if (now - lastRecoverAtRef.current < 1500) return;
+      lastRecoverAtRef.current = now;
+      handlersRef.current?.onRecoverNeeded?.(reason);
+    };
     const channel = sb
       .channel(`chat:${conversationId}:rt`)
       .on(
@@ -135,38 +149,19 @@ export function useChatRealtime(conversationId: string, h: Handlers) {
             },
           ),
       )
-      // DEV-only broad listener (no filter) to diagnose filtering issues. Remove after validation.
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "message_attachments" },
-        (payload) => {
-          if (process.env.NODE_ENV !== "production") {
-            // eslint-disable-next-line no-console
-            console.debug(
-              "rt dev raw att insert",
-              (payload.new as { conversation_id?: string })?.conversation_id,
-              (payload.new as { message_id?: string })?.message_id,
-              (payload.new as { id?: string })?.id,
-            );
+      .subscribe((status) => {
+        handlersRef.current?.onStatusChange?.(status);
+        if (status === "SUBSCRIBED") {
+          if (hadSubscribedRef.current) {
+            requestRecover("reconnected");
           }
-        },
-      )
-      // DEV-only broad listener (no filter) to verify any insert visibility
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
-        (payload) => {
-          if (process.env.NODE_ENV !== "production") {
-            // eslint-disable-next-line no-console
-            console.debug(
-              "rt dev raw msg insert",
-              (payload.new as { conversation_id?: string })?.conversation_id,
-              (payload.new as { id?: string })?.id,
-            );
-          }
-        },
-      )
-      .subscribe();
+          hadSubscribedRef.current = true;
+          return;
+        }
+        if (status === "CHANNEL_ERROR") requestRecover("channel-error");
+        if (status === "TIMED_OUT") requestRecover("timed-out");
+        if (status === "CLOSED") requestRecover("closed");
+      });
     if (process.env.NODE_ENV != "production") {
       console.debug("rt sub to conv", conversationId);
     }
