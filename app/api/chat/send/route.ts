@@ -5,6 +5,7 @@ import { z } from "zod";
 import webpush from "web-push";
 
 import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
+import { buildChatPushPayload } from "@/lib/chat/push-payload";
 import {
   getUserFromRequestOrThrow,
   getDbClientForRequest,
@@ -267,6 +268,32 @@ export async function POST(req: Request) {
       const proId = (conv.data as any)?.pro_id as string | undefined;
       const recipientId = senderId === customerId ? proId : customerId;
       if (recipientId && typeof recipientId === "string") {
+        let senderName: string | null = null;
+        let senderAvatarUrl: string | null = null;
+        try {
+          const senderProfile = await (supabase as any)
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", senderId)
+            .maybeSingle();
+          const fullName = senderProfile?.data?.full_name;
+          const avatarUrl = senderProfile?.data?.avatar_url;
+          senderName =
+            typeof fullName === "string" ? fullName.trim() || null : null;
+          senderAvatarUrl =
+            typeof avatarUrl === "string" ? avatarUrl.trim() || null : null;
+        } catch {
+          // ignore profile lookup failures
+        }
+
+        const pushPayload = buildChatPushPayload({
+          conversationId,
+          senderName,
+          senderAvatarUrl,
+          messageBody: body || "",
+          attachmentsCount: attachments.length,
+        });
+
         const fnUrlDirect = process.env.SUPABASE_FUNCTIONS_URL;
         const supaUrl =
           process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -275,11 +302,7 @@ export async function POST(req: Request) {
           (supaUrl ? `${supaUrl.replace(/\/$/, "")}/functions/v1` : null);
         const srk = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (fnBase && srk) {
-          const urlPath = `/mensajes/${conversationId}`;
           const fnUrl = `${fnBase.replace(/\/$/, "")}/push-notify`;
-          const previewText =
-            (body || "").trim().slice(0, 140) ||
-            "Tienes un mensaje nuevo en Handi";
           const fnRes = await fetch(fnUrl, {
             method: "POST",
             headers: {
@@ -288,14 +311,7 @@ export async function POST(req: Request) {
             },
             body: JSON.stringify({
               toUserId: recipientId,
-              payload: {
-                title: "Nuevo mensaje",
-                body: previewText,
-                url: urlPath,
-                tag: `thread:${conversationId}`,
-                icon: "/icons/icon-192.png",
-                badge: "/icons/badge-72.png",
-              },
+              payload: pushPayload,
             }),
           }).catch(() => undefined as unknown as Response);
 
@@ -317,14 +333,7 @@ export async function POST(req: Request) {
                   .from("web_push_subscriptions")
                   .select("id, endpoint, keys, p256dh, auth")
                   .eq("user_id", recipientId);
-                const payload = JSON.stringify({
-                  title: "Nuevo mensaje",
-                  body: previewText,
-                  url: urlPath,
-                  tag: `thread:${conversationId}`,
-                  icon: "/icons/icon-192.png",
-                  badge: "/icons/badge-72.png",
-                });
+                const payload = JSON.stringify(pushPayload);
                 for (const s of subs || []) {
                   const rawKeys: any = (s as any).keys ?? {
                     p256dh: (s as any).p256dh,
