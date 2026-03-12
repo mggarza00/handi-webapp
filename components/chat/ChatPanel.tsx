@@ -355,6 +355,15 @@ export default function ChatPanel({
   );
   const lastSyncedTokenRef = React.useRef<string | null>(null);
   const syncInFlightRef = React.useRef(false);
+  const lastResyncTokenRef = React.useRef<string | null>(null);
+  const resyncInFlightRef = React.useRef(false);
+  const resyncTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const fallbackPollRef = React.useRef<{
+    token: string | null;
+    active: boolean;
+  }>({ token: null, active: false });
   // Expose uploader API to trigger from MessageInput icons
   const uploaderApiRef = React.useRef<{
     pickFiles: () => void;
@@ -614,7 +623,10 @@ export default function ChatPanel({
     })();
   }, [userId]);
   const load = React.useCallback(
-    async (withSpinner = true) => {
+    async (
+      withSpinner = true,
+      options: { silent?: boolean } = {},
+    ) => {
       if (!conversationId) return;
       if (withSpinner) setLoading(true);
       try {
@@ -629,7 +641,9 @@ export default function ChatPanel({
         );
         const data = (await parseJsonSafe<HistoryResponse>(res)) ?? {};
         if (!res.ok) {
-          toast.error(data?.error || "No se pudo cargar el historial");
+          if (!options.silent) {
+            toast.error(data?.error || "No se pudo cargar el historial");
+          }
           return;
         }
         const mapped = Array.isArray(data?.data)
@@ -639,8 +653,11 @@ export default function ChatPanel({
         if (data?.participants) setParticipants(data.participants);
         if (data?.request_id) setRequestId(data.request_id);
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Error de red";
-        toast.error(message);
+        if (!options.silent) {
+          const message =
+            error instanceof Error ? error.message : "Error de red";
+          toast.error(message);
+        }
       } finally {
         if (withSpinner) setLoading(false);
       }
@@ -650,12 +667,66 @@ export default function ChatPanel({
   React.useEffect(() => {
     void load();
   }, [load]);
+  const scheduleConversationResync = React.useCallback(
+    (
+      reason: string,
+      options: {
+        delayMs?: number;
+        pollAttempts?: number;
+        pollIntervalMs?: number;
+      } = {},
+    ) => {
+      const delayMs = options.delayMs ?? 250;
+      const pollAttempts = Math.max(0, options.pollAttempts ?? 0);
+      const pollIntervalMs = Math.max(250, options.pollIntervalMs ?? 1200);
+      const token = `${reason}:${conversationId}`;
+      if (lastResyncTokenRef.current === token && resyncInFlightRef.current) {
+        return;
+      }
+      lastResyncTokenRef.current = token;
+      if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+      resyncTimerRef.current = setTimeout(() => {
+        if (resyncInFlightRef.current) return;
+        resyncInFlightRef.current = true;
+        void load(false, { silent: true }).finally(() => {
+          resyncInFlightRef.current = false;
+        });
+      }, delayMs);
+
+      if (pollAttempts <= 0) return;
+      if (fallbackPollRef.current.active && fallbackPollRef.current.token === token) {
+        return;
+      }
+      fallbackPollRef.current = { token, active: true };
+      void (async () => {
+        for (let attempt = 0; attempt < pollAttempts; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+          if (fallbackPollRef.current.token !== token) break;
+          await load(false, { silent: true });
+        }
+        if (fallbackPollRef.current.token === token) {
+          fallbackPollRef.current = { token: null, active: false };
+        }
+      })();
+    },
+    [conversationId, load],
+  );
   // When auth state (meId) becomes available, try to reload history without spinner
   React.useEffect(() => {
     if (conversationId && meId) {
-      void load(false);
+      void load(false, { silent: true });
     }
   }, [meId, conversationId, load]);
+  React.useEffect(
+    () => () => {
+      if (resyncTimerRef.current) {
+        clearTimeout(resyncTimerRef.current);
+        resyncTimerRef.current = null;
+      }
+      fallbackPollRef.current = { token: null, active: false };
+    },
+    [],
+  );
   React.useEffect(() => {
     if (
       typeof requestBudgetProp === "number" &&
@@ -844,6 +915,11 @@ export default function ChatPanel({
               return m;
             }),
           );
+          scheduleConversationResync("broadcast-offer-accepted", {
+            delayMs: 200,
+            pollAttempts: 3,
+            pollIntervalMs: 1200,
+          });
         } catch {
           /* ignore */
         }
@@ -892,6 +968,11 @@ export default function ChatPanel({
               return m;
             }),
           );
+          scheduleConversationResync("broadcast-offer-rejected", {
+            delayMs: 200,
+            pollAttempts: 2,
+            pollIntervalMs: 1000,
+          });
         } catch {
           /* ignore */
         }
@@ -906,10 +987,17 @@ export default function ChatPanel({
         typingTimeoutRef.current = null;
       }
     };
-  }, [conversationId, mergeMessages, meId]);
+  }, [conversationId, mergeMessages, meId, scheduleConversationResync]);
 
   // Hook: realtime messages + attachments
   useChatRealtime(conversationId, {
+    onRecoverNeeded: () => {
+      scheduleConversationResync("realtime-recover", {
+        delayMs: 200,
+        pollAttempts: 2,
+        pollIntervalMs: 1200,
+      });
+    },
     onMessageInsert: (row) => {
       let parsedPayload: Record<string, unknown> | null = null;
       const rawPayload = row.payload;
@@ -1032,6 +1120,55 @@ export default function ChatPanel({
         }
       }
       mergeMessages(msg, { fromServer: true });
+      if (
+        msg.messageType === "system" ||
+        msg.messageType === "offer" ||
+        msg.messageType === "quote"
+      ) {
+        scheduleConversationResync(`message-${msg.messageType}`, {
+          delayMs: 180,
+          pollAttempts: 3,
+          pollIntervalMs: 1100,
+        });
+      }
+    },
+    onMessageUpdate: (row) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === row.id);
+        if (idx === -1) return prev;
+        const current = prev[idx];
+        const rawPayload = row.payload;
+        let nextPayload: Record<string, unknown> | null = current.payload ?? null;
+        if (rawPayload && typeof rawPayload === "object") {
+          nextPayload = rawPayload as Record<string, unknown>;
+        } else if (typeof rawPayload === "string" && rawPayload.trim().length) {
+          try {
+            nextPayload = JSON.parse(rawPayload) as Record<string, unknown>;
+          } catch {
+            nextPayload = current.payload ?? null;
+          }
+        }
+        const nextMsg: Msg = {
+          ...current,
+          body: (row.body ?? row.text ?? current.body ?? "").toString(),
+          createdAt: row.created_at || current.createdAt,
+          messageType: row.message_type
+            ? String(row.message_type)
+            : current.messageType,
+          payload: nextPayload,
+          readBy: Array.isArray(row.read_by)
+            ? (row.read_by as unknown[]).map((v) => String(v))
+            : current.readBy,
+        };
+        const copy = [...prev];
+        copy[idx] = nextMsg;
+        return copy;
+      });
+      scheduleConversationResync("message-update", {
+        delayMs: 220,
+        pollAttempts: 1,
+        pollIntervalMs: 1200,
+      });
     },
     onAttachmentInsert: (r) => {
       if (process.env.NODE_ENV !== "production") {
@@ -1055,9 +1192,19 @@ export default function ChatPanel({
           created_at: r.created_at,
         }),
       );
+      scheduleConversationResync("attachment-insert", {
+        delayMs: 260,
+        pollAttempts: 2,
+        pollIntervalMs: 900,
+      });
     },
     onAttachmentDelete: (r) => {
       setMessages((prev) => removeAttachment(prev, r.message_id, r.id));
+      scheduleConversationResync("attachment-delete", {
+        delayMs: 180,
+        pollAttempts: 1,
+        pollIntervalMs: 800,
+      });
     },
   });
   const viewerRole = React.useMemo(() => {
@@ -1266,6 +1413,11 @@ export default function ChatPanel({
       };
       mergeMessages(serverMsg, { fromServer: true });
     }
+    scheduleConversationResync("send-text", {
+      delayMs: 120,
+      pollAttempts: 1,
+      pollIntervalMs: 900,
+    });
     return true;
   }
   function hasActiveOfferInChat(): boolean {
@@ -1486,7 +1638,12 @@ export default function ChatPanel({
       setOfferDescription("");
       setOfferAmount("");
       setOfferServiceDate("");
-      await load(false);
+      await load(false, { silent: true });
+      scheduleConversationResync("offer-created", {
+        delayMs: 180,
+        pollAttempts: 3,
+        pollIntervalMs: 1200,
+      });
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Error";
       const normalized =
@@ -1552,7 +1709,12 @@ export default function ChatPanel({
               String(arr[0]?.status || "").toLowerCase() === "accepted"
             ) {
               toast.success("Oferta aceptada");
-              await load(false);
+              await load(false, { silent: true });
+              scheduleConversationResync("offer-accepted", {
+                delayMs: 180,
+                pollAttempts: 4,
+                pollIntervalMs: 1200,
+              });
               return;
             }
           }
@@ -1579,7 +1741,12 @@ export default function ChatPanel({
       }>(res);
       if (res.ok && json?.ok !== false) {
         toast.success("Oferta aceptada");
-        await load(false);
+        await load(false, { silent: true });
+        scheduleConversationResync("offer-accepted", {
+          delayMs: 180,
+          pollAttempts: 4,
+          pollIntervalMs: 1200,
+        });
         return;
       }
       // Fallback por id
@@ -1596,11 +1763,16 @@ export default function ChatPanel({
       }>(res2);
       if (res2.ok && json2?.ok !== false) {
         toast.success("Oferta aceptada");
-        await load(false);
+        await load(false, { silent: true });
+        scheduleConversationResync("offer-accepted", {
+          delayMs: 180,
+          pollAttempts: 4,
+          pollIntervalMs: 1200,
+        });
         return;
       }
       if ((res.status === 404 || res2.status === 404) && attempt === 0) {
-        await load(false);
+        await load(false, { silent: true });
         const nextId = findLatestSentOfferId();
         if (nextId && nextId !== offerId) {
           await handleAcceptOffer(nextId, attempt + 1);
@@ -1621,7 +1793,7 @@ export default function ChatPanel({
         });
         for (let i = 0; i < 8; i++) {
           await new Promise((r) => setTimeout(r, 600));
-          await load(false);
+          await load(false, { silent: true });
           const st = normalizeStatus(getOfferStatusFromMessages(offerId));
           if (st === "accepted") {
             toast.success("Oferta aceptada");
@@ -1766,7 +1938,12 @@ export default function ChatPanel({
       setRejectReason("");
       setRejectExtra("");
       setRejectTarget(null);
-      await load(false);
+      await load(false, { silent: true });
+      scheduleConversationResync("offer-rejected", {
+        delayMs: 180,
+        pollAttempts: 3,
+        pollIntervalMs: 1100,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error";
       toast.error(message);
@@ -1820,6 +1997,11 @@ export default function ChatPanel({
       },
       { fromServer: true },
     );
+    scheduleConversationResync("send-text", {
+      delayMs: 120,
+      pollAttempts: 1,
+      pollIntervalMs: 900,
+    });
     return true;
   }
   const loadingState = loading ? (
@@ -1969,8 +2151,13 @@ export default function ChatPanel({
     if (!acceptedForPay) setPaymentOpen(false);
   }, [acceptedForPay]);
   const handlePaymentSuccess = React.useCallback(() => {
-    void load(false);
-  }, [load]);
+    scheduleConversationResync("payment-success", {
+      delayMs: 200,
+      pollAttempts: 3,
+      pollIntervalMs: 1200,
+    });
+    void load(false, { silent: true });
+  }, [load, scheduleConversationResync]);
 
   async function handleClientDepositNow() {
     const summary = onsiteDeposit;
@@ -2427,7 +2614,12 @@ export default function ChatPanel({
       setOnsiteStart("9");
       setOnsiteEnd("12");
       setOnsiteNotes("");
-      await load(false);
+      await load(false, { silent: true });
+      scheduleConversationResync("onsite-quote-request", {
+        delayMs: 180,
+        pollAttempts: 2,
+        pollIntervalMs: 1000,
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error");
     } finally {
@@ -2474,7 +2666,12 @@ export default function ChatPanel({
           };
           mergeMessages(optimistic, { fromServer: true });
         }
-        void load(false);
+        scheduleConversationResync("quote-submitted", {
+          delayMs: 180,
+          pollAttempts: 4,
+          pollIntervalMs: 1000,
+        });
+        void load(false, { silent: true });
       }}
     />
   );
@@ -2703,6 +2900,11 @@ export default function ChatPanel({
                   }
                   return next;
                 });
+                scheduleConversationResync("attachment-created", {
+                  delayMs: 220,
+                  pollAttempts: 3,
+                  pollIntervalMs: 900,
+                });
               }}
             />
           </div>
@@ -2905,6 +3107,11 @@ export default function ChatPanel({
                     next = appendAttachment(next, messageId, att);
                   }
                   return next;
+                });
+                scheduleConversationResync("attachment-created", {
+                  delayMs: 220,
+                  pollAttempts: 3,
+                  pollIntervalMs: 900,
                 });
               }}
             />

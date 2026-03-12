@@ -258,3 +258,16 @@ export async function expectLastMessage(page: Page, prefix: "chat" | "request-ch
   const loc2 = await getLocator(alt);
   await expect(loc2, `Expected last message by ${author} containing '${text}' (prefix fallback)`).toContainText(text, { timeout: 10_000 });
 }
+
+export async function getFirstConversationId(page: Page): Promise<string> {
+  const res = await page.request.get(`/api/chat/rooms`, {
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+  if (!res.ok()) throw new Error("No se pudo cargar /api/chat/rooms");
+  const json = await res.json().catch(() => ({} as any));
+  const id = json?.data?.[0]?.id as string | undefined;
+  if (!id || !String(id).trim().length) {
+    throw new Error("No hay conversaciones disponibles para la prueba");
+  }
+  return String(id);
+}

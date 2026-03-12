@@ -329,7 +329,15 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { ok: true, offer },
+      {
+        ok: true,
+        offer,
+        sync_hint: {
+          conversation_id: conversationId,
+          offer_id: offer.id,
+          server_time: new Date().toISOString(),
+        },
+      },
       { status: 201, headers: JSONH },
     );
   } catch (error) {

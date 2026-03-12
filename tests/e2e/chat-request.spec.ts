@@ -1,9 +1,5 @@
 import { test, expect } from "@playwright/test";
 import {
-  CLIENT_EMAIL,
-  CLIENT_PASSWORD,
-  PRO_EMAIL,
-  PRO_PASSWORD,
   loginUI,
   seedE2EUsers,
   ensureRequestForChat,
@@ -12,6 +8,7 @@ import {
   expectLastMessage,
   openMessages,
   requireTestId,
+  getFirstConversationId,
 } from "./utils/chat";
 
 test.describe("Chat en requests/[id] (cliente)", () => {
@@ -64,5 +61,39 @@ test.describe("Chat en requests/[id] (cliente)", () => {
     const inputPro = await requireTestId(proPage, "request-chat-input");
     await inputPro.fill("Escribiendo...");
     await expect(page.getByTestId("chat-typing-indicator")).toBeVisible({ timeout: 10_000 });
+
+    // Scenario: oferta creada por cliente visible para pro sin refresh
+    const conversationId = await getFirstConversationId(page);
+    const offerTitle = `Oferta E2E ${Date.now()}`;
+    const createOffer = await page.request.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/offers`,
+      {
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        data: {
+          title: offerTitle,
+          description: "Oferta de prueba realtime",
+          amount: 750,
+          currency: "MXN",
+        },
+      },
+    );
+    expect(createOffer.ok()).toBeTruthy();
+    await expectLastMessage(proPage, "request-chat", "client", offerTitle);
+
+    // Scenario: aceptacion de oferta visible para cliente sin refresh
+    const offerJson = await createOffer.json().catch(() => ({} as any));
+    const offerId = offerJson?.offer?.id as string | undefined;
+    expect(offerId).toBeTruthy();
+    const acceptOffer = await proPage.request.post(
+      `/api/offers/${encodeURIComponent(String(offerId))}/accept`,
+      {
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        data: { conversationId },
+      },
+    );
+    expect(acceptOffer.ok()).toBeTruthy();
+    await expect(page.getByText("Oferta aceptada").last()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

@@ -8,6 +8,7 @@ import {
   sendMessage,
   expectLastMessage,
   requireTestId,
+  getFirstConversationId,
 } from "./utils/chat";
 
 test.describe("Chat global en /messages (cliente)", () => {
@@ -70,5 +71,43 @@ test.describe("Chat global en /messages (cliente)", () => {
     // Consistencia: el mensaje enviado en /messages aparece en /requests/[id]
     await openRequestChat(page, requestId);
     await expectLastMessage(page, "request-chat", "pro", msgPro);
+
+    // Scenario: cotizacion visible sin refresh
+    const conversationId = await getFirstConversationId(page);
+    const quoteRes = await proPage.request.post(`/api/quotes`, {
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      data: {
+        conversation_id: conversationId,
+        currency: "MXN",
+        items: [{ concept: "Mano de obra", amount: 950 }],
+        notes: "Cotizacion e2e",
+      },
+    });
+    expect(quoteRes.ok()).toBeTruthy();
+    await expect(page.getByText("Cotización enviada").last()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // Scenario: mensaje con adjunto insertado y visible sin refresh
+    const fileLabel = `e2e-adjunto-${Date.now()}.pdf`;
+    const sendWithAttachment = await proPage.request.post(`/api/chat/send`, {
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      data: {
+        conversationId,
+        body: "Adjunto de prueba",
+        attachments: [
+          {
+            filename: fileLabel,
+            mime_type: "application/pdf",
+            byte_size: 1024,
+            storage_path: `conversation/${conversationId}/${fileLabel}`,
+          },
+        ],
+      },
+    });
+    expect(sendWithAttachment.ok()).toBeTruthy();
+    await expect(page.getByText(fileLabel).first()).toBeVisible({
+      timeout: 20_000,
+    });
   });
 });
