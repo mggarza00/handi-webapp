@@ -5,7 +5,10 @@ import {
   isLikelyUuidishLabel,
   pickBestChatTitle,
 } from "@/lib/chat/chat-title";
-import { buildChatPushPayload } from "@/lib/chat/push-payload";
+import {
+  buildChatPushPayload,
+  resolvePushAvatarIconUrl,
+} from "@/lib/chat/push-payload";
 
 describe("chat title helpers", () => {
   it("detects uuid-ish labels", () => {
@@ -65,5 +68,28 @@ describe("chat push payload", () => {
     expect(payload.icon).toBe("/icons/icon-192.png");
     expect(payload.badge).toBe("/icons/badge-72.png");
     expect(payload.url).toBe("/mensajes/conv-2");
+  });
+
+  it("normalizes relative storage avatar paths to absolute push icon urls", () => {
+    const icon = resolvePushAvatarIconUrl(
+      "public/avatars/user-1.png",
+      "https://handi.mx",
+    );
+    expect(icon).toBe(
+      "https://handi.mx/storage/v1/object/public/avatars/user-1.png",
+    );
+  });
+
+  it("falls back to generic icon when avatar url is invalid", () => {
+    const icon = resolvePushAvatarIconUrl("undefined", "https://handi.mx");
+    expect(icon).toBe("https://handi.mx/icons/icon-192.png");
+  });
+
+  it("keeps absolute public avatar when already valid", () => {
+    const icon = resolvePushAvatarIconUrl(
+      "https://cdn.example.com/u/avatar.png",
+      "https://handi.mx",
+    );
+    expect(icon).toBe("https://cdn.example.com/u/avatar.png");
   });
 });
