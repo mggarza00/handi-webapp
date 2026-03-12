@@ -123,12 +123,20 @@ self.addEventListener("push", (event) => {
       ...payloadData,
       url: payloadData.url || data.url || "/",
     };
+    const icon =
+      (data && data.icon) ||
+      (payloadData && payloadData.icon) ||
+      "/images/handifav_fondo.png";
+    const badge =
+      (data && data.badge) ||
+      (payloadData && payloadData.badge) ||
+      "/images/handifav_fondo.png";
     const title = data.title || "Handi";
     // Minimal options per spec
     const options = {
       body: data && data.body ? data.body : "",
-      icon: data && data.icon ? data.icon : "/images/handifav_fondo.png",
-      badge: data && data.badge ? data.badge : "/images/handifav_fondo.png",
+      icon,
+      badge,
       data: mergedData,
       tag: data && data.tag ? data.tag : undefined,
     };

@@ -292,7 +292,21 @@ export async function POST(req: Request) {
           senderAvatarUrl,
           messageBody: body || "",
           attachmentsCount: attachments.length,
+          appBaseUrl:
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_SITE_URL ||
+            new URL(req.url).origin,
         });
+        if (
+          process.env.NODE_ENV !== "production" &&
+          process.env.LOG_PUSH_ICON === "1"
+        ) {
+          // eslint-disable-next-line no-console
+          console.info("[push-icon]", {
+            senderAvatarOriginal: senderAvatarUrl,
+            senderAvatarFinal: pushPayload.icon,
+          });
+        }
 
         const fnUrlDirect = process.env.SUPABASE_FUNCTIONS_URL;
         const supaUrl =

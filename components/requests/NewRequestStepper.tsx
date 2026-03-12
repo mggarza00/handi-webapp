@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import Stepper, { Step } from "@/components/react-bits/stepper/Stepper";
@@ -381,7 +381,7 @@ export default function NewRequestStepper({
                 Paso 2 - Ubicación y contacto
               </h2>
               <p className="text-sm text-slate-600">
-                Incluye la ciudad y la dirección usando la búsqueda o el mapa.
+                Incluye la ciudad y la dirección usando la búsqueda.
               </p>
             </div>
 
@@ -462,17 +462,9 @@ export default function NewRequestStepper({
                         await saveAddressNow();
                       }}
                     >
-                      {isAddressSaved ? "Dirección guardada" : "Guardar dirección"}
-                    </Button>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setOpenMap(true)}
-                      aria-label="Abrir mapa"
-                    >
-                      <MapPin size={18} />
+                      {isAddressSaved
+                        ? "Dirección guardada"
+                        : "Guardar dirección"}
                     </Button>
                   </div>
                 </div>
@@ -554,8 +546,7 @@ export default function NewRequestStepper({
               ) : null}
 
               <p className="text-xs text-slate-500">
-                Puedes escribir la dirección, usar la búsqueda o elegirla en el
-                mapa.
+                Puedes escribir la dirección o usar la búsqueda.
               </p>
               {!address && coords ? (
                 <p className="text-xs text-slate-500">
