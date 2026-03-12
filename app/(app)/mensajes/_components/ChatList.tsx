@@ -11,7 +11,11 @@ import type { ChatSummary } from "./types";
 import ChatListRealtime, {
   type MessagePayload,
 } from "@/components/messages/ChatListRealtime";
-import { pickBestChatTitle } from "@/lib/chat/chat-title";
+import {
+  hasUsableAvatar,
+  isPlaceholderChatTitle,
+  pickBetterChatIdentity,
+} from "@/lib/chat/chat-identity";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type ChatRoomsApiItem = {
@@ -21,6 +25,13 @@ type ChatRoomsApiItem = {
   lastMessageTime?: string | null;
   unreadCount?: number | null;
   avatarUrl?: string | null;
+};
+
+type ProfileIdentity = {
+  id: string;
+  name: string | null;
+  avatarUrl: string | null;
+  lastActiveAt: string | null;
 };
 
 export default function ChatList({ chats }: { chats: ChatSummary[] }) {
@@ -35,6 +46,18 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
   }, [items]);
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const [typingMap, setTypingMap] = useState<Record<string, boolean>>({});
+  const profileCacheRef = useRef<Map<string, ProfileIdentity>>(new Map());
+  const conversationPeerRef = useRef<Map<string, string>>(new Map());
+  const profileFetchInFlightRef = useRef<
+    Map<string, Promise<ProfileIdentity | null>>
+  >(new Map());
+  const conversationHydrationInFlightRef = useRef<Map<string, Promise<void>>>(
+    new Map(),
+  );
+  const lastConversationHydrationAttemptRef = useRef<Map<string, number>>(
+    new Map(),
+  );
+  const roomsRevalidatedByConversationRef = useRef<Set<string>>(new Set());
   const roomsReloadInFlightRef = useRef(false);
   const lastRoomsReloadAtRef = useRef(0);
   const channelKey = useMemo(() => {
@@ -178,25 +201,33 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
         const j = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && Array.isArray(j?.data)) {
           const mapped: ChatSummary[] = (j.data as ChatRoomsApiItem[]).map(
-            (it) => ({
-              id: String(it.id),
-              title: pickBestChatTitle(null, it.title, "Contacto"),
-              preview:
-                typeof it.lastMessagePreview === "string"
-                  ? it.lastMessagePreview
-                  : null,
-              lastMessageAt:
-                typeof it.lastMessageTime === "string"
-                  ? it.lastMessageTime
-                  : null,
-              unread:
-                typeof it.unreadCount === "number" ? it.unreadCount > 0 : false,
-              avatarUrl: typeof it.avatarUrl === "string" ? it.avatarUrl : null,
-              requestTitle: null,
-              unreadCount:
-                typeof it.unreadCount === "number" ? it.unreadCount : 0,
-              otherLastActiveAt: null,
-            }),
+            (it) => {
+              const identity = pickBetterChatIdentity(
+                {},
+                { title: it.title, avatarUrl: it.avatarUrl },
+              );
+              return {
+                id: String(it.id),
+                title: identity.title,
+                preview:
+                  typeof it.lastMessagePreview === "string"
+                    ? it.lastMessagePreview
+                    : null,
+                lastMessageAt:
+                  typeof it.lastMessageTime === "string"
+                    ? it.lastMessageTime
+                    : null,
+                unread:
+                  typeof it.unreadCount === "number"
+                    ? it.unreadCount > 0
+                    : false,
+                avatarUrl: identity.avatarUrl,
+                requestTitle: null,
+                unreadCount:
+                  typeof it.unreadCount === "number" ? it.unreadCount : 0,
+                otherLastActiveAt: null,
+              };
+            },
           );
           setItems(mapped);
         }
@@ -223,22 +254,31 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
       const j = await res.json().catch(() => ({}));
       if (!res.ok || !Array.isArray(j?.data)) return;
       const incoming: ChatSummary[] = (j.data as ChatRoomsApiItem[]).map(
-        (it) => ({
-          id: String(it.id),
-          title: pickBestChatTitle(null, it.title, "Contacto"),
-          preview:
-            typeof it.lastMessagePreview === "string"
-              ? it.lastMessagePreview
-              : null,
-          lastMessageAt:
-            typeof it.lastMessageTime === "string" ? it.lastMessageTime : null,
-          unread:
-            typeof it.unreadCount === "number" ? it.unreadCount > 0 : false,
-          avatarUrl: typeof it.avatarUrl === "string" ? it.avatarUrl : null,
-          requestTitle: null,
-          unreadCount: typeof it.unreadCount === "number" ? it.unreadCount : 0,
-          otherLastActiveAt: null,
-        }),
+        (it) => {
+          const identity = pickBetterChatIdentity(
+            {},
+            { title: it.title, avatarUrl: it.avatarUrl },
+          );
+          return {
+            id: String(it.id),
+            title: identity.title,
+            preview:
+              typeof it.lastMessagePreview === "string"
+                ? it.lastMessagePreview
+                : null,
+            lastMessageAt:
+              typeof it.lastMessageTime === "string"
+                ? it.lastMessageTime
+                : null,
+            unread:
+              typeof it.unreadCount === "number" ? it.unreadCount > 0 : false,
+            avatarUrl: identity.avatarUrl,
+            requestTitle: null,
+            unreadCount:
+              typeof it.unreadCount === "number" ? it.unreadCount : 0,
+            otherLastActiveAt: null,
+          };
+        },
       );
       setItems((prev) => {
         const map = new Map<string, ChatSummary>();
@@ -249,11 +289,24 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
             map.set(row.id, row);
             continue;
           }
+          const identity = pickBetterChatIdentity(
+            {
+              title: existing.title,
+              avatarUrl: existing.avatarUrl,
+              otherLastActiveAt: existing.otherLastActiveAt,
+            },
+            {
+              title: row.title,
+              avatarUrl: row.avatarUrl,
+              otherLastActiveAt: row.otherLastActiveAt,
+            },
+          );
           map.set(row.id, {
             ...existing,
             ...row,
-            title: pickBestChatTitle(existing.title, row.title, "Contacto"),
-            avatarUrl: row.avatarUrl ?? existing.avatarUrl ?? null,
+            title: identity.title,
+            avatarUrl: identity.avatarUrl,
+            otherLastActiveAt: identity.otherLastActiveAt,
             preview: row.preview ?? existing.preview ?? null,
             lastMessageAt: row.lastMessageAt ?? existing.lastMessageAt ?? null,
             unreadCount:
@@ -276,6 +329,135 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
       roomsReloadInFlightRef.current = false;
     }
   }, []);
+
+  const fetchProfileIdentity = React.useCallback(async (userId: string) => {
+    const normalizedId = userId.trim();
+    if (!normalizedId) return null;
+    const cached = profileCacheRef.current.get(normalizedId);
+    if (cached) return cached;
+    const inFlight = profileFetchInFlightRef.current.get(normalizedId);
+    if (inFlight) return inFlight;
+    const task = (async (): Promise<ProfileIdentity | null> => {
+      try {
+        const rp = await fetch(
+          `/api/profiles/${encodeURIComponent(normalizedId)}`,
+          {
+            credentials: "include",
+            cache: "no-store",
+          },
+        );
+        const pj = await rp.json().catch(() => ({}));
+        if (!pj?.data) return null;
+        const name =
+          typeof pj.data.full_name === "string" ? pj.data.full_name.trim() : "";
+        const avatar =
+          typeof pj.data.avatar_url === "string"
+            ? pj.data.avatar_url.trim()
+            : "";
+        const identity: ProfileIdentity = {
+          id: normalizedId,
+          name: name || null,
+          avatarUrl: avatar || null,
+          lastActiveAt:
+            typeof pj.data.last_active_at === "string"
+              ? pj.data.last_active_at
+              : null,
+        };
+        profileCacheRef.current.set(normalizedId, identity);
+        return identity;
+      } catch {
+        return null;
+      } finally {
+        profileFetchInFlightRef.current.delete(normalizedId);
+      }
+    })();
+    profileFetchInFlightRef.current.set(normalizedId, task);
+    return task;
+  }, []);
+
+  const applyIdentityToConversation = React.useCallback(
+    (cid: string, identity: Partial<ProfileIdentity>) => {
+      setItems((curr) =>
+        curr.map((c) => {
+          if (c.id !== cid) return c;
+          const merged = pickBetterChatIdentity(
+            {
+              title: c.title,
+              avatarUrl: c.avatarUrl,
+              otherLastActiveAt: c.otherLastActiveAt,
+            },
+            {
+              title: identity.name,
+              avatarUrl: identity.avatarUrl,
+              otherLastActiveAt: identity.lastActiveAt,
+            },
+          );
+          return {
+            ...c,
+            title: merged.title,
+            avatarUrl: merged.avatarUrl,
+            otherLastActiveAt: merged.otherLastActiveAt,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const hydrateConversationIdentity = React.useCallback(
+    async (cid: string, row?: MessagePayload) => {
+      const existing = conversationHydrationInFlightRef.current.get(cid);
+      if (existing) return existing;
+      const now = Date.now();
+      const lastTry = lastConversationHydrationAttemptRef.current.get(cid) ?? 0;
+      if (now - lastTry < 3000) return;
+      lastConversationHydrationAttemptRef.current.set(cid, now);
+      const task = (async () => {
+        try {
+          const me = meIdRef.current;
+          let peerId: string | null =
+            conversationPeerRef.current.get(cid) ?? null;
+          const senderId =
+            typeof row?.sender_id === "string" ? row.sender_id.trim() : "";
+          if (!peerId && senderId && (!me || senderId !== me)) {
+            peerId = senderId;
+          }
+          if (!peerId) {
+            const r = await fetch(
+              `/api/chat/history?conversationId=${encodeURIComponent(cid)}&limit=1`,
+              { credentials: "include", cache: "no-store" },
+            );
+            const j = await r.json().catch(() => ({}));
+            const parts = j?.participants as
+              | { customer_id?: string; pro_id?: string }
+              | undefined;
+            if (me && parts?.customer_id && parts?.pro_id) {
+              peerId = me === parts.pro_id ? parts.customer_id : parts.pro_id;
+            }
+          }
+          if (!peerId) return;
+          conversationPeerRef.current.set(cid, peerId);
+          const profile = await fetchProfileIdentity(peerId);
+          if (profile) {
+            applyIdentityToConversation(cid, profile);
+          }
+          if (!roomsRevalidatedByConversationRef.current.has(cid)) {
+            roomsRevalidatedByConversationRef.current.add(cid);
+            void revalidateRoomsBestEffort();
+          }
+        } finally {
+          conversationHydrationInFlightRef.current.delete(cid);
+        }
+      })();
+      conversationHydrationInFlightRef.current.set(cid, task);
+      return task;
+    },
+    [
+      applyIdentityToConversation,
+      fetchProfileIdentity,
+      revalidateRoomsBestEffort,
+    ],
+  );
 
   // Clear unread on navigation into a conversation
   useEffect(() => {
@@ -300,81 +482,46 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
         const s = String(rawBody || "").trim();
         return /el pago está en custodia/i.test(s) ? "" : s;
       })();
+      let needsHydration = false;
+      let shouldRevalidateRooms = false;
       setItems((prev) => {
         const copy = [...prev];
         const i = copy.findIndex((c) => c.id === cid);
         if (i === -1) {
-          // Nuevo chat que no está en la lista: agregarlo con datos mínimos y mejorar luego
+          // Nuevo chat: usar la mejor identidad cacheada y luego hidratar.
           const createdAt = row?.created_at
             ? String(row.created_at)
             : new Date().toISOString();
+          const senderId =
+            typeof row?.sender_id === "string" ? row.sender_id.trim() : "";
+          const cachedProfile = senderId
+            ? (profileCacheRef.current.get(senderId) ?? null)
+            : null;
+          const initialIdentity = pickBetterChatIdentity(
+            {},
+            {
+              title: cachedProfile?.name,
+              avatarUrl: cachedProfile?.avatarUrl,
+              otherLastActiveAt: cachedProfile?.lastActiveAt,
+            },
+          );
           const provisional: ChatSummary = {
             id: cid,
-            title: "Contacto",
+            title: initialIdentity.title,
             preview: body || null,
             lastMessageAt: createdAt,
             unread: isActive ? false : true,
-            avatarUrl: null,
+            avatarUrl: initialIdentity.avatarUrl,
             requestTitle: null,
             unreadCount: isActive ? 0 : 1,
-            otherLastActiveAt: null,
+            otherLastActiveAt: initialIdentity.otherLastActiveAt,
           };
           copy.unshift(provisional);
-          // Best-effort: completar nombre y avatar del otro participante
-          (async () => {
-            try {
-              const r = await fetch(
-                `/api/chat/history?conversationId=${encodeURIComponent(cid)}&limit=1`,
-                { credentials: "include", cache: "no-store" },
-              );
-              const j = await r.json().catch(() => ({}));
-              const parts = j?.participants as
-                | { customer_id?: string; pro_id?: string }
-                | undefined;
-              const me = meIdRef.current;
-              const otherId =
-                me && parts?.customer_id && parts?.pro_id
-                  ? me === parts.pro_id
-                    ? parts.customer_id
-                    : parts.pro_id
-                  : null;
-              if (!otherId) return;
-              const rp = await fetch(
-                `/api/profiles/${encodeURIComponent(otherId)}`,
-                { credentials: "include", cache: "no-store" },
-              );
-              const pj = await rp.json().catch(() => ({}));
-              if (!pj?.data) return;
-              const name =
-                typeof pj.data.full_name === "string"
-                  ? pj.data.full_name
-                  : null;
-              const avatar =
-                typeof pj.data.avatar_url === "string"
-                  ? pj.data.avatar_url
-                  : null;
-              const lastActive =
-                typeof pj.data.last_active_at === "string"
-                  ? pj.data.last_active_at
-                  : null;
-              setItems((curr) =>
-                curr.map((c) =>
-                  c.id === cid
-                    ? {
-                        ...c,
-                        title: pickBestChatTitle(c.title, name, "Contacto"),
-                        avatarUrl: avatar ?? c.avatarUrl,
-                        otherLastActiveAt:
-                          lastActive ?? c.otherLastActiveAt ?? null,
-                      }
-                    : c,
-                ),
-              );
-            } catch {
-              /* ignore */
-            }
-          })();
-          void revalidateRoomsBestEffort();
+          needsHydration =
+            isPlaceholderChatTitle(initialIdentity.title) ||
+            !hasUsableAvatar(initialIdentity.avatarUrl);
+          shouldRevalidateRooms =
+            !roomsRevalidatedByConversationRef.current.has(cid);
           return copy;
         }
         const prevItem = copy[i];
@@ -395,8 +542,19 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
         copy.splice(i, 1);
         if (!isActive) copy.unshift(updated);
         else copy.splice(i, 0, updated);
+        if (
+          isPlaceholderChatTitle(prevItem.title) ||
+          !hasUsableAvatar(prevItem.avatarUrl)
+        ) {
+          needsHydration = true;
+        }
         return copy;
       });
+      if (needsHydration) void hydrateConversationIdentity(cid, row);
+      if (shouldRevalidateRooms) {
+        roomsRevalidatedByConversationRef.current.add(cid);
+        void revalidateRoomsBestEffort();
+      }
       if (!isActive) {
         const id = cid;
         setFlash((prev) => {
@@ -418,9 +576,8 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
         timersRef.current.set(id, t);
       }
     },
-    [revalidateRoomsBestEffort],
+    [hydrateConversationIdentity, revalidateRoomsBestEffort],
   );
-
   const onDelete = async (id: string) => {
     if (busyId) return;
     setBusyId(id);
