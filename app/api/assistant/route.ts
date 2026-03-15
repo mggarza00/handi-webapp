@@ -1,8 +1,17 @@
-import { NextRequest } from "next/server";
+﻿import { NextRequest } from "next/server";
 
+import { matchCanonicalIntent, supportFallbackResponse } from "@/lib/assistant/intents";
 import { SYSTEM_PROMPT } from "@/lib/assistant/prompt";
-import { getHelpEntry, openAppLink, whoAmI } from "@/lib/assistant/tools";
-import type { ChatMessage } from "@/types/assistant";
+import {
+  ensureNonEmptyResponse,
+  sanitizeActions,
+  sanitizeAssistantText,
+  sseActions,
+  sseDone,
+  sseTextChunk,
+} from "@/lib/assistant/response";
+import { getHelpEntry } from "@/lib/assistant/tools";
+import type { AssistantAction, ChatMessage } from "@/types/assistant";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,94 +22,134 @@ type IncomingBody = {
   user?: { role?: "client" | "pro" | null } | null;
 };
 
-type OpenAIAssistantToolCall = {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-};
-
-type OpenAIMessage =
-  | { role: "system" | "user" | "assistant"; content: string }
-  | { role: "assistant"; content: string | null; tool_calls: OpenAIAssistantToolCall[] }
-  | { role: "tool"; content: string; tool_call_id: string };
-
-type ToolCall = {
-  id: string;
-  type: "function";
-  function: { name: string; arguments: string };
-};
-
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-function sse(data: string) {
-  return `data: ${data}\n\n`;
+function splitForStream(text: string): string[] {
+  const normalized = text.trim();
+  if (!normalized) return [];
+  const parts = normalized
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : [normalized];
 }
 
-function toolSpecs() {
-  return [
-    {
-      type: "function",
-      function: {
-        name: "getHelpEntry",
-        description: "Busca en FAQs internas de Handi y devuelve un resumen con score y links.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "Consulta del usuario" },
-          },
-          required: ["query"],
-          additionalProperties: false,
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "openAppLink",
-        description: "Devuelve rutas internas seguras (por ejemplo /help, /requests/new, /pro/apply).",
-        parameters: {
-          type: "object",
-          properties: {
-            slug: { type: "string", description: "Identificador o ruta corta" },
-          },
-          required: ["slug"],
-          additionalProperties: false,
-        },
-      },
-    },
-    {
-      type: "function",
-      function: {
-        name: "whoAmI",
-        description: "Retorna el rol del usuario autenticado si se conoce.",
-        parameters: { type: "object", properties: {}, additionalProperties: false },
-      },
-    },
+function extractLastUserMessage(messages: ChatMessage[]): string {
+  const last = [...messages].reverse().find((m) => m.role === "user");
+  return (last?.content || "").slice(0, 2400).trim();
+}
+
+function looksSensitive(query: string): boolean {
+  const q = query.toLowerCase();
+  const markers = [
+    "fraude",
+    "demanda",
+    "disputa",
+    "cobro",
+    "duplicado",
+    "reembolso",
+    "no funciona",
+    "falla",
+    "error",
+    "problema tecnico",
+    "soporte",
+    "denuncia",
   ];
+  return markers.some((marker) => q.includes(marker));
 }
 
-async function callOpenAIStream(openaiMessages: OpenAIMessage[]) {
+function buildActionsFromHelpLinks(links: string[]): AssistantAction[] {
+  const out: AssistantAction[] = [];
+  for (const link of links) {
+    if (typeof link !== "string") continue;
+    const clean = link.trim();
+    if (!clean.startsWith("/")) continue;
+    if (clean.startsWith("/help")) {
+      out.push({ type: "app_link", label: "Ver ayuda", href: "/help" });
+    }
+    if (clean.startsWith("/requests/new")) {
+      out.push({ type: "app_link", label: "Ir a nueva solicitud", href: "/requests/new" });
+    }
+    if (clean.startsWith("/mensajes")) {
+      out.push({ type: "app_link", label: "Abrir mensajes", href: "/mensajes" });
+    }
+    if (clean.startsWith("/applied")) {
+      out.push({ type: "app_link", label: "Ver trabajos realizados", href: "/applied" });
+    }
+  }
+  if (!out.find((a) => a.href === "/help")) {
+    out.push({ type: "app_link", label: "Ver ayuda", href: "/help" });
+  }
+  if (!out.find((a) => a.type === "whatsapp")) {
+    out.push({ type: "whatsapp", label: "Abrir WhatsApp", href: "https://wa.me/528130878691" });
+  }
+  return out;
+}
+
+async function callOpenAISecondary(args: {
+  userRole: "client" | "pro" | null;
+  pathname: string;
+  query: string;
+  hint?: string;
+}): Promise<string | null> {
+  if (!process.env.OPENAI_API_KEY) return null;
+
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    {
+      role: "system",
+      content: `CONTEXTO_APP: ruta=${args.pathname} rol=${args.userRole || "unknown"}`,
+    },
+    {
+      role: "system",
+      content:
+        "Responde breve y accionable. No pongas rutas ni URLs en el texto. Si hay riesgo o duda, sugiere WhatsApp de soporte.",
+    },
+    ...(args.hint
+      ? [{ role: "system", content: `CONTEXTO_FAQ: ${args.hint}` }]
+      : []),
+    { role: "user", content: args.query },
+  ];
+
   const res = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY || ""}`,
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
       model: OPENAI_MODEL,
-      stream: true,
-      messages: openaiMessages,
-      tools: toolSpecs(),
-      tool_choice: "auto",
-      temperature: 0.3,
+      temperature: 0.2,
+      max_tokens: 220,
+      messages,
     }),
   });
-  if (!res.ok || !res.body) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`OpenAI HTTP ${res.status}: ${text}`);
+  if (!res.ok) return null;
+  const json = (await res.json().catch(() => null)) as
+    | { choices?: Array<{ message?: { content?: string | null } }> }
+    | null;
+  const text = json?.choices?.[0]?.message?.content;
+  return typeof text === "string" ? text : null;
+}
+
+async function writeStructuredResponse(args: {
+  controller: ReadableStreamDefaultController<Uint8Array>;
+  encoder: TextEncoder;
+  text: string;
+  actions?: AssistantAction[];
+}) {
+  const { controller, encoder } = args;
+  const safeText = sanitizeAssistantText(args.text);
+  const chunks = splitForStream(safeText);
+  for (const chunk of chunks) {
+    controller.enqueue(encoder.encode(sseTextChunk(`${chunk}${chunk.endsWith(".") ? "" : " "}`)));
   }
-  return res.body;
+  const safeActions = sanitizeActions(args.actions || []);
+  if (safeActions.length > 0) {
+    controller.enqueue(encoder.encode(sseActions(safeActions)));
+  }
+  controller.enqueue(encoder.encode(sseDone()));
 }
 
 export async function POST(req: NextRequest) {
@@ -113,178 +162,104 @@ export async function POST(req: NextRequest) {
 
   const userRole = body?.user?.role || null;
   const pathname = body?.page?.pathname || "/";
-  const msgs = body?.messages || [];
+  const messages = body?.messages || [];
+  const query = extractLastUserMessage(messages);
 
-  // If there's no OpenAI key, fall back to local FAQs (RAG) so the bot still works.
-  if (!process.env.OPENAI_API_KEY) {
-    const enc = new TextEncoder();
-    const lastUser = [...msgs].reverse().find((m) => m.role === "user");
-    const query = (lastUser?.content || "").slice(0, 2000);
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          const res = await getHelpEntry(query);
-          const text = res.answer + (res.links?.[0] ? `\n\nVer: ${res.links[0]}` : "");
-          controller.enqueue(enc.encode(sse(text)));
-        } catch {
-          controller.enqueue(enc.encode(sse("Configura OPENAI_API_KEY en .env.local")));
-        } finally {
-          controller.close();
-        }
-      },
-    });
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-      },
-    });
-  }
-
-  const openaiMessages: OpenAIMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "system", content: `APP_PATHNAME: ${pathname}` },
-    { role: "system", content: `USER_ROLE: ${userRole || "unknown"}` },
-    ...msgs.map((m) => ({ role: m.role, content: m.content } as OpenAIMessage)),
-  ];
-
-  // SSE pipe to client while orchestrating tool calls
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const decoder = new TextDecoder();
-      const enc = new TextEncoder();
-      const write = (data: string) => controller.enqueue(enc.encode(sse(data)));
+      const encoder = new TextEncoder();
       try {
-        // First pass: ask OpenAI and collect either content or tool_calls
-        let toolCalls: ToolCall[] = [];
-        let contentYielded = false;
-        const bodyStream = await callOpenAIStream(openaiMessages);
-        const reader = bodyStream.getReader();
-        const partialTool: Record<number, ToolCall> = {};
-        let lineBuffer = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          lineBuffer += chunk;
-          const rawLines = lineBuffer.split(/\n/);
-          lineBuffer = rawLines.pop() || "";
-          const lines = rawLines.filter((l) => l.trim().startsWith("data:"));
-          for (const line of lines) {
-            const data = line.replace(/^data:\s*/, "").trim();
-            if (data === "[DONE]") continue;
-            try {
-              const json = JSON.parse(data);
-              const delta = json.choices?.[0]?.delta || {};
-              if (typeof delta.content === "string") {
-                contentYielded = true;
-                write(delta.content);
-              }
-              const tc = delta.tool_calls as
-                | Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }>
-                | undefined;
-              if (tc && tc.length) {
-                for (const item of tc) {
-                  const idx = item.index;
-                  const current = partialTool[idx] || ({ id: "", type: "function", function: { name: "", arguments: "" } } as ToolCall);
-                  if (item.id) current.id = item.id;
-                  if (item.function?.name) current.function.name = item.function.name;
-                  if (item.function?.arguments) current.function.arguments += item.function.arguments;
-                  partialTool[idx] = current;
-                }
-              }
-            } catch {
-              // ignore malformed line
-            }
-          }
+        if (!query) {
+          const fallback = supportFallbackResponse();
+          await writeStructuredResponse({
+            controller,
+            encoder,
+            text: fallback.response,
+            actions: fallback.actions,
+          });
+          return;
         }
-        toolCalls = Object.values(partialTool);
 
-        if (toolCalls.length && !contentYielded) {
-          // Execute tools
-          const toolMessages: OpenAIMessage[] = [];
-          for (const call of toolCalls) {
-            const name = call.function.name;
-            const args = call.function.arguments || "{}";
-            let result: unknown = null;
-            try {
-              if (name === "getHelpEntry") {
-                const parsed = JSON.parse(args || "{}");
-                result = await getHelpEntry(String(parsed.query || ""));
-              } else if (name === "openAppLink") {
-                const parsed = JSON.parse(args || "{}");
-                result = openAppLink(String(parsed.slug || "help"));
-              } else if (name === "whoAmI") {
-                result = whoAmI({ userRole });
-              } else {
-                result = { ok: false, error: "UNKNOWN_TOOL" };
-              }
-            } catch (err) {
-              result = { ok: false, error: String((err as Error).message || err) };
-            }
-            toolMessages.push({
-              role: "tool",
-              tool_call_id: call.id,
-              content: JSON.stringify(result),
+        const intent = matchCanonicalIntent(query, userRole);
+        if (intent) {
+          await writeStructuredResponse({
+            controller,
+            encoder,
+            text: intent.response,
+            actions: intent.actions,
+          });
+          return;
+        }
+
+        if (looksSensitive(query)) {
+          const fallback = supportFallbackResponse();
+          await writeStructuredResponse({
+            controller,
+            encoder,
+            text: fallback.response,
+            actions: fallback.actions,
+          });
+          return;
+        }
+
+        const faq = await getHelpEntry(query);
+        if (faq.ok && faq.score >= 0.82) {
+          const answer = ensureNonEmptyResponse(faq.answer);
+          await writeStructuredResponse({
+            controller,
+            encoder,
+            text: answer.text,
+            actions: buildActionsFromHelpLinks(faq.links || []),
+          });
+          return;
+        }
+
+        const llm = await callOpenAISecondary({
+          userRole,
+          pathname,
+          query,
+          hint: faq?.answer,
+        });
+        if (llm) {
+          const safeLlm = sanitizeAssistantText(llm);
+          const uncertain = /no se|no estoy seguro|depende sin contexto/i.test(
+            safeLlm,
+          );
+          if (!safeLlm || uncertain) {
+            const fallback = supportFallbackResponse();
+            await writeStructuredResponse({
+              controller,
+              encoder,
+              text: fallback.response,
+              actions: fallback.actions,
             });
+            return;
           }
-
-          // Second pass: let the model answer with tool results
-          const assistantWithCalls: OpenAIMessage = {
-            role: "assistant",
-            content: null,
-            tool_calls: toolCalls.map((c) => ({
-              id: c.id,
-              type: "function",
-              function: { name: c.function.name, arguments: c.function.arguments },
-            })),
-          };
-
-          const followup: OpenAIMessage[] = [
-            ...openaiMessages,
-            assistantWithCalls,
-            ...toolMessages,
-          ];
-
-          const bodyStream2 = await callOpenAIStream(followup);
-          const reader2 = bodyStream2.getReader();
-          let lineBuffer2 = "";
-          for (;;) {
-            const { done, value } = await reader2.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            lineBuffer2 += chunk;
-            const rawLines2 = lineBuffer2.split(/\n/);
-            lineBuffer2 = rawLines2.pop() || "";
-            const lines = rawLines2.filter((l) => l.trim().startsWith("data:"));
-            for (const line of lines) {
-              const data = line.replace(/^data:\s*/, "").trim();
-              if (data === "[DONE]") continue;
-              try {
-                const json = JSON.parse(data);
-                const delta = json.choices?.[0]?.delta || {};
-                if (typeof delta.content === "string") {
-                  write(delta.content);
-                }
-              } catch {
-                // ignore
-              }
-            }
-          }
+          await writeStructuredResponse({
+            controller,
+            encoder,
+            text: safeLlm,
+            actions: buildActionsFromHelpLinks(faq.links || []),
+          });
+          return;
         }
-      } catch (err) {
-        console.error("[assistant] OpenAI stream error:", err);
-        // Fallback: answer via local FAQs if OpenAI fails
-        try {
-          const lastUser = [...msgs].reverse().find((m) => m.role === "user");
-          const query = (lastUser?.content || "").slice(0, 2000);
-          const res = await getHelpEntry(query);
-          const text = res.answer + (res.links?.[0] ? `\n\nVer: ${res.links[0]}` : "");
-          write(text);
-        } catch {
-          write("Lo siento, hubo un problema generando la respuesta.");
-        }
+
+        const fallback = supportFallbackResponse();
+        await writeStructuredResponse({
+          controller,
+          encoder,
+          text: fallback.response,
+          actions: fallback.actions,
+        });
+      } catch (error) {
+        console.error("[assistant] route error", error);
+        const fallback = supportFallbackResponse();
+        await writeStructuredResponse({
+          controller,
+          encoder,
+          text: fallback.response,
+          actions: fallback.actions,
+        });
       } finally {
         controller.close();
       }

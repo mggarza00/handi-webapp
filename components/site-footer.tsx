@@ -16,8 +16,11 @@ export default function SiteFooter() {
                 alt="Handi"
                 width={166}
                 height={166}
+                sizes="128px"
+                quality={60}
+                loading="lazy"
+                decoding="async"
                 className="h-32 w-32 object-contain"
-                priority
               />
               <p className="text-sm text-white">
                 Conecta con expertos de confianza.
@@ -115,12 +118,15 @@ export default function SiteFooter() {
       </div>
       <Image
         src="/images/FAVICON_FOOTER.png"
-        alt="Handi decorative icon"
+        alt=""
         width={512}
         height={512}
+        sizes="(max-width: 768px) 288px, 384px"
+        quality={55}
+        loading="lazy"
+        decoding="async"
         className="pointer-events-none absolute -bottom-16 right-0 h-72 w-72 object-contain md:-bottom-20 md:h-96 md:w-96"
         aria-hidden="true"
-        priority
       />
     </footer>
   );

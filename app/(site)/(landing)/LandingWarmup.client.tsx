@@ -5,8 +5,6 @@ import { useEffect } from "react";
 const WARM_IMAGES = [
   "/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg",
   "/icons/candado_lima.svg",
-  "/images/LOGO_HPM_B.png",
-  "/images/FAVICON_FOOTER.png",
 ];
 
 export default function LandingWarmup() {

@@ -75,6 +75,7 @@ export type ChatPanelProps = {
   userId?: string | null;
   requestId?: string | null;
   requestBudget?: number | null;
+  composerPrefillText?: string | null;
   dataPrefix?: string; // e2e: chat | request-chat
   hideClientCtas?: boolean;
   ignoreStageLock?: boolean;
@@ -180,6 +181,7 @@ export default function ChatPanel({
   userId,
   requestId: requestIdProp,
   requestBudget: requestBudgetProp,
+  composerPrefillText,
   dataPrefix = "chat",
   hideClientCtas = false,
   ignoreStageLock = false,
@@ -2726,6 +2728,7 @@ export default function ChatPanel({
               onSend={onSend}
               onTyping={emitTyping}
               disabled={loading}
+              initialText={composerPrefillText}
               allowContact={allowContact}
               dataPrefix={dataPrefix}
               onPickFiles={() => uploaderApiRef.current?.pickFiles()}
@@ -2929,6 +2932,7 @@ export default function ChatPanel({
               onSend={onSend}
               onTyping={emitTyping}
               disabled={loading}
+              initialText={composerPrefillText}
               allowContact={allowContact}
               dataPrefix={dataPrefix}
               onPickFiles={() => uploaderApiRef.current?.pickFiles()}

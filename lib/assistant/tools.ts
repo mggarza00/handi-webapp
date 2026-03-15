@@ -27,6 +27,12 @@ export function openAppLink(slug: string): { ok: boolean; url: string } {
     "pro-apply": "/pro/apply",
     "profile-setup": "/profile/setup",
     applied: "/applied",
+    mensajes: "/mensajes",
+    messages: "/mensajes",
+    requests: "/requests",
+    "requests-explore": "/requests/explore",
+    "requests/explore": "/requests/explore",
+    "view-completed-jobs": "/applied",
   };
   const url = map[clean] || "/help";
   return { ok: true, url };
@@ -37,3 +43,12 @@ export function whoAmI(ctx?: { userRole?: "client" | "pro" | null }): { role?: "
   return role ? { role } : {};
 }
 
+export function getSupportContact(): {
+  whatsapp: string;
+  email: string;
+} {
+  return {
+    whatsapp: "https://wa.me/528130878691",
+    email: "mailto:soporte@handi.mx",
+  };
+}

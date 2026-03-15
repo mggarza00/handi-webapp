@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import formatPresence from "./presence";
 
@@ -23,6 +23,7 @@ export default function ChatWindow({
   conversationId: string;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [meId, setMeId] = React.useState<string | null>(null);
   const [other, setOther] = React.useState<Profile | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -32,6 +33,10 @@ export default function ChatWindow({
   const [customerId, setCustomerId] = React.useState<string | null>(null);
   const [proId, setProId] = React.useState<string | null>(null);
   const [isMobile, setIsMobile] = React.useState(false);
+  const composerPrefillText = React.useMemo(() => {
+    const value = searchParams?.get("prefill");
+    return typeof value === "string" && value.trim().length > 0 ? value : null;
+  }, [searchParams]);
 
   React.useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -295,6 +300,7 @@ export default function ChatWindow({
           onClose={() => {
             if (isMobile) router.push("/mensajes");
           }}
+          composerPrefillText={composerPrefillText}
           mode={isMobile ? "panel" : "page"}
           ignoreStageLock={!isMobile}
           stickyActionBar={!isMobile}
