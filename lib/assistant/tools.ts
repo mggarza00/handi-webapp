@@ -1,4 +1,10 @@
-import { retrieveAnswer } from "@/lib/assistant/rag";
+﻿import { retrieveAnswer } from "@/lib/assistant/rag";
+import {
+  SUPPORT_EMAIL,
+  SUPPORT_WHATSAPP_DISPLAY,
+  SUPPORT_WHATSAPP_LINK,
+  SUPPORT_WHATSAPP_NUMBER,
+} from "@/lib/support/contact";
 
 export type GetHelpEntryResult = {
   ok: boolean;
@@ -52,11 +58,26 @@ export function whoAmI(ctx?: { userRole?: "client" | "pro" | null }): {
 }
 
 export function getSupportContact(): {
-  whatsapp: string;
+  ok: true;
   email: string;
+  whatsappNumber: string;
+  whatsappDisplay: string;
+  whatsappLink: string;
+  helpUrl: "/help";
+  messagesUrl: "/mensajes";
+  // backward-compatible aliases
+  whatsapp: string;
+  mailto: string;
 } {
   return {
-    whatsapp: "https://wa.me/528130878691",
-    email: "mailto:soporte@handi.mx",
+    ok: true,
+    email: SUPPORT_EMAIL,
+    whatsappNumber: SUPPORT_WHATSAPP_NUMBER,
+    whatsappDisplay: SUPPORT_WHATSAPP_DISPLAY,
+    whatsappLink: SUPPORT_WHATSAPP_LINK,
+    helpUrl: "/help",
+    messagesUrl: "/mensajes",
+    whatsapp: SUPPORT_WHATSAPP_LINK,
+    mailto: `mailto:${SUPPORT_EMAIL}`,
   };
 }

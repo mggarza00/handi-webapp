@@ -1,9 +1,11 @@
 "use client";
 import * as React from "react";
 import Image from "next/image";
+import { Loader2 } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
+import Stepper, { Step } from "@/components/react-bits/stepper/Stepper";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -149,6 +151,8 @@ export default function ProApplyForm({
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
+  const TOTAL_STEPS = 5;
+  const [currentStep, setCurrentStep] = React.useState(1);
 
   // Basic fields
   const [fullName, setFullName] = React.useState(defaultFullName || "");
@@ -168,6 +172,13 @@ export default function ProApplyForm({
   const [selectedSubcategories, setSelectedSubcategories] = React.useState<
     string[]
   >([]);
+  const [isSuggestingCategories, setIsSuggestingCategories] =
+    React.useState(false);
+  const classifyAbortRef = React.useRef<AbortController | null>(null);
+  const lastUserEditRef = React.useRef(0);
+  const lastAutoAppliedRef = React.useRef<string>("");
+  const selectedCatsRef = React.useRef<string[]>([]);
+  const selectedSubsRef = React.useRef<string[]>([]);
   const [availableCategories, setAvailableCategories] = React.useState<
     string[]
   >([]);
@@ -269,6 +280,7 @@ export default function ProApplyForm({
   const sigCanvasRef = React.useRef<HTMLCanvasElement | null>(null); // persistent/offscreen canvas used for upload
   const sigDialogCanvasRef = React.useRef<HTMLCanvasElement | null>(null); // dialog-visible canvas for drawing
   const [sigDirty, setSigDirty] = React.useState(false);
+  const [sigBlob, setSigBlob] = React.useState<Blob | null>(null);
   const [sigPreviewUrl, setSigPreviewUrl] = React.useState<string | null>(null);
   const [sigOpen, setSigOpen] = React.useState(false);
   type UploadResponse = {
@@ -396,6 +408,14 @@ export default function ProApplyForm({
     bankClabe,
     accountType,
   ]);
+
+  React.useEffect(() => {
+    selectedCatsRef.current = selectedCategories;
+  }, [selectedCategories]);
+
+  React.useEffect(() => {
+    selectedSubsRef.current = selectedSubcategories;
+  }, [selectedSubcategories]);
 
   // Prefill bank account from existing record; fallback to full name
   React.useEffect(() => {
@@ -559,6 +579,94 @@ export default function ProApplyForm({
     }
   }, [selectedCategories, groupedSubcats, selectedSubcategories]);
 
+  const taxonomyPairs = React.useMemo(() => {
+    const pairs: Array<{ category: string; subcategory: string }> = [];
+    availableCategories.forEach((category) => {
+      const subs = groupedSubcats[category] || [];
+      if (subs.length) {
+        subs.forEach((subcategory) => {
+          pairs.push({ category, subcategory });
+        });
+      } else {
+        pairs.push({ category, subcategory: "" });
+      }
+    });
+    return pairs;
+  }, [availableCategories, groupedSubcats]);
+
+  // Auto-suggest categories/subcategories from services description (debounced).
+  React.useEffect(() => {
+    const desc = servicesDesc.trim();
+    if (desc.length < 12) return;
+    if (!taxonomyPairs.length) return;
+
+    const handle = window.setTimeout(async () => {
+      if (Date.now() - lastUserEditRef.current < 1200) return;
+      classifyAbortRef.current?.abort();
+      const controller = new AbortController();
+      classifyAbortRef.current = controller;
+      setIsSuggestingCategories(true);
+      try {
+        const res = await fetch("/api/classify-pro-services", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({
+            services_desc: desc,
+            taxonomy: taxonomyPairs,
+          }),
+          signal: controller.signal,
+        });
+        const data = await res.json().catch(() => null);
+        const confidence = Number(data?.confidence ?? 0) || 0;
+        const nextCats = Array.isArray(data?.categories)
+          ? (data.categories as string[]).map((c) => String(c))
+          : [];
+        const nextSubs = Array.isArray(data?.subcategories)
+          ? (data.subcategories as Array<{ subcategory?: string }>).map((s) =>
+              String(s?.subcategory ?? ""),
+            )
+          : [];
+
+        const dedupe = (arr: string[]) =>
+          Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
+        const cats = dedupe(nextCats);
+        const subs = dedupe(nextSubs);
+
+        const hasExisting =
+          selectedCatsRef.current.length > 0 ||
+          selectedSubsRef.current.length > 0;
+        if (confidence < 0.35 && hasExisting) return;
+
+        const key = JSON.stringify({
+          c: [...cats].sort(),
+          s: [...subs].sort(),
+        });
+        if (!cats.length && !subs.length) return;
+        if (key === lastAutoAppliedRef.current) return;
+        const currentKey = JSON.stringify({
+          c: [...selectedCatsRef.current].sort(),
+          s: [...selectedSubsRef.current].sort(),
+        });
+        if (key === currentKey) return;
+
+        lastAutoAppliedRef.current = key;
+        setSelectedCategories(cats);
+        setSelectedSubcategories(subs);
+      } catch (err) {
+        if ((err as { name?: string } | null)?.name !== "AbortError") {
+          /* ignore */
+        }
+      } finally {
+        setIsSuggestingCategories(false);
+      }
+    }, 750);
+
+    return () => {
+      window.clearTimeout(handle);
+      classifyAbortRef.current?.abort();
+    };
+  }, [servicesDesc, taxonomyPairs]);
+
   React.useEffect(() => {
     if (!fieldErrs.subcategories) return;
     if (selectedSubcategories.length > 0) {
@@ -683,6 +791,8 @@ export default function ProApplyForm({
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setSigDirty(false);
+    setSigBlob(null);
+    setSigPreviewUrl(null);
   }
 
   function acceptSignature() {
@@ -711,6 +821,9 @@ export default function ProApplyForm({
     const dy = (targetH - dh) / 2;
     dctx.drawImage(source, 0, 0, source.width, source.height, dx, dy, dw, dh);
 
+    dest.toBlob((blob) => {
+      if (blob) setSigBlob(blob);
+    }, "image/png");
     try {
       const url = dest.toDataURL("image/png");
       setSigPreviewUrl(url);
@@ -756,8 +869,209 @@ export default function ProApplyForm({
     return { url: j.url, path: j.path };
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function findFirstStepWithErrors() {
+    const hasStep1Errors =
+      Boolean(fieldErrs.full_name) ||
+      Boolean(fieldErrs.phone) ||
+      Boolean(fieldErrs.email) ||
+      Boolean(fieldErrs.rfc) ||
+      Boolean(fieldErrs.company_legal_name) ||
+      Boolean(fieldErrs.company_industry) ||
+      Boolean(fieldErrs.company_employees_count) ||
+      Boolean(fieldErrs.company_website) ||
+      Boolean(fieldErrs.services_desc) ||
+      Boolean(fieldErrs.cities) ||
+      Boolean(fieldErrs.categories) ||
+      Boolean(fieldErrs.subcategories) ||
+      Boolean(fieldErrs.years_experience);
+    if (hasStep1Errors) return 1;
+
+    const hasStep2Errors =
+      Boolean(fileErrs.cv) ||
+      Boolean(fileErrs.letters) ||
+      Boolean(fileErrs.idFront) ||
+      Boolean(fileErrs.idBack) ||
+      Boolean(fileErrs.companyDoc) ||
+      Boolean(fileErrs.companyCsf) ||
+      Boolean(fileErrs.repIdFront) ||
+      Boolean(fileErrs.repIdBack);
+    if (hasStep2Errors) return 2;
+
+    const hasStep3Errors = refErrs.some(
+      (r) => Boolean(r.name) || Boolean(r.phone) || Boolean(r.relation),
+    );
+    if (hasStep3Errors) return 3;
+
+    const hasStep4Errors =
+      Boolean(bankErrs.holder) ||
+      Boolean(bankErrs.bank) ||
+      Boolean(bankErrs.clabe) ||
+      Boolean(fileErrs.bankCover);
+    if (hasStep4Errors) return 4;
+
+    const hasStep5Errors =
+      Boolean(fieldErrs.privacy_accept) || Boolean(fileErrs.sig);
+    if (hasStep5Errors) return 5;
+
+    return 1;
+  }
+
+  function validateStepBeforeNext(step: number) {
+    if (step === 1) {
+      const yearsNumber = Number(years);
+      const nextErrs: Record<string, boolean> = {
+        ...fieldErrs,
+        full_name: fullName.trim().length < 2,
+        phone: phone.trim().length < 8,
+        email: !z.string().email().safeParse(email).success,
+        rfc: !RFC_REGEX.test((rfc || "").trim().toUpperCase()),
+        services_desc: servicesDesc.trim().length < 10,
+        cities: selectedCities.length < 1,
+        categories: selectedCategories.length < 1,
+        subcategories: selectedSubcategories.length < 1,
+        years_experience:
+          !Number.isFinite(yearsNumber) ||
+          years === "" ||
+          yearsNumber < 0 ||
+          yearsNumber > 80,
+      };
+      if (empresa) {
+        nextErrs.company_legal_name = companyLegalName.trim().length < 2;
+        nextErrs.company_industry = companyIndustry.trim().length < 1;
+        nextErrs.company_employees_count =
+          companyEmployees.trim().length > 0 &&
+          (!Number.isInteger(Number(companyEmployees)) ||
+            Number(companyEmployees) < 1);
+        nextErrs.company_website =
+          companyWebsite.trim().length > 0 &&
+          !/^https?:\/\//i.test(companyWebsite);
+      } else {
+        nextErrs.company_legal_name = false;
+        nextErrs.company_industry = false;
+        nextErrs.company_employees_count = false;
+        nextErrs.company_website = false;
+      }
+      setFieldErrs(nextErrs);
+      const hasError = Object.values(nextErrs).some(Boolean);
+      if (hasError) {
+        toast.error("Revisa los campos marcados");
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 2) {
+      const max = 10 * 1024 * 1024;
+      const nextFileErrs = {
+        ...fileErrs,
+        cv: false,
+        letters: false,
+        idFront: false,
+        idBack: false,
+        companyDoc: false,
+        companyCsf: false,
+        repIdFront: false,
+        repIdBack: false,
+      };
+      if (empresa) {
+        nextFileErrs.companyDoc = !companyDoc || companyDoc.size > max;
+        nextFileErrs.companyCsf = !companyCsf || companyCsf.size > max;
+        nextFileErrs.repIdFront = Boolean(repIdFront && repIdFront.size > max);
+        nextFileErrs.repIdBack = Boolean(repIdBack && repIdBack.size > max);
+      } else {
+        nextFileErrs.cv = !cvFile;
+        nextFileErrs.letters = (letters?.length ?? 0) < 1;
+        nextFileErrs.idFront = !idFront;
+        nextFileErrs.idBack = !idBack;
+      }
+      setFileErrs(nextFileErrs);
+      const hasError = empresa
+        ? nextFileErrs.companyDoc ||
+          nextFileErrs.companyCsf ||
+          nextFileErrs.repIdFront ||
+          nextFileErrs.repIdBack
+        : nextFileErrs.cv ||
+          nextFileErrs.letters ||
+          nextFileErrs.idFront ||
+          nextFileErrs.idBack;
+      if (hasError) {
+        toast.error("Revisa los campos marcados");
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 3) {
+      const nextRefErrs = refs.map((r) => ({
+        name: (r.name || "").trim().length < 2,
+        phone: (r.phone || "").trim().length < 8,
+        relation: (r.relation || "").trim().length < 2,
+      }));
+      setRefErrs(nextRefErrs);
+      const hasError = nextRefErrs.some((r) => r.name || r.phone || r.relation);
+      if (hasError) {
+        toast.error("Revisa los campos marcados");
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 4) {
+      const clabeDigits = onlyDigits(bankClabe);
+      const bankParsed = BankSchema.safeParse({
+        account_holder_name: bankHolder.trim(),
+        bank_name: bankName.trim(),
+        clabe: clabeDigits,
+        account_type: accountType || undefined,
+        verification_document_url: undefined,
+      });
+      const holderErr = !bankParsed.success
+        ? bankParsed.error.issues.some(
+            (i) => i.path[0] === "account_holder_name",
+          )
+        : false;
+      const bankErr = !bankParsed.success
+        ? bankParsed.error.issues.some((i) => i.path[0] === "bank_name")
+        : false;
+      const clabeErrBase = !bankParsed.success
+        ? bankParsed.error.issues.some((i) => i.path[0] === "clabe")
+        : false;
+      const clabeErr =
+        clabeErrBase ||
+        (clabeDigits.length === 18 && !isValidClabe(clabeDigits));
+      const bankCoverErr = Boolean(bankCover && bankCover.size > MAX_FILE_SIZE);
+      setBankErrs({ holder: holderErr, bank: bankErr, clabe: clabeErr });
+      setFileErrs((prev) => ({ ...prev, bankCover: bankCoverErr }));
+      if (holderErr || bankErr || clabeErr || bankCoverErr) {
+        toast.error("Revisa los campos marcados");
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 5) {
+      const privacyErr = !privacy;
+      const sigErr = !sigDirty;
+      setFieldErrs((prev) => ({ ...prev, privacy_accept: privacyErr }));
+      setFileErrs((prev) => ({ ...prev, sig: sigErr }));
+      if (
+        (!empresa && !canInvoiceSelf && !authorizeHandi) ||
+        privacyErr ||
+        sigErr
+      ) {
+        toast.error("Revisa los campos marcados");
+        return false;
+      }
+      return true;
+    }
+
+    return true;
+  }
+
+  async function onSubmit(
+    e?: React.FormEvent,
+  ): Promise<{ ok: boolean; errorStep?: number }> {
+    e?.preventDefault();
     setError(null);
     setOk(null);
     setFieldErrs({
@@ -817,7 +1131,7 @@ export default function ProApplyForm({
               : x,
           ),
         );
-        return;
+        return { ok: false, errorStep: 3 };
       }
     }
     if (selectedSubcategories.length === 0) {
@@ -825,7 +1139,7 @@ export default function ProApplyForm({
       setError(msg);
       toast.error(msg);
       setFieldErrs((prev) => ({ ...prev, subcategories: true }));
-      return;
+      return { ok: false, errorStep: 5 };
     }
 
     // Solo validar campos de empresa si el switch está activado
@@ -902,7 +1216,7 @@ export default function ProApplyForm({
         setFieldErrs((prev) => ({ ...prev, [key]: true }));
       }
       setError("Revisa los campos del formulario.");
-      return;
+      return { ok: false, errorStep: 1 };
     }
 
     // Facturación: si no es empresa, exigir autorización si no tiene facultad propia
@@ -911,7 +1225,7 @@ export default function ProApplyForm({
         "Se requiere autorización del usuario para elaborar facturas a su nombre.";
       setError(msg);
       toast.error(msg);
-      return;
+      return { ok: false, errorStep: 5 };
     }
 
     if (empresa) {
@@ -922,42 +1236,42 @@ export default function ProApplyForm({
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, companyDoc: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if (companyDoc.size > max) {
         const msg = "Acta constitutiva excede 10 MB.";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, companyDoc: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if (!companyCsf) {
         const msg = "Sube la constancia de situación fiscal (CSF).";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, companyCsf: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if (companyCsf.size > max) {
         const msg = "CSF excede 10 MB.";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, companyCsf: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if (repIdFront && repIdFront.size > max) {
         const msg = "Identificación (frente) excede 10 MB.";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, repIdFront: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if (repIdBack && repIdBack.size > max) {
         const msg = "Identificación (reverso) excede 10 MB.";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, repIdBack: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
     } else {
       // Validación de documentos para persona física
@@ -966,21 +1280,21 @@ export default function ProApplyForm({
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, cv: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if ((letters?.length ?? 0) < 1) {
         const msg = "Sube al menos una carta de recomendación.";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, letters: true }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
       if (!idFront || !idBack) {
         const msg = "Sube fotos de tu identificación (ambos lados).";
         setError(msg);
         toast.error(msg);
         setFileErrs((p) => ({ ...p, idFront: !idFront, idBack: !idBack }));
-        return;
+        return { ok: false, errorStep: 2 };
       }
     }
     if (!sigDirty) {
@@ -988,7 +1302,7 @@ export default function ProApplyForm({
       setError(msg);
       toast.error(msg);
       setFileErrs((p) => ({ ...p, sig: true }));
-      return;
+      return { ok: false, errorStep: 5 };
     }
 
     // Validación requerida de cuenta bancaria con Zod + DV adicional
@@ -1010,14 +1324,14 @@ export default function ProApplyForm({
         issues[0]?.message || "Revisa los datos de tu cuenta bancaria.";
       setError(first);
       toast.error(first);
-      return;
+      return { ok: false, errorStep: 4 };
     }
     if (!isValidClabe(clabeDigits)) {
       setBankErrs((p) => ({ ...p, clabe: true }));
       const msg = "CLABE inválida (dígito verificador no coincide).";
       setError(msg);
       toast.error(msg);
-      return;
+      return { ok: false, errorStep: 4 };
     }
 
     setLoading(true);
@@ -1090,7 +1404,7 @@ export default function ProApplyForm({
           setError(msg);
           toast.error(msg);
           setFileErrs((p) => ({ ...p, bankCover: true }));
-          return;
+          return { ok: false, errorStep: 4 };
         }
         const bankPrefix = `${userId}/`;
         const bankUp = await uploadViaApi(
@@ -1099,11 +1413,31 @@ export default function ProApplyForm({
         );
         uploads.bank_cover_url = bankUp.url;
       }
-      const canvas = sigCanvasRef.current!;
-      const blob: Blob = await new Promise((resolve) =>
-        canvas.toBlob((b) => resolve(b as Blob), "image/png"),
-      );
-      const sigFile = new File([blob], "signature.png", { type: "image/png" });
+      let signatureBlob = sigBlob;
+      if (!signatureBlob) {
+        const canvas = sigCanvasRef.current;
+        if (!canvas) {
+          const msg = "No se pudo leer la firma. Vuelve a firmar, por favor.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, sig: true }));
+          return { ok: false, errorStep: 5 };
+        }
+        signatureBlob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob((b) => resolve(b), "image/png"),
+        );
+        if (!signatureBlob) {
+          const msg =
+            "No se pudo procesar la firma. Vuelve a firmar, por favor.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, sig: true }));
+          return { ok: false, errorStep: 5 };
+        }
+      }
+      const sigFile = new File([signatureBlob], "signature.png", {
+        type: "image/png",
+      });
       const sigUp = await uploadViaApi(
         sigFile,
         `${prefix}signature-${Date.now()}.png`,
@@ -1191,16 +1525,18 @@ export default function ProApplyForm({
       clearGatingFlags();
       // Redirigir a página de confirmación
       window.location.href = "/pro-apply/submitted";
+      return { ok: true };
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
       toast.error(e instanceof Error ? e.message : "Error desconocido");
+      return { ok: false, errorStep: findFirstStepWithErrors() };
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <div className="space-y-5">
       {ok && (
         <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
           {ok}
@@ -1212,732 +1548,823 @@ export default function ProApplyForm({
         </div>
       )}
 
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold">
-          Ingresa los datos de tu postulación
-        </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label className="block text-sm mb-1">
-              {empresa ? "Nombre comercial de la empresa" : "Nombre completo"}
-            </label>
-            <Input
-              aria-invalid={fieldErrs.full_name}
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder={empresa ? "Nombre comercial" : "Tu nombre"}
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Teléfono de contacto</label>
-            <Input
-              aria-invalid={fieldErrs.phone}
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="10 dígitos"
-              inputMode="tel"
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Correo</label>
-            <Input
-              aria-invalid={fieldErrs.email}
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu@correo.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1">RFC</label>
-            <Input
-              aria-invalid={fieldErrs.rfc}
-              value={rfc}
-              onChange={(e) => setRfc(e.target.value.toUpperCase())}
-              placeholder="RFC (12 o 13 caracteres)"
-              inputMode="text"
-              autoCapitalize="characters"
-            />
-            {fieldErrs.rfc && (
-              <p className="text-xs text-pink-600 mt-1">
-                Ingresa un RFC válido
-              </p>
-            )}
-          </div>
-          <div className="md:col-span-2">
-            <CompanyToggle checked={empresa} onChange={setEmpresa} />
-            <CompanyFields
-              open={empresa}
-              legalName={companyLegalName}
-              setLegalName={setCompanyLegalName}
-              industry={companyIndustry}
-              setIndustry={setCompanyIndustry}
-              employees={companyEmployees}
-              setEmployees={setCompanyEmployees}
-              website={companyWebsite}
-              setWebsite={setCompanyWebsite}
-              errors={{
-                legalName: fieldErrs.company_legal_name,
-                industry: fieldErrs.company_industry,
-                employees: fieldErrs.company_employees_count,
-                website: fieldErrs.company_website,
-              }}
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm mb-1">
-              Describe brevemente cuáles son los servicios que ofreces
-            </label>
-            <Textarea
-              aria-invalid={fieldErrs.services_desc}
-              rows={4}
-              value={servicesDesc}
-              onChange={(e) => setServicesDesc(e.target.value)}
-              placeholder="Ej. Electricidad residencial, mantenimiento e instalaciones…"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm mb-1">
-              Ciudades donde ofreces tus servicios
-            </label>
-            <MultiSelect
-              placeholder="Selecciona ciudades"
-              options={CITIES as unknown as string[]}
-              value={selectedCities}
-              onChange={setSelectedCities}
-              error={fieldErrs.cities}
-            />
-            {fieldErrs.cities && (
-              <p className="text-xs text-pink-600 mt-1">
-                Selecciona al menos una ciudad
-              </p>
-            )}
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm mb-1">
-              Categorías de servicios
-            </label>
-            <MultiSelect
-              placeholder={
-                loadingCats ? "Cargando categorías..." : "Selecciona categorías"
-              }
-              options={availableCategories}
-              value={selectedCategories}
-              onChange={setSelectedCategories}
-              disabled={loadingCats}
-              error={fieldErrs.categories}
-            />
-            {fieldErrs.categories && (
-              <p className="text-xs text-pink-600 mt-1">
-                Selecciona al menos una categoría
-              </p>
-            )}
-            {selectedCategories.length > 0 && (
-              <div
-                className={cn(
-                  "mt-3 rounded-md border p-3",
-                  fieldErrs.subcategories
-                    ? "border-pink-500 bg-pink-50/40"
-                    : "border-slate-200",
-                )}
-              >
-                <p className="text-sm text-slate-700 mb-2">Subcategorías</p>
-                <div className="space-y-2">
-                  {selectedCategories.map((cat) => {
-                    const subs = groupedSubcats[cat] || [];
-                    if (subs.length === 0) return null;
-                    return (
-                      <details
-                        key={cat}
-                        className="rounded-md border bg-slate-50"
-                      >
-                        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
-                          {cat}
-                        </summary>
-                        <div className="px-3 pb-3 pt-1">
-                          <div className="flex items-center justify-end mb-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const all = new Set<string>(
-                                  selectedSubcategories,
-                                );
-                                subs.forEach((s) => all.add(s));
-                                setSelectedSubcategories(Array.from(all));
-                              }}
-                            >
-                              Seleccionar todas
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {subs.map((s) => {
-                              const checked = selectedSubcategories.includes(s);
-                              return (
-                                <label
-                                  key={s}
-                                  className="flex items-center gap-2 text-sm"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => {
-                                      const next = e.currentTarget.checked
-                                        ? Array.from(
-                                            new Set([
-                                              ...selectedSubcategories,
-                                              s,
-                                            ]),
-                                          )
-                                        : selectedSubcategories.filter(
-                                            (x) => x !== s,
-                                          );
-                                      setSelectedSubcategories(next);
-                                    }}
-                                  />
-                                  <span>{s}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </details>
-                    );
-                  })}
-                </div>
-                {fieldErrs.subcategories && (
-                  <p className="text-xs text-pink-600 mt-2">
-                    Selecciona al menos una subcategoria
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm mb-1">
-              Años de experiencia en el oficio
-            </label>
-            <Input
-              aria-invalid={fieldErrs.years_experience}
-              value={years}
-              onChange={(e) => setYears(e.target.value)}
-              inputMode="numeric"
-            />
-          </div>
-        </div>
-      </section>
-
-      {!empresa && (
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold">Documentos</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm mb-1">
-                Sube tu CV (PDF o DOC)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.cv &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                onChange={(e) => setCvFile(e.currentTarget.files?.[0] ?? null)}
-              />
+      <Stepper
+        className="w-full"
+        stepCircleContainerClassName="max-w-4xl border border-border bg-background"
+        contentClassName="px-6 py-6"
+        footerClassName="px-6 pb-8"
+        initialStep={1}
+        currentStepOverride={currentStep}
+        backButtonText="Atrás"
+        nextButtonText="Continuar"
+        finalButtonText="Enviar postulación"
+        backButtonProps={{ type: "button" }}
+        nextButtonProps={{
+          type: "button",
+          disabled: loading,
+          className:
+            "duration-350 flex items-center justify-center rounded-full bg-[#0B6149] px-3.5 py-1.5 font-medium tracking-tight text-white transition hover:bg-[#0a5841] active:bg-[#084b37]",
+        }}
+        completionContent={
+          <div
+            className="flex flex-col items-center gap-4 px-6 py-10 text-center"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-[#0B6149]">
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
             </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Cartas de recomendación (al menos una)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.letters &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="image/*,.pdf"
-                multiple
-                onChange={(e) =>
-                  setLetters(Array.from(e.currentTarget.files ?? []))
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Identificación oficial (frente)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.idFront &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="image/*"
-                onChange={(e) => setIdFront(e.currentTarget.files?.[0] ?? null)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Identificación oficial (reverso)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.idBack &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="image/*"
-                onChange={(e) => setIdBack(e.currentTarget.files?.[0] ?? null)}
-              />
-            </div>
-          </div>
-        </section>
-      )}
-
-      <SlideDown open={empresa}>
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold">
-            Documentos de empresa
-          </h2>
-          <p className="text-xs text-slate-600 mb-3">
-            Tamaño máximo 10 MB por archivo. Formatos: PDF, JPG o PNG.
-          </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm mb-1">Acta constitutiva</label>
-              <Input
-                className={cn(
-                  fileErrs.companyDoc &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="application/pdf,image/*"
-                onChange={(e) =>
-                  setCompanyDoc(e.currentTarget.files?.[0] ?? null)
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Constancia de situación fiscal (CSF)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.companyCsf &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="application/pdf,image/*"
-                onChange={(e) =>
-                  setCompanyCsf(e.currentTarget.files?.[0] ?? null)
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Identificación representante legal (frente)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.repIdFront &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) =>
-                  setRepIdFront(e.currentTarget.files?.[0] ?? null)
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Identificación representante legal (reverso)
-              </label>
-              <Input
-                className={cn(
-                  fileErrs.repIdBack &&
-                    "border-pink-500 focus-visible:ring-pink-500/50",
-                )}
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) =>
-                  setRepIdBack(e.currentTarget.files?.[0] ?? null)
-                }
-              />
-            </div>
-          </div>
-        </section>
-      </SlideDown>
-
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold">Referencias laborales</h2>
-        <p className="text-xs text-slate-600 mb-3">
-          Ingresa datos de personas que puedan confirmar tu experiencia (exjefes
-          o clientes).
-        </p>
-        <div className="space-y-3">
-          {refs.map((r, idx) => (
-            <div key={idx} className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <Input
-                  className={cn(
-                    refErrs[idx]?.name &&
-                      "border-pink-500 focus-visible:ring-pink-500/50",
-                  )}
-                  placeholder="Nombre"
-                  value={r.name}
-                  onChange={(e) =>
-                    setRefs((arr) =>
-                      arr.map((x, i) =>
-                        i === idx ? { ...x, name: e.target.value } : x,
-                      ),
-                    )
-                  }
-                />
-                <Input
-                  className={cn(
-                    refErrs[idx]?.phone &&
-                      "border-pink-500 focus-visible:ring-pink-500/50",
-                  )}
-                  placeholder="Teléfono"
-                  value={r.phone}
-                  onChange={(e) =>
-                    setRefs((arr) =>
-                      arr.map((x, i) =>
-                        i === idx ? { ...x, phone: e.target.value } : x,
-                      ),
-                    )
-                  }
-                />
-                <Input
-                  className={cn(
-                    refErrs[idx]?.relation &&
-                      "border-pink-500 focus-visible:ring-pink-500/50",
-                  )}
-                  placeholder={
-                    empresa
-                      ? "ej. Proveedor o Cliente"
-                      : "Relación (ej. jefe anterior)"
-                  }
-                  value={r.relation}
-                  onChange={(e) =>
-                    setRefs((arr) =>
-                      arr.map((x, i) =>
-                        i === idx ? { ...x, relation: e.target.value } : x,
-                      ),
-                    )
-                  }
-                />
-              </div>
-              {idx < 2 ? <Separator className="my-2" /> : null}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Cuentas bancarias */}
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold">Cuentas bancarias</h2>
-        <p className="text-xs text-slate-600 mb-3">
-          Usaremos esta cuenta para transferirte tus pagos. Debe estar a tu
-          nombre.
-        </p>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label className="block text-sm mb-1">Nombre del titular</label>
-            <Input
-              aria-invalid={bankErrs.holder}
-              value={bankHolder}
-              placeholder="Como aparece en tu banco"
-              disabled
-              className="bg-slate-50"
-            />
-            {bankErrs.holder && (
-              <p className="text-xs text-pink-600 mt-1">
-                Ingresa el nombre del titular
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm mb-1">Banco</label>
-            <Input
-              aria-invalid={bankErrs.bank}
-              value={bankName}
-              onChange={(e) => {
-                setBankEdited(true);
-                setBankName(e.target.value);
-              }}
-              placeholder="Selecciona tu banco"
-            />
-            {bankErrs.bank && (
-              <p className="text-xs text-pink-600 mt-1">Completa el banco</p>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm mb-1">
-              CLABE: 18 dígitos (solo números)
-            </label>
-            <Input
-              aria-invalid={bankErrs.clabe}
-              value={clabePretty(bankClabe)}
-              onChange={(e) =>
-                setBankClabe(onlyDigits(e.target.value).slice(0, 18))
-              }
-              onPaste={(e) => {
-                const t = e.clipboardData.getData("text");
-                e.preventDefault();
-                setBankClabe(onlyDigits(t).slice(0, 18));
-              }}
-              placeholder="0000 0000 0000 0000 00"
-              inputMode="numeric"
-            />
-            {(() => {
-              const d = onlyDigits(bankClabe);
-              if (d.length > 0 && d.length < 18)
-                return (
-                  <p className="text-xs text-amber-700 mt-1">
-                    CLABE incompleta (18 dígitos requeridos)
-                  </p>
-                );
-              if (d.length === 18 && !isValidClabe(d))
-                return (
-                  <p className="text-xs text-pink-600 mt-1">
-                    CLABE inválida (dígito verificador no coincide)
-                  </p>
-                );
-              if (bankErrs.clabe)
-                return (
-                  <p className="text-xs text-pink-600 mt-1">CLABE inválida</p>
-                );
-              return null;
-            })()}
-          </div>
-          <div>
-            <label className="block text-sm mb-1">
-              Tipo de cuenta (opcional)
-            </label>
-            <Select value={accountType} onValueChange={setAccountType}>
-              <SelectTrigger className="w-full" aria-label="Tipo de cuenta">
-                <SelectValue placeholder="Selecciona tipo de cuenta" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ahorro">Ahorro</SelectItem>
-                <SelectItem value="cheques">Cheques</SelectItem>
-                <SelectItem value="nomina">Nómina</SelectItem>
-                <SelectItem value="debito">Débito</SelectItem>
-                <SelectItem value="otra">Otra</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm mb-1">
-              Sube carátula o captura donde se vea tu nombre y CLABE (opcional,
-              ayuda a verificar)
-            </label>
-            <Input
-              className={cn(
-                fileErrs.bankCover &&
-                  "border-pink-500 focus-visible:ring-pink-500/50",
-              )}
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setBankCover(e.currentTarget.files?.[0] ?? null)}
-            />
-            <p className="text-xs text-slate-500 mt-1">
-              Máx. 10 MB. Formatos: PDF o imagen.
+            <p className="text-base font-semibold text-slate-900">
+              Estamos enviando tu postulación
             </p>
           </div>
-        </div>
-      </section>
-
-      {!empresa && (
-        <section className="rounded-xl border bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold">Facturación</h2>
-          <div className="space-y-3">
-            <CompanyToggle
-              id="billing-self"
-              checked={canInvoiceSelf}
-              onChange={(v) => {
-                setCanInvoiceSelf(v);
-                if (v) setAuthorizeHandi(false);
-              }}
-              label="Tengo facultad de elaborar las facturas de mis servicios"
-            />
-            {!canInvoiceSelf && (
-              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <CompanyToggle
-                  id="billing-authorize"
-                  checked={authorizeHandi}
-                  onChange={setAuthorizeHandi}
-                  label="Autorizo que Handi elabore las facturas de mis servicios"
+        }
+        onStepChange={setCurrentStep}
+        onBeforeNextStep={({ currentStep: step }) =>
+          validateStepBeforeNext(step)
+        }
+        onBeforeComplete={() => validateStepBeforeNext(TOTAL_STEPS)}
+        onFinalStepCompleted={async () => {
+          setCurrentStep(TOTAL_STEPS + 1);
+          const result = await onSubmit();
+          if (!result.ok) {
+            setCurrentStep(result.errorStep ?? findFirstStepWithErrors());
+          }
+        }}
+      >
+        <Step label="Datos de la postulación">
+          <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-base font-semibold">
+              Ingresa los datos de tu postulación
+            </h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm mb-1">
+                  {empresa
+                    ? "Nombre comercial de la empresa"
+                    : "Nombre completo"}
+                </label>
+                <Input
+                  aria-invalid={fieldErrs.full_name}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder={empresa ? "Nombre comercial" : "Tu nombre"}
                 />
-                <Tooltip>
-                  <TooltipTrigger asChild>
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Teléfono de contacto
+                </label>
+                <Input
+                  aria-invalid={fieldErrs.phone}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="10 dígitos"
+                  inputMode="tel"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Correo</label>
+                <Input
+                  aria-invalid={fieldErrs.email}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="tu@correo.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">RFC</label>
+                <Input
+                  aria-invalid={fieldErrs.rfc}
+                  value={rfc}
+                  onChange={(e) => setRfc(e.target.value.toUpperCase())}
+                  placeholder="RFC (12 o 13 caracteres)"
+                  inputMode="text"
+                  autoCapitalize="characters"
+                />
+                {fieldErrs.rfc && (
+                  <p className="text-xs text-pink-600 mt-1">
+                    Ingresa un RFC válido
+                  </p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <CompanyToggle checked={empresa} onChange={setEmpresa} />
+                <CompanyFields
+                  open={empresa}
+                  legalName={companyLegalName}
+                  setLegalName={setCompanyLegalName}
+                  industry={companyIndustry}
+                  setIndustry={setCompanyIndustry}
+                  employees={companyEmployees}
+                  setEmployees={setCompanyEmployees}
+                  website={companyWebsite}
+                  setWebsite={setCompanyWebsite}
+                  errors={{
+                    legalName: fieldErrs.company_legal_name,
+                    industry: fieldErrs.company_industry,
+                    employees: fieldErrs.company_employees_count,
+                    website: fieldErrs.company_website,
+                  }}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm mb-1">
+                  Describe brevemente cuáles son los servicios que ofreces
+                </label>
+                <Textarea
+                  aria-invalid={fieldErrs.services_desc}
+                  rows={4}
+                  value={servicesDesc}
+                  onChange={(e) => setServicesDesc(e.target.value)}
+                  placeholder="Ej. Electricidad residencial, mantenimiento e instalaciones"
+                />
+                {isSuggestingCategories && (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Sugiriendo categorias según tu descripcion
+                  </p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm mb-1">
+                  Ciudades donde ofreces tus servicios
+                </label>
+                <MultiSelect
+                  placeholder="Selecciona ciudades"
+                  options={CITIES as unknown as string[]}
+                  value={selectedCities}
+                  onChange={setSelectedCities}
+                  error={fieldErrs.cities}
+                />
+                {fieldErrs.cities && (
+                  <p className="text-xs text-pink-600 mt-1">
+                    Selecciona al menos una ciudad
+                  </p>
+                )}
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm mb-1">
+                  Categorías de servicios
+                </label>
+                <MultiSelect
+                  placeholder={
+                    loadingCats
+                      ? "Cargando categorías..."
+                      : "Selecciona categorías"
+                  }
+                  options={availableCategories}
+                  value={selectedCategories}
+                  onChange={(v) => {
+                    lastUserEditRef.current = Date.now();
+                    setSelectedCategories(v);
+                  }}
+                  disabled={loadingCats}
+                  error={fieldErrs.categories}
+                />
+                {fieldErrs.categories && (
+                  <p className="text-xs text-pink-600 mt-1">
+                    Selecciona al menos una categoría
+                  </p>
+                )}
+                {selectedCategories.length > 0 && (
+                  <div
+                    className={cn(
+                      "mt-3 rounded-md border p-3",
+                      fieldErrs.subcategories
+                        ? "border-pink-500 bg-pink-50/40"
+                        : "border-slate-200",
+                    )}
+                  >
+                    <p className="text-sm text-slate-700 mb-2">Subcategorías</p>
+                    <div className="space-y-2">
+                      {selectedCategories.map((cat) => {
+                        const subs = groupedSubcats[cat] || [];
+                        if (subs.length === 0) return null;
+                        return (
+                          <details
+                            key={cat}
+                            className="rounded-md border bg-slate-50"
+                          >
+                            <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+                              {cat}
+                            </summary>
+                            <div className="px-3 pb-3 pt-1">
+                              <div className="flex items-center justify-end mb-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    lastUserEditRef.current = Date.now();
+                                    const all = new Set<string>(
+                                      selectedSubcategories,
+                                    );
+                                    subs.forEach((s) => all.add(s));
+                                    setSelectedSubcategories(Array.from(all));
+                                  }}
+                                >
+                                  Seleccionar todas
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {subs.map((s) => {
+                                  const checked =
+                                    selectedSubcategories.includes(s);
+                                  return (
+                                    <label
+                                      key={s}
+                                      className="flex items-center gap-2 text-sm"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(e) => {
+                                          lastUserEditRef.current = Date.now();
+                                          const next = e.currentTarget.checked
+                                            ? Array.from(
+                                                new Set([
+                                                  ...selectedSubcategories,
+                                                  s,
+                                                ]),
+                                              )
+                                            : selectedSubcategories.filter(
+                                                (x) => x !== s,
+                                              );
+                                          setSelectedSubcategories(next);
+                                        }}
+                                      />
+                                      <span>{s}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </details>
+                        );
+                      })}
+                    </div>
+                    {fieldErrs.subcategories && (
+                      <p className="text-xs text-pink-600 mt-2">
+                        Selecciona al menos una subcategoria
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Años de experiencia en el oficio
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={80}
+                  step={1}
+                  aria-invalid={fieldErrs.years_experience}
+                  value={years}
+                  onChange={(e) => setYears(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="0"
+                  className={cn(
+                    fieldErrs.years_experience &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                />
+              </div>
+            </div>
+          </section>
+        </Step>
+
+        <Step label="Documentos">
+          <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-base font-semibold">Documentos</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm mb-1">
+                  Sube tu CV (PDF o DOC)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.cv &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(e) =>
+                    setCvFile(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Cartas de recomendación (al menos una)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.letters &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*,.pdf"
+                  multiple
+                  onChange={(e) =>
+                    setLetters(Array.from(e.currentTarget.files ?? []))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Identificación oficial (frente)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.idFront &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setIdFront(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Identificación oficial (reverso)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.idBack &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    setIdBack(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
+              </div>
+            </div>
+          </section>
+
+          <SlideDown open={empresa}>
+            <section className="rounded-xl border bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-base font-semibold">
+                Documentos de empresa
+              </h2>
+              <p className="text-xs text-slate-600 mb-3">
+                Tamaño máximo 10 MB por archivo. Formatos: PDF, JPG o PNG.
+              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="block text-sm mb-1">
+                    Acta constitutiva
+                  </label>
+                  <Input
+                    className={cn(
+                      fileErrs.companyDoc &&
+                        "border-pink-500 focus-visible:ring-pink-500/50",
+                    )}
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={(e) =>
+                      setCompanyDoc(e.currentTarget.files?.[0] ?? null)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">
+                    Constancia de situación fiscal (CSF)
+                  </label>
+                  <Input
+                    className={cn(
+                      fileErrs.companyCsf &&
+                        "border-pink-500 focus-visible:ring-pink-500/50",
+                    )}
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={(e) =>
+                      setCompanyCsf(e.currentTarget.files?.[0] ?? null)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">
+                    Identificación representante legal (frente)
+                  </label>
+                  <Input
+                    className={cn(
+                      fileErrs.repIdFront &&
+                        "border-pink-500 focus-visible:ring-pink-500/50",
+                    )}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) =>
+                      setRepIdFront(e.currentTarget.files?.[0] ?? null)
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">
+                    Identificación representante legal (reverso)
+                  </label>
+                  <Input
+                    className={cn(
+                      fileErrs.repIdBack &&
+                        "border-pink-500 focus-visible:ring-pink-500/50",
+                    )}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) =>
+                      setRepIdBack(e.currentTarget.files?.[0] ?? null)
+                    }
+                  />
+                </div>
+              </div>
+            </section>
+          </SlideDown>
+        </Step>
+
+        <Step label="Referencias laborales">
+          <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-base font-semibold">
+              Referencias laborales
+            </h2>
+            <p className="text-xs text-slate-600 mb-3">
+              Ingresa datos de personas que puedan confirmar tu experiencia
+              (exjefes o clientes).
+            </p>
+            <div className="space-y-3">
+              {refs.map((r, idx) => (
+                <div key={idx} className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                    <Input
+                      className={cn(
+                        refErrs[idx]?.name &&
+                          "border-pink-500 focus-visible:ring-pink-500/50",
+                      )}
+                      placeholder="Nombre"
+                      value={r.name}
+                      onChange={(e) =>
+                        setRefs((arr) =>
+                          arr.map((x, i) =>
+                            i === idx ? { ...x, name: e.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
+                    <Input
+                      className={cn(
+                        refErrs[idx]?.phone &&
+                          "border-pink-500 focus-visible:ring-pink-500/50",
+                      )}
+                      placeholder="Teléfono"
+                      value={r.phone}
+                      onChange={(e) =>
+                        setRefs((arr) =>
+                          arr.map((x, i) =>
+                            i === idx ? { ...x, phone: e.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
+                    <Input
+                      className={cn(
+                        refErrs[idx]?.relation &&
+                          "border-pink-500 focus-visible:ring-pink-500/50",
+                      )}
+                      placeholder={
+                        empresa
+                          ? "ej. Proveedor o Cliente"
+                          : "Relación (ej. jefe anterior)"
+                      }
+                      value={r.relation}
+                      onChange={(e) =>
+                        setRefs((arr) =>
+                          arr.map((x, i) =>
+                            i === idx ? { ...x, relation: e.target.value } : x,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                  {idx < 2 ? <Separator className="my-2" /> : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        </Step>
+
+        <Step label="Cuenta bancaria">
+          {/* Cuentas bancarias */}
+          <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-base font-semibold">Cuentas bancarias</h2>
+            <p className="text-xs text-slate-600 mb-3">
+              Usaremos esta cuenta para transferirte tus pagos. Debe estar a tu
+              nombre.
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="block text-sm mb-1">Nombre del titular</label>
+                <Input
+                  aria-invalid={bankErrs.holder}
+                  value={bankHolder}
+                  placeholder="Como aparece en tu banco"
+                  disabled
+                  className="bg-slate-50"
+                />
+                {bankErrs.holder && (
+                  <p className="text-xs text-pink-600 mt-1">
+                    Ingresa el nombre del titular
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm mb-1">Banco</label>
+                <Input
+                  aria-invalid={bankErrs.bank}
+                  value={bankName}
+                  onChange={(e) => {
+                    setBankEdited(true);
+                    setBankName(e.target.value);
+                  }}
+                  placeholder="Selecciona tu banco"
+                />
+                {bankErrs.bank && (
+                  <p className="text-xs text-pink-600 mt-1">
+                    Completa el banco
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  CLABE: 18 dígitos (solo números)
+                </label>
+                <Input
+                  aria-invalid={bankErrs.clabe}
+                  value={clabePretty(bankClabe)}
+                  onChange={(e) =>
+                    setBankClabe(onlyDigits(e.target.value).slice(0, 18))
+                  }
+                  onPaste={(e) => {
+                    const t = e.clipboardData.getData("text");
+                    e.preventDefault();
+                    setBankClabe(onlyDigits(t).slice(0, 18));
+                  }}
+                  placeholder="0000 0000 0000 0000 00"
+                  inputMode="numeric"
+                />
+                {(() => {
+                  const d = onlyDigits(bankClabe);
+                  if (d.length > 0 && d.length < 18)
+                    return (
+                      <p className="text-xs text-amber-700 mt-1">
+                        CLABE incompleta (18 dígitos requeridos)
+                      </p>
+                    );
+                  if (d.length === 18 && !isValidClabe(d))
+                    return (
+                      <p className="text-xs text-pink-600 mt-1">
+                        CLABE inválida (dígito verificador no coincide)
+                      </p>
+                    );
+                  if (bankErrs.clabe)
+                    return (
+                      <p className="text-xs text-pink-600 mt-1">
+                        CLABE inválida
+                      </p>
+                    );
+                  return null;
+                })()}
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Tipo de cuenta (opcional)
+                </label>
+                <Select value={accountType} onValueChange={setAccountType}>
+                  <SelectTrigger className="w-full" aria-label="Tipo de cuenta">
+                    <SelectValue placeholder="Selecciona tipo de cuenta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ahorro">Ahorro</SelectItem>
+                    <SelectItem value="cheques">Cheques</SelectItem>
+                    <SelectItem value="nomina">Nómina</SelectItem>
+                    <SelectItem value="debito">Débito</SelectItem>
+                    <SelectItem value="otra">Otra</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm mb-1">
+                  Sube carátula o captura donde se vea tu nombre y CLABE
+                  (opcional, ayuda a verificar)
+                </label>
+                <Input
+                  className={cn(
+                    fileErrs.bankCover &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
+                  )}
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) =>
+                    setBankCover(e.currentTarget.files?.[0] ?? null)
+                  }
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Máx. 10 MB. Formatos: PDF o imagen.
+                </p>
+              </div>
+            </div>
+          </section>
+        </Step>
+
+        <Step label="Facturación">
+          {!empresa && (
+            <section className="rounded-xl border bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-base font-semibold">Facturación</h2>
+              <div className="space-y-3">
+                <CompanyToggle
+                  id="billing-self"
+                  checked={canInvoiceSelf}
+                  onChange={(v) => {
+                    setCanInvoiceSelf(v);
+                    if (v) setAuthorizeHandi(false);
+                  }}
+                  label="Tengo facultad de elaborar las facturas de mis servicios"
+                />
+                {!canInvoiceSelf && (
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <CompanyToggle
+                      id="billing-authorize"
+                      checked={authorizeHandi}
+                      onChange={setAuthorizeHandi}
+                      label="Autorizo que Handi elabore las facturas de mis servicios"
+                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <a
+                          href="/politicas-facturacion"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm underline text-slate-700 hover:text-slate-900 sm:ml-3"
+                        >
+                          ¿Qué es esto?
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        ir a Políticas de Facturación
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <h2 className="mb-3 text-base font-semibold">
+              Aviso de privacidad y firma
+            </h2>
+            <div className="space-y-2">
+              <label className="block cursor-pointer">
+                <div
+                  className={cn(
+                    "group relative flex items-start gap-3 rounded-xl border bg-white p-3 shadow-sm transition-all",
+                    "hover:shadow-md focus-within:ring-2 focus-within:ring-emerald-300",
+                    fieldErrs.privacy_accept
+                      ? "border-pink-500 ring-1 ring-pink-500/40"
+                      : "border-slate-200",
+                  )}
+                >
+                  <input
+                    id="privacy-accept"
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={privacy}
+                    onChange={(e) => setPrivacy(e.currentTarget.checked)}
+                    aria-invalid={fieldErrs.privacy_accept}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border shadow-inner transition-all",
+                      privacy
+                        ? "bg-emerald-500 border-emerald-600"
+                        : "bg-white border-slate-300",
+                    )}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                      aria-hidden="true"
+                      focusable="false"
+                      className={cn(
+                        "h-3.5 w-3.5 origin-center transition-all duration-200",
+                        privacy
+                          ? "opacity-100 scale-100"
+                          : "opacity-0 scale-75",
+                      )}
+                    >
+                      <path
+                        d="M20 6L9 17l-5-5"
+                        stroke="#fff"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  <span className="text-sm leading-5">
+                    He leído y acepto el{" "}
                     <a
-                      href="/politicas-facturacion"
+                      className="underline"
+                      href="/privacy"
                       target="_blank"
                       rel="noreferrer"
-                      className="text-sm underline text-slate-700 hover:text-slate-900 sm:ml-3"
                     >
-                      ¿Qué es esto?
-                    </a>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    ir a Políticas de Facturación
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="rounded-xl border bg-white p-5 shadow-sm">
-        <h2 className="mb-3 text-base font-semibold">
-          Aviso de privacidad y firma
-        </h2>
-        <div className="space-y-2">
-          <label className="block cursor-pointer">
-            <div
-              className={cn(
-                "group relative flex items-start gap-3 rounded-xl border bg-white p-3 shadow-sm transition-all",
-                "hover:shadow-md focus-within:ring-2 focus-within:ring-emerald-300",
-                fieldErrs.privacy_accept
-                  ? "border-pink-500 ring-1 ring-pink-500/40"
-                  : "border-slate-200",
+                      Aviso de Privacidad
+                    </a>{" "}
+                    y autorizo a Handi a verificar mis datos para validar mi
+                    perfil profesional.
+                  </span>
+                </div>
+              </label>
+              {fieldErrs.privacy_accept && (
+                <p className="text-xs text-pink-600">
+                  Debes aceptar el Aviso de Privacidad
+                </p>
               )}
-            >
-              <input
-                id="privacy-accept"
-                type="checkbox"
-                className="peer sr-only"
-                checked={privacy}
-                onChange={(e) => setPrivacy(e.currentTarget.checked)}
-                aria-invalid={fieldErrs.privacy_accept}
-              />
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-md border shadow-inner transition-all",
-                  privacy
-                    ? "bg-emerald-500 border-emerald-600"
-                    : "bg-white border-slate-300",
-                )}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
-                  focusable="false"
+            </div>
+            <div className="mt-4">
+              <p className="text-sm mb-2">Firma</p>
+              <div className="flex justify-center sm:justify-start">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSigOpen(true)}
                   className={cn(
-                    "h-3.5 w-3.5 origin-center transition-all duration-200",
-                    privacy ? "opacity-100 scale-100" : "opacity-0 scale-75",
+                    fileErrs.sig &&
+                      "border-pink-500 focus-visible:ring-pink-500/50",
                   )}
                 >
-                  <path
-                    d="M20 6L9 17l-5-5"
-                    stroke="#fff"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <span className="text-sm leading-5">
-                He leído y acepto el{" "}
-                <a
-                  className="underline"
-                  href="/privacy"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Aviso de Privacidad
-                </a>{" "}
-                y autorizo a Handi a verificar mis datos para validar mi perfil
-                profesional.
-              </span>
+                  Firma
+                </Button>
+                {sigPreviewUrl && (
+                  <div className="mt-3">
+                    <Image
+                      src={sigPreviewUrl}
+                      alt="Firma"
+                      width={320}
+                      height={80}
+                      unoptimized
+                      className="h-20 w-auto max-w-full rounded-md border bg-white object-contain"
+                    />
+                  </div>
+                )}
+                {fileErrs.sig && (
+                  <p className="text-xs text-pink-600 mt-2">Firma requerida</p>
+                )}
+              </div>
+              {/* Hidden persistent canvas to keep the signature for upload */}
+              <canvas
+                ref={sigCanvasRef}
+                width={640}
+                height={180}
+                className="hidden"
+              />
+              <Dialog open={sigOpen} onOpenChange={setSigOpen}>
+                <DialogContent className="sm:max-w-xl">
+                  <div className="space-y-3">
+                    <div className="rounded-lg border bg-slate-50 p-2">
+                      <canvas
+                        ref={sigDialogCanvasRef}
+                        width={640}
+                        height={180}
+                        className="w-full touch-none cursor-crosshair select-none"
+                      />
+                    </div>
+                    <div className="flex items-center justify-center gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={clearDialogSignature}
+                      >
+                        Borrar
+                      </Button>
+                      <Button type="button" onClick={acceptSignature}>
+                        Aceptar
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
-          </label>
-          {fieldErrs.privacy_accept && (
-            <p className="text-xs text-pink-600">
-              Debes aceptar el Aviso de Privacidad
-            </p>
-          )}
-        </div>
-        <div className="mt-4">
-          <p className="text-sm mb-2">Firma</p>
-          <div className="flex justify-center sm:justify-start">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setSigOpen(true)}
-              className={cn(
-                fileErrs.sig &&
-                  "border-pink-500 focus-visible:ring-pink-500/50",
-              )}
-            >
-              Firma
-            </Button>
-            {sigPreviewUrl && (
-              <div className="mt-3">
-                <Image
-                  src={sigPreviewUrl}
-                  alt="Firma"
-                  width={320}
-                  height={80}
-                  unoptimized
-                  className="h-20 w-auto max-w-full rounded-md border bg-white object-contain"
-                />
-              </div>
-            )}
-            {fileErrs.sig && (
-              <p className="text-xs text-pink-600 mt-2">Firma requerida</p>
-            )}
-          </div>
-          {/* Hidden persistent canvas to keep the signature for upload */}
-          <canvas
-            ref={sigCanvasRef}
-            width={640}
-            height={180}
-            className="hidden"
-          />
-          <Dialog open={sigOpen} onOpenChange={setSigOpen}>
-            <DialogContent className="sm:max-w-xl">
-              <div className="space-y-3">
-                <div className="rounded-lg border bg-slate-50 p-2">
-                  <canvas
-                    ref={sigDialogCanvasRef}
-                    width={640}
-                    height={180}
-                    className="w-full touch-none cursor-crosshair select-none"
-                  />
-                </div>
-                <div className="flex items-center justify-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={clearDialogSignature}
-                  >
-                    Borrar
-                  </Button>
-                  <Button type="button" onClick={acceptSignature}>
-                    Aceptar
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </section>
-
-      <div className="pt-1">
-        <Button type="submit" disabled={loading}>
-          {loading ? "Enviando…" : "Enviar postulación"}
-        </Button>
-      </div>
-    </form>
+          </section>
+        </Step>
+      </Stepper>
+    </div>
   );
 }
 

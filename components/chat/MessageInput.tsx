@@ -62,6 +62,10 @@ export default function MessageInput({
   const handleSend = React.useCallback(async () => {
     const trimmed = text.trim();
     if (!trimmed || sending || disabled) return;
+    if (hasContact) {
+      textareaRef.current?.focus();
+      return;
+    }
     setSending(true);
     try {
       const result = await onSend(trimmed);
@@ -71,7 +75,7 @@ export default function MessageInput({
     } finally {
       setSending(false);
     }
-  }, [text, sending, disabled, onSend]);
+  }, [text, sending, disabled, onSend, hasContact]);
 
   return (
     <div className="border-t p-2 space-y-2">
@@ -132,7 +136,7 @@ export default function MessageInput({
         <Button
           size="sm"
           onClick={() => void handleSend()}
-          disabled={sending || disabled || !text.trim()}
+          disabled={sending || disabled || !text.trim() || hasContact}
           aria-busy={sending}
           data-testid={`${dataPrefix}-send`}
         >

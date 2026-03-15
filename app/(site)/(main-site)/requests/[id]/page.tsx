@@ -36,8 +36,10 @@ export const dynamic = "force-dynamic";
 
 export default async function RequestDetailPage({ params }: Params) {
   const base = getBaseUrl();
-  const disablePros = (process.env.NEXT_PUBLIC_DISABLE_PROS || "").trim() === "1";
-  const disableDetail = (process.env.NEXT_PUBLIC_DISABLE_DETAIL || "").trim() === "1";
+  const disablePros =
+    (process.env.NEXT_PUBLIC_DISABLE_PROS || "").trim() === "1";
+  const disableDetail =
+    (process.env.NEXT_PUBLIC_DISABLE_DETAIL || "").trim() === "1";
 
   // Forward cookies for SSR fetch
   // Forward raw cookie values to internal API (do NOT URL-encode).
@@ -128,6 +130,12 @@ export default async function RequestDetailPage({ params }: Params) {
     // Debug panel and any extra fields preserved
     ...d,
     id: String(d.id ?? params.id),
+    support_id:
+      typeof (d as { support_id?: unknown }).support_id === "number"
+        ? ((d as { support_id?: number }).support_id as number)
+        : (d as { support_id?: string | number | null }).support_id
+          ? Number((d as { support_id?: string | number }).support_id)
+          : null,
     title: (d.title as string | null) ?? null,
     description: (d.description as string | null) ?? null,
     status: (d.status as string | null) ?? null,
@@ -144,18 +152,25 @@ export default async function RequestDetailPage({ params }: Params) {
   let onlyProfessionalId: string | null = null;
   if ((initial.status || "") === "in_process") {
     try {
-      const agrRes = await fetch(`${base}/api/requests/${params.id}/agreements`, {
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+      const agrRes = await fetch(
+        `${base}/api/requests/${params.id}/agreements`,
+        {
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            ...(cookieHeader ? { cookie: cookieHeader } : {}),
+          },
+          cache: "no-store",
         },
-        cache: "no-store",
-      });
+      );
       const aj = await agrRes.json().catch(() => null);
       if (agrRes.ok && Array.isArray(aj?.data)) {
         // Prioriza acuerdo pagado; si no existe, usa en progreso
-        const paid = (aj.data as Array<Record<string, unknown>>).find((a) => (a.status as string) === "paid");
-        const inProg = (aj.data as Array<Record<string, unknown>>).find((a) => (a.status as string) === "in_progress");
+        const paid = (aj.data as Array<Record<string, unknown>>).find(
+          (a) => (a.status as string) === "paid",
+        );
+        const inProg = (aj.data as Array<Record<string, unknown>>).find(
+          (a) => (a.status as string) === "in_progress",
+        );
         const pick = paid || inProg || null;
         const pid = pick?.professional_id as string | undefined;
         if (pid) onlyProfessionalId = pid;
@@ -242,14 +257,22 @@ export default async function RequestDetailPage({ params }: Params) {
 
           {/* Agreements flow (offers, status updates, payment actions) */}
           <div className="mt-6">
-            <AgreementsClient requestId={initial.id} createdBy={(d.created_by as string | undefined) ?? null} />
+            <AgreementsClient
+              requestId={initial.id}
+              createdBy={(d.created_by as string | undefined) ?? null}
+              supportId={initial.support_id}
+            />
           </div>
         </section>
 
         <aside className="order-last md:order-none md:sticky md:top-4 space-y-4">
           {!disablePros ? (
             <Card id="available-professionals" className="p-4 scroll-mt-24">
-              <h2 className="font-medium mb-2">{(initial.status || "") === "in_process" ? "Profesional agendado" : "Profesionales disponibles"}</h2>
+              <h2 className="font-medium mb-2">
+                {(initial.status || "") === "in_process"
+                  ? "Profesional agendado"
+                  : "Profesionales disponibles"}
+              </h2>
               <ProfessionalsList
                 requestId={initial.id}
                 category={category}
@@ -263,7 +286,6 @@ export default async function RequestDetailPage({ params }: Params) {
       </div>
 
       {/* Trust badges removed per request */}
-      
     </main>
   );
 }

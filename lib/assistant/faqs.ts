@@ -106,4 +106,24 @@ export const FAQS: FAQItem[] = [
     url: "/help",
     keywords: ["error técnico", "falla app", "no carga", "bug"],
   },
+  {
+    id: "soporte-contacto",
+    category: "General",
+    question: "Quiero hablar con alguien / soporte",
+    answer:
+      "Puedes contactar a soporte por WhatsApp o correo. También revisa /help y comparte el ID desde /mensajes para acelerar la revisión.",
+    url: "/help",
+    keywords: [
+      "soporte",
+      "hablar con alguien",
+      "humano",
+      "asesor",
+      "contacto",
+      "telefono",
+      "teléfono",
+      "whatsapp",
+      "correo",
+      "email",
+    ],
+  },
 ];

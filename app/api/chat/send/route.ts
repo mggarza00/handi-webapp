@@ -5,16 +5,28 @@ import { z } from "zod";
 import webpush from "web-push";
 
 import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
-import { getUserFromRequestOrThrow, getDbClientForRequest, getDevUserFromHeader } from "@/lib/auth-route";
+import {
+  getUserFromRequestOrThrow,
+  getDbClientForRequest,
+  getDevUserFromHeader,
+} from "@/lib/auth-route";
 import { createServerClient as createServiceClient } from "@/lib/supabase";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { scanContact } from "@/lib/safety/contact-guard";
+import {
+  getContactPolicyMessage,
+  isContactPolicyLifted,
+} from "@/lib/safety/policy";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 const AttachmentSchema = z.object({
   filename: z.string(),
   // Allow empty string; normalize later. Accept any string to avoid client-specific MIME quirks.
-  mime_type: z.string().optional().transform((v) => (v ?? "")),
+  mime_type: z
+    .string()
+    .optional()
+    .transform((v) => v ?? ""),
   // Coerce to number to accept string inputs from some browsers/clients
   byte_size: z.coerce.number().int().positive(),
   storage_path: z.string(),
@@ -30,10 +42,15 @@ const BodySchema = z
     body: z.string().max(4000).optional(),
     attachments: z.array(AttachmentSchema).optional().default([]),
   })
-  .refine((v) => (v.body && v.body.trim().length > 0) || (Array.isArray(v.attachments) && v.attachments.length > 0), {
-    message: "EMPTY_MESSAGE",
-    path: ["body"],
-  });
+  .refine(
+    (v) =>
+      (v.body && v.body.trim().length > 0) ||
+      (Array.isArray(v.attachments) && v.attachments.length > 0),
+    {
+      message: "EMPTY_MESSAGE",
+      path: ["body"],
+    },
+  );
 
 export async function POST(req: Request) {
   try {
@@ -45,13 +62,20 @@ export async function POST(req: Request) {
       );
 
     let usedDevFallback = false;
-    let { user } = await getDevUserFromHeader(req) ?? { user: null as any };
-    if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
-    const supabase = usedDevFallback ? (createServiceClient() as any) : await getDbClientForRequest(req);
+    let { user } = (await getDevUserFromHeader(req)) ?? { user: null as any };
+    if (!user) ({ user } = await getUserFromRequestOrThrow(req));
+    else usedDevFallback = true;
+    const supabase = usedDevFallback
+      ? (createServiceClient() as any)
+      : await getDbClientForRequest(req);
     const parsed = BodySchema.safeParse(await req.json());
     if (!parsed.success)
       return NextResponse.json(
-        { ok: false, error: "VALIDATION_ERROR", detail: parsed.error.flatten() },
+        {
+          ok: false,
+          error: "VALIDATION_ERROR",
+          detail: parsed.error.flatten(),
+        },
         { status: 422, headers: JSONH },
       );
     const { conversationId, body = "", attachments = [] } = parsed.data;
@@ -60,7 +84,7 @@ export async function POST(req: Request) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conv = await (supabase as any)
       .from("conversations")
-      .select("id, customer_id, pro_id")
+      .select("id, customer_id, pro_id, request_id")
       .eq("id", conversationId)
       .maybeSingle();
     if (!conv.data)
@@ -69,16 +93,52 @@ export async function POST(req: Request) {
         { status: 403, headers: JSONH },
       );
 
+    const trimmedBody = (body || "").trim();
+    if (trimmedBody.length > 0) {
+      let requestStatus: string | null = null;
+      const requestId = (conv.data as any)?.request_id as string | null;
+      if (requestId) {
+        const { data: req } = await (supabase as any)
+          .from("requests")
+          .select("status")
+          .eq("id", requestId)
+          .maybeSingle();
+        const st = (req as any)?.status as string | undefined;
+        requestStatus = typeof st === "string" ? st : null;
+      }
+      const allowContact = isContactPolicyLifted({ requestStatus });
+      const scan = scanContact(trimmedBody);
+      if (!allowContact && scan.findings.length > 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "CONTACT_BLOCKED",
+            message: getContactPolicyMessage({ requestStatus }),
+            findings: scan.findings,
+          },
+          { status: 422, headers: JSONH },
+        );
+      }
+    }
+
     // Insertar mensaje (RLS)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ins = await (supabase as any)
       .from("messages")
-      .insert({ conversation_id: conversationId, sender_id: user.id, body: body || "" })
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        body: body || "",
+      })
       .select("id, created_at")
       .single();
     if (ins.error)
       return NextResponse.json(
-        { ok: false, error: "MESSAGE_CREATE_FAILED", detail: ins.error.message },
+        {
+          ok: false,
+          error: "MESSAGE_CREATE_FAILED",
+          detail: ins.error.message,
+        },
         { status: 400, headers: JSONH },
       );
 
@@ -88,7 +148,8 @@ export async function POST(req: Request) {
       const normalizePath = (p: string): string => {
         if (!p) return p as unknown as string;
         p = p.split(String.fromCharCode(92)).join("/");
-        if (p.startsWith("message-attachments/")) p = p.slice("message-attachments/".length);
+        if (p.startsWith("message-attachments/"))
+          p = p.slice("message-attachments/".length);
         return p;
       };
       // Tamaño máximo por archivo: 20MB
@@ -99,14 +160,22 @@ export async function POST(req: Request) {
         const norm = normalizePath(a.storage_path || "");
         if (!norm.startsWith(`conversation/${conversationId}/`)) {
           return NextResponse.json(
-            { ok: false, error: "INVALID_STORAGE_PATH", detail: { storage_path: a.storage_path } },
+            {
+              ok: false,
+              error: "INVALID_STORAGE_PATH",
+              detail: { storage_path: a.storage_path },
+            },
             { status: 400, headers: JSONH },
           );
         }
         const size = Number(a.byte_size);
         if (!Number.isFinite(size) || size > MAX_FILE_BYTES) {
           return NextResponse.json(
-            { ok: false, error: "FILE_TOO_LARGE", detail: { filename: a.filename, limit: MAX_FILE_BYTES } },
+            {
+              ok: false,
+              error: "FILE_TOO_LARGE",
+              detail: { filename: a.filename, limit: MAX_FILE_BYTES },
+            },
             { status: 413, headers: JSONH },
           );
         }
@@ -114,12 +183,23 @@ export async function POST(req: Request) {
         const ext = (a.filename || "").toLowerCase().split(".").pop() || "";
         let mime = (a.mime_type || "").trim();
         if (!mime) mime = "application/octet-stream";
-        if ((mime === "application/octet-stream" || mime === "") && ext === "pdf") mime = "application/pdf";
+        if (
+          (mime === "application/octet-stream" || mime === "") &&
+          ext === "pdf"
+        )
+          mime = "application/pdf";
         if (mime === "application/x-pdf") mime = "application/pdf";
-        const allowed = mime === "application/pdf" || mime === "application/octet-stream" || mime.startsWith("image/");
+        const allowed =
+          mime === "application/pdf" ||
+          mime === "application/octet-stream" ||
+          mime.startsWith("image/");
         if (!allowed) {
           return NextResponse.json(
-            { ok: false, error: "INVALID_MIME_TYPE", detail: { filename: a.filename, mime_type: a.mime_type } },
+            {
+              ok: false,
+              error: "INVALID_MIME_TYPE",
+              detail: { filename: a.filename, mime_type: a.mime_type },
+            },
             { status: 422, headers: JSONH },
           );
         }
@@ -132,7 +212,11 @@ export async function POST(req: Request) {
         const ext = (a.filename || "").toLowerCase().split(".").pop() || "";
         let mime = (a.mime_type || "").trim();
         if (!mime) mime = "application/octet-stream";
-        if ((mime === "application/octet-stream" || mime === "") && ext === "pdf") mime = "application/pdf";
+        if (
+          (mime === "application/octet-stream" || mime === "") &&
+          ext === "pdf"
+        )
+          mime = "application/pdf";
         if (mime === "application/x-pdf") mime = "application/pdf";
         const size = Number(a.byte_size);
         return {
@@ -143,15 +227,28 @@ export async function POST(req: Request) {
           filename,
           mime_type: mime,
           byte_size: size,
-          width: typeof a.width === "number" && Number.isFinite(a.width) ? a.width : null,
-          height: typeof a.height === "number" && Number.isFinite(a.height) ? a.height : null,
+          width:
+            typeof a.width === "number" && Number.isFinite(a.width)
+              ? a.width
+              : null,
+          height:
+            typeof a.height === "number" && Number.isFinite(a.height)
+              ? a.height
+              : null,
           sha256: a.sha256 ?? null,
         };
       });
-      const insAtt = await (supabase as any).from("message_attachments").insert(rows).select("id");
+      const insAtt = await (supabase as any)
+        .from("message_attachments")
+        .insert(rows)
+        .select("id");
       if (insAtt.error)
         return NextResponse.json(
-          { ok: false, error: "ATTACHMENTS_CREATE_FAILED", detail: insAtt.error.message },
+          {
+            ok: false,
+            error: "ATTACHMENTS_CREATE_FAILED",
+            detail: insAtt.error.message,
+          },
           { status: 400, headers: JSONH },
         );
     }
@@ -169,30 +266,35 @@ export async function POST(req: Request) {
       const customerId = (conv.data as any)?.customer_id as string | undefined;
       const proId = (conv.data as any)?.pro_id as string | undefined;
       const recipientId = senderId === customerId ? proId : customerId;
-      if (recipientId && typeof recipientId === 'string') {
+      if (recipientId && typeof recipientId === "string") {
         const fnUrlDirect = process.env.SUPABASE_FUNCTIONS_URL;
-        const supaUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const fnBase = fnUrlDirect || (supaUrl ? `${supaUrl.replace(/\/$/, '')}/functions/v1` : null);
+        const supaUrl =
+          process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const fnBase =
+          fnUrlDirect ||
+          (supaUrl ? `${supaUrl.replace(/\/$/, "")}/functions/v1` : null);
         const srk = process.env.SUPABASE_SERVICE_ROLE_KEY;
         if (fnBase && srk) {
           const urlPath = `/mensajes/${conversationId}`;
-          const fnUrl = `${fnBase.replace(/\/$/, '')}/push-notify`;
-          const previewText = (body || '').trim().slice(0, 140) || 'Tienes un mensaje nuevo en Handi';
+          const fnUrl = `${fnBase.replace(/\/$/, "")}/push-notify`;
+          const previewText =
+            (body || "").trim().slice(0, 140) ||
+            "Tienes un mensaje nuevo en Handi";
           const fnRes = await fetch(fnUrl, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json; charset=utf-8',
+              "Content-Type": "application/json; charset=utf-8",
               Authorization: `Bearer ${srk}`,
             },
             body: JSON.stringify({
               toUserId: recipientId,
               payload: {
-                title: 'Nuevo mensaje',
+                title: "Nuevo mensaje",
                 body: previewText,
                 url: urlPath,
                 tag: `thread:${conversationId}`,
-                icon: '/icons/icon-192.png',
-                badge: '/icons/badge-72.png',
+                icon: "/icons/icon-192.png",
+                badge: "/icons/badge-72.png",
               },
             }),
           }).catch(() => undefined as unknown as Response);
@@ -201,30 +303,47 @@ export async function POST(req: Request) {
           if (!fnRes || !fnRes.ok) {
             const VAPID_PUBLIC = process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
             const VAPID_PRIVATE = process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
-            const VAPID_SUBJECT = process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:soporte@handi.mx';
+            const VAPID_SUBJECT =
+              process.env.WEB_PUSH_VAPID_SUBJECT || "mailto:soporte@handi.mx";
             if (VAPID_PUBLIC && VAPID_PRIVATE) {
               try {
-                webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+                webpush.setVapidDetails(
+                  VAPID_SUBJECT,
+                  VAPID_PUBLIC,
+                  VAPID_PRIVATE,
+                );
                 const admin = getAdminSupabase();
                 const { data: subs } = await admin
-                  .from('web_push_subscriptions')
-                  .select('id, endpoint, keys, p256dh, auth')
-                  .eq('user_id', recipientId);
+                  .from("web_push_subscriptions")
+                  .select("id, endpoint, keys, p256dh, auth")
+                  .eq("user_id", recipientId);
                 const payload = JSON.stringify({
-                  title: 'Nuevo mensaje',
+                  title: "Nuevo mensaje",
                   body: previewText,
                   url: urlPath,
                   tag: `thread:${conversationId}`,
-                  icon: '/icons/icon-192.png',
-                  badge: '/icons/badge-72.png',
+                  icon: "/icons/icon-192.png",
+                  badge: "/icons/badge-72.png",
                 });
                 for (const s of subs || []) {
-                  const rawKeys: any = (s as any).keys ?? { p256dh: (s as any).p256dh, auth: (s as any).auth };
+                  const rawKeys: any = (s as any).keys ?? {
+                    p256dh: (s as any).p256dh,
+                    auth: (s as any).auth,
+                  };
                   if (!rawKeys?.p256dh || !rawKeys?.auth) continue;
-                  const subscription = { endpoint: (s as any).endpoint, keys: { p256dh: rawKeys.p256dh, auth: rawKeys.auth } } as any;
-                  try { await webpush.sendNotification(subscription, payload); } catch { /* ignore per sub */ }
+                  const subscription = {
+                    endpoint: (s as any).endpoint,
+                    keys: { p256dh: rawKeys.p256dh, auth: rawKeys.auth },
+                  } as any;
+                  try {
+                    await webpush.sendNotification(subscription, payload);
+                  } catch {
+                    /* ignore per sub */
+                  }
                 }
-              } catch { /* ignore fallback errors */ }
+              } catch {
+                /* ignore fallback errors */
+              }
             }
           }
         }
@@ -235,25 +354,51 @@ export async function POST(req: Request) {
 
     // Email al otro participante con el contenido del mensaje y link al chat (no bloqueante)
     try {
-      const attachLite = (attachments || []).map((a) => ({ filename: a.filename }));
-      await notifyChatMessageByConversation({ conversationId, senderId: user.id, text: body || "", attachments: attachLite });
-    } catch { /* ignore email notify errors */ }
+      const attachLite = (attachments || []).map((a) => ({
+        filename: a.filename,
+      }));
+      await notifyChatMessageByConversation({
+        conversationId,
+        senderId: user.id,
+        text: body || "",
+        attachments: attachLite,
+      });
+    } catch {
+      /* ignore email notify errors */
+    }
 
     return NextResponse.json(
       { ok: true, data: ins.data },
       { status: 201, headers: JSONH },
     );
   } catch (e) {
-    const anyE = e as unknown as { status?: number; code?: string; message?: string; stack?: string };
-    const msg = anyE?.code || (e instanceof Error ? e.message : "INTERNAL_ERROR");
-    const isAuthErr = msg === "UNAUTHORIZED" || msg === "MISSING_AUTH" || msg === "INVALID_TOKEN";
-    const status = typeof anyE?.status === "number" ? anyE.status : isAuthErr ? 401 : 500;
+    const anyE = e as unknown as {
+      status?: number;
+      code?: string;
+      message?: string;
+      stack?: string;
+    };
+    const msg =
+      anyE?.code || (e instanceof Error ? e.message : "INTERNAL_ERROR");
+    const isAuthErr =
+      msg === "UNAUTHORIZED" ||
+      msg === "MISSING_AUTH" ||
+      msg === "INVALID_TOKEN";
+    const status =
+      typeof anyE?.status === "number" ? anyE.status : isAuthErr ? 401 : 500;
     if (process.env.NODE_ENV !== "production") {
       // eslint-disable-next-line no-console
       console.error("/api/chat/send error:", e);
     }
     return NextResponse.json(
-      { ok: false, error: msg, detail: process.env.NODE_ENV !== "production" ? anyE?.stack || null : undefined },
+      {
+        ok: false,
+        error: msg,
+        detail:
+          process.env.NODE_ENV !== "production"
+            ? anyE?.stack || null
+            : undefined,
+      },
       { status, headers: JSONH },
     );
   }

@@ -99,6 +99,7 @@ type SystemMessagePayload = LocationPayload & {
   receipt_url?: string | null;
   receipt_id?: string | null;
   download_url?: string | null;
+  view_url?: string | null;
   quote_id?: string | null;
   total?: number | string | null;
   currency?: string | null;
@@ -889,6 +890,11 @@ export default function MessageList({
           typeof payloadRecord.receipt_id === "string"
             ? (payloadRecord.receipt_id as string)
             : null;
+        const viewUrl =
+          typeof payloadRecord.view_url === "string" &&
+          payloadRecord.view_url.trim().length
+            ? (payloadRecord.view_url as string)
+            : null;
         const dl =
           typeof payloadRecord.download_url === "string" &&
           payloadRecord.download_url.trim().length
@@ -897,6 +903,7 @@ export default function MessageList({
               ? `/api/receipts/${encodeURIComponent(rid)}/pdf`
               : null;
         const link =
+          viewUrl ||
           dl ||
           (typeof payloadRecord.receipt_url === "string"
             ? (payloadRecord.receipt_url as string)
@@ -946,11 +953,29 @@ export default function MessageList({
         );
       }
       if (status === "paid") {
+        const rid =
+          typeof payloadRecord.receipt_id === "string"
+            ? (payloadRecord.receipt_id as string)
+            : null;
+        const viewUrl =
+          typeof payloadRecord.view_url === "string" &&
+          payloadRecord.view_url.trim().length
+            ? (payloadRecord.view_url as string)
+            : null;
+        const dl =
+          typeof payloadRecord.download_url === "string" &&
+          payloadRecord.download_url.trim().length
+            ? (payloadRecord.download_url as string)
+            : rid
+              ? `/api/receipts/${encodeURIComponent(rid)}/pdf`
+              : null;
         const receiptUrl =
-          typeof payloadRecord.receipt_url === "string" &&
+          viewUrl ||
+          dl ||
+          (typeof payloadRecord.receipt_url === "string" &&
           payloadRecord.receipt_url.trim().length
             ? (payloadRecord.receipt_url as string)
-            : null;
+            : null);
         return (
           <div className="text-sm font-medium text-blue-700">
             Pago realizado. Servicio agendado.
@@ -975,6 +1000,11 @@ export default function MessageList({
           typeof payloadRecord.receipt_id === "string"
             ? (payloadRecord.receipt_id as string)
             : null;
+        const viewUrl =
+          typeof payloadRecord.view_url === "string" &&
+          payloadRecord.view_url.trim().length
+            ? (payloadRecord.view_url as string)
+            : null;
         const dl =
           typeof payloadRecord.download_url === "string" &&
           payloadRecord.download_url.trim().length
@@ -983,6 +1013,7 @@ export default function MessageList({
               ? `/api/receipts/${encodeURIComponent(rid)}/pdf`
               : null;
         const link =
+          viewUrl ||
           dl ||
           (typeof payloadRecord.receipt_url === "string"
             ? (payloadRecord.receipt_url as string)

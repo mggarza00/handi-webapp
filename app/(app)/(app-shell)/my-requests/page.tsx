@@ -22,6 +22,7 @@ type RequestItem = {
 };
 
 export default function RequestsClientPage() {
+  // @deprecated Prefer /requests?mine=1 (newer UI).
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -44,7 +45,10 @@ export default function RequestsClientPage() {
         if (city) qs.set("city", city);
         if (mine === "1" || mine === "true") qs.set("mine", "1");
         const url = `/api/requests${qs.toString() ? `?${qs.toString()}` : ""}`;
-        const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+        const res = await fetch(url, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || "Request failed");
         setItems(json.data ?? []);
@@ -76,7 +80,9 @@ export default function RequestsClientPage() {
           <Label>Status</Label>
           <Select
             value={status ?? "all"}
-            onValueChange={(v) => updateSearch({ status: v === "all" ? undefined : v })}
+            onValueChange={(v) =>
+              updateSearch({ status: v === "all" ? undefined : v })
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Todos" />
@@ -104,12 +110,23 @@ export default function RequestsClientPage() {
             type="checkbox"
             className="size-4"
             checked={mine === "1"}
-            onChange={(e) => updateSearch({ mine: e.target.checked ? "1" : undefined })}
+            onChange={(e) =>
+              updateSearch({ mine: e.target.checked ? "1" : undefined })
+            }
           />
           <Label htmlFor="mine">Mis solicitudes</Label>
         </div>
         <div className="md:justify-self-end">
-          <Button onClick={() => updateSearch({ status: undefined, city: undefined, mine: undefined })} variant="outline">
+          <Button
+            onClick={() =>
+              updateSearch({
+                status: undefined,
+                city: undefined,
+                mine: undefined,
+              })
+            }
+            variant="outline"
+          >
             Limpiar filtros
           </Button>
         </div>
@@ -126,10 +143,14 @@ export default function RequestsClientPage() {
                   <div>
                     <p className="font-medium">{it.title}</p>
                     <p className="text-xs text-gray-500">
-                      {it.city ?? "—"} · {it.status ?? "active"} · {it.created_at?.slice(0, 10) ?? ""}
+                      {it.city ?? "—"} · {it.status ?? "active"} ·{" "}
+                      {it.created_at?.slice(0, 10) ?? ""}
                     </p>
                   </div>
-                  <a href={`/requests/${it.id}`} className="text-sm text-blue-600 hover:underline">
+                  <a
+                    href={`/requests/${it.id}`}
+                    className="text-sm text-blue-600 hover:underline"
+                  >
                     Ver
                   </a>
                 </div>

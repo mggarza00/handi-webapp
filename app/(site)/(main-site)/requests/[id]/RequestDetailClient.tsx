@@ -51,6 +51,42 @@ function formatDateDisplay(input?: string | null): string {
   return `${d}-${m}-${y}`;
 }
 
+function statusUi(status?: string | null) {
+  const key = (status ?? "").toLowerCase();
+  const label =
+    UI_STATUS_LABELS[(status as keyof typeof UI_STATUS_LABELS) ?? ""] ||
+    status ||
+    "Sin estatus";
+  if (key === "active") {
+    return {
+      label,
+      badgeClass: "bg-blue-100 text-blue-800 border-blue-200",
+    };
+  }
+  if (key === "in_process") {
+    return {
+      label,
+      badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    };
+  }
+  if (key === "completed" || key === "finished") {
+    return {
+      label,
+      badgeClass: "bg-purple-100 text-purple-800 border-purple-200",
+    };
+  }
+  if (key === "cancelled" || key === "canceled" || key === "deleted") {
+    return {
+      label,
+      badgeClass: "bg-red-100 text-red-800 border-red-200",
+    };
+  }
+  return {
+    label,
+    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+  };
+}
+
 export type RequestDetail = {
   id: string;
   title?: string | null;
@@ -103,7 +139,9 @@ export default function RequestDetailClient({
   const [requiredAt, setRequiredAt] = React.useState<string>(() =>
     normalizeDateInput(initial.required_at ?? ""),
   );
-  const [conditionsText, setConditionsText] = React.useState<string>(() => (initial.conditions ?? "").toString());
+  const [conditionsText, setConditionsText] = React.useState<string>(() =>
+    (initial.conditions ?? "").toString(),
+  );
   const [attachments, setAttachments] = React.useState<Attachment[]>(() => {
     const raw = (initial as Record<string, unknown>)["attachments"] as unknown;
     if (Array.isArray(raw)) {
@@ -130,6 +168,7 @@ export default function RequestDetailClient({
   const [subOptions, setSubOptions] = React.useState<
     Record<string, Array<{ name: string; icon?: string | null }>>
   >({});
+  const statusInfo = React.useMemo(() => statusUi(status), [status]);
 
   const subIcon: string | null = React.useMemo(() => {
     const c = (category || "").trim();
@@ -140,7 +179,9 @@ export default function RequestDetailClient({
     return (found?.icon ?? null) as string | null;
   }, [category, subcategory, subOptions]);
 
-  function formatCurrencyMXN(value: string | number | null | undefined): string | null {
+  function formatCurrencyMXN(
+    value: string | number | null | undefined,
+  ): string | null {
     if (value == null || value === "") return null;
     const n = typeof value === "string" ? Number(value) : Number(value);
     if (!Number.isFinite(n)) return null;
@@ -152,18 +193,27 @@ export default function RequestDetailClient({
     }).format(n);
   }
 
-  
-
   // Load categories/subcategories for dropdowns
   React.useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const res = await fetch("/api/catalog/categories", { cache: "no-store" });
+        const res = await fetch("/api/catalog/categories", {
+          cache: "no-store",
+        });
         const j = await res.json();
         if (!res.ok || !j?.ok) return;
-        const rows = Array.isArray(j.data) ? (j.data as Array<{ category?: string; subcategory?: string | null; icon?: string | null }>) : [];
-        const cats = new Map<string, Map<string, { name: string; icon?: string | null }>>();
+        const rows = Array.isArray(j.data)
+          ? (j.data as Array<{
+              category?: string;
+              subcategory?: string | null;
+              icon?: string | null;
+            }>)
+          : [];
+        const cats = new Map<
+          string,
+          Map<string, { name: string; icon?: string | null }>
+        >();
         for (const r of rows) {
           const c = String(r.category || "").trim();
           const s = (r.subcategory ? String(r.subcategory) : "").trim();
@@ -172,10 +222,17 @@ export default function RequestDetailClient({
           if (!cats.has(c)) cats.set(c, new Map());
           if (s) cats.get(c)!.set(s, { name: s, icon });
         }
-        const catList = Array.from(cats.keys()).sort((a, b) => a.localeCompare(b, "es"));
-        const subsMap: Record<string, Array<{ name: string; icon?: string | null }>> = {};
+        const catList = Array.from(cats.keys()).sort((a, b) =>
+          a.localeCompare(b, "es"),
+        );
+        const subsMap: Record<
+          string,
+          Array<{ name: string; icon?: string | null }>
+        > = {};
         for (const [c, subs] of cats.entries()) {
-          subsMap[c] = Array.from(subs.values()).sort((a, b) => a.name.localeCompare(b.name, "es"));
+          subsMap[c] = Array.from(subs.values()).sort((a, b) =>
+            a.name.localeCompare(b.name, "es"),
+          );
         }
         if (!alive) return;
         setCatOptions(catList);
@@ -190,7 +247,6 @@ export default function RequestDetailClient({
   }, []);
 
   // Register window listeners for external edit/save/cancel/delete events
-  
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -229,9 +285,11 @@ export default function RequestDetailClient({
     } else {
       const ph = Array.isArray(initial.photos) ? initial.photos : [];
       setAttachments(
-        ph
-          .slice(0, 5)
-          .map((p) => ({ url: p.url, mime: String(p.alt ?? "image/*"), size: 0 })),
+        ph.slice(0, 5).map((p) => ({
+          url: p.url,
+          mime: String(p.alt ?? "image/*"),
+          size: 0,
+        })),
       );
     }
   }, [initial]);
@@ -271,9 +329,10 @@ export default function RequestDetailClient({
         required_at: requiredAt
           ? new Date(`${requiredAt}T00:00:00.000Z`).toISOString()
           : undefined,
-         attachments: attachments.slice(0, 5),
-       };
-      if (conditionsText && conditionsText.trim().length > 0) body.conditions = conditionsText.trim();
+        attachments: attachments.slice(0, 5),
+      };
+      if (conditionsText && conditionsText.trim().length > 0)
+        body.conditions = conditionsText.trim();
       let res = await fetch(`/api/requests/${initial.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -358,8 +417,14 @@ export default function RequestDetailClient({
     return () => {
       window.removeEventListener("request-edit", onReqEdit as EventListener);
       window.removeEventListener("request-save", onReqSave as EventListener);
-      window.removeEventListener("request-cancel", onReqCancel as EventListener);
-      window.removeEventListener("request-delete", onReqDelete as EventListener);
+      window.removeEventListener(
+        "request-cancel",
+        onReqCancel as EventListener,
+      );
+      window.removeEventListener(
+        "request-delete",
+        onReqDelete as EventListener,
+      );
     };
   }, [initial.id, handleSave, resetEdits]);
 
@@ -391,13 +456,19 @@ export default function RequestDetailClient({
     if (!files || files.length === 0) return;
     setUploading(true);
     try {
-      await fetch("/api/storage/ensure?b=requests", { method: "POST" }).catch(() => undefined);
+      await fetch("/api/storage/ensure?b=requests", { method: "POST" }).catch(
+        () => undefined,
+      );
 
-      const meRes = await fetch("/api/me", { headers: { "Content-Type": "application/json; charset=utf-8" } }).catch(() => null);
+      const meRes = await fetch("/api/me", {
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+      }).catch(() => null);
       let currentUserId: string | null = null;
       if (meRes) {
         const meJson = await meRes.json().catch(() => ({}));
-        currentUserId = meRes.ok ? ((meJson?.user?.id as string | undefined) ?? null) : null;
+        currentUserId = meRes.ok
+          ? ((meJson?.user?.id as string | undefined) ?? null)
+          : null;
       }
       const prefix = currentUserId ?? "anon";
 
@@ -406,7 +477,8 @@ export default function RequestDetailClient({
         if (next.length >= 5) break;
         const max = 5 * 1024 * 1024;
         if (f.size > max) throw new Error(`El archivo ${f.name} excede 5MB`);
-        if (!/^image\//i.test(f.type)) throw new Error(`Tipo inválido para ${f.name}`);
+        if (!/^image\//i.test(f.type))
+          throw new Error(`Tipo inválido para ${f.name}`);
         const path = `${prefix}/${Date.now()}-${encodeURIComponent(f.name)}`;
         let uploadedUrl: string | null = null;
         try {
@@ -423,12 +495,20 @@ export default function RequestDetailClient({
           fd.append("file", f);
           fd.append("path", path);
           fd.append("bucket", "requests");
-          const r = await fetch("/api/storage/upload", { method: "POST", body: fd });
+          const r = await fetch("/api/storage/upload", {
+            method: "POST",
+            body: fd,
+          });
           const j = await r.json();
           if (!r.ok || !j?.ok) throw new Error(j?.error || "upload_failed");
           uploadedUrl = j.url as string;
         }
-        next.push({ url: uploadedUrl!, mime: f.type || "image/*", size: f.size, path });
+        next.push({
+          url: uploadedUrl!,
+          mime: f.type || "image/*",
+          size: f.size,
+          path,
+        });
       }
       setAttachments(next.slice(0, 5));
     } catch (e) {
@@ -498,7 +578,9 @@ export default function RequestDetailClient({
                   variant="destructive"
                   onClick={() => setConfirmOpen(true)}
                   aria-label="Eliminar"
-                  className={compactActions ? "p-2 hidden md:inline-flex" : "gap-1"}
+                  className={
+                    compactActions ? "p-2 hidden md:inline-flex" : "gap-1"
+                  }
                 >
                   <Trash2 className="h-4 w-4" />
                   {compactActions ? null : <span>Eliminar</span>}
@@ -519,7 +601,14 @@ export default function RequestDetailClient({
             </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-4">
-                <Field label="Estado" value={UI_STATUS_LABELS[(status as any) as keyof typeof UI_STATUS_LABELS] || status} />
+                <div>
+                  <div className="text-xs text-slate-500">Estado</div>
+                  <span
+                    className={`mt-1 inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusInfo.badgeClass}`}
+                  >
+                    {statusInfo.label}
+                  </span>
+                </div>
               </Card>
               <Card className="p-4">
                 <Field label="Ciudad" value={city} />
@@ -534,20 +623,34 @@ export default function RequestDetailClient({
                     {subIcon ? (
                       subIcon.startsWith("http") ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={subIcon} alt="" className="h-4 w-4 object-contain" />
+                        <img
+                          src={subIcon}
+                          alt=""
+                          className="h-4 w-4 object-contain"
+                        />
                       ) : (
                         <span className="text-sm leading-none">{subIcon}</span>
                       )
                     ) : null}
-                    <span>{subcategory == null || subcategory === "" ? "—" : subcategory}</span>
+                    <span>
+                      {subcategory == null || subcategory === ""
+                        ? "—"
+                        : subcategory}
+                    </span>
                   </div>
                 </div>
               </Card>
               <Card className="p-4">
-                <Field label="Presupuesto (MXN)" value={formatCurrencyMXN(budget)} />
+                <Field
+                  label="Presupuesto (MXN)"
+                  value={formatCurrencyMXN(budget)}
+                />
               </Card>
               <Card className="p-4">
-                <Field label="Fecha requerida" value={formatDateDisplay(requiredAt)} />
+                <Field
+                  label="Fecha requerida"
+                  value={formatDateDisplay(requiredAt)}
+                />
               </Card>
               {/* Condiciones moved to header area; no card here in view mode */}
             </div>
@@ -557,7 +660,10 @@ export default function RequestDetailClient({
             <Card className="p-4 space-y-3">
               <div>
                 <label className="text-sm text-slate-600">Título</label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
               </div>
             </Card>
             <Card className="p-4 space-y-3">
@@ -577,7 +683,10 @@ export default function RequestDetailClient({
               </Card>
               <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Ciudad</label>
-                <Select value={city || undefined} onValueChange={(v) => setCity(v)}>
+                <Select
+                  value={city || undefined}
+                  onValueChange={(v) => setCity(v)}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecciona ciudad" />
                   </SelectTrigger>
@@ -603,7 +712,8 @@ export default function RequestDetailClient({
                   onValueChange={(v) => {
                     setCategory(v);
                     const allowed = (subOptions[v] || []).map((x) => x.name);
-                    if (!allowed.includes(subcategory)) setSubcategory(allowed[0] || "");
+                    if (!allowed.includes(subcategory))
+                      setSubcategory(allowed[0] || "");
                   }}
                 >
                   <SelectTrigger className="w-full">
@@ -626,7 +736,13 @@ export default function RequestDetailClient({
                   disabled={!category}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={category ? "Selecciona subcategoría" : "Selecciona categoría primero"} />
+                    <SelectValue
+                      placeholder={
+                        category
+                          ? "Selecciona subcategoría"
+                          : "Selecciona categoría primero"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {(subOptions[category] || []).map((s) => (
@@ -635,9 +751,15 @@ export default function RequestDetailClient({
                           {s.icon ? (
                             s.icon.startsWith("http") ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={s.icon} alt="" className="h-4 w-4 object-contain" />
+                              <img
+                                src={s.icon}
+                                alt=""
+                                className="h-4 w-4 object-contain"
+                              />
                             ) : (
-                              <span className="text-sm leading-none">{s.icon}</span>
+                              <span className="text-sm leading-none">
+                                {s.icon}
+                              </span>
                             )
                           ) : null}
                           <span>{s.name}</span>
@@ -649,10 +771,15 @@ export default function RequestDetailClient({
               </Card>
               <Card className="p-4 space-y-2">
                 <label className="text-sm text-slate-600">Condiciones</label>
-                <ConditionsChips value={conditionsText} onChange={setConditionsText} />
+                <ConditionsChips
+                  value={conditionsText}
+                  onChange={setConditionsText}
+                />
               </Card>
               <Card className="p-4 space-y-2">
-                <label className="text-sm text-slate-600">Presupuesto (MXN)</label>
+                <label className="text-sm text-slate-600">
+                  Presupuesto (MXN)
+                </label>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -661,8 +788,14 @@ export default function RequestDetailClient({
                 />
               </Card>
               <Card className="p-4 space-y-2">
-                <label className="text-sm text-slate-600">Fecha requerida</label>
-                <Input type="date" value={requiredAt} onChange={(e) => setRequiredAt(e.target.value)} />
+                <label className="text-sm text-slate-600">
+                  Fecha requerida
+                </label>
+                <Input
+                  type="date"
+                  value={requiredAt}
+                  onChange={(e) => setRequiredAt(e.target.value)}
+                />
               </Card>
             </div>
 
@@ -699,7 +832,9 @@ export default function RequestDetailClient({
                   </label>
                 )}
               </div>
-              {uploading && <div className="text-xs text-slate-500">Subiendo imágenes…</div>}
+              {uploading && (
+                <div className="text-xs text-slate-500">Subiendo imágenes…</div>
+              )}
             </Card>
           </>
         )}
@@ -712,14 +847,23 @@ export default function RequestDetailClient({
           <DialogHeader>
             <DialogTitle>Eliminar solicitud</DialogTitle>
             <DialogDescription>
-              ¿Estás seguro de eliminar esta publicación? Esta acción no se puede deshacer.
+              ¿Estás seguro de eliminar esta publicación? Esta acción no se
+              puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmOpen(false)}
+              disabled={deleting}
+            >
               Cancelar
             </Button>
-            <Button onClick={handleDelete} disabled={deleting} className="gap-1 bg-black text-white hover:opacity-90">
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="gap-1 bg-black text-white hover:opacity-90"
+            >
               <Trash2 className="h-4 w-4" />
               Eliminar
             </Button>
@@ -744,7 +888,9 @@ function Field({
     <div>
       <div className="text-xs text-slate-500">{label}</div>
       {multiline ? (
-        <p className="text-sm text-slate-700 whitespace-pre-line leading-6">{v}</p>
+        <p className="text-sm text-slate-700 whitespace-pre-line leading-6">
+          {v}
+        </p>
       ) : (
         <div className="text-sm text-slate-700">{v}</div>
       )}

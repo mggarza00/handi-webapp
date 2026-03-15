@@ -5,7 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
-type Props = { requestId: string; createdBy?: string | null };
+type Props = {
+  requestId: string;
+  createdBy?: string | null;
+  supportId?: number | string | null;
+};
 
 type ProfessionalSummary = {
   id: string;
@@ -59,11 +63,12 @@ function pickMostRecent(items: AgreementItem[]): AgreementItem | null {
   );
 }
 
-export default function AgreementsClient({ requestId }: Props) {
+export default function AgreementsClient({ requestId, supportId }: Props) {
   const [items, setItems] = React.useState<AgreementItem[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [nonce, setNonce] = React.useState(0);
+  const [copied, setCopied] = React.useState(false);
   const lastRealtimeAtRef = React.useRef(0);
   const supabase = React.useMemo(() => {
     try {
@@ -168,8 +173,7 @@ export default function AgreementsClient({ requestId }: Props) {
         string | { requestId?: string; source?: string }
       >;
       const detail = ce?.detail;
-      const targetId =
-        typeof detail === "string" ? detail : detail?.requestId;
+      const targetId = typeof detail === "string" ? detail : detail?.requestId;
       const source = typeof detail === "string" ? null : detail?.source;
       if (source === "agreements-realtime" && targetId === requestId) return;
       if (!targetId || targetId === requestId) refresh();
@@ -193,6 +197,25 @@ export default function AgreementsClient({ requestId }: Props) {
     const mostRecent = pickMostRecent(paidish);
     return mostRecent ? [mostRecent] : visible;
   }, [items]);
+
+  const supportIdValue =
+    supportId == null || supportId === "" ? requestId : String(supportId);
+  const supportLabel =
+    supportId == null || supportId === ""
+      ? "ID para soporte (temporal):"
+      : "ID para soporte:";
+
+  async function handleCopySupportId() {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(String(supportIdValue));
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }
+    } catch {
+      // noop
+    }
+  }
 
   return (
     <Card className="border-slate-200">
@@ -245,6 +268,20 @@ export default function AgreementsClient({ requestId }: Props) {
             })}
           </ul>
         )}
+        <div className="mt-4 border-t pt-3 text-xs text-slate-500">
+          <span>{supportLabel}</span>
+          <span className="ml-1 font-mono text-xs text-slate-600 select-text">
+            {supportIdValue}
+          </span>
+          <button
+            type="button"
+            onClick={handleCopySupportId}
+            aria-label="Copiar ID para soporte"
+            className="ml-2 text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
+          >
+            {copied ? "Copiado" : "Copiar"}
+          </button>
+        </div>
       </CardContent>
     </Card>
   );

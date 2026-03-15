@@ -86,10 +86,10 @@ export default function SiteFooter() {
               <li>
                 WhatsApp:{" "}
                 <a
-                  href="https://wa.me/5218181611335"
+                  href="https://wa.me/528130878691"
                   className="font-light text-white hover:text-[#F4571F]"
                 >
-                  +52 1 81 8161 1335
+                  +52 81 3087 8691
                 </a>
               </li>
               <li>

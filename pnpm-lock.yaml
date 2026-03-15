@@ -91,6 +91,9 @@ importers:
       caniuse-lite:
         specifier: ^1.0.30001759
         version: 1.0.30001759
+      canvas-confetti:
+        specifier: ^1.9.4
+        version: 1.9.4
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -4744,6 +4747,12 @@ packages:
     resolution:
       {
         integrity: sha512-Pzfx9fOKoKvevQf8oCXoyNRQ5QyxJj+3O0Rqx2V5oxT61KGx8+n6hV/IUyJeifUci2clnmmKVpvtiqRzgiWjSw==,
+      }
+
+  canvas-confetti@1.9.4:
+    resolution:
+      {
+        integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==,
       }
 
   caseless@0.12.0:
@@ -14793,6 +14802,8 @@ snapshots:
   camelize@1.0.1: {}
 
   caniuse-lite@1.0.30001759: {}
+
+  canvas-confetti@1.9.4: {}
 
   caseless@0.12.0: {}
 

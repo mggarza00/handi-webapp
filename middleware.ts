@@ -12,6 +12,8 @@ const ADMIN_ROLES = new Set([
   "support",
   "reviewer",
 ]);
+const MAINTENANCE = process.env.MAINTENANCE_MODE === "true";
+const LOG_TIMING = process.env.LOG_TIMING === "1";
 
 function isLocalAdminBypassAllowed(request: NextRequest) {
   // E2E-only admin bypass: requires explicit env, non-production, localhost host.
@@ -23,7 +25,9 @@ function isLocalAdminBypassAllowed(request: NextRequest) {
     request.nextUrl.hostname ||
     "";
   const hostname = host.split(":")[0].toLowerCase();
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  return (
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  );
 }
 
 function createMiddlewareSupabase(
@@ -71,7 +75,23 @@ function createMiddlewareSupabase(
 }
 
 export async function middleware(request: NextRequest) {
+  const t0 = Date.now();
   const { pathname } = request.nextUrl;
+
+  if (MAINTENANCE) {
+    const isAuthPath =
+      pathname.startsWith("/auth") || pathname.startsWith("/api/auth");
+    const isApiPath = pathname.startsWith("/api");
+    if (!isAuthPath && !isApiPath) {
+      return new NextResponse("Maintenance", {
+        status: 503,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+  }
 
   // Rate-limit only for /api/classify-request (per IP, in-memory)
   if (pathname === "/api/classify-request") {
@@ -107,6 +127,20 @@ export async function middleware(request: NextRequest) {
     }
     return NextResponse.next();
   }
+  const allCookies = request.cookies.getAll();
+  const hasSbPrefix = allCookies.some((cookie) =>
+    cookie.name.startsWith("sb-"),
+  );
+  const hasAuthCookie =
+    hasSbPrefix ||
+    request.cookies.has("sb-access-token") ||
+    request.cookies.has("sb:token") ||
+    request.cookies.has("supabase-auth-token");
+
+  if (!hasAuthCookie && !pathname.startsWith("/admin")) {
+    return NextResponse.next();
+  }
+
   // Primero refrescamos sesión para mantener cookies al día
   const response = await updateSession(request);
   const supabase = createMiddlewareSupabase(request, response);
@@ -152,10 +186,19 @@ export async function middleware(request: NextRequest) {
     if (returnTo && returnTo !== "/") u.searchParams.set("next", returnTo);
     return NextResponse.redirect(u);
   }
-  // Redirección condicional del home a /pro si el usuario está en vista Pro
+  // RedirecciÃ³n condicional del home a /pro si el usuario estÃ¡ en vista Pro
   if (pathname === "/") {
+    const activeRole = (
+      request.cookies.get("active_role")?.value || ""
+    ).toLowerCase();
     const lowered =
       typeof profileRole === "string" ? profileRole.toLowerCase() : null;
+    if (activeRole === "pro") {
+      const u = request.nextUrl.clone();
+      u.pathname = "/pro";
+      return NextResponse.redirect(u);
+    }
+    if (activeRole === "client") return response;
     if (lowered === "pro") {
       const u = request.nextUrl.clone();
       u.pathname = "/pro";
@@ -164,10 +207,21 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if (!pathname.startsWith("/admin")) return response;
+  if (!pathname.startsWith("/admin")) {
+    if (LOG_TIMING) {
+      // eslint-disable-next-line no-console
+      console.info("[timing] middleware", {
+        path: pathname,
+        ms: Date.now() - t0,
+      });
+    }
+    return response;
+  }
 
   // Bypass dev/CI por cookie handi_role
-  const devRole = (request.cookies.get("handi_role")?.value || "").toLowerCase();
+  const devRole = (
+    request.cookies.get("handi_role")?.value || ""
+  ).toLowerCase();
   if (isLocalAdminBypassAllowed(request) && devRole && ADMIN_ROLES.has(devRole))
     return response;
 
@@ -194,6 +248,13 @@ export async function middleware(request: NextRequest) {
     allowedByEmail;
 
   if (canAccessAdmin) {
+    if (LOG_TIMING) {
+      // eslint-disable-next-line no-console
+      console.info("[timing] middleware", {
+        path: pathname,
+        ms: Date.now() - t0,
+      });
+    }
     return response;
   }
 

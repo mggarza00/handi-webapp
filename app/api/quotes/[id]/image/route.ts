@@ -125,7 +125,7 @@ export async function GET(
         }))
       : [];
 
-    // Resolve service title + details/conditions
+    // Resolve service title + details (notes from pro only)
     let serviceTitle: string | null = null;
     let detailsText: string | null = null;
     try {
@@ -145,26 +145,19 @@ export async function GET(
           ? String((payload as any).notes)
           : null;
 
-      // 2) Request meta (title + conditions)
-      let reqConditions: string | null = null;
+      // 2) Request meta (title only)
       const reqId = (conv as any)?.request_id as string | null;
       if (reqId) {
         const { data: req } = await admin
           .from("requests")
-          .select("title, conditions")
+          .select("title")
           .eq("id", reqId)
           .maybeSingle();
-        const cond = (req as any)?.conditions as string | null;
         const title = (req as any)?.title as string | null;
-        if (cond && cond.trim().length) reqConditions = cond.trim();
         if (title && title.trim().length) serviceTitle = title.trim();
       }
 
-      const parts: string[] = [];
-      if (notes && notes.trim().length) parts.push(notes.trim());
-      if (reqConditions && reqConditions.trim().length)
-        parts.push(`Condiciones: ${reqConditions}`);
-      detailsText = parts.length ? parts.join("\n\n") : null;
+      if (notes && notes.trim().length) detailsText = notes.trim();
     } catch {
       detailsText = detailsText || null;
     }
@@ -221,9 +214,7 @@ export async function GET(
       serviceTitle: serviceTitle || "Servicio solicitado",
       items,
       currency: (quote as any).currency || "MXN",
-      notes:
-        detailsText ||
-        "Precio no incluye IVA ni comision. Sujeto a condiciones del servicio.",
+      notes: detailsText || undefined,
       brandHex: "#0E7490",
       grayHex: "#E5E7EB",
     } as const;

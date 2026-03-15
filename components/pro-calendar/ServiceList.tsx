@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -30,6 +30,17 @@ type ServiceGroup = {
   isToday: boolean;
   items: NormalizedService[];
 };
+
+function formatStatusLabel(status?: string | null): string {
+  const value = String(status || "").toLowerCase();
+  if (!value) return "Agendado";
+  if (value === "scheduled") return "Agendado";
+  if (value === "in_process" || value === "inprogress") return "En proceso";
+  if (value === "finished" || value === "completed") return "Finalizado";
+  if (value === "canceled" || value === "cancelled") return "Cancelado";
+  if (value === "active" || value === "pending") return "Activa";
+  return value.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+}
 
 export default function ServiceList({
   services,
@@ -252,7 +263,7 @@ export default function ServiceList({
                                 : undefined
                             }
                           >
-                            {ev.status || "scheduled"}
+                            {formatStatusLabel(ev.status)}
                           </Badge>
                         </CardTitle>
                       </CardHeader>

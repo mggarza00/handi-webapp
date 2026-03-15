@@ -43,7 +43,9 @@ export async function POST(
       try {
         const { data: app } = await admin
           .from("pro_applications")
-          .select("full_name, cities, categories, subcategories, years_experience, empresa, is_company, rfc, company_legal_name, company_industry, company_employees_count, company_website, company_doc_incorporation_url, company_csf_url, company_rep_id_front_url, company_rep_id_back_url")
+          .select(
+            "full_name, phone, cities, categories, subcategories, years_experience, empresa, is_company, rfc, company_legal_name, company_industry, company_employees_count, company_website, company_doc_incorporation_url, company_csf_url, company_rep_id_front_url, company_rep_id_back_url",
+          )
           .eq("id", params.id)
           .single();
         const patch: Record<string, unknown> = {
@@ -76,9 +78,14 @@ export async function POST(
         if (app) {
           if (app.full_name) patch.full_name = app.full_name;
           if ((app as unknown as { rfc?: string | null }).rfc)
-            patch.rfc = (app as unknown as { rfc?: string | null }).rfc as string;
-          const appEmpresa = Boolean((app as unknown as { empresa?: boolean | null }).empresa);
-          const appIsCompany = Boolean((app as unknown as { is_company?: boolean | null }).is_company);
+            patch.rfc = (app as unknown as { rfc?: string | null })
+              .rfc as string;
+          const appEmpresa = Boolean(
+            (app as unknown as { empresa?: boolean | null }).empresa,
+          );
+          const appIsCompany = Boolean(
+            (app as unknown as { is_company?: boolean | null }).is_company,
+          );
           if (appEmpresa || appIsCompany) {
             patch.is_company = true;
           }
@@ -124,8 +131,9 @@ export async function POST(
             if (normalized.length > 0) patch.categories = normalized as unknown;
           }
           // subcategories: normalize to array of { name }
-          const appSubs = (app as unknown as { subcategories?: unknown[] | null })
-            .subcategories;
+          const appSubs = (
+            app as unknown as { subcategories?: unknown[] | null }
+          ).subcategories;
           if (appSubs) {
             const normalizedSubs = Array.isArray(appSubs)
               ? (appSubs as unknown[])
@@ -139,7 +147,8 @@ export async function POST(
                   .filter((x): x is Record<string, unknown> => !!x)
               : [];
             if (normalizedSubs.length > 0)
-              (patch as Record<string, unknown>).subcategories = normalizedSubs as unknown;
+              (patch as Record<string, unknown>).subcategories =
+                normalizedSubs as unknown;
           }
           if (app.years_experience != null)
             patch.years_experience = app.years_experience as unknown as number;
@@ -152,18 +161,44 @@ export async function POST(
           .maybeSingle<{ id: string; avatar_url: string | null }>();
         if (existing.data) {
           const updatePatch: Record<string, unknown> = { ...patch };
-          if (!existing.data.avatar_url) updatePatch.avatar_url = desiredAvatarUrl;
+          if (!existing.data.avatar_url)
+            updatePatch.avatar_url = desiredAvatarUrl;
           await admin.from("professionals").update(updatePatch).eq("id", uid);
         } else {
           await admin
             .from("professionals")
-            .insert([{ id: uid, ...patch, avatar_url: desiredAvatarUrl } as Record<string, unknown>]);
+            .insert([
+              { id: uid, ...patch, avatar_url: desiredAvatarUrl } as Record<
+                string,
+                unknown
+              >,
+            ]);
         }
         // Sync profiles.full_name si viene en la solicitud
         try {
           const name = (patch.full_name as string | null) || null;
           if (typeof name === "string" && name.trim().length >= 2) {
-            await admin.from("profiles").update({ full_name: name.trim() }).eq("id", uid);
+            await admin
+              .from("profiles")
+              .update({ full_name: name.trim() })
+              .eq("id", uid);
+          }
+        } catch {
+          /* ignore */
+        }
+        // Sync profiles.phone (best-effort, don't overwrite existing)
+        try {
+          const phone = typeof app?.phone === "string" ? app.phone.trim() : "";
+          if (phone.length >= 8) {
+            const existingPhone = await admin
+              .from("profiles")
+              .select("phone")
+              .eq("id", uid)
+              .maybeSingle<{ phone: string | null }>();
+            const current = (existingPhone.data?.phone || "").trim();
+            if (!current) {
+              await admin.from("profiles").update({ phone }).eq("id", uid);
+            }
           }
         } catch {
           /* ignore */
@@ -215,15 +250,24 @@ export async function POST(
         // ignore if table missing
       }
     }
-  // Avisar por email al profesional
+    // Avisar por email al profesional
     try {
-      if (uid && (parsed.data.status === "accepted" || parsed.data.status === "rejected")) {
-        await notifyProApplicationDecision({ user_id: uid, status: parsed.data.status });
+      if (
+        uid &&
+        (parsed.data.status === "accepted" || parsed.data.status === "rejected")
+      ) {
+        await notifyProApplicationDecision({
+          user_id: uid,
+          status: parsed.data.status,
+        });
       }
     } catch {
       // ignore email errors
     }
-    return NextResponse.json({ ok: true, data: upd.data }, { status: 200, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, data: upd.data },
+      { status: 200, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

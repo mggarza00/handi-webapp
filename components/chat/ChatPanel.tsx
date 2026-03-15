@@ -217,8 +217,8 @@ export default function ChatPanel({
   );
   const [requestTitle, setRequestTitle] = React.useState<string | null>(null);
   const [requestStatus, setRequestStatus] = React.useState<string | null>(null);
-  const proProfileIdRef = React.useRef<string | null>(null);
-  const [proProfile, setProProfile] = React.useState<{
+  const headerProfileIdRef = React.useRef<string | null>(null);
+  const [headerProfile, setHeaderProfile] = React.useState<{
     full_name: string | null;
     avatar_url: string | null;
   } | null>(null);
@@ -283,11 +283,12 @@ export default function ChatPanel({
         parsed = Number.isNaN(tmp.getTime()) ? null : tmp;
       }
       if (parsed) {
-        base = new Date(
+        const parsedStart = new Date(
           parsed.getFullYear(),
           parsed.getMonth(),
           parsed.getDate(),
         );
+        base = parsedStart < todayStart ? todayStart : parsedStart;
       }
     }
     return toYMD(base);
@@ -730,72 +731,29 @@ export default function ChatPanel({
     };
   }, [requestId, getAuthHeaders]);
 
-  // Fetch professional profile once pro_id is known (header avatar/name)
-  React.useEffect(() => {
-    const proId =
-      participants?.pro_id && typeof participants.pro_id === "string"
-        ? participants.pro_id
-        : null;
-    const targetId = proId;
-    if (!targetId) return;
-    if (proProfile && proProfileIdRef.current === targetId) return;
-    proProfileIdRef.current = targetId;
-    let cancelled = false;
-    (async () => {
-      try {
-        const headers = await getAuthHeaders();
-        const proRes = await fetch(
-          `/api/profiles/${encodeURIComponent(targetId)}`,
-          {
-            headers,
-            cache: "no-store",
-            credentials: "include",
-          },
-        );
-        const proJson = await parseJsonSafe<{
-          ok?: boolean;
-          data?: { full_name?: string | null; avatar_url?: string | null };
-        }>(proRes);
-        if (cancelled) return;
-        if (
-          !proRes.ok ||
-          proJson?.ok === false ||
-          !proJson?.data ||
-          typeof proJson.data !== "object"
-        ) {
-          return;
-        }
-        setProProfile({
-          full_name:
-            (proJson.data.full_name as string | null | undefined) ?? null,
-          avatar_url:
-            (proJson.data.avatar_url as string | null | undefined) ?? null,
-        });
-      } catch {
-        /* ignore profile errors */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [participants, getAuthHeaders, proProfile]);
-
-  // Fallback: fetch profile using otherUserId if available (e.g., in requests chat)
+  // Header shows the peer (other participant), not necessarily the pro.
   React.useEffect(() => {
     const targetId = (() => {
-      if (participants?.pro_id && typeof participants.pro_id === "string")
-        return participants.pro_id;
-      const other =
-        participants && meId
-          ? participants.customer_id === meId
-            ? participants.pro_id
-            : participants.customer_id
+      if (!participants) return null;
+      const proId =
+        typeof participants.pro_id === "string" ? participants.pro_id : null;
+      const customerId =
+        typeof participants.customer_id === "string"
+          ? participants.customer_id
           : null;
-      return typeof other === "string" ? other : null;
+      if (!proId || !customerId) return null;
+      if (!meId) return null;
+      if (meId === proId) return customerId;
+      if (meId === customerId) return proId;
+      return null;
     })();
     if (!targetId) return;
-    if (proProfile && proProfileIdRef.current === targetId) return;
-    proProfileIdRef.current = targetId;
+    if (headerProfileIdRef.current !== targetId) {
+      headerProfileIdRef.current = targetId;
+      setHeaderProfile(null);
+    } else if (headerProfile) {
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -821,7 +779,7 @@ export default function ChatPanel({
         ) {
           return;
         }
-        setProProfile({
+        setHeaderProfile({
           full_name:
             (proJson.data.full_name as string | null | undefined) ?? null,
           avatar_url:
@@ -834,7 +792,7 @@ export default function ChatPanel({
     return () => {
       cancelled = true;
     };
-  }, [participants, meId, getAuthHeaders, proProfile]);
+  }, [participants, meId, getAuthHeaders, headerProfile]);
   React.useEffect(() => {
     if (!conversationId) return;
     const channel = supabaseBrowser
@@ -1905,6 +1863,18 @@ export default function ChatPanel({
     return false;
   }, [offerSummaries, messagesState]);
 
+  // Client should not see "Contratar" once an offer is accepted/paid.
+  const hasAcceptedOffer = React.useMemo(() => {
+    for (const m of messagesState) {
+      if (!m?.payload || typeof m.payload !== "object") continue;
+      const p = m.payload as Record<string, unknown>;
+      if (!p.offer_id) continue;
+      const st = typeof p.status === "string" ? p.status.toLowerCase() : "";
+      if (st === "accepted" || st === "paid") return true;
+    }
+    return false;
+  }, [messagesState]);
+
   const isPaidOrScheduled = React.useMemo(() => {
     if (hasPaid) return true;
     const st = (requestStatus || "").toLowerCase();
@@ -1916,13 +1886,32 @@ export default function ChatPanel({
     );
   }, [hasPaid, requestStatus]);
 
+  const latestOfferId = React.useMemo(() => {
+    for (let i = messagesState.length - 1; i >= 0; i--) {
+      const payload = messagesState[i]?.payload as Record<
+        string,
+        unknown
+      > | null;
+      if (!payload) continue;
+      const offerId = payload.offer_id;
+      if (typeof offerId === "string" && offerId.trim().length) return offerId;
+    }
+    return null;
+  }, [messagesState]);
+
+  const offerStatus = React.useMemo(() => {
+    if (hasPaid) return "paid";
+    if (!latestOfferId) return null;
+    return getOfferStatusFromMessages(latestOfferId);
+  }, [hasPaid, latestOfferId]);
+
   const allowContact = React.useMemo(
     () =>
       isContactPolicyLifted({
-        offerStatus: hasPaid ? "paid" : null,
+        offerStatus,
         requestStatus,
       }),
-    [hasPaid, requestStatus],
+    [offerStatus, requestStatus],
   );
 
   // Detect onsite deposit pending (client-side deposit flow)
@@ -2052,18 +2041,20 @@ export default function ChatPanel({
             ) : null}
           </div>
           <div>
-            <Button
-              onClick={() => {
-                if (requestTitle && requestTitle.trim().length)
-                  setOfferTitle(requestTitle);
-                setOfferAmountLocked(false);
-                setOfferServiceDate(resolveOfferServiceDate());
-                setOfferServiceDateError(false);
-                setOfferDialogOpen(true);
-              }}
-            >
-              Contratar
-            </Button>
+            {!hasAcceptedOffer ? (
+              <Button
+                onClick={() => {
+                  if (requestTitle && requestTitle.trim().length)
+                    setOfferTitle(requestTitle);
+                  setOfferAmountLocked(false);
+                  setOfferServiceDate(resolveOfferServiceDate());
+                  setOfferServiceDateError(false);
+                  setOfferDialogOpen(true);
+                }}
+              >
+                Contratar
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}{" "}
@@ -2091,16 +2082,10 @@ export default function ChatPanel({
     const label =
       UI_STATUS_LABELS[requestStatus as any as keyof typeof UI_STATUS_LABELS] ||
       requestStatus;
-    const proId =
-      participants?.pro_id && typeof participants.pro_id === "string"
-        ? participants.pro_id
-        : null;
-    const proName =
-      (proProfile?.full_name && proProfile.full_name.trim().length
-        ? proProfile.full_name
-        : null) ||
-      proId ||
-      "Profesional";
+    const headerName =
+      (headerProfile?.full_name && headerProfile.full_name.trim().length
+        ? headerProfile.full_name
+        : null) || (viewerRole === "professional" ? "Cliente" : "Usuario");
     return (
       <div className="border-b px-3 py-4 text-xs text-slate-600 flex items-center gap-3 bg-white">
         <button
@@ -2113,16 +2098,16 @@ export default function ChatPanel({
         </button>
         <AvatarWithSkeleton
           src={
-            normalizeAvatarUrl(proProfile?.avatar_url || undefined) ||
+            normalizeAvatarUrl(headerProfile?.avatar_url || undefined) ||
             "/images/Favicon-v1-jpeg.jpg"
           }
-          alt={proName}
+          alt={headerName}
           sizeClass="size-10"
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <div className="truncate font-semibold text-sm text-slate-900">
-              {proName}
+              {headerName}
             </div>
             <div className="inline-flex items-center gap-2 shrink-0">
               <span className="hidden sm:inline text-xs text-muted-foreground">

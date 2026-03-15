@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { notifyAgreementUpdated } from "@/lib/notifications";
@@ -94,7 +95,10 @@ export async function handleServiceCompletion(
   options: ServiceCompletionOptions,
 ) {
   try {
-    const idParse = z.string().uuid().safeParse(context.params?.id ?? "");
+    const idParse = z
+      .string()
+      .uuid()
+      .safeParse(context.params?.id ?? "");
     if (!idParse.success) {
       return NextResponse.json(
         { ok: false, error: "INVALID_ID" },
@@ -251,7 +255,10 @@ export async function handleServiceCompletion(
       if (!agreement.completed_at) {
         update.completed_at = new Date().toISOString();
       }
-    } else if (!alreadyConfirmed && NEEDS_PROGRESS_STATUSES.has(agreement.status)) {
+    } else if (
+      !alreadyConfirmed &&
+      NEEDS_PROGRESS_STATUSES.has(agreement.status)
+    ) {
       update.status = "in_progress";
     }
 
@@ -284,7 +291,11 @@ export async function handleServiceCompletion(
 
       updatedAgreement = updated;
 
-      if (update.status !== undefined && update.status !== agreement.status && update.status) {
+      if (
+        update.status !== undefined &&
+        update.status !== agreement.status &&
+        update.status
+      ) {
         try {
           await notifyAgreementUpdated({
             agreement_id: updatedAgreement.id,
@@ -304,6 +315,15 @@ export async function handleServiceCompletion(
       status: updatedAgreement.status,
       operation: options.operation,
     });
+
+    if (updatedAgreement.status === "completed") {
+      try {
+        revalidatePath("/pro");
+        revalidatePath("/pro/calendar");
+      } catch {
+        /* ignore */
+      }
+    }
 
     return NextResponse.json(
       {

@@ -19,6 +19,7 @@ import {
   type AssistantOpenPayload,
 } from "@/lib/assistant/events";
 import { parseAssistantPayload } from "@/lib/assistant/protocol";
+import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_LINK } from "@/lib/support/contact";
 import type { AssistantAction } from "@/types/assistant";
 
 type Role = "user" | "assistant";
@@ -170,7 +171,7 @@ export default function AssistantPanel() {
             {
               type: "whatsapp",
               label: "Abrir WhatsApp",
-              href: "https://wa.me/528130878691",
+              href: SUPPORT_WHATSAPP_LINK,
             },
           ],
         },
@@ -290,7 +291,29 @@ export default function AssistantPanel() {
             </div>
           </div>
 
-          <div className="border-t p-3 pb-[env(safe-area-inset-bottom)]">
+          <div className="mt-3 rounded-2xl border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <div className="font-semibold text-foreground">
+              ¿Necesitas hablar con alguien?
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={SUPPORT_WHATSAPP_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button size="sm" className="gap-2">
+                  Abrir WhatsApp
+                </Button>
+              </a>
+              <a href={`mailto:${SUPPORT_EMAIL}?subject=Soporte%20Handi`}>
+                <Button size="sm" variant="outline">
+                  Enviar correo
+                </Button>
+              </a>
+            </div>
+          </div>
+
+          <div className="border-t p-3 pb-[env(safe-area-inset-bottom)] mb-2">
             <div className="flex items-start gap-2">
               <Textarea
                 rows={2}

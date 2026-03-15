@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 
 import Stepper, { Step } from "@/components/react-bits/stepper/Stepper";
 import {
@@ -11,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const MAX_PHOTOS = 10;
@@ -44,7 +47,10 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "-");
 }
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T | null> {
+async function fetchJson<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T | null> {
   try {
     const res = await fetch(url, init);
     if (!res.ok) return null;
@@ -68,8 +74,10 @@ export default function FinishJobStepper({
   const [stars, setStars] = React.useState(5);
   const [hover, setHover] = React.useState<number | null>(null);
   const [files, setFiles] = React.useState<File[]>([]);
+  const [comment, setComment] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [currentStep, setCurrentStep] = React.useState(1);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [context, setContext] = React.useState<ResolvedContext>({
     requestTitle: requestTitle ?? null,
     requestStatus: requestStatus ?? null,
@@ -79,6 +87,16 @@ export default function FinishJobStepper({
   });
 
   const effectiveStars = typeof hover === "number" ? hover : stars;
+  const previews = React.useMemo(
+    () => files.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [files],
+  );
+
+  React.useEffect(() => {
+    return () => {
+      previews.forEach((p) => URL.revokeObjectURL(p.url));
+    };
+  }, [previews]);
 
   React.useEffect(() => {
     if (!open) {
@@ -87,6 +105,7 @@ export default function FinishJobStepper({
       setBusy(false);
       setStars(5);
       setHover(null);
+      setComment("");
       return;
     }
     let cancelled = false;
@@ -109,16 +128,25 @@ export default function FinishJobStepper({
         }
       }
 
-      if (!nextContext.clientId || !nextContext.requestStatus || !nextContext.requestTitle) {
+      if (
+        !nextContext.clientId ||
+        !nextContext.requestStatus ||
+        !nextContext.requestTitle
+      ) {
         const req = await fetchJson<{
           ok?: boolean;
-          data?: { created_by?: string | null; status?: string | null; title?: string | null };
+          data?: {
+            created_by?: string | null;
+            status?: string | null;
+            title?: string | null;
+          };
         }>(`/api/requests/${encodeURIComponent(requestId)}`, {
           cache: "no-store",
           credentials: "include",
         });
         if (!cancelled && req?.data) {
-          nextContext.clientId = nextContext.clientId ?? req.data.created_by ?? null;
+          nextContext.clientId =
+            nextContext.clientId ?? req.data.created_by ?? null;
           nextContext.requestStatus =
             nextContext.requestStatus ?? req.data.status ?? null;
           nextContext.requestTitle =
@@ -127,10 +155,12 @@ export default function FinishJobStepper({
       }
 
       if (!nextContext.clientName && nextContext.clientId) {
-        const profile = await fetchJson<{ data?: { full_name?: string | null } }>(
-          `/api/profiles/${encodeURIComponent(nextContext.clientId)}`,
-          { cache: "no-store", credentials: "include" },
-        );
+        const profile = await fetchJson<{
+          data?: { full_name?: string | null };
+        }>(`/api/profiles/${encodeURIComponent(nextContext.clientId)}`, {
+          cache: "no-store",
+          credentials: "include",
+        });
         if (!cancelled) {
           nextContext.clientName =
             profile?.data?.full_name ?? nextContext.clientName ?? null;
@@ -148,11 +178,18 @@ export default function FinishJobStepper({
   const handleFiles = React.useCallback((incoming: FileList | null) => {
     const list = Array.from(incoming ?? []);
     if (!list.length) return;
-    if (list.length > MAX_PHOTOS) {
-      toast.error(`Selecciona hasta ${MAX_PHOTOS} fotos.`);
-      return;
-    }
-    setFiles(list);
+    setFiles((prev) => {
+      const merged = [...prev, ...list];
+      if (merged.length > MAX_PHOTOS) {
+        toast.error(`Selecciona hasta ${MAX_PHOTOS} fotos.`);
+        return prev;
+      }
+      return merged;
+    });
+  }, []);
+
+  const removeFileAt = React.useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const ensureInProcess = React.useCallback(async () => {
@@ -173,29 +210,45 @@ export default function FinishJobStepper({
 
   const uploadPhotos = React.useCallback(async () => {
     if (!files.length) return;
-    const proUserId = context.proId;
+    let proUserId = context.proId;
     if (!proUserId) {
-      throw new Error("Falta el profesional asignado.");
+      try {
+        const meRes = await fetch("/api/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const meJson = await meRes.json().catch(() => ({}));
+        if (meRes.ok && meJson?.user?.id) {
+          proUserId = meJson.user.id as string;
+          setContext((prev) => ({ ...prev, proId: proUserId }));
+        }
+      } catch {
+        /* ignore */
+      }
+      if (!proUserId) {
+        throw new Error("Falta el profesional asignado.");
+      }
     }
     const keys: string[] = [];
     for (let i = 0; i < files.length; i += 1) {
       const file = files[i];
       const safeName = sanitizeFilename(file.name || `foto-${i + 1}`);
       const path = `${proUserId}/${requestId}/${Date.now()}-${i}-${safeName}`;
-      const presign = await fetchJson<{
-        ok?: boolean;
-        url?: string | null;
-        publicUrl?: string | null;
-      }>("/api/storage/presign", {
+      const presignRes = await fetch("/api/storage/presign", {
         method: "POST",
         headers: JSONH,
         credentials: "include",
         body: JSON.stringify({ path }),
       });
-      if (!presign?.url) {
-        throw new Error("No se pudo preparar la carga de fotos.");
+      const presignJson = await presignRes.json().catch(() => ({}));
+      if (!presignRes.ok || !presignJson?.url) {
+        throw new Error(
+          presignJson?.detail ||
+            presignJson?.error ||
+            "No se pudo preparar la carga de fotos.",
+        );
       }
-      const uploadRes = await fetch(presign.url, {
+      const uploadRes = await fetch(presignJson.url, {
         method: "PUT",
         headers: { "Content-Type": file.type || "application/octet-stream" },
         body: file,
@@ -205,15 +258,20 @@ export default function FinishJobStepper({
       }
       keys.push(path);
     }
-    const res = await fetch(`/api/requests/${encodeURIComponent(requestId)}/photos`, {
-      method: "POST",
-      headers: JSONH,
-      credentials: "include",
-      body: JSON.stringify({ keys }),
-    });
+    const res = await fetch(
+      `/api/requests/${encodeURIComponent(requestId)}/photos`,
+      {
+        method: "POST",
+        headers: JSONH,
+        credentials: "include",
+        body: JSON.stringify({ keys }),
+      },
+    );
     const json = await res.json().catch(() => ({}));
     if (!res.ok || !json?.ok) {
-      throw new Error(json?.detail || json?.error || "No se pudieron guardar las fotos");
+      throw new Error(
+        json?.detail || json?.error || "No se pudieron guardar las fotos",
+      );
     }
   }, [context.proId, files, requestId]);
 
@@ -228,36 +286,40 @@ export default function FinishJobStepper({
         reviewerRole: "pro",
         rating: stars,
         clientId: context.clientId,
+        comment: comment.trim() || undefined,
       }),
     });
     if (res.ok) return;
     const json = await res.json().catch(() => ({}));
     if (json?.error === "DUPLICATE_REVIEW") return;
-    throw new Error(json?.detail || json?.error || "No se pudo guardar la reseña");
-  }, [context.clientId, requestId, stars]);
+    throw new Error(
+      json?.detail || json?.error || "No se pudo guardar la reseña",
+    );
+  }, [comment, context.clientId, requestId, stars]);
 
   const notifyFinish = React.useCallback(async () => {
-    const res = await fetch(`/api/requests/${encodeURIComponent(requestId)}/finish`, {
-      method: "POST",
-      headers: JSONH,
-      credentials: "include",
-      body: JSON.stringify({
-        clientId: context.clientId,
-        proId: context.proId,
-      }),
-    });
+    const res = await fetch(
+      `/api/requests/${encodeURIComponent(requestId)}/finish`,
+      {
+        method: "POST",
+        headers: JSONH,
+        credentials: "include",
+        body: JSON.stringify({
+          clientId: context.clientId,
+          proId: context.proId,
+        }),
+      },
+    );
     if (res.ok) return;
     const json = await res.json().catch(() => ({}));
-    throw new Error(json?.detail || json?.error || "No se pudo notificar al cliente");
+    throw new Error(
+      json?.detail || json?.error || "No se pudo notificar al cliente",
+    );
   }, [context.clientId, context.proId, requestId]);
 
   const handleSubmit = React.useCallback(async () => {
     if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
       toast.error("Selecciona una calificación válida (1 a 5).");
-      return false;
-    }
-    if (!files.length) {
-      toast.error("Sube al menos una foto del trabajo.");
       return false;
     }
     if (files.length > MAX_PHOTOS) {
@@ -267,7 +329,9 @@ export default function FinishJobStepper({
     setBusy(true);
     try {
       await ensureInProcess();
-      await uploadPhotos();
+      if (files.length > 0) {
+        await uploadPhotos();
+      }
       await submitReview();
       await notifyFinish();
       toast.success("Trabajo finalizado. El cliente ya puede confirmar.");
@@ -303,6 +367,9 @@ export default function FinishJobStepper({
           </DialogDescription>
         </DialogHeader>
         <Stepper
+          stepCircleContainerClassName="max-w-2xl border border-border bg-background"
+          contentClassName="px-6 py-6"
+          footerClassName="px-6 pb-8"
           initialStep={1}
           currentStepOverride={currentStep}
           onStepChange={setCurrentStep}
@@ -320,7 +387,6 @@ export default function FinishJobStepper({
           disableStepIndicators={busy}
           nextButtonProps={{ disabled: busy }}
           backButtonProps={{ disabled: busy }}
-          contentClassName="pb-2"
         >
           <Step label="Calificación">
             <div className="space-y-4">
@@ -336,7 +402,9 @@ export default function FinishJobStepper({
                     key={n}
                     type="button"
                     className={
-                      (effectiveStars >= n ? "text-amber-500" : "text-slate-300") +
+                      (effectiveStars >= n
+                        ? "text-amber-500"
+                        : "text-slate-300") +
                       " cursor-pointer align-middle transition-colors"
                     }
                     onMouseEnter={() => setHover(n)}
@@ -354,6 +422,20 @@ export default function FinishJobStepper({
               <p className="text-xs text-slate-500">
                 Esta calificación solo la verá el cliente.
               </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-900">
+                  Comentarios (opcional)
+                </p>
+                <Textarea
+                  placeholder="Ej. Detalles del trabajo realizado"
+                  maxLength={400}
+                  value={comment}
+                  onChange={(event) => setComment(event.target.value)}
+                />
+                <div className="text-xs text-slate-500">
+                  {comment.length} / 400
+                </div>
+              </div>
             </div>
           </Step>
           <Step label="Fotos">
@@ -367,27 +449,58 @@ export default function FinishJobStepper({
                 </p>
               </div>
               <input
+                ref={fileInputRef}
+                className="sr-only"
                 type="file"
                 accept="image/*"
                 multiple
                 disabled={busy}
-                onChange={(e) => handleFiles(e.currentTarget.files)}
+                onChange={(e) => {
+                  handleFiles(e.currentTarget.files);
+                  e.currentTarget.value = "";
+                }}
                 data-testid="finish-job-photos"
               />
-              {files.length ? (
-                <div className="rounded-md border bg-slate-50 p-3 text-xs text-slate-600">
-                  <div className="font-semibold text-slate-700">Archivos</div>
-                  <ul className="mt-2 list-disc space-y-1 pl-4">
-                    {files.map((f) => (
-                      <li key={f.name}>{f.name}</li>
-                    ))}
-                  </ul>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={busy}
+                >
+                  Subir fotos
+                </Button>
+                {!files.length ? (
+                  <span className="text-xs text-slate-500">
+                    No has subido fotos (opcional).
+                  </span>
+                ) : null}
+              </div>
+              {previews.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {previews.map((p, idx) => (
+                    <div
+                      key={`${p.file.name}-${p.file.lastModified}-${idx}`}
+                      className="group relative h-20 w-20 overflow-hidden rounded-md border border-slate-200 bg-white"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={p.url}
+                        alt={p.file.name}
+                        className="h-full w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFileAt(idx)}
+                        className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        title="Eliminar foto"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-500">
-                  Aún no seleccionas fotos.
-                </p>
-              )}
+              ) : null}
             </div>
           </Step>
         </Stepper>

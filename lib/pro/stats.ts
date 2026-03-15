@@ -6,6 +6,23 @@ import { fetchExploreRequests } from "@/lib/db/requests";
 export type Interval = "week" | "fortnight" | "month";
 export type EarningsPoint = { label: string; amount: number };
 
+async function getAvgRating(userId: string): Promise<number> {
+  try {
+    const supa = createClient();
+    const { data, error } = await (supa as any)
+      .from("ratings")
+      .select("avg:avg(stars)")
+      .eq("to_user_id", userId)
+      .maybeSingle();
+    if (error) throw error;
+    const raw = (data as { avg?: unknown } | null)?.avg;
+    const val = typeof raw === "number" ? raw : Number(raw ?? 0);
+    return Number.isFinite(val) ? val : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function getProProfile(userId: string): Promise<{
   id: string;
   full_name: string | null;
@@ -35,8 +52,7 @@ export async function getProProfile(userId: string): Promise<{
         | "bienvenida"
         | "neutral"
         | null) ?? null;
-    const avg_rating =
-      typeof prof?.rating === "number" ? (prof.rating as number) : 0;
+    const avg_rating = await getAvgRating(userId);
     const avatar_url = (prof?.avatar_url as string | null) ?? null;
     const state = (prof?.state as string | null) ?? null;
     let proCity: string | null = null;
@@ -318,6 +334,68 @@ export async function getPotentialJobs(
   }
 }
 
+async function getPotentialJobsTotal(userId: string): Promise<number> {
+  try {
+    const { total } = await fetchExploreRequests(userId, {
+      page: 1,
+      pageSize: 1,
+    });
+    return Number.isFinite(total) ? total : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function getInProgressCount(userId: string): Promise<number> {
+  try {
+    const supa = createClient();
+    try {
+      const { count, error } = await (supa as any)
+        .from("pro_calendar_events")
+        .select("id", { count: "exact", head: true })
+        .eq("pro_id", userId)
+        .in("status", ["scheduled", "in_process"]);
+      if (!error && typeof count === "number") return count;
+    } catch {
+      /* ignore and fallback */
+    }
+    const { count, error } = await (supa as any)
+      .from("agreements")
+      .select("id", { count: "exact", head: true })
+      .eq("professional_id", userId)
+      .in("status", ["in_progress", "paid", "accepted"]);
+    if (!error && typeof count === "number") return count;
+  } catch {
+    /* ignore */
+  }
+  return 0;
+}
+
+async function getCompletedCount(userId: string): Promise<number> {
+  try {
+    const supa = createClient();
+    try {
+      const { count, error } = await (supa as any)
+        .from("pro_calendar_events")
+        .select("id", { count: "exact", head: true })
+        .eq("pro_id", userId)
+        .in("status", ["finished", "completed"]);
+      if (!error && typeof count === "number") return count;
+    } catch {
+      /* ignore and fallback */
+    }
+    const { count, error } = await (supa as any)
+      .from("agreements")
+      .select("id", { count: "exact", head: true })
+      .eq("professional_id", userId)
+      .eq("status", "completed");
+    if (!error && typeof count === "number") return count;
+  } catch {
+    /* ignore */
+  }
+  return 0;
+}
+
 function startOfWeek(d: Date): Date {
   const date = new Date(
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
@@ -422,62 +500,59 @@ export async function getEarningsSeries(
     const supa = createClient();
     const ranges = getPeriodBoundaries(interval, 6);
 
-    // Try direct payments by pro_id
     const fromMin = ranges[0].from.toISOString();
     const toMax = ranges[ranges.length - 1].to.toISOString();
-    let payments: Array<{
-      amount: number;
-      created_at: string;
-      paid_at?: string | null;
-      request_id?: string | null;
-    }> = [];
-    try {
-      const { data } = await (supa as any)
-        .from("payments")
-        .select("amount, created_at, paid_at, request_id, pro_id")
-        .eq("pro_id", userId)
-        .gte("created_at", fromMin)
-        .lte("created_at", toMax);
-      if (Array.isArray(data)) payments = data as any[];
-    } catch {
-      // Fallback path below
-    }
-    if (!Array.isArray(payments) || payments.length === 0) {
-      // Fallback: derive payments by requests linked to pro via agreements
-      const { data: agrs } = await (supa as any)
-        .from("agreements")
-        .select("request_id")
-        .eq("professional_id", userId)
-        .in("status", ["accepted", "paid", "in_progress", "completed"]);
-      const reqIds = Array.from(
-        new Set(((agrs as any[]) || []).map((a) => String(a.request_id))),
+
+    const { data: agreements } = await (supa as any)
+      .from("agreements")
+      .select("request_id, completed_at, updated_at")
+      .eq("professional_id", userId)
+      .eq("status", "completed")
+      .or(
+        `and(completed_at.gte.${fromMin},completed_at.lt.${toMax}),and(updated_at.gte.${fromMin},updated_at.lt.${toMax})`,
       );
-      if (reqIds.length > 0) {
-        const { data: pays } = await (supa as any)
-          .from("payments")
-          .select("amount, created_at, paid_at, request_id")
-          .in("request_id", reqIds)
-          .gte("created_at", fromMin)
-          .lte("created_at", toMax);
-        payments = Array.isArray(pays) ? (pays as any[]) : [];
+
+    const rows = (agreements as any[]) || [];
+    const reqIds = Array.from(
+      new Set(rows.map((r) => String(r.request_id)).filter(Boolean)),
+    );
+
+    const netByRequest = new Map<string, number>();
+    if (reqIds.length > 0) {
+      const { data: receipts } = await (supa as any)
+        .from("receipts")
+        .select(
+          "request_id, service_amount_cents, commission_amount_cents, created_at, professional_id",
+        )
+        .eq("professional_id", userId)
+        .in("request_id", reqIds)
+        .order("created_at", { ascending: false });
+      for (const r of (receipts as any[]) || []) {
+        const rid = String(r.request_id || "");
+        if (!rid || netByRequest.has(rid)) continue;
+        const service = Number(r.service_amount_cents ?? 0);
+        const commission = Number(r.commission_amount_cents ?? 0);
+        const net = (service - commission) / 100;
+        netByRequest.set(rid, Number.isFinite(net) ? net : 0);
       }
     }
 
     const sums = new Map<string, number>();
     for (const r of ranges) sums.set(r.label, 0);
-    for (const p of payments) {
-      const when = p.paid_at || p.created_at;
+    for (const a of rows) {
+      const when = a.completed_at || a.updated_at;
       if (!when) continue;
       const ts = new Date(when);
       for (const r of ranges) {
         if (ts >= r.from && ts < r.to) {
           const cur = sums.get(r.label) || 0;
-          const amt = typeof p.amount === "number" ? p.amount : 0;
-          sums.set(r.label, cur + amt);
+          const net = netByRequest.get(String(a.request_id)) || 0;
+          sums.set(r.label, cur + net);
           break;
         }
       }
     }
+
     return ranges.map((r) => ({
       label: r.label,
       amount: Math.max(0, Math.round((sums.get(r.label) || 0) * 100) / 100),
@@ -498,18 +573,18 @@ export async function getTotals(userId: string): Promise<{
 }> {
   try {
     const [
-      profile,
-      inProgress,
-      completed,
-      potentials,
+      inProgressCount,
+      completedCount,
+      potentialTotal,
+      avgRating,
       seriesWeek,
       seriesFort,
       seriesMonth,
     ] = await Promise.all([
-      getProProfile(userId),
-      getJobsInProgress(userId, 100),
-      getJobsCompleted(userId, 100),
-      getPotentialJobs(userId, 5),
+      getInProgressCount(userId),
+      getCompletedCount(userId),
+      getPotentialJobsTotal(userId),
+      getAvgRating(userId),
       getEarningsSeries(userId, "week"),
       getEarningsSeries(userId, "fortnight"),
       getEarningsSeries(userId, "month"),
@@ -517,14 +592,13 @@ export async function getTotals(userId: string): Promise<{
     const sumLast = (s: EarningsPoint[]) =>
       s.length ? s[s.length - 1].amount : 0;
     return {
-      completed_count: completed.length,
-      in_progress_count: inProgress.length,
-      potential_available_count: potentials.length,
+      completed_count: completedCount,
+      in_progress_count: inProgressCount,
+      potential_available_count: potentialTotal,
       earnings_week: sumLast(seriesWeek),
       earnings_fortnight: sumLast(seriesFort),
       earnings_month: sumLast(seriesMonth),
-      avg_rating:
-        typeof profile.avg_rating === "number" ? profile.avg_rating : 0,
+      avg_rating: Number.isFinite(avgRating) ? avgRating : 0,
     };
   } catch {
     return {

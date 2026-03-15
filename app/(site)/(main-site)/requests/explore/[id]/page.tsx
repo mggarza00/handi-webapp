@@ -102,7 +102,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   if (!res.ok || !j?.ok) {
     return (
       <main className="mx-auto max-w-5xl p-6">
-        No se encontrÃ³ la solicitud.
+        No se encontró la solicitud.
       </main>
     );
   }
@@ -185,7 +185,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const clientId =
     clientFromAdmin?.id ?? (d as { created_by?: string }).created_by ?? null;
 
-  // Cargar perfil bÃ¡sico del cliente
+  // Cargar perfil básico del cliente
   const supabaseS = createClient();
   let clientProfile: {
     id?: string;
@@ -223,7 +223,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const nombre = clientProfile?.full_name ?? "Cliente";
   const initialConversationId = await getConversationIdForRequest(params.id);
 
-  // Obtener icono de subcategorÃ­a desde catÃ¡logo
+  // Obtener icono de subcategoría desde catálogo
   let subIcon: string | null = null;
   try {
     const catRes = await fetch(`${base}/api/catalog/categories`, {
@@ -293,7 +293,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
               />
             ) : null}
           </div>
-          {/* Condiciones: chips bajo el tÃ­tulo, sin tarjeta, sin texto "Condiciones" */}
+          {/* Condiciones: chips bajo el título, sin tarjeta, sin texto "Condiciones" */}
           {conditions.length > 0 ? (
             <div className="flex flex-wrap gap-2 mt-2">
               {conditions.map((c, i) => (
@@ -308,7 +308,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
               ))}
             </div>
           ) : null}
-          {/* Cliente: en mobile mostrar debajo del tÃ­tulo */}
+          {/* Cliente: en mobile mostrar debajo del título */}
           <Card className="p-4 md:hidden">
             <h2 className="font-medium">Cliente</h2>
             <div className="flex items-center gap-3 mt-3">
@@ -337,7 +337,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
                       href={`/clients/${clientProfile?.id ?? clientId}`}
                       className="text-xs underline hover:no-underline text-slate-600"
                     >
-                      ver perfil y reseÃ±as
+                      ver perfil y reseñas
                     </Link>
                   ) : null}
                 </div>
@@ -348,7 +348,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
                       className="text-[12px]"
                     />
                   ) : (
-                    <span>CalificaciÃ³n: â€”</span>
+                    <span>Calificación: —</span>
                   )}
                 </div>
                 {privateAddressLine || privateCity ? (
@@ -376,10 +376,10 @@ export default async function ProRequestDetailPage({ params }: Params) {
               />
             </div>
           </Card>
-          {/* Info en tarjetas (mismo diseÃ±o que /requests/[id]) */}
+          {/* Info en tarjetas (mismo diseño que /requests/[id]) */}
           <div className="space-y-4">
             <Card className="p-4">
-              <Field label="DescripciÃ³n" value={description} multiline />
+              <Field label="Descripción" value={description} multiline />
             </Card>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Card className="p-4">
@@ -389,11 +389,11 @@ export default async function ProRequestDetailPage({ params }: Params) {
                 <Field label="Ciudad" value={city} />
               </Card>
               <Card className="p-4">
-                <Field label="CategorÃ­a" value={category} />
+                <Field label="Categoría" value={category} />
               </Card>
               <Card className="p-4">
                 <div>
-                  <div className="text-xs text-slate-500">SubcategorÃ­a</div>
+                  <div className="text-xs text-slate-500">Subcategoría</div>
                   <div className="text-sm text-slate-700 inline-flex items-center gap-2">
                     {subIcon ? (
                       subIcon.startsWith("http") ? (
@@ -407,7 +407,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
                         <span className="text-sm leading-none">{subIcon}</span>
                       )
                     ) : null}
-                    <span>{subcategory || "â€”"}</span>
+                    <span>{subcategory || "—"}</span>
                   </div>
                 </div>
               </Card>
@@ -423,7 +423,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
                   value={formatDateDisplay(requiredAt)}
                 />
               </Card>
-              {/* Condiciones se muestran arriba bajo el tÃ­tulo */}
+              {/* Condiciones se muestran arriba bajo el título */}
             </div>
           </div>
           {photos.length > 0 ? <PhotoGallery photos={photos} /> : null}
@@ -458,7 +458,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
                       href={`/clients/${clientProfile?.id ?? clientId}`}
                       className="text-xs underline hover:no-underline text-slate-600"
                     >
-                      ver perfil y reseÃ±as
+                      ver perfil y reseñas
                     </Link>
                   ) : null}
                 </div>
@@ -469,7 +469,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
                       className="text-[12px]"
                     />
                   ) : (
-                    <span>CalificaciÃ³n: â€”</span>
+                    <span>Calificación: —</span>
                   )}
                 </div>
                 {privateAddressLine || privateCity ? (
@@ -497,7 +497,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
               />
             </div>
           </Card>
-          {/* Se eliminÃ³ Postularme; acciones se integran en el chat */}
+          {/* Se eliminó Postularme; acciones se integran en el chat */}
         </aside>
       </section>
     </main>
@@ -513,7 +513,7 @@ function Field({
   value?: string | number | null;
   multiline?: boolean;
 }) {
-  const v = value == null || value === "" ? "â€”" : String(value);
+  const v = value == null || value === "" ? "—" : String(value);
   return (
     <div>
       <div className="text-xs text-slate-500">{label}</div>

@@ -48,8 +48,8 @@ export default function ActiveUserTypeSwitcher() {
       const j = await res.json().catch(() => null);
       if (!res.ok) throw new Error(j?.detail || j?.error || "switch_failed");
       toast.success(`Tipo activo cambiado a ${other}`);
-      // Force refresh to re-render header/menus
-      window.location.reload();
+      const targetPath = other === "profesional" ? "/pro" : "/";
+      window.location.href = targetPath;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "No se pudo cambiar el tipo";
       toast.error(msg);
