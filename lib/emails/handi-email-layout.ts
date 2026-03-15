@@ -33,16 +33,15 @@ function getSiteBase(): string {
   return rawBase.replace(/\/$/, "");
 }
 
-export function renderHandiEmailLayoutHtml(
-  opts: HandiEmailLayoutOpts,
-): string {
+export function renderHandiEmailLayoutHtml(opts: HandiEmailLayoutOpts): string {
   const preheader = (opts.preheader || "").trim();
   const supportEmail = (
     opts.supportEmail ||
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL ||
     "soporte@handi.mx"
   ).trim();
-  const year = typeof opts.year === "number" ? opts.year : new Date().getFullYear();
+  const year =
+    typeof opts.year === "number" ? opts.year : new Date().getFullYear();
   const siteBase = getSiteBase();
   const logoUrl = `${siteBase}/images/LOGO_HEADER_B.png`;
   const cta = opts.cta?.url ? opts.cta : null;
@@ -89,7 +88,9 @@ export function renderHandiEmailLayoutHtml(
                   ${escapeHtml(opts.title)}
                 </p>
                 ${opts.bodyHtml}
-                ${cta ? `
+                ${
+                  cta
+                    ? `
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 22px;width:100%;">
                   <tr>
                     <td class="cta" style="text-align:center;">
@@ -99,16 +100,26 @@ export function renderHandiEmailLayoutHtml(
                     </td>
                   </tr>
                 </table>
-                ` : ""}
-                ${cta && fallbackUrl ? `
+                `
+                    : ""
+                }
+                ${
+                  cta && fallbackUrl
+                    ? `
                 <p style="margin:0 0 8px;font-size:13px;color:#334155;">Si el botÃ³n no funciona, copia y pega este enlace:</p>
                 <p style="margin:0 0 18px;font-size:12px;line-height:1.6;color:#001447;word-break:break-all;">${escapeHtml(fallbackUrl)}</p>
-                ` : ""}
-                ${opts.securityNoteHtml ? `
+                `
+                    : ""
+                }
+                ${
+                  opts.securityNoteHtml
+                    ? `
                 <div style="margin:0 0 20px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;color:#334155;font-size:12px;line-height:1.6;">
                   ${opts.securityNoteHtml}
                 </div>
-                ` : ""}
+                `
+                    : ""
+                }
               </td>
             </tr>
             <tr>

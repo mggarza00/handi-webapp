@@ -285,13 +285,11 @@ export default function RequestDetailClient({
     } else {
       const ph = Array.isArray(initial.photos) ? initial.photos : [];
       setAttachments(
-        ph
-          .slice(0, 5)
-          .map((p) => ({
-            url: p.url,
-            mime: String(p.alt ?? "image/*"),
-            size: 0,
-          })),
+        ph.slice(0, 5).map((p) => ({
+          url: p.url,
+          mime: String(p.alt ?? "image/*"),
+          size: 0,
+        })),
       );
     }
   }, [initial]);

@@ -11,6 +11,7 @@ type MessageInputProps = {
   onSend: (text: string) => Promise<boolean | void> | boolean | void;
   disabled?: boolean;
   autoFocus?: boolean;
+  initialText?: string | null;
   onTyping?: () => void;
   onFocus?: () => void;
   dataPrefix?: string; // e2e: chat | request-chat
@@ -23,6 +24,7 @@ export default function MessageInput({
   onSend,
   disabled,
   autoFocus,
+  initialText,
   onTyping,
   onFocus,
   dataPrefix = "chat",
@@ -33,6 +35,7 @@ export default function MessageInput({
   const [text, setText] = React.useState("");
   const [sending, setSending] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const appliedPrefillRef = React.useRef<string | null>(null);
   const scan = React.useMemo(
     () => (allowContact ? { hasContact: false } : scanMessage(text)),
     [text, allowContact],
@@ -47,6 +50,14 @@ export default function MessageInput({
       // ignore
     }
   }, [autoFocus]);
+
+  React.useEffect(() => {
+    const value = typeof initialText === "string" ? initialText.trim() : "";
+    if (!value) return;
+    if (appliedPrefillRef.current === value) return;
+    setText((prev) => (prev.trim().length === 0 ? value : prev));
+    appliedPrefillRef.current = value;
+  }, [initialText]);
 
   const handleSend = React.useCallback(async () => {
     const trimmed = text.trim();

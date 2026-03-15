@@ -141,7 +141,9 @@ export function messageReceivedHtml(opts: {
     title,
     preheader: "Tienes un nuevo mensaje",
     bodyHtml: body,
-    cta: opts.linkUrl ? { label: "Abrir conversación", url: opts.linkUrl } : null,
+    cta: opts.linkUrl
+      ? { label: "Abrir conversación", url: opts.linkUrl }
+      : null,
     fallbackLinkUrl: opts.linkUrl,
   });
 }
@@ -168,7 +170,10 @@ export function firstProfessionalAvailableHtml(opts: {
   });
 }
 
-export function proApplicationAcceptedHtml(opts: { linkUrl?: string; imageUrl?: string }) {
+export function proApplicationAcceptedHtml(opts: {
+  linkUrl?: string;
+  imageUrl?: string;
+}) {
   const title = "¡Has sido aceptado como profesional!";
   const safeImage = opts.imageUrl ? escapeAttribute(opts.imageUrl) : "";
   const body = `
@@ -197,7 +202,9 @@ export function proApplicationRejectedHtml(opts: { linkUrl?: string }) {
     title,
     preheader: title,
     bodyHtml: body,
-    cta: opts.linkUrl ? { label: "Revisar mi perfil", url: opts.linkUrl } : null,
+    cta: opts.linkUrl
+      ? { label: "Revisar mi perfil", url: opts.linkUrl }
+      : null,
     fallbackLinkUrl: opts.linkUrl,
   });
 }

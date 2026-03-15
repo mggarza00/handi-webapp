@@ -222,7 +222,10 @@ export default function HeaderMenu() {
 
     async function run() {
       if (aborted) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
         schedule(baseInterval);
         return;
       }
@@ -257,7 +260,8 @@ export default function HeaderMenu() {
           // ignore
         }
         const dur = Date.now() - start;
-        nextInterval = dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
+        nextInterval =
+          dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
       } catch {
         nextInterval = Math.min(maxInterval, nextInterval * 2);
       } finally {
@@ -296,7 +300,10 @@ export default function HeaderMenu() {
 
     async function run() {
       if (aborted) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
         schedule(baseInterval);
         return;
       }
@@ -344,7 +351,8 @@ export default function HeaderMenu() {
           // ignore
         }
         const dur = Date.now() - start;
-        nextInterval = dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
+        nextInterval =
+          dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
       } catch {
         nextInterval = Math.min(maxInterval, nextInterval * 2);
       } finally {

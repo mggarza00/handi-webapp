@@ -14,18 +14,6 @@ export default function Head() {
         type="image/svg+xml"
         fetchPriority="low"
       />
-      <link
-        rel="preload"
-        as="image"
-        href="/images/LOGO_HPM_B.png"
-        fetchPriority="low"
-      />
-      <link
-        rel="preload"
-        as="image"
-        href="/images/FAVICON_FOOTER.png"
-        fetchPriority="low"
-      />
     </>
   );
 }

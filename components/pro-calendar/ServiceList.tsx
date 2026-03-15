@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -9,6 +9,13 @@ import type { ScheduledService } from "./types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { openAssistant } from "@/lib/assistant/events";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 
@@ -45,6 +52,15 @@ export default function ServiceList({
     () => new Date().toISOString().slice(0, 10),
     [],
   );
+  const [helpOpen, setHelpOpen] = React.useState(false);
+  const [helpBusy, setHelpBusy] = React.useState<null | "talk" | "no-response">(
+    null,
+  );
+  const [helpContext, setHelpContext] = React.useState<{
+    requestId: string;
+    serviceTitle: string;
+  } | null>(null);
+  const myIdRef = React.useRef<string | null>(null);
 
   const groups = React.useMemo<ServiceGroup[]>(() => {
     const normalized: NormalizedService[] = services
@@ -76,9 +92,108 @@ export default function ServiceList({
     return Array.from(byDate.values());
   }, [services, todayKey]);
 
-  const handleNeedHelp = React.useCallback((requestId: string) => {
-    const preset = `Tuve un problema con la solicitud ${requestId}. Necesito que notifiques a profiles.admin y que abras un nuevo chat en /mensajes para comunicarme directamente con el profesional.`;
+  const resolveMyId = React.useCallback(async (): Promise<string | null> => {
+    if (myIdRef.current) return myIdRef.current;
+    try {
+      const res = await fetch("/api/me", {
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        credentials: "include",
+        cache: "no-store",
+      });
+      const json = await res.json().catch(() => ({}));
+      const id = typeof json?.user?.id === "string" ? json.user.id : null;
+      myIdRef.current = id;
+      return id;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const ensureConversationAndOpen = React.useCallback(
+    async (requestId: string, prefillMessage?: string) => {
+      const proId = await resolveMyId();
+      if (!proId) {
+        router.push("/mensajes");
+        return;
+      }
+      try {
+        const res = await fetch("/api/conversations/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          credentials: "include",
+          body: JSON.stringify({
+            requestId,
+            proId,
+            redirect: false,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        const conversationId = typeof json?.id === "string" ? json.id : null;
+        if (!res.ok || !conversationId) {
+          router.push("/mensajes");
+          return;
+        }
+        if (prefillMessage && prefillMessage.trim().length > 0) {
+          router.push(
+            `/mensajes/${encodeURIComponent(conversationId)}?prefill=${encodeURIComponent(prefillMessage.trim())}`,
+          );
+          return;
+        }
+        router.push(`/mensajes/${encodeURIComponent(conversationId)}`);
+      } catch {
+        router.push("/mensajes");
+      }
+    },
+    [resolveMyId, router],
+  );
+
+  const openHelpMenu = React.useCallback(
+    (requestId: string, serviceTitle: string) => {
+      setHelpContext({ requestId, serviceTitle });
+      setHelpOpen(true);
+    },
+    [],
+  );
+
+  const handleTalkToClient = React.useCallback(async () => {
+    if (!helpContext || helpBusy) return;
+    setHelpBusy("talk");
+    try {
+      setHelpOpen(false);
+      await ensureConversationAndOpen(helpContext.requestId);
+    } finally {
+      setHelpBusy(null);
+    }
+  }, [ensureConversationAndOpen, helpBusy, helpContext]);
+
+  const handleClientNoResponse = React.useCallback(async () => {
+    if (!helpContext || helpBusy) return;
+    setHelpBusy("no-response");
+    try {
+      setHelpOpen(false);
+      await ensureConversationAndOpen(
+        helpContext.requestId,
+        "Hola, intento confirmar el servicio programado pero no he recibido respuesta. ¿Podemos confirmar o reprogramar el horario?",
+      );
+    } finally {
+      setHelpBusy(null);
+    }
+  }, [ensureConversationAndOpen, helpBusy, helpContext]);
+
+  const handleServiceProblem = React.useCallback(() => {
+    if (!helpContext) return;
+    const safeTitle = helpContext.serviceTitle?.trim() || "este servicio";
+    const preset = `Necesito ayuda con el servicio '${safeTitle}'. Tuve un problema durante el trabajo.`;
+    setHelpOpen(false);
     openAssistant({ message: preset });
+  }, [helpContext]);
+
+  const handleWhatsAppSupport = React.useCallback(() => {
+    const text =
+      "Hola, soy un profesional de Handi y necesito ayuda con un servicio.";
+    const url = `https://wa.me/528130878691?text=${encodeURIComponent(text)}`;
+    setHelpOpen(false);
+    window.open(url, "_blank", "noopener,noreferrer");
   }, []);
 
   const handleViewRequest = React.useCallback(
@@ -185,7 +300,12 @@ export default function ServiceList({
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => handleNeedHelp(ev.id)}
+                                    onClick={() =>
+                                      openHelpMenu(
+                                        ev.id,
+                                        ev.title || "Servicio",
+                                      )
+                                    }
                                   >
                                     Necesito ayuda
                                   </Button>
@@ -224,6 +344,70 @@ export default function ServiceList({
           </div>
         );
       })}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Qué necesitas hacer?</DialogTitle>
+            <DialogDescription>
+              Elige una acción para continuar con este servicio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => void handleTalkToClient()}
+              disabled={helpBusy !== null}
+              className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
+            >
+              <p className="text-sm font-semibold text-slate-900">
+                Hablar con el cliente
+              </p>
+              <p className="text-xs text-slate-600">
+                Abrir chat directo con el cliente de este servicio.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleClientNoResponse()}
+              disabled={helpBusy !== null}
+              className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
+            >
+              <p className="text-sm font-semibold text-slate-900">
+                El cliente no responde
+              </p>
+              <p className="text-xs text-slate-600">
+                Necesito confirmar o reprogramar el servicio.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={handleServiceProblem}
+              disabled={helpBusy !== null}
+              className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
+            >
+              <p className="text-sm font-semibold text-slate-900">
+                Problema con el servicio
+              </p>
+              <p className="text-xs text-slate-600">
+                Algo salió mal con este trabajo.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={handleWhatsAppSupport}
+              disabled={helpBusy !== null}
+              className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
+            >
+              <p className="text-sm font-semibold text-slate-900">
+                Contactar soporte de Handi
+              </p>
+              <p className="text-xs text-slate-600">
+                Hablar con soporte por WhatsApp.
+              </p>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

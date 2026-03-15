@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Menu, Bell, MessageSquare, Heart, Settings, HelpCircle, FileText, Share2 } from "lucide-react";
+import {
+  Menu,
+  Bell,
+  MessageSquare,
+  Heart,
+  Settings,
+  HelpCircle,
+  FileText,
+  Share2,
+} from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
@@ -41,14 +50,26 @@ type Notif = {
   read_at: string | null;
 };
 
-function MenuLinks({ items, className }: { items: NavLink[]; className?: string }) {
+function MenuLinks({
+  items,
+  className,
+}: {
+  items: NavLink[];
+  className?: string;
+}) {
   const { setOpen } = useSidebar();
-  const containerClass = ["flex flex-col gap-2", className].filter(Boolean).join(" ");
+  const containerClass = ["flex flex-col gap-2", className]
+    .filter(Boolean)
+    .join(" ");
   const getIcon = (l: NavLink): string | null => {
-    if (l.label === "Mis solicitudes" || l.href === "/requests?mine=1") return "/images/icono-mis-solicitudes.gif";
-    if (l.label === "Nueva solicitud" || l.href === "/requests/new") return "/images/icono-nueva-solicitud.gif";
-    if (l.label === "Trabajos disponibles" || l.href === "/requests/explore") return "/images/icono-trabajos-disponibles.gif";
-    if (l.label === "Trabajos realizados" || l.href === "/applied") return "/images/icono-trabajos-realizados.gif";
+    if (l.label === "Mis solicitudes" || l.href === "/requests?mine=1")
+      return "/images/icono-mis-solicitudes.gif";
+    if (l.label === "Nueva solicitud" || l.href === "/requests/new")
+      return "/images/icono-nueva-solicitud.gif";
+    if (l.label === "Trabajos disponibles" || l.href === "/requests/explore")
+      return "/images/icono-trabajos-disponibles.gif";
+    if (l.label === "Trabajos realizados" || l.href === "/applied")
+      return "/images/icono-trabajos-realizados.gif";
     return null;
   };
   return (
@@ -64,7 +85,13 @@ function MenuLinks({ items, className }: { items: NavLink[]; className?: string 
         >
           <Link href={l.href} className="inline-flex items-center gap-2">
             {getIcon(l) ? (
-              <Image src={getIcon(l)!} alt="" width={32} height={32} className="h-8 w-8" />
+              <Image
+                src={getIcon(l)!}
+                alt=""
+                width={32}
+                height={32}
+                className="h-8 w-8"
+              />
             ) : null}
             <span>{l.label}</span>
           </Link>
@@ -135,7 +162,10 @@ function MobileMenuDrawer({
         /* ignore */
       }
       try {
-        const res = await fetch("/api/me", { cache: "no-store", credentials: "include" });
+        const res = await fetch("/api/me", {
+          cache: "no-store",
+          credentials: "include",
+        });
         const json = await res.json().catch(() => ({}));
         if (!cancelled && res.ok && json?.user?.id) {
           setMe(json.user.id as string);
@@ -200,7 +230,10 @@ function MobileMenuDrawer({
 
     async function run() {
       if (aborted) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
         schedule(baseInterval);
         return;
       }
@@ -234,7 +267,8 @@ function MobileMenuDrawer({
           // ignore
         }
         const dur = Date.now() - start;
-        nextInterval = dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
+        nextInterval =
+          dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
       } catch {
         nextInterval = Math.min(maxInterval, nextInterval * 2);
       } finally {
@@ -274,7 +308,10 @@ function MobileMenuDrawer({
 
     async function run() {
       if (aborted) return;
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState !== "visible"
+      ) {
         schedule(baseInterval);
         return;
       }
@@ -313,12 +350,16 @@ function MobileMenuDrawer({
           localStorage.setItem("handi_unread_messages_count", String(count));
           localStorage.setItem("handee_unread_messages_count", String(count));
           localStorage.setItem("handi_has_new_messages", count > 0 ? "1" : "0");
-          localStorage.setItem("handee_has_new_messages", count > 0 ? "1" : "0");
+          localStorage.setItem(
+            "handee_has_new_messages",
+            count > 0 ? "1" : "0",
+          );
         } catch {
           // ignore
         }
         const dur = Date.now() - start;
-        nextInterval = dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
+        nextInterval =
+          dur > 2000 ? Math.min(maxInterval, nextInterval * 2) : baseInterval;
       } catch {
         nextInterval = Math.min(maxInterval, nextInterval * 2);
       } finally {
@@ -381,7 +422,9 @@ function MobileMenuDrawer({
         credentials: "include",
         headers,
       });
-      setNotifItems((prev) => prev.map((x) => ({ ...x, read_at: new Date().toISOString() })));
+      setNotifItems((prev) =>
+        prev.map((x) => ({ ...x, read_at: new Date().toISOString() })),
+      );
       setHasNotifs(false);
       try {
         localStorage.setItem("handi_has_notifications", "0");
@@ -409,16 +452,27 @@ function MobileMenuDrawer({
     }
   }, []);
 
-  const initials = (fullName?.trim()?.split(/\s+/)?.map((p) => p[0])?.slice(0, 2)?.join("") || "U").toUpperCase();
+  const initials = (
+    fullName
+      ?.trim()
+      ?.split(/\s+/)
+      ?.map((p) => p[0])
+      ?.slice(0, 2)
+      ?.join("") || "U"
+  ).toUpperCase();
 
   const requestsLink = items.find((l) => l.href.startsWith("/requests"));
   const otherLinks = items.filter((l) => !l.href.startsWith("/requests"));
   const navLinks = role === "client" && requestsLink ? otherLinks : items;
   const getIcon = (l: NavLink): string | null => {
-    if (l.label === "Mis solicitudes" || l.href === "/requests?mine=1") return "/images/icono-mis-solicitudes.gif";
-    if (l.label === "Nueva solicitud" || l.href === "/requests/new") return "/images/icono-nueva-solicitud.gif";
-    if (l.label === "Trabajos disponibles" || l.href === "/requests/explore") return "/images/icono-trabajos-disponibles.gif";
-    if (l.label === "Trabajos realizados" || l.href === "/applied") return "/images/icono-trabajos-realizados.gif";
+    if (l.label === "Mis solicitudes" || l.href === "/requests?mine=1")
+      return "/images/icono-mis-solicitudes.gif";
+    if (l.label === "Nueva solicitud" || l.href === "/requests/new")
+      return "/images/icono-nueva-solicitud.gif";
+    if (l.label === "Trabajos disponibles" || l.href === "/requests/explore")
+      return "/images/icono-trabajos-disponibles.gif";
+    if (l.label === "Trabajos realizados" || l.href === "/applied")
+      return "/images/icono-trabajos-realizados.gif";
     return null;
   };
 
@@ -440,7 +494,9 @@ function MobileMenuDrawer({
                 try {
                   localStorage.setItem("handi_has_notifications", "0");
                   localStorage.setItem("handee_has_notifications", "0");
-                } catch { /* ignore */ }
+                } catch {
+                  /* ignore */
+                }
                 // Best-effort: mark all as read in background
                 void onMarkAllRead();
               }}
@@ -448,13 +504,17 @@ function MobileMenuDrawer({
               <span className="inline-flex items-center gap-2">
                 <Bell className="h-8 w-8" />
                 <span>Notificaciones</span>
-                {hasNotifs ? <span className="ml-2 h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
+                {hasNotifs ? (
+                  <span className="ml-2 h-2.5 w-2.5 rounded-full bg-red-500" />
+                ) : null}
               </span>
             </Button>
             {notifOpen ? (
               <div className="rounded-md border bg-white p-2 text-sm shadow-sm">
                 <div className="mb-2 flex items-center justify-between px-1">
-                  <span className="text-xs text-slate-600">Pendientes y recientes</span>
+                  <span className="text-xs text-slate-600">
+                    Pendientes y recientes
+                  </span>
                   <button
                     type="button"
                     className="text-xs text-blue-600 hover:underline"
@@ -464,9 +524,13 @@ function MobileMenuDrawer({
                   </button>
                 </div>
                 {notifLoading ? (
-                  <div className="px-2 py-1 text-xs text-slate-500">Cargando…</div>
+                  <div className="px-2 py-1 text-xs text-slate-500">
+                    Cargando…
+                  </div>
                 ) : notifItems.length === 0 ? (
-                  <div className="px-2 py-1 text-xs text-slate-500">Sin notificaciones</div>
+                  <div className="px-2 py-1 text-xs text-slate-500">
+                    Sin notificaciones
+                  </div>
                 ) : (
                   <ul className="max-h-64 space-y-1 overflow-auto">
                     {notifItems.map((n) => (
@@ -474,10 +538,18 @@ function MobileMenuDrawer({
                         key={n.id}
                         className={`rounded px-2 py-1 text-xs hover:bg-neutral-50 ${!n.read_at ? "bg-orange-50" : ""}`}
                       >
-                        <div className="font-medium text-slate-900">{n.title}</div>
-                        {n.body ? <div className="text-slate-600">{n.body}</div> : null}
+                        <div className="font-medium text-slate-900">
+                          {n.title}
+                        </div>
+                        {n.body ? (
+                          <div className="text-slate-600">{n.body}</div>
+                        ) : null}
                         <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>{n.created_at ? new Date(n.created_at).toLocaleString() : ""}</span>
+                          <span>
+                            {n.created_at
+                              ? new Date(n.created_at).toLocaleString()
+                              : ""}
+                          </span>
                           {n.link ? (
                             <Link
                               href={n.link}
@@ -494,23 +566,38 @@ function MobileMenuDrawer({
                 )}
               </div>
             ) : null}
-            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => {
-              // Clear messages badge immediately
-              setUnreadMsgCount(0);
-              try {
-                localStorage.setItem("handi_unread_messages_count", "0");
-                localStorage.setItem("handee_unread_messages_count", "0");
-                localStorage.setItem("handi_has_new_messages", "0");
-                localStorage.setItem("handee_has_new_messages", "0");
-              } catch { /* ignore */ }
-              setOpen(false);
-            }}>
-              <Link href="/favorites" className="inline-flex items-center gap-2">
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full justify-start text-base"
+              onClick={() => {
+                // Clear messages badge immediately
+                setUnreadMsgCount(0);
+                try {
+                  localStorage.setItem("handi_unread_messages_count", "0");
+                  localStorage.setItem("handee_unread_messages_count", "0");
+                  localStorage.setItem("handi_has_new_messages", "0");
+                  localStorage.setItem("handee_has_new_messages", "0");
+                } catch {
+                  /* ignore */
+                }
+                setOpen(false);
+              }}
+            >
+              <Link
+                href="/favorites"
+                className="inline-flex items-center gap-2"
+              >
                 <Heart className="h-8 w-8" />
                 <span>Favoritos</span>
               </Link>
             </Button>
-            <Button asChild variant="ghost" className="w-full justify-start text-base" onClick={() => setOpen(false)}>
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full justify-start text-base"
+              onClick={() => setOpen(false)}
+            >
               <Link href="/messages" className="inline-flex items-center gap-2">
                 <span className="relative inline-flex items-center justify-center">
                   <MessageSquare className="h-8 w-8" />
@@ -536,9 +623,18 @@ function MobileMenuDrawer({
               className="w-full justify-start text-base"
               onClick={() => setOpen(false)}
             >
-              <Link href={requestsLink.href} className="inline-flex items-center gap-2">
+              <Link
+                href={requestsLink.href}
+                className="inline-flex items-center gap-2"
+              >
                 {getIcon(requestsLink) ? (
-                  <Image src={getIcon(requestsLink)!} alt="" width={32} height={32} className="h-8 w-8" />
+                  <Image
+                    src={getIcon(requestsLink)!}
+                    alt=""
+                    width={32}
+                    height={32}
+                    className="h-8 w-8"
+                  />
                 ) : null}
                 <span>{requestsLink.label}</span>
               </Link>
@@ -602,13 +698,19 @@ function MobileMenuDrawer({
             <details className="mt-1">
               <summary className="list-none flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-100 cursor-pointer">
                 <Avatar className="h-8 w-8">
-                  {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} /> : null}
+                  {avatarUrl ? (
+                    <AvatarImage src={avatarUrl} alt={fullName ?? "Usuario"} />
+                  ) : null}
                   <AvatarFallback>{initials}</AvatarFallback>
                 </Avatar>
-                <span className="text-sm font-medium">{fullName ?? "Cuenta"}</span>
+                <span className="text-sm font-medium">
+                  {fullName ?? "Cuenta"}
+                </span>
               </summary>
               <div className="mt-2 rounded-md border bg-white shadow-md p-1">
-                <div className="px-2 py-1.5 text-sm font-semibold">{fullName ?? "Cuenta"}</div>
+                <div className="px-2 py-1.5 text-sm font-semibold">
+                  {fullName ?? "Cuenta"}
+                </div>
                 <div className="my-1 h-px bg-neutral-200" />
                 <Link
                   href="/me"
@@ -622,7 +724,9 @@ function MobileMenuDrawer({
                   onClick={() => setOpen(false)}
                   className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
                 >
-                  {role === "pro" || isClientPro ? "Configura tu perfil de profesional" : "Configura tu perfil"}
+                  {role === "pro" || isClientPro
+                    ? "Configura tu perfil de profesional"
+                    : "Configura tu perfil"}
                 </Link>
                 <Link
                   href="/settings"
@@ -662,7 +766,14 @@ export default function MobileMenu({
   return (
     <div className="md:hidden">
       <SidebarProvider>
-        <MobileMenuDrawer items={items} isAuth={isAuth} role={role} avatarUrl={avatarUrl} fullName={fullName} isClientPro={isClientPro} />
+        <MobileMenuDrawer
+          items={items}
+          isAuth={isAuth}
+          role={role}
+          avatarUrl={avatarUrl}
+          fullName={fullName}
+          isClientPro={isClientPro}
+        />
       </SidebarProvider>
     </div>
   );

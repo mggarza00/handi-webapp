@@ -1,69 +1,110 @@
-import type { FAQItem } from "@/types/assistant";
+﻿import type { FAQItem } from "@/types/assistant";
 
-// Minimal local knowledge base for RAG. Keep answers concise and actionable.
 export const FAQS: FAQItem[] = [
   {
     id: "crear-solicitud",
     category: "Clientes",
-    question: "¿Cómo creo una solicitud?",
+    question: "¿Cómo hago una solicitud de servicio?",
     answer:
-      "Ve a /requests/new, completa título, descripción y ciudad. Puedes adjuntar imágenes (máx. 5MB cada una). Al enviar, la solicitud queda visible para profesionales según reglas de visibilidad del sistema.",
-    url: "/help#crear-solicitud",
-    keywords: ["crear", "solicitud", "publicar", "request", "nuevo"],
+      "Puedes crearla desde Nueva solicitud. Completa los datos del servicio y envíala para recibir propuestas.",
+    url: "/help",
+    keywords: [
+      "crear solicitud",
+      "nueva solicitud",
+      "pedir servicio",
+      "publicar servicio",
+    ],
   },
   {
     id: "postularse",
     category: "Profesionales",
     question: "¿Cómo me postulo a un trabajo?",
     answer:
-      "Abre la solicitud en /requests/:id y usa el botón ‘Postularse’. Luego puedes darle seguimiento desde /applied.",
-    url: "/help#postularse",
-    keywords: ["postularse", "aplicarse", "applied", "trabajo"],
+      "Abre una solicitud disponible y usa la opción para postularte. Después revisa el seguimiento en tus postulaciones.",
+    url: "/help",
+    keywords: ["postularme", "aplicar", "trabajo", "solicitudes"],
   },
   {
     id: "chat-candado",
     category: "General",
-    question: "¿Cómo funciona el chat con candado?",
+    question: "No puedo enviar mensajes y aparece candado",
     answer:
-      "Por seguridad, el chat bloquea compartir emails, teléfonos, URLs o direcciones. Si detectamos esos datos, el mensaje no se envía.",
-    url: "/help#chat-candado",
-    keywords: ["chat", "candado", "bloqueo", "seguridad"],
+      "El chat puede bloquear mensajes con datos sensibles por seguridad. Reintenta con un mensaje sin teléfonos, correos o enlaces.",
+    url: "/help",
+    keywords: [
+      "candado",
+      "chat bloqueado",
+      "no puedo enviar mensajes",
+      "mensaje bloqueado",
+    ],
   },
   {
-    id: "pagos-fee",
+    id: "cliente-no-responde",
+    category: "Profesionales",
+    question: "El cliente no responde",
+    answer:
+      "Abre el chat del servicio y solicita confirmar o reprogramar el horario. Si continúa sin responder, escala con soporte.",
+    url: "/help",
+    keywords: ["cliente no responde", "confirmar horario", "reprogramar"],
+  },
+  {
+    id: "trabajos-realizados",
+    category: "Profesionales",
+    question: "¿Cómo veo mis trabajos realizados?",
+    answer:
+      "Revisa la sección Trabajos realizados para ver tu historial de servicios finalizados.",
+    url: "/help",
+    keywords: [
+      "trabajos realizados",
+      "historial",
+      "servicios terminados",
+      "applied",
+    ],
+  },
+  {
+    id: "evidencia-fotos",
+    category: "Profesionales",
+    question: "¿Cómo subo evidencia o fotos?",
+    answer:
+      "Puedes subir evidencia desde el flujo del servicio o en el chat relacionado. Adjunta fotos claras y completas.",
+    url: "/help",
+    keywords: ["subir evidencia", "subir fotos", "evidencia del trabajo"],
+  },
+  {
+    id: "pagos-comprobante",
     category: "Pagos",
-    question: "Pagos y fee de $50 MXN",
+    question: "¿Cómo consigo mi comprobante de pago?",
     answer:
-      "Al aceptar un acuerdo, el cliente puede pagar el fee de $50 MXN en la sección de Acuerdos. El pago desbloquea los datos de contacto del profesional y se procesa con Stripe Checkout.",
-    url: "/help#pagos-fee",
-    keywords: ["pago", "fee", "50", "stripe", "checkout", "acuerdos"],
+      "El comprobante aparece en el chat del servicio cuando el pago se confirma. Si no aparece, soporte puede revisarlo.",
+    url: "/help",
+    keywords: ["comprobante", "recibo", "pago", "stripe"],
   },
   {
-    id: "cerrar-acuerdo",
+    id: "problema-servicio",
     category: "General",
-    question: "¿Cómo completo un acuerdo y cierro mi solicitud?",
+    question: "Tengo un problema con el servicio",
     answer:
-      "Después de pagar el fee y avanzar el trabajo, marca el acuerdo como ‘En progreso’ y luego ‘Completado’. La solicitud cambia de estado según el flujo (active → in_process → completed).",
-    url: "/help#cerrar-acuerdo",
-    keywords: ["acuerdo", "cerrar", "completar", "estado", "flujo"],
+      "Documenta lo ocurrido en el chat y contacta soporte de Handi para seguimiento.",
+    url: "/help",
+    keywords: ["problema con el servicio", "incidente", "salió mal"],
   },
   {
-    id: "perfiles-galeria",
-    category: "Cuenta",
-    question: "Perfiles y galería",
-    answer:
-      "Configura tu perfil en /profile/setup (nombre, ciudad, bio, avatar) y sube tu galería de trabajos. Tu perfil público está en /profiles/:id.",
-    url: "/help#perfiles-galeria",
-    keywords: ["perfil", "galería", "profile", "setup", "avatar"],
-  },
-  {
-    id: "seguridad-privacidad",
+    id: "soporte",
     category: "General",
-    question: "Seguridad y privacidad",
+    question: "Quiero hablar con soporte",
     answer:
-      "Evita compartir datos sensibles en el chat. Consulta el aviso de privacidad en /privacy.",
-    url: "/help#seguridad-privacidad",
-    keywords: ["seguridad", "privacidad", "datos", "privacy"],
+      "La vía más rápida es soporte por WhatsApp. También puedes consultar ayuda para guías rápidas.",
+    url: "/help",
+    keywords: ["soporte", "ayuda", "contactar soporte", "whatsapp"],
+  },
+  {
+    id: "problema-tecnico",
+    category: "General",
+    question: "La app no funciona",
+    answer:
+      "Intenta actualizar la página y repetir la acción. Si persiste, repórtalo por WhatsApp para soporte técnico.",
+    url: "/help",
+    keywords: ["error técnico", "falla app", "no carga", "bug"],
   },
   {
     id: "soporte-contacto",

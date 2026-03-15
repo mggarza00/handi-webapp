@@ -1,4 +1,4 @@
-import { retrieveAnswer } from "@/lib/assistant/rag";
+﻿import { retrieveAnswer } from "@/lib/assistant/rag";
 import {
   SUPPORT_EMAIL,
   SUPPORT_WHATSAPP_DISPLAY,
@@ -36,6 +36,12 @@ export function openAppLink(slug: string): { ok: boolean; url: string } {
     "pro-apply": "/pro/apply",
     "profile-setup": "/profile/setup",
     applied: "/applied",
+    mensajes: "/mensajes",
+    messages: "/mensajes",
+    requests: "/requests",
+    "requests-explore": "/requests/explore",
+    "requests/explore": "/requests/explore",
+    "view-completed-jobs": "/applied",
   };
   const url = map[clean] || "/help";
   return { ok: true, url };
@@ -59,6 +65,9 @@ export function getSupportContact(): {
   whatsappLink: string;
   helpUrl: "/help";
   messagesUrl: "/mensajes";
+  // backward-compatible aliases
+  whatsapp: string;
+  mailto: string;
 } {
   return {
     ok: true,
@@ -68,5 +77,7 @@ export function getSupportContact(): {
     whatsappLink: SUPPORT_WHATSAPP_LINK,
     helpUrl: "/help",
     messagesUrl: "/mensajes",
+    whatsapp: SUPPORT_WHATSAPP_LINK,
+    mailto: `mailto:${SUPPORT_EMAIL}`,
   };
 }

@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { MessageCircle, Send, Loader2, ArrowLeft } from "lucide-react";
 
 import {
@@ -18,12 +18,15 @@ import {
   ASSISTANT_OPEN_EVENT,
   type AssistantOpenPayload,
 } from "@/lib/assistant/events";
+import { parseAssistantPayload } from "@/lib/assistant/protocol";
 import { SUPPORT_EMAIL, SUPPORT_WHATSAPP_LINK } from "@/lib/support/contact";
+import type { AssistantAction } from "@/types/assistant";
 
 type Role = "user" | "assistant";
-type Msg = { role: Role; content: string };
+type Msg = { role: Role; content: string; actions?: AssistantAction[] };
 
 export default function AssistantPanel() {
+  const router = useRouter();
   const pathname = usePathname();
   const isAdmin =
     pathname === "/admin" || (pathname ?? "").startsWith("/admin/");
@@ -73,7 +76,6 @@ export default function AssistantPanel() {
   }, []);
 
   useEffect(() => {
-    // autoscroll on new message
     listRef.current?.scrollTo({
       top: listRef.current.scrollHeight,
       behavior: "smooth",
@@ -85,8 +87,17 @@ export default function AssistantPanel() {
     setOpen(false);
   }
 
-  const canSend = Boolean(input.trim()) && !isSending;
+  function runAction(action: AssistantAction) {
+    const href = String(action?.href || "").trim();
+    if (!href) return;
+    if (action.type === "app_link") {
+      router.push(href);
+      return;
+    }
+    window.open(href, "_blank", "noopener,noreferrer");
+  }
 
+  const canSend = Boolean(input.trim()) && !isSending;
   const sseBufferRef = useRef("");
 
   async function handleSend() {
@@ -120,26 +131,28 @@ export default function AssistantPanel() {
       while (!finished) {
         const { done, value } = await reader.read();
         finished = done;
-        if (done) {
-          break;
-        }
+        if (done) break;
         if (!value) continue;
         sseBufferRef.current += decoder.decode(value, { stream: true });
         const frames = sseBufferRef.current.split("\n\n");
         sseBufferRef.current = frames.pop() || "";
         for (const f of frames) {
-          if (!f) continue;
-          // Do not trim to preserve leading spaces
-          if (!f.startsWith("data:")) continue;
+          if (!f || !f.startsWith("data:")) continue;
           const payload = f.startsWith("data: ") ? f.slice(6) : f.slice(5);
           if (payload === "[DONE]") continue;
+          const event = parseAssistantPayload(payload);
           setMessages((prev) => {
             const next = [...prev];
             const lastIdx = next.length - 1;
-            if (lastIdx >= 0 && next[lastIdx].role === "assistant") {
+            if (lastIdx < 0 || next[lastIdx].role !== "assistant") return next;
+            if (event.type === "actions") {
+              next[lastIdx] = { ...next[lastIdx], actions: event.actions };
+              return next;
+            }
+            if (event.type === "text" || event.type === "legacy_text") {
               next[lastIdx] = {
-                role: "assistant",
-                content: (next[lastIdx].content || "") + payload,
+                ...next[lastIdx],
+                content: (next[lastIdx].content || "") + event.delta,
               };
             }
             return next;
@@ -154,6 +167,13 @@ export default function AssistantPanel() {
           role: "assistant",
           content:
             "Lo siento, ocurrió un error al responder. Intenta de nuevo.",
+          actions: [
+            {
+              type: "whatsapp",
+              label: "Abrir WhatsApp",
+              href: SUPPORT_WHATSAPP_LINK,
+            },
+          ],
         },
       ]);
     } finally {
@@ -165,7 +185,7 @@ export default function AssistantPanel() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   }
 
@@ -203,8 +223,6 @@ export default function AssistantPanel() {
           side="right"
           className="w-full max-w-md h-[100dvh] flex flex-col"
           onOpenAutoFocus={(e) => {
-            // Evita que Radix enfoque automáticamente el primer elemento (textarea)
-            // en móviles/PWA, lo que dispararía el teclado virtual.
             e.preventDefault();
           }}
         >
@@ -233,7 +251,6 @@ export default function AssistantPanel() {
             </SheetTitle>
           </SheetHeader>
 
-          {/* Mensajes */}
           <div className="mt-2 flex-1 rounded-2xl border overflow-hidden">
             <div
               ref={listRef}
@@ -244,10 +261,30 @@ export default function AssistantPanel() {
                   key={i}
                   className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div
-                    className={`${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"} max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words`}
-                  >
-                    {m.content}
+                  <div className="max-w-[80%]">
+                    <div
+                      className={`${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"} rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words`}
+                    >
+                      {m.content}
+                    </div>
+                    {m.role === "assistant" &&
+                    Array.isArray(m.actions) &&
+                    m.actions.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {m.actions.map((action, idx) => (
+                          <Button
+                            key={`${i}-${idx}-${action.label}`}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2 text-xs"
+                            onClick={() => runAction(action)}
+                          >
+                            {action.label}
+                          </Button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -276,7 +313,6 @@ export default function AssistantPanel() {
             </div>
           </div>
 
-          {/* Input anclado al fondo del panel */}
           <div className="border-t p-3 pb-[env(safe-area-inset-bottom)] mb-2">
             <div className="flex items-start gap-2">
               <Textarea
@@ -285,19 +321,16 @@ export default function AssistantPanel() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onFocus={() => {
-                  // Asegura que el final del chat quede visible al abrirse el teclado
-                  // (especialmente en iOS Safari/PWA).
                   const el = listRef.current;
                   if (!el) return;
-                  // Espera un frame para que el viewport se ajuste al teclado.
                   setTimeout(() => {
                     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
                   }, 50);
                 }}
-                placeholder="Escribe tu mensaje…"
+                placeholder="Escribe tu mensaje..."
               />
               <Button
-                onClick={handleSend}
+                onClick={() => void handleSend()}
                 disabled={!canSend}
                 className="gap-2 h-10 self-start"
               >

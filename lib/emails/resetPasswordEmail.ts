@@ -32,6 +32,6 @@ export function renderResetPasswordEmailHtml({
     cta: { label: "Restablecer contraseña", url: safeUrl },
     fallbackLinkUrl: safeUrl,
     securityNoteHtml:
-      "<strong style=\"color:#082877;\">Nota de seguridad:</strong> Si tú no solicitaste este cambio, puedes ignorar este correo.",
+      '<strong style="color:#082877;">Nota de seguridad:</strong> Si tú no solicitaste este cambio, puedes ignorar este correo.',
   });
 }

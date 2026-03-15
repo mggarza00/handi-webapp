@@ -25,7 +25,9 @@ function isLocalAdminBypassAllowed(request: NextRequest) {
     request.nextUrl.hostname ||
     "";
   const hostname = host.split(":")[0].toLowerCase();
-  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  return (
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  );
 }
 
 function createMiddlewareSupabase(
@@ -126,7 +128,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   const allCookies = request.cookies.getAll();
-  const hasSbPrefix = allCookies.some((cookie) => cookie.name.startsWith("sb-"));
+  const hasSbPrefix = allCookies.some((cookie) =>
+    cookie.name.startsWith("sb-"),
+  );
   const hasAuthCookie =
     hasSbPrefix ||
     request.cookies.has("sb-access-token") ||
@@ -215,7 +219,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Bypass dev/CI por cookie handi_role
-  const devRole = (request.cookies.get("handi_role")?.value || "").toLowerCase();
+  const devRole = (
+    request.cookies.get("handi_role")?.value || ""
+  ).toLowerCase();
   if (isLocalAdminBypassAllowed(request) && devRole && ADMIN_ROLES.has(devRole))
     return response;
 
@@ -263,4 +269,3 @@ export const config = {
     "/((?!api/|_next/|_vercel|_static/|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)",
   ],
 };
-

@@ -9,6 +9,10 @@ import {
   toNames,
 } from "@/lib/professionals/filter";
 import {
+  buildRatingsAggregateMap,
+  resolveProfessionalRating,
+} from "@/lib/professionals/ratings";
+import {
   clearRequestProAlert,
   queueRequestProAlert,
 } from "@/lib/request-pro-alerts";
@@ -253,6 +257,7 @@ export async function GET(req: Request) {
         }),
         city: (x.city as string | null) ?? null,
         jobsDone: null as number | null,
+        reviewsCount: null as number | null,
       } as const;
     });
 
@@ -291,21 +296,19 @@ export async function GET(req: Request) {
       /* ignore profile rating errors */
     }
 
-    // Fallback: if rating is null, compute average from public.ratings
+    // Canonical ratings source: aggregated public.ratings (avg + count).
+    // If no aggregated reviews exist, keep legacy rating fallback.
     try {
-      const missingIds = mapped
-        .filter((m) => m.rating === null)
-        .map((m) => m.id);
-      if (missingIds.length) {
-        // Prefer public client (RLS allows select) to avoid depending on SERVICE_ROLE
-        let agg: Array<{ to_user_id: string; avg: unknown }> | null = null;
+      const ids = mapped.map((m) => m.id).filter(Boolean);
+      if (ids.length) {
+        let agg: Array<Record<string, unknown>> | null = null;
         try {
           const pub = createClient() as any;
           const r = await withGroup(
             pub
               .from("ratings")
-              .select("to_user_id, avg:avg(stars)")
-              .in("to_user_id", missingIds),
+              .select("to_user_id, avg:avg(stars), count:count(*)")
+              .in("to_user_id", ids),
             "to_user_id",
           );
           if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
@@ -318,8 +321,8 @@ export async function GET(req: Request) {
             const r = await withGroup(
               admin
                 .from("ratings")
-                .select("to_user_id, avg:avg(stars)")
-                .in("to_user_id", missingIds),
+                .select("to_user_id, avg:avg(stars), count:count(*)")
+                .in("to_user_id", ids),
               "to_user_id",
             );
             if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
@@ -328,16 +331,19 @@ export async function GET(req: Request) {
           }
         }
         if (agg && agg.length) {
-          const map = new Map<string, number>();
-          for (const row of agg) {
-            const n = Number((row as any).avg);
-            if (Number.isFinite(n)) map.set(String((row as any).to_user_id), n);
-          }
-          mapped = mapped.map((m) =>
-            m.rating === null && map.has(m.id)
-              ? { ...m, rating: map.get(m.id)! }
-              : m,
-          );
+          const aggregateMap = buildRatingsAggregateMap(agg);
+          mapped = mapped.map((m) => {
+            const aggregate = aggregateMap.get(m.id) ?? null;
+            const rating = resolveProfessionalRating({
+              aggregate,
+              legacyRating: m.rating,
+            });
+            return {
+              ...m,
+              rating,
+              reviewsCount: aggregate?.reviewsCount ?? null,
+            };
+          });
         }
       }
     } catch {
