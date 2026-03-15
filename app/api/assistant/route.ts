@@ -1,6 +1,9 @@
 ﻿import { NextRequest } from "next/server";
 
-import { matchCanonicalIntent, supportFallbackResponse } from "@/lib/assistant/intents";
+import {
+  matchCanonicalIntent,
+  supportFallbackResponse,
+} from "@/lib/assistant/intents";
 import { SYSTEM_PROMPT } from "@/lib/assistant/prompt";
 import {
   ensureNonEmptyResponse,
@@ -69,20 +72,36 @@ function buildActionsFromHelpLinks(links: string[]): AssistantAction[] {
       out.push({ type: "app_link", label: "Ver ayuda", href: "/help" });
     }
     if (clean.startsWith("/requests/new")) {
-      out.push({ type: "app_link", label: "Ir a nueva solicitud", href: "/requests/new" });
+      out.push({
+        type: "app_link",
+        label: "Ir a nueva solicitud",
+        href: "/requests/new",
+      });
     }
     if (clean.startsWith("/mensajes")) {
-      out.push({ type: "app_link", label: "Abrir mensajes", href: "/mensajes" });
+      out.push({
+        type: "app_link",
+        label: "Abrir mensajes",
+        href: "/mensajes",
+      });
     }
     if (clean.startsWith("/applied")) {
-      out.push({ type: "app_link", label: "Ver trabajos realizados", href: "/applied" });
+      out.push({
+        type: "app_link",
+        label: "Ver trabajos realizados",
+        href: "/applied",
+      });
     }
   }
   if (!out.find((a) => a.href === "/help")) {
     out.push({ type: "app_link", label: "Ver ayuda", href: "/help" });
   }
   if (!out.find((a) => a.type === "whatsapp")) {
-    out.push({ type: "whatsapp", label: "Abrir WhatsApp", href: "https://wa.me/528130878691" });
+    out.push({
+      type: "whatsapp",
+      label: "Abrir WhatsApp",
+      href: "https://wa.me/528130878691",
+    });
   }
   return out;
 }
@@ -126,9 +145,9 @@ async function callOpenAISecondary(args: {
     }),
   });
   if (!res.ok) return null;
-  const json = (await res.json().catch(() => null)) as
-    | { choices?: Array<{ message?: { content?: string | null } }> }
-    | null;
+  const json = (await res.json().catch(() => null)) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+  } | null;
   const text = json?.choices?.[0]?.message?.content;
   return typeof text === "string" ? text : null;
 }
@@ -143,7 +162,9 @@ async function writeStructuredResponse(args: {
   const safeText = sanitizeAssistantText(args.text);
   const chunks = splitForStream(safeText);
   for (const chunk of chunks) {
-    controller.enqueue(encoder.encode(sseTextChunk(`${chunk}${chunk.endsWith(".") ? "" : " "}`)));
+    controller.enqueue(
+      encoder.encode(sseTextChunk(`${chunk}${chunk.endsWith(".") ? "" : " "}`)),
+    );
   }
   const safeActions = sanitizeActions(args.actions || []);
   if (safeActions.length > 0) {

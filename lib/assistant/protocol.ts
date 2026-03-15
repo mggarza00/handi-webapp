@@ -9,9 +9,11 @@ export type AssistantStreamEvent =
 export function parseAssistantPayload(payload: string): AssistantStreamEvent {
   const raw = payload || "";
   try {
-    const parsed = JSON.parse(raw) as
-      | { type?: string; delta?: unknown; actions?: unknown }
-      | null;
+    const parsed = JSON.parse(raw) as {
+      type?: string;
+      delta?: unknown;
+      actions?: unknown;
+    } | null;
     if (!parsed || typeof parsed !== "object") {
       return { type: "legacy_text", delta: raw };
     }
@@ -29,4 +31,3 @@ export function parseAssistantPayload(payload: string): AssistantStreamEvent {
     return { type: "legacy_text", delta: raw };
   }
 }
-

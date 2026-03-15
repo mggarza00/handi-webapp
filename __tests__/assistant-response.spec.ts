@@ -19,12 +19,17 @@ describe("assistant response sanitization", () => {
       { type: "app_link", label: "Hack", href: "/admin/secret" },
       { type: "app_link", label: "Ayuda", href: "/help" },
       { type: "whatsapp", label: "WA", href: "https://wa.me/528130878691" },
-      { type: "external_link", label: "Bad", href: "https://malicious.example" },
+      {
+        type: "external_link",
+        label: "Bad",
+        href: "https://malicious.example",
+      },
     ]);
     expect(actions.some((a) => a.href === "/admin/secret")).toBe(false);
     expect(actions.some((a) => a.href === "/help")).toBe(true);
     expect(actions.some((a) => a.href.includes("wa.me"))).toBe(true);
-    expect(actions.some((a) => a.href.includes("malicious.example"))).toBe(false);
+    expect(actions.some((a) => a.href.includes("malicious.example"))).toBe(
+      false,
+    );
   });
 });
-

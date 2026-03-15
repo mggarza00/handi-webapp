@@ -27,13 +27,20 @@ type Msg = { role: Role; content: string; actions?: AssistantAction[] };
 export default function AssistantPanel() {
   const router = useRouter();
   const pathname = usePathname();
-  const isAdmin = pathname === "/admin" || (pathname ?? "").startsWith("/admin/");
+  const isAdmin =
+    pathname === "/admin" || (pathname ?? "").startsWith("/admin/");
   const [open, setOpen] = useState(false);
   const [hasBottomBar, setHasBottomBar] = useState(false);
-  const onChatDetail = useMemo(() => /^\/mensajes\/[\w-]+/i.test(pathname || ""), [pathname]);
+  const onChatDetail = useMemo(
+    () => /^\/mensajes\/[\w-]+/i.test(pathname || ""),
+    [pathname],
+  );
 
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: "Hola, soy el asistente de Handi. ¿En qué te ayudo?" },
+    {
+      role: "assistant",
+      content: "Hola, soy el asistente de Handi. ¿En qué te ayudo?",
+    },
   ]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -55,14 +62,23 @@ export default function AssistantPanel() {
       }
       setOpen(true);
     };
-    window.addEventListener(ASSISTANT_OPEN_EVENT, handleAssistantOpen as EventListener);
+    window.addEventListener(
+      ASSISTANT_OPEN_EVENT,
+      handleAssistantOpen as EventListener,
+    );
     return () => {
-      window.removeEventListener(ASSISTANT_OPEN_EVENT, handleAssistantOpen as EventListener);
+      window.removeEventListener(
+        ASSISTANT_OPEN_EVENT,
+        handleAssistantOpen as EventListener,
+      );
     };
   }, []);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [messages, open]);
 
   function handleClose() {
@@ -86,7 +102,11 @@ export default function AssistantPanel() {
   async function handleSend() {
     if (!canSend) return;
     const userMsg: Msg = { role: "user", content: input.trim() };
-    setMessages((prev) => [...prev, userMsg, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { role: "assistant", content: "" },
+    ]);
     setInput("");
     setIsSending(true);
 
@@ -144,7 +164,8 @@ export default function AssistantPanel() {
         ...prev,
         {
           role: "assistant",
-          content: "Lo siento, ocurrió un error al responder. Intenta de nuevo.",
+          content:
+            "Lo siento, ocurrió un error al responder. Intenta de nuevo.",
           actions: [
             {
               type: "whatsapp",
@@ -215,7 +236,9 @@ export default function AssistantPanel() {
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <span className="flex-1 text-center md:text-left md:ml-10 text-[22px]">Asistente Handi</span>
+              <span className="flex-1 text-center md:text-left md:ml-10 text-[22px]">
+                Asistente Handi
+              </span>
               <Image
                 src="/images/handee_mascota.gif"
                 alt="Handee mascota"
@@ -233,14 +256,19 @@ export default function AssistantPanel() {
               className="h-full overflow-auto overscroll-contain p-3 bg-background/50 space-y-3"
             >
               {messages.map((m, i) => (
-                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  key={i}
+                  className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                >
                   <div className="max-w-[80%]">
                     <div
                       className={`${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"} rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words`}
                     >
                       {m.content}
                     </div>
-                    {m.role === "assistant" && Array.isArray(m.actions) && m.actions.length > 0 ? (
+                    {m.role === "assistant" &&
+                    Array.isArray(m.actions) &&
+                    m.actions.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {m.actions.map((action, idx) => (
                           <Button
@@ -278,7 +306,11 @@ export default function AssistantPanel() {
                 }}
                 placeholder="Escribe tu mensaje..."
               />
-              <Button onClick={() => void handleSend()} disabled={!canSend} className="gap-2 h-10 self-start">
+              <Button
+                onClick={() => void handleSend()}
+                disabled={!canSend}
+                className="gap-2 h-10 self-start"
+              >
                 {isSending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />

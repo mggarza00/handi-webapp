@@ -83,7 +83,11 @@ export default function AssistantLauncher() {
   async function handleChatSend() {
     if (!chatInput.trim() || isSending) return;
     const userMsg = { role: "user" as const, content: chatInput.trim() };
-    setMessages((prev) => [...prev, userMsg, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { role: "assistant", content: "" },
+    ]);
     setChatInput("");
     setIsSending(true);
     const ac = new AbortController();
@@ -93,7 +97,11 @@ export default function AssistantLauncher() {
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ messages: [...messages, userMsg], page: { pathname }, user: {} }),
+        body: JSON.stringify({
+          messages: [...messages, userMsg],
+          page: { pathname },
+          user: {},
+        }),
         signal: ac.signal,
       });
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
@@ -110,7 +118,9 @@ export default function AssistantLauncher() {
         sseBuffer = frames.pop() || "";
         for (const frame of frames) {
           if (!frame || !frame.startsWith("data:")) continue;
-          const payload = frame.startsWith("data: ") ? frame.slice(6) : frame.slice(5);
+          const payload = frame.startsWith("data: ")
+            ? frame.slice(6)
+            : frame.slice(5);
           const event = parseAssistantPayload(payload);
           setMessages((prev) => {
             const next = [...prev];
@@ -135,7 +145,8 @@ export default function AssistantLauncher() {
         ...prev,
         {
           role: "assistant",
-          content: "Lo siento, hubo un problema al responder. Intenta de nuevo.",
+          content:
+            "Lo siento, hubo un problema al responder. Intenta de nuevo.",
           actions: [
             {
               type: "whatsapp",
@@ -207,7 +218,9 @@ export default function AssistantLauncher() {
                           >
                             {m.content}
                           </div>
-                          {m.role === "assistant" && Array.isArray(m.actions) && m.actions.length > 0 ? (
+                          {m.role === "assistant" &&
+                          Array.isArray(m.actions) &&
+                          m.actions.length > 0 ? (
                             <div className="mt-2 flex flex-wrap gap-2">
                               {m.actions.map((action, idx) => (
                                 <Button
@@ -238,7 +251,10 @@ export default function AssistantLauncher() {
                           const el = listRef.current;
                           if (!el) return;
                           setTimeout(() => {
-                            el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                            el.scrollTo({
+                              top: el.scrollHeight,
+                              behavior: "smooth",
+                            });
                           }, 50);
                         }}
                         placeholder="Escribe tu mensaje..."
@@ -262,7 +278,9 @@ export default function AssistantLauncher() {
                       </Button>
                     </div>
                     {controller ? (
-                      <div className="mt-1 text-[11px] text-muted-foreground">Respondiendo...</div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        Respondiendo...
+                      </div>
                     ) : null}
                   </div>
                 </div>
@@ -271,11 +289,14 @@ export default function AssistantLauncher() {
               <div className="rounded-2xl border p-4">
                 <h3 className="mb-2 font-semibold">WhatsApp</h3>
                 <p className="mb-3 text-sm text-slate-600">
-                  Chatea por WhatsApp. Incluimos la URL de la página actual para contexto.
+                  Chatea por WhatsApp. Incluimos la URL de la página actual para
+                  contexto.
                 </p>
 
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium">Tu nombre (opcional)</label>
+                  <label className="text-sm font-medium">
+                    Tu nombre (opcional)
+                  </label>
                   <Input
                     placeholder="Ej. Mauricio"
                     value={name}
@@ -294,7 +315,11 @@ export default function AssistantLauncher() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button asChild disabled={!waNumber || !canSend} className="gap-2">
+                  <Button
+                    asChild
+                    disabled={!waNumber || !canSend}
+                    className="gap-2"
+                  >
                     <a href={waLink} target="_blank" rel="noopener noreferrer">
                       <Phone className="h-4 w-4" />
                       Abrir WhatsApp

@@ -35,7 +35,11 @@ function tokenize(text: string): string[] {
   return toks.filter((t) => !stop.has(t));
 }
 
-function scoreQueryToText(query: string, text: string, extra: string[] = []): number {
+function scoreQueryToText(
+  query: string,
+  text: string,
+  extra: string[] = [],
+): number {
   const q = tokenize(query);
   if (q.length === 0) return 0;
   const t = tokenize(text).concat(extra.map(normalize));

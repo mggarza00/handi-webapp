@@ -8,7 +8,12 @@ export const FAQS: FAQItem[] = [
     answer:
       "Puedes crearla desde Nueva solicitud. Completa los datos del servicio y envíala para recibir propuestas.",
     url: "/help",
-    keywords: ["crear solicitud", "nueva solicitud", "pedir servicio", "publicar servicio"],
+    keywords: [
+      "crear solicitud",
+      "nueva solicitud",
+      "pedir servicio",
+      "publicar servicio",
+    ],
   },
   {
     id: "postularse",
@@ -26,7 +31,12 @@ export const FAQS: FAQItem[] = [
     answer:
       "El chat puede bloquear mensajes con datos sensibles por seguridad. Reintenta con un mensaje sin teléfonos, correos o enlaces.",
     url: "/help",
-    keywords: ["candado", "chat bloqueado", "no puedo enviar mensajes", "mensaje bloqueado"],
+    keywords: [
+      "candado",
+      "chat bloqueado",
+      "no puedo enviar mensajes",
+      "mensaje bloqueado",
+    ],
   },
   {
     id: "cliente-no-responde",
@@ -44,7 +54,12 @@ export const FAQS: FAQItem[] = [
     answer:
       "Revisa la sección Trabajos realizados para ver tu historial de servicios finalizados.",
     url: "/help",
-    keywords: ["trabajos realizados", "historial", "servicios terminados", "applied"],
+    keywords: [
+      "trabajos realizados",
+      "historial",
+      "servicios terminados",
+      "applied",
+    ],
   },
   {
     id: "evidencia-fotos",

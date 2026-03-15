@@ -20,7 +20,10 @@ export default function LandingWarmup() {
     };
 
     const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number },
+      ) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
     let idleHandle: number | null = null;

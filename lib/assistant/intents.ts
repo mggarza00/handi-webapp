@@ -103,7 +103,10 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Puedes continuar la conversación desde Mensajes. Ahí verás tus chats activos y el historial del servicio.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), appAction("Ver ayuda", "/help")],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      appAction("Ver ayuda", "/help"),
+    ],
   },
   {
     id: "chat_locked",
@@ -117,7 +120,11 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "El bloqueo de chat suele activarse por seguridad cuando detecta datos sensibles. Reintenta con un mensaje sin teléfonos, correos ni enlaces, y debería enviarse.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), appAction("Ver ayuda", "/help"), waAction()],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      appAction("Ver ayuda", "/help"),
+      waAction(),
+    ],
   },
   {
     id: "client_not_responding",
@@ -130,7 +137,10 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Abre el chat del servicio y pide confirmar o reprogramar el horario. Si no hay respuesta, contacta soporte para seguimiento.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), waAction("Escalar a soporte")],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      waAction("Escalar a soporte"),
+    ],
   },
   {
     id: "view_completed_jobs",
@@ -143,7 +153,10 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Tu historial de trabajos está en Trabajos realizados. Ahí puedes revisar servicios finalizados y su estado.",
-    actions: [appAction("Ver trabajos realizados", "/applied"), appAction("Ver perfil", "/profile/setup")],
+    actions: [
+      appAction("Ver trabajos realizados", "/applied"),
+      appAction("Ver perfil", "/profile/setup"),
+    ],
   },
   {
     id: "upload_evidence",
@@ -156,7 +169,11 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Puedes subir evidencia desde el flujo del servicio al finalizar o desde el chat del servicio. Asegúrate de adjuntar fotos claras del trabajo.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), appAction("Ver trabajos realizados", "/applied"), waAction()],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      appAction("Ver trabajos realizados", "/applied"),
+      waAction(),
+    ],
   },
   {
     id: "payments_receipt",
@@ -170,7 +187,11 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "El comprobante se muestra dentro del chat del servicio cuando el pago se confirma. Si no aparece, te conviene reportarlo a soporte para revisión del pago.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), waAction("Reportar pago"), appAction("Ver ayuda", "/help")],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      waAction("Reportar pago"),
+      appAction("Ver ayuda", "/help"),
+    ],
     escalateToSupport: true,
   },
   {
@@ -185,7 +206,10 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Para reprogramar, confirma en el chat una nueva fecha y horario con la otra parte. Deja el acuerdo por escrito en el chat para evitar confusiones.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), waAction("Necesito soporte")],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      waAction("Necesito soporte"),
+    ],
   },
   {
     id: "service_problem",
@@ -198,7 +222,10 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Lamento el problema con el servicio. Te recomiendo dejar evidencia en el chat y contactar a soporte de Handi para que lo revisen cuanto antes.",
-    actions: [appAction("Abrir mensajes", "/mensajes"), waAction("Contactar soporte")],
+    actions: [
+      appAction("Abrir mensajes", "/mensajes"),
+      waAction("Contactar soporte"),
+    ],
     escalateToSupport: true,
   },
   {
@@ -212,7 +239,11 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Primero revisa filtros y estado de tus solicitudes en tu panel. Si siguen sin aparecer, soporte puede revisar tu cuenta y estatus.",
-    actions: [appAction("Ver solicitudes", "/requests"), appAction("Ver ayuda", "/help"), waAction()],
+    actions: [
+      appAction("Ver solicitudes", "/requests"),
+      appAction("Ver ayuda", "/help"),
+      waAction(),
+    ],
     escalateToSupport: true,
   },
   {
@@ -226,7 +257,11 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Si no te deja postularte, revisa que tu perfil profesional esté completo y actualizado. Si el bloqueo continúa, soporte te ayuda a validarlo.",
-    actions: [appAction("Ir a mi perfil", "/profile/setup"), appAction("Ver solicitudes", "/requests/explore"), waAction()],
+    actions: [
+      appAction("Ir a mi perfil", "/profile/setup"),
+      appAction("Ver solicitudes", "/requests/explore"),
+      waAction(),
+    ],
     escalateToSupport: true,
   },
   {
@@ -242,7 +277,10 @@ const INTENTS: IntentDefinition[] = [
     ],
     response:
       "Parece un problema técnico. Intenta actualizar la página y volver a intentarlo. Si persiste, repórtalo por WhatsApp para atención rápida.",
-    actions: [appAction("Ver ayuda", "/help"), waAction("Reportar problema técnico")],
+    actions: [
+      appAction("Ver ayuda", "/help"),
+      waAction("Reportar problema técnico"),
+    ],
     escalateToSupport: true,
   },
 ];
@@ -261,7 +299,10 @@ function scoreTrigger(query: string, trigger: string): number {
   if (query.includes(trigger)) return 1;
   const words = trigger.split(" ").filter(Boolean);
   if (!words.length) return 0;
-  const hits = words.reduce((acc, word) => (query.includes(word) ? acc + 1 : acc), 0);
+  const hits = words.reduce(
+    (acc, word) => (query.includes(word) ? acc + 1 : acc),
+    0,
+  );
   return hits / words.length;
 }
 
@@ -277,7 +318,10 @@ export function matchCanonicalIntent(
     if (intent.role !== "any" && role && intent.role !== role) continue;
     let confidence = 0;
     for (const trigger of intent.triggers) {
-      confidence = Math.max(confidence, scoreTrigger(query, normalize(trigger)));
+      confidence = Math.max(
+        confidence,
+        scoreTrigger(query, normalize(trigger)),
+      );
     }
     if (confidence >= 0.74 && (!best || confidence > best.confidence)) {
       best = { ...intent, confidence };
@@ -315,4 +359,3 @@ export const ASSISTANT_SAFE_APP_LINKS = new Set<string>([
   "/profile/setup",
   "/pro/apply",
 ]);
-

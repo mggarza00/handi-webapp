@@ -34,4 +34,3 @@ describe("assistant stream protocol", () => {
     }
   });
 });
-

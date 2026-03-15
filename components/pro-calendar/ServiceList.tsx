@@ -31,11 +31,20 @@ type ServiceGroup = {
   items: NormalizedService[];
 };
 
-export default function ServiceList({ services }: { services: ScheduledService[] }) {
+export default function ServiceList({
+  services,
+}: {
+  services: ScheduledService[];
+}) {
   const router = useRouter();
-  const todayKey = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayKey = React.useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    [],
+  );
   const [helpOpen, setHelpOpen] = React.useState(false);
-  const [helpBusy, setHelpBusy] = React.useState<null | "talk" | "no-response">(null);
+  const [helpBusy, setHelpBusy] = React.useState<null | "talk" | "no-response">(
+    null,
+  );
   const [helpContext, setHelpContext] = React.useState<{
     requestId: string;
     serviceTitle: string;
@@ -49,7 +58,13 @@ export default function ServiceList({ services }: { services: ScheduledService[]
         const dateKey = service.scheduled_at!.slice(0, 10);
         return { ...service, dateKey, isPast: dateKey < todayKey };
       })
-      .sort((a, b) => (a.scheduled_at < b.scheduled_at ? -1 : a.scheduled_at > b.scheduled_at ? 1 : 0));
+      .sort((a, b) =>
+        a.scheduled_at < b.scheduled_at
+          ? -1
+          : a.scheduled_at > b.scheduled_at
+            ? 1
+            : 0,
+      );
 
     const byDate = new Map<string, ServiceGroup>();
     normalized.forEach((item) => {
@@ -65,7 +80,6 @@ export default function ServiceList({ services }: { services: ScheduledService[]
     });
     return Array.from(byDate.values());
   }, [services, todayKey]);
-
 
   const resolveMyId = React.useCallback(async (): Promise<string | null> => {
     if (myIdRef.current) return myIdRef.current;
@@ -122,10 +136,13 @@ export default function ServiceList({ services }: { services: ScheduledService[]
     [resolveMyId, router],
   );
 
-  const openHelpMenu = React.useCallback((requestId: string, serviceTitle: string) => {
-    setHelpContext({ requestId, serviceTitle });
-    setHelpOpen(true);
-  }, []);
+  const openHelpMenu = React.useCallback(
+    (requestId: string, serviceTitle: string) => {
+      setHelpContext({ requestId, serviceTitle });
+      setHelpOpen(true);
+    },
+    [],
+  );
 
   const handleTalkToClient = React.useCallback(async () => {
     if (!helpContext || helpBusy) return;
@@ -176,18 +193,26 @@ export default function ServiceList({ services }: { services: ScheduledService[]
   );
 
   if (groups.length === 0) {
-    return <div className="text-sm text-slate-600">No hay servicios agendados.</div>;
+    return (
+      <div className="text-sm text-slate-600">No hay servicios agendados.</div>
+    );
   }
 
   return (
     <div className="space-y-5">
       {groups.map((group) => {
-        const separatorLabel = group.isToday ? "Hoy" : format(group.date, "dd/MM/yyyy", { locale: es });
+        const separatorLabel = group.isToday
+          ? "Hoy"
+          : format(group.date, "dd/MM/yyyy", { locale: es });
         const separatorColor = group.isToday ? "text-sky-600" : "text-blue-900";
-        const separatorBorder = group.isToday ? "border-sky-200" : "border-blue-200";
+        const separatorBorder = group.isToday
+          ? "border-sky-200"
+          : "border-blue-200";
         return (
           <div key={group.dateKey} className="space-y-3">
-            <div className={`flex items-center gap-3 text-sm font-semibold uppercase tracking-wide ${separatorColor}`}>
+            <div
+              className={`flex items-center gap-3 text-sm font-semibold uppercase tracking-wide ${separatorColor}`}
+            >
               <span>{separatorLabel}</span>
               <div className={`flex-1 border-t ${separatorBorder}`} />
             </div>
@@ -205,13 +230,27 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                 );
                 return (
                   <li key={`${ev.id}-${i}`}>
-                    <Card className={ev.isPast ? "border-orange-200 bg-orange-50/60" : undefined}>
+                    <Card
+                      className={
+                        ev.isPast
+                          ? "border-orange-200 bg-orange-50/60"
+                          : undefined
+                      }
+                    >
                       <CardHeader className="pb-2">
-                        <CardTitle className={`text-base flex items-center gap-2 ${ev.isPast ? "text-orange-600" : ""}`}>
-                          <span className="truncate">{ev.title || "Servicio"}</span>
+                        <CardTitle
+                          className={`text-base flex items-center gap-2 ${ev.isPast ? "text-orange-600" : ""}`}
+                        >
+                          <span className="truncate">
+                            {ev.title || "Servicio"}
+                          </span>
                           <Badge
                             variant="secondary"
-                            className={ev.isPast ? "bg-orange-100 text-orange-700 border-orange-200" : undefined}
+                            className={
+                              ev.isPast
+                                ? "bg-orange-100 text-orange-700 border-orange-200"
+                                : undefined
+                            }
                           >
                             {ev.status || "scheduled"}
                           </Badge>
@@ -250,7 +289,12 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => openHelpMenu(ev.id, ev.title || "Servicio")}
+                                    onClick={() =>
+                                      openHelpMenu(
+                                        ev.id,
+                                        ev.title || "Servicio",
+                                      )
+                                    }
                                   >
                                     Necesito ayuda
                                   </Button>
@@ -269,7 +313,11 @@ export default function ServiceList({ services }: { services: ScheduledService[]
                                     onCompleted={() => router.refresh()}
                                   />
                                 ) : null}
-                                <Button size="sm" variant="outline" onClick={() => handleViewRequest(ev.id)}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewRequest(ev.id)}
+                                >
                                   Ver solicitud
                                 </Button>
                               </div>
@@ -300,7 +348,9 @@ export default function ServiceList({ services }: { services: ScheduledService[]
               disabled={helpBusy !== null}
               className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
             >
-              <p className="text-sm font-semibold text-slate-900">Hablar con el cliente</p>
+              <p className="text-sm font-semibold text-slate-900">
+                Hablar con el cliente
+              </p>
               <p className="text-xs text-slate-600">
                 Abrir chat directo con el cliente de este servicio.
               </p>
@@ -311,7 +361,9 @@ export default function ServiceList({ services }: { services: ScheduledService[]
               disabled={helpBusy !== null}
               className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
             >
-              <p className="text-sm font-semibold text-slate-900">El cliente no responde</p>
+              <p className="text-sm font-semibold text-slate-900">
+                El cliente no responde
+              </p>
               <p className="text-xs text-slate-600">
                 Necesito confirmar o reprogramar el servicio.
               </p>
@@ -322,7 +374,9 @@ export default function ServiceList({ services }: { services: ScheduledService[]
               disabled={helpBusy !== null}
               className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
             >
-              <p className="text-sm font-semibold text-slate-900">Problema con el servicio</p>
+              <p className="text-sm font-semibold text-slate-900">
+                Problema con el servicio
+              </p>
               <p className="text-xs text-slate-600">
                 Algo salió mal con este trabajo.
               </p>
@@ -333,7 +387,9 @@ export default function ServiceList({ services }: { services: ScheduledService[]
               disabled={helpBusy !== null}
               className="w-full rounded-lg border p-3 text-left hover:bg-slate-50 disabled:opacity-60"
             >
-              <p className="text-sm font-semibold text-slate-900">Contactar soporte de Handi</p>
+              <p className="text-sm font-semibold text-slate-900">
+                Contactar soporte de Handi
+              </p>
               <p className="text-xs text-slate-600">
                 Hablar con soporte por WhatsApp.
               </p>
