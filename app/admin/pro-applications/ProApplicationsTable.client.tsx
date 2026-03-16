@@ -46,6 +46,10 @@ type ApplicationDetail = ApplicationRow & {
   categories?: string[] | null;
   subcategories?: string[] | null;
   years_experience?: number | null;
+  can_issue_invoices?: boolean | null;
+  authorize_handi_to_issue_invoices?: boolean | null;
+  privacy_notice_accepted?: boolean | null;
+  signature?: string | null;
   refs?: Reference[] | null;
   uploads?: Uploads | null;
   company_doc_incorporation_url?: string | null;
@@ -117,6 +121,10 @@ function buildUploadItems(detail: ApplicationDetail) {
   pushUrl("Caratula bancaria", uploads.bank_cover_url);
   pushUrl("Firma", uploads.signature_url);
   return items;
+}
+
+function boolLabel(value: boolean | null | undefined) {
+  return value ? "Sí" : "No";
 }
 
 export default function ProApplicationsTable({
@@ -294,6 +302,46 @@ export default function ProApplicationsTable({
                                   Ciudades
                                 </div>
                                 <div>{formatList(detail.cities) || "."}</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="text-xs font-semibold uppercase text-slate-500">
+                              Facturación y consentimiento
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div>
+                                <div className="text-xs text-slate-500">
+                                  Facultad para facturar
+                                </div>
+                                <div>
+                                  {boolLabel(detail.can_issue_invoices)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-slate-500">
+                                  Autoriza a Handi para facturar
+                                </div>
+                                <div>
+                                  {boolLabel(
+                                    detail.authorize_handi_to_issue_invoices,
+                                  )}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-slate-500">
+                                  Aviso de privacidad aceptado
+                                </div>
+                                <div>
+                                  {boolLabel(detail.privacy_notice_accepted)}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-xs text-slate-500">
+                                  Firma capturada
+                                </div>
+                                <div>{detail.signature ? "Sí" : "No"}</div>
                               </div>
                             </div>
                           </div>

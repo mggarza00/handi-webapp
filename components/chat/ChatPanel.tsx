@@ -40,6 +40,8 @@ import {
 } from "@/components/ui/dialog";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 type Msg = {
   id: string;
@@ -88,6 +90,18 @@ const JSON_HEADER = {
   "Content-Type": "application/json; charset=utf-8",
 } as const;
 const AUTH_REQUIRED_MESSAGE = "Tu sesion expiro. Vuelve a iniciar sesion.";
+function getChatFriendlyError(error: unknown, source: string): string {
+  const normalized = normalizeAppError(error, { source });
+  reportError({
+    error,
+    normalized,
+    area: "messages",
+    feature: source,
+    route: "chat-panel",
+    blocking: false,
+  });
+  return normalized.userMessage;
+}
 function normalizeStatus(value?: string | null): string {
   if (!value) return "pending";
   return value;
@@ -625,10 +639,7 @@ export default function ChatPanel({
     })();
   }, [userId]);
   const load = React.useCallback(
-    async (
-      withSpinner = true,
-      options: { silent?: boolean } = {},
-    ) => {
+    async (withSpinner = true, options: { silent?: boolean } = {}) => {
       if (!conversationId) return;
       if (withSpinner) setLoading(true);
       try {
@@ -644,7 +655,15 @@ export default function ChatPanel({
         const data = (await parseJsonSafe<HistoryResponse>(res)) ?? {};
         if (!res.ok) {
           if (!options.silent) {
-            toast.error(data?.error || "No se pudo cargar el historial");
+            toast.error(
+              getChatFriendlyError(
+                {
+                  message: data?.error || "HISTORY_LOAD_FAILED",
+                  status: res.status,
+                },
+                "chat.history.load",
+              ),
+            );
           }
           return;
         }
@@ -656,9 +675,7 @@ export default function ChatPanel({
         if (data?.request_id) setRequestId(data.request_id);
       } catch (error) {
         if (!options.silent) {
-          const message =
-            error instanceof Error ? error.message : "Error de red";
-          toast.error(message);
+          toast.error(getChatFriendlyError(error, "chat.history.load"));
         }
       } finally {
         if (withSpinner) setLoading(false);
@@ -696,7 +713,10 @@ export default function ChatPanel({
       }, delayMs);
 
       if (pollAttempts <= 0) return;
-      if (fallbackPollRef.current.active && fallbackPollRef.current.token === token) {
+      if (
+        fallbackPollRef.current.active &&
+        fallbackPollRef.current.token === token
+      ) {
         return;
       }
       fallbackPollRef.current = { token, active: true };
@@ -1140,7 +1160,8 @@ export default function ChatPanel({
         if (idx === -1) return prev;
         const current = prev[idx];
         const rawPayload = row.payload;
-        let nextPayload: Record<string, unknown> | null = current.payload ?? null;
+        let nextPayload: Record<string, unknown> | null =
+          current.payload ?? null;
         if (rawPayload && typeof rawPayload === "object") {
           nextPayload = rawPayload as Record<string, unknown>;
         } else if (typeof rawPayload === "string" && rawPayload.trim().length) {
@@ -1401,7 +1422,7 @@ export default function ChatPanel({
     const result = await postMessage(text);
     if (!result.ok) {
       removeMessageById(optimistic.id);
-      toast.error(result.error);
+      toast.error(getChatFriendlyError(result.error, "chat.send-text"));
       return false;
     }
     if (result.id) {
@@ -1651,7 +1672,7 @@ export default function ChatPanel({
       const normalized =
         typeof raw === "string" && raw.includes("ACTIVE_OFFER_EXISTS")
           ? ACTIVE_OFFER_MSG
-          : raw;
+          : getChatFriendlyError(error, "chat.offer.create");
       toast.error(normalized);
     } finally {
       setOfferSubmitting(false);
@@ -1818,7 +1839,7 @@ export default function ChatPanel({
       if (/LOCKED/i.test(message) || /INVALID_STATUS/i.test(message)) {
         toast.error("No se pudo aceptar la oferta. Intenta de nuevo.");
       } else {
-        toast.error(message);
+        toast.error(getChatFriendlyError(error, "chat.offer.accept"));
       }
     } finally {
       setAcceptingOfferId(null);
@@ -1947,8 +1968,7 @@ export default function ChatPanel({
         pollIntervalMs: 1100,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Error";
-      toast.error(message);
+      toast.error(getChatFriendlyError(error, "chat.offer.reject"));
     } finally {
       setRejectingOfferId(null);
     }
@@ -2186,7 +2206,7 @@ export default function ChatPanel({
       }
       if (url) window.location.assign(url);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "checkout_error");
+      toast.error(getChatFriendlyError(e, "chat.checkout.deposit"));
     }
   }
 
@@ -2327,7 +2347,15 @@ export default function ChatPanel({
       );
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        toast.error(json?.error || "No se pudo actualizar el estado");
+        toast.error(
+          getChatFriendlyError(
+            {
+              message: json?.error || "REQUEST_STATUS_UPDATE_FAILED",
+              status: res.status,
+            },
+            "chat.request-status.patch",
+          ),
+        );
         return;
       }
       const s = (json?.data?.status as string | null) ?? null;
@@ -2338,7 +2366,7 @@ export default function ChatPanel({
           : "Trabajo marcado como realizado",
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error de red");
+      toast.error(getChatFriendlyError(e, "chat.request-status.patch"));
     }
   }
   const messageList = (
@@ -2608,8 +2636,13 @@ export default function ChatPanel({
         },
       );
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.ok === false)
-        throw new Error(json?.error || "No se pudo crear la solicitud");
+      if (!res.ok || json?.ok === false) {
+        throw {
+          message: json?.error || "ONSITE_QUOTE_REQUEST_FAILED",
+          detail: json?.detail || null,
+          status: res.status,
+        };
+      }
       toast.success("Solicitud de cotización en sitio enviada");
       setOnsiteOpen(false);
       setOnsiteDate("");
@@ -2623,7 +2656,7 @@ export default function ChatPanel({
         pollIntervalMs: 1000,
       });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Error");
+      toast.error(getChatFriendlyError(e, "chat.onsite-quote.create"));
     } finally {
       setOnsiteSubmitting(false);
     }

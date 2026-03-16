@@ -6,7 +6,7 @@ import styles from "./page.module.css";
 
 import ProApplySubmittedConfetti from "@/components/pro-apply/ProApplySubmittedConfetti.client";
 
-export const metadata: Metadata = { title: "Postulaci&oacute;n enviada" };
+export const metadata: Metadata = { title: "Postulación enviada" };
 
 export default function ProApplySubmittedPage() {
   return (

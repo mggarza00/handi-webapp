@@ -18,6 +18,8 @@ import {
 } from "@/lib/auth/flow";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 const stackSansMedium = {
@@ -50,8 +52,9 @@ export function SignInFlowCard({
   const [googleLoading, setGoogleLoading] = useState(false);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
-  const [callbackRecoveryMessage, setCallbackRecoveryMessage] =
-    useState<string | null>(null);
+  const [callbackRecoveryMessage, setCallbackRecoveryMessage] = useState<
+    string | null
+  >(null);
 
   const next = useMemo(() => {
     const n = sp?.get("next");
@@ -110,7 +113,21 @@ export function SignInFlowCard({
         "Demasiados intentos al iniciar sesion. Espera 1-2 minutos e intentalo de nuevo.",
       );
     } else {
-      setError(err);
+      const normalized = normalizeAppError(err, {
+        status: status ? Number(status) : undefined,
+        source: "auth.sign-in.callback",
+        code,
+      });
+      setError(normalized.userMessage);
+      reportError({
+        error: err,
+        normalized,
+        area: "auth",
+        feature: "sign-in-callback",
+        route: "/auth/sign-in",
+        blocking: true,
+        extra: { callbackStatus: status, callbackCode: code },
+      });
     }
   }, [sp]);
 
@@ -165,11 +182,18 @@ export function SignInFlowCard({
       });
     } catch (err) {
       setGoogleLoading(false);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo iniciar sesion con Google en este momento.",
-      );
+      const normalized = normalizeAppError(err, {
+        source: "auth.sign-in.google",
+      });
+      setError(normalized.userMessage);
+      reportError({
+        error: err,
+        normalized,
+        area: "auth",
+        feature: "google-sign-in",
+        route: "/auth/sign-in",
+        blocking: true,
+      });
     }
   };
 
