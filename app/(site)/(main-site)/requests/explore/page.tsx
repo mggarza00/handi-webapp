@@ -126,15 +126,31 @@ export default async function ExploreRequestsPage({
 
   const { data: profile } = await supabase
     .from("professionals")
-    .select("city, cities, categories, subcategories")
+    .select("active, city, cities, categories, subcategories")
     .eq("id", user.id)
     .maybeSingle<{
+      active: boolean | null;
       city: string | null;
       cities: string[] | null;
       // categories stored as array of { name } objects
       categories: Array<{ name?: string } | string> | null;
       subcategories?: Array<{ name?: string } | string> | null;
     }>();
+
+  if (!profile?.active) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <h1 className="text-2xl font-semibold mb-2">Trabajos disponibles</h1>
+        <div className="rounded-2xl border p-4">
+          <p className="font-medium">Tu perfil profesional no estÃ¡ activo</p>
+          <p className="text-sm text-slate-600 mt-1">
+            Cuando tu postulaciÃ³n sea aprobada podrÃ¡s ver solicitudes
+            compatibles.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const cities = Array.isArray(profile?.cities)
     ? (profile?.cities as unknown[])

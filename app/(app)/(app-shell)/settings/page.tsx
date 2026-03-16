@@ -11,23 +11,34 @@ import createClient from "@/utils/supabase/server";
 
 type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
-  "role" | "is_client_pro" | "full_name"
+  "full_name"
 >;
 
 export default async function SettingsPage() {
   const supabase = createClient();
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role, is_client_pro, full_name")
-    .eq('id', user.id)
-    .single<ProfileRow>();
-  if (error) redirect('/login');
+  const [{ data: profile, error }, { data: professional }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single<ProfileRow>(),
+    supabase
+      .from("professionals")
+      .select("id, active")
+      .eq("id", user.id)
+      .maybeSingle<{ id: string; active: boolean | null }>(),
+  ]);
+  if (error) redirect("/login");
 
-  const isPro = profile?.role === "professional" || profile?.is_client_pro === true;
+  const isPro = Boolean(professional?.id) && professional?.active === true;
+  const fullName =
+    typeof profile?.full_name === "string" ? profile.full_name : "";
 
   return (
     <main className="mx-auto w-full max-w-2xl p-6 space-y-6">
@@ -63,7 +74,7 @@ export default async function SettingsPage() {
         </CardContent>
       </Card>
 
-      {isPro ? <BankAccountsCard userId={user.id} fullName={profile?.full_name ?? ""} /> : null}
+      {isPro ? <BankAccountsCard userId={user.id} fullName={fullName} /> : null}
     </main>
   );
 }

@@ -34,17 +34,12 @@ export async function POST(req: Request) {
     const userId = auth.user.id;
 
     if (to === "profesional") {
-      const [profileRes, professionalRes, applicationRes] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("is_client_pro")
-          .eq("id", userId)
-          .maybeSingle<{ is_client_pro: boolean | null }>(),
+      const [professionalRes, applicationRes] = await Promise.all([
         supabase
           .from("professionals")
-          .select("id")
+          .select("id, active")
           .eq("id", userId)
-          .maybeSingle<{ id: string }>(),
+          .maybeSingle<{ id: string; active: boolean | null }>(),
         supabase
           .from("pro_applications")
           .select("status")
@@ -54,13 +49,14 @@ export async function POST(req: Request) {
           .maybeSingle<{ status: string | null }>(),
       ]);
 
-      const isClientPro = profileRes.data?.is_client_pro === true;
-      const hasProfessionalRow = Boolean(professionalRes.data?.id);
+      const hasActiveProfessional =
+        Boolean(professionalRes.data?.id) &&
+        professionalRes.data?.active === true;
       const lastStatus = (applicationRes.data?.status || "").toLowerCase();
       const isApprovedStatus =
         lastStatus === "accepted" || lastStatus === "approved";
 
-      if (!isClientPro && !hasProfessionalRow && !isApprovedStatus) {
+      if (!hasActiveProfessional && !isApprovedStatus) {
         return NextResponse.json(
           {
             ok: false,
@@ -88,7 +84,10 @@ export async function POST(req: Request) {
         { status, headers: JSONH },
       );
     }
-    return NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, data },
+      { status: 200, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

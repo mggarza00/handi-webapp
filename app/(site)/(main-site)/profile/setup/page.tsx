@@ -15,9 +15,16 @@ export const dynamic = "force-dynamic";
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type ProfessionalRow = Database["public"]["Tables"]["professionals"]["Row"];
-type ChangeRequestRow = Database["public"]["Tables"]["profile_change_requests"]["Row"];
+type ChangeRequestRow =
+  Database["public"]["Tables"]["profile_change_requests"]["Row"];
 type SetupFormProps = Parameters<typeof SetupForm>[0];
 type SetupFormInitial = SetupFormProps["initial"];
+
+const asStringOrNull = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
+
+const asNumberOrNull = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
 
 export default async function ProfileSetupPage() {
   const supabase = createClient();
@@ -40,11 +47,13 @@ export default async function ProfileSetupPage() {
   // Load professional extra fields (cities) if present
   const { data: pro } = await supabase
     .from("professionals")
-    .select("full_name, cities, city, headline, years_experience, bio, avatar_url, categories, subcategories")
+    .select(
+      "full_name, cities, city, headline, years_experience, bio, avatar_url, categories, subcategories, active",
+    )
     .eq("id", user.id)
     .maybeSingle<ProfessionalRow>();
 
-  const isPro = profile?.role === "pro" || profile?.is_client_pro === true;
+  const isPro = Boolean(pro?.id) && pro?.active === true;
 
   // Solicitudes pendientes (si existe la tabla)
   let pendingAt: string | null = null;
@@ -57,21 +66,24 @@ export default async function ProfileSetupPage() {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle<Pick<ChangeRequestRow, "created_at">>();
-    pendingAt = req?.created_at ?? null;
+    pendingAt = asStringOrNull(req?.created_at);
   } catch {
     pendingAt = null;
   }
 
   // Compute robust fallbacks for name and avatar (from professionals or auth metadata)
-  const userMeta = (user.user_metadata ?? null) as Record<string, unknown> | null;
+  const userMeta = (user.user_metadata ?? null) as Record<
+    string,
+    unknown
+  > | null;
   const metaString = (key: string): string | null => {
     const value = userMeta?.[key];
     return typeof value === "string" && value.trim().length > 0 ? value : null;
   };
 
   const fullNameFallback =
-    profile?.full_name ??
-    pro?.full_name ??
+    asStringOrNull(profile?.full_name) ??
+    asStringOrNull(pro?.full_name) ??
     metaString("full_name") ??
     metaString("name") ??
     metaString("user_name") ??
@@ -80,8 +92,8 @@ export default async function ProfileSetupPage() {
     null;
 
   const avatarUrlFallback =
-    pro?.avatar_url ??
-    profile?.avatar_url ??
+    asStringOrNull(pro?.avatar_url) ??
+    asStringOrNull(profile?.avatar_url) ??
     metaString("avatar_url") ??
     metaString("picture") ??
     null;
@@ -91,12 +103,20 @@ export default async function ProfileSetupPage() {
       return raw
         .map((item) => {
           if (typeof item === "string") return { name: item };
-          if (item && typeof item === "object" && typeof (item as { name?: unknown }).name === "string") {
-            return { name: ((item as { name?: string }).name as string).trim() };
+          if (
+            item &&
+            typeof item === "object" &&
+            typeof (item as { name?: unknown }).name === "string"
+          ) {
+            return {
+              name: ((item as { name?: string }).name as string).trim(),
+            };
           }
           return null;
         })
-        .filter((entry): entry is { name: string } => Boolean(entry?.name?.length));
+        .filter((entry): entry is { name: string } =>
+          Boolean(entry?.name?.length),
+        );
     }
     if (typeof raw === "string") {
       return raw
@@ -109,18 +129,27 @@ export default async function ProfileSetupPage() {
   };
 
   const proCities = Array.isArray(pro?.cities)
-    ? (pro?.cities as unknown[])
-        .filter((city): city is string => typeof city === "string" && city.trim().length > 0)
+    ? (pro?.cities as unknown[]).filter(
+        (city): city is string =>
+          typeof city === "string" && city.trim().length > 0,
+      )
     : null;
-  const proCategories = normalizeNamed(pro?.categories ?? profile?.categories ?? null);
-  const proSubcategories = normalizeNamed(pro?.subcategories ?? profile?.subcategories ?? null);
+  const proCategories = normalizeNamed(
+    pro?.categories ?? profile?.categories ?? null,
+  );
+  const proSubcategories = normalizeNamed(
+    pro?.subcategories ?? profile?.subcategories ?? null,
+  );
   const setupInitial: SetupFormInitial = {
     full_name: fullNameFallback,
     avatar_url: avatarUrlFallback,
-    headline: pro?.headline ?? profile?.headline ?? null,
-    bio: pro?.bio ?? profile?.bio ?? null,
-    years_experience: pro?.years_experience ?? profile?.years_experience ?? null,
-    city: pro?.city ?? profile?.city ?? null,
+    headline:
+      asStringOrNull(pro?.headline) ?? asStringOrNull(profile?.headline),
+    bio: asStringOrNull(pro?.bio) ?? asStringOrNull(profile?.bio),
+    years_experience:
+      asNumberOrNull(pro?.years_experience) ??
+      asNumberOrNull(profile?.years_experience),
+    city: asStringOrNull(pro?.city) ?? asStringOrNull(profile?.city),
     cities: proCities,
     categories: proCategories,
     subcategories: proSubcategories,
@@ -141,12 +170,19 @@ export default async function ProfileSetupPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="p-4 lg:col-span-2">
-            <SetupForm initial={setupInitial} onRequestChanges={createChangeRequest} />
+            <SetupForm
+              initial={setupInitial}
+              onRequestChanges={createChangeRequest}
+            />
           </Card>
           <Card className="p-4 space-y-2">
             <h2 className="text-sm font-medium">Consejos</h2>
             <ul className="text-sm text-slate-600 list-disc pl-4">
-              <li>Las ciudades, categorías y subcategorías son los campos que utilizamos para mostrar los servicios que te pueden interesar, revisa que estos campos estén correctos.</li>
+              <li>
+                Las ciudades, categorías y subcategorías son los campos que
+                utilizamos para mostrar los servicios que te pueden interesar,
+                revisa que estos campos estén correctos.
+              </li>
               <li>Usa una foto clara y profesional.</li>
               <li>Cuéntanos tu experiencia con ejemplos concretos.</li>
               <li>Agrega categorías y subcategorías relevantes.</li>

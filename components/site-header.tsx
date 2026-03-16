@@ -85,20 +85,33 @@ async function getSessionInfo() {
   let proProfile: {
     avatar_url: string | null;
     full_name: string | null;
+    active?: boolean | null;
   } | null = null;
   if (!profile?.avatar_url || !profile?.full_name) {
     const { data: proRaw } = await supabase
       .from("professionals")
-      .select("avatar_url, full_name")
+      .select("avatar_url, full_name, active")
       .eq("id", user.id)
       .maybeSingle();
     proProfile =
       (proRaw as unknown as {
         avatar_url: string | null;
         full_name: string | null;
+        active?: boolean | null;
       } | null) ?? null;
   }
-  const role = (profile?.role ?? null) as Role | null;
+  let hasActiveProfessional = proProfile?.active === true;
+  if (!proProfile) {
+    const { data: proActive } = await supabase
+      .from("professionals")
+      .select("active")
+      .eq("id", user.id)
+      .maybeSingle<{ active: boolean | null }>();
+    hasActiveProfessional = proActive?.active === true;
+  }
+  const rawRole = (profile?.role ?? null) as Role | null;
+  const role: Role | null =
+    rawRole === "pro" && !hasActiveProfessional ? "client" : rawRole;
   type UserMeta = { avatar_url?: string | null; full_name?: string | null };
   const meta = (user.user_metadata as unknown as UserMeta) || {};
   const pickNonEmpty = (...values: Array<string | null | undefined>) => {
@@ -123,7 +136,7 @@ async function getSessionInfo() {
     isAuth: true as const,
     role,
     is_admin: profile?.is_admin === true,
-    is_client_pro: profile?.is_client_pro === true,
+    is_client_pro: profile?.is_client_pro === true && hasActiveProfessional,
     avatar_url: avatarUrl,
     full_name: fullName,
   };

@@ -31,17 +31,34 @@ export async function POST(req: Request) {
         { status: 401, headers: JSONH },
       );
 
-    // Check the feature flag before switching
-    const { data: profile } = await (supabase as any)
-      .from("profiles")
-      .select("id, is_client_pro")
-      .eq("id", auth.user.id)
-      .maybeSingle();
-    if (!profile?.is_client_pro) {
-      return NextResponse.json(
-        { ok: false, error: "SWITCH_NOT_ALLOWED" },
-        { status: 403, headers: JSONH },
-      );
+    if (to === "profesional") {
+      const [professionalRes, applicationRes] = await Promise.all([
+        (supabase as any)
+          .from("professionals")
+          .select("id, active")
+          .eq("id", auth.user.id)
+          .maybeSingle(),
+        (supabase as any)
+          .from("pro_applications")
+          .select("status")
+          .eq("user_id", auth.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const professional = professionalRes.data;
+      const lastStatus = (applicationRes.data?.status || "").toLowerCase();
+      const isApprovedStatus =
+        lastStatus === "accepted" || lastStatus === "approved";
+      const canSwitchToPro =
+        (Boolean(professional?.id) && professional?.active === true) ||
+        isApprovedStatus;
+      if (!canSwitchToPro) {
+        return NextResponse.json(
+          { ok: false, error: "SWITCH_NOT_ALLOWED" },
+          { status: 403, headers: JSONH },
+        );
+      }
     }
 
     const role = to === "cliente" ? "client" : "pro";
@@ -59,7 +76,10 @@ export async function POST(req: Request) {
       );
     }
     // Además, sincronizamos la cookie 'active_role' para que el middleware y SSR respeten la vista activa
-    const res = NextResponse.json({ ok: true, data }, { status: 200, headers: JSONH });
+    const res = NextResponse.json(
+      { ok: true, data },
+      { status: 200, headers: JSONH },
+    );
     try {
       res.cookies.set("active_role", role, {
         path: "/",

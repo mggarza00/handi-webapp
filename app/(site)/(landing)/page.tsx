@@ -1,10 +1,20 @@
 import { headers } from "next/headers";
 
 import LandingPage from "./LandingPage";
-import { buildCatalogLists, type CatalogRow, type CategoryCard } from "./catalog";
+import {
+  buildCatalogLists,
+  type CatalogRow,
+  type CategoryCard,
+} from "./catalog";
 
-import { buildGreetingText, inferGreetingPreferenceFromName } from "@/lib/greeting";
-import { ensureGreetingPreferenceForProfile, extractFirstName } from "@/lib/profile";
+import {
+  buildGreetingText,
+  inferGreetingPreferenceFromName,
+} from "@/lib/greeting";
+import {
+  ensureGreetingPreferenceForProfile,
+  extractFirstName,
+} from "@/lib/profile";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
@@ -107,6 +117,7 @@ export default async function Page() {
   const user = auth?.user ?? null;
 
   let profile: ProfileRow | null = null;
+  let hasActiveProfessional = false;
   if (user) {
     const baseSelect =
       "id, full_name, first_name, role, avatar_url, is_client_pro, is_admin";
@@ -126,13 +137,22 @@ export default async function Page() {
       const retry = await fetchProfile(baseSelect);
       profile = retry.data ?? null;
     }
+    const { data: professional } = await supabase
+      .from("professionals")
+      .select("id, active")
+      .eq("id", user.id)
+      .maybeSingle<{ id: string; active: boolean | null }>();
+    hasActiveProfessional =
+      Boolean(professional?.id) && professional?.active === true;
   }
 
   let savedAddresses: SavedAddress[] = [];
   if (user) {
     const { data } = await supabase
       .from("user_saved_addresses")
-      .select("id,label,address_line,address_place_id,lat,lng,last_used_at,times_used")
+      .select(
+        "id,label,address_line,address_place_id,lat,lng,last_used_at,times_used",
+      )
       .eq("user_id", user.id)
       .order("last_used_at", { ascending: false })
       .limit(5);
@@ -140,13 +160,15 @@ export default async function Page() {
   }
 
   const fullName =
-    profile?.full_name ??
+    (typeof profile?.full_name === "string" ? profile.full_name : null) ??
     (user?.user_metadata?.full_name as string | null) ??
     user?.email ??
     null;
   const mappedRole = (() => {
     const role = (profile?.role ?? null) as null | "client" | "pro" | "admin";
-    if (role === "pro" || profile?.is_client_pro) return "pro" as const;
+    if ((role === "pro" || profile?.is_client_pro) && hasActiveProfessional) {
+      return "pro" as const;
+    }
     if (role === "admin" || profile?.is_admin) return "admin" as const;
     if (role === "client") return "client" as const;
     return null;
@@ -169,7 +191,19 @@ export default async function Page() {
     );
 
     const pref = profile
-      ? await ensureGreetingPreferenceForProfile(profile as ProfileRow)
+      ? await ensureGreetingPreferenceForProfile({
+          id: profile.id,
+          first_name:
+            typeof profile.first_name === "string" ? profile.first_name : null,
+          full_name:
+            typeof profile.full_name === "string" ? profile.full_name : null,
+          greeting_preference:
+            profile.greeting_preference === "bienvenido" ||
+            profile.greeting_preference === "bienvenida" ||
+            profile.greeting_preference === "neutral"
+              ? profile.greeting_preference
+              : null,
+        })
       : inferGreetingPreferenceFromName(firstName);
     greetingText = buildGreetingText(pref, firstName);
   }

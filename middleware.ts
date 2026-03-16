@@ -147,6 +147,7 @@ export async function middleware(request: NextRequest) {
   let user: unknown = null;
   let profileRole: string | null = null;
   let profileIsAdmin = false;
+  let professionalIsActive = false;
 
   if (supabase) {
     try {
@@ -154,16 +155,25 @@ export async function middleware(request: NextRequest) {
       user = auth?.user ?? null;
       const userId = (auth?.user as { id?: string } | null)?.id;
       if (userId) {
-        const { data: prof } = await supabase
-          .from("profiles")
-          .select("role, is_admin")
-          .eq("id", userId)
-          .maybeSingle();
+        const [{ data: prof }, { data: professional }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("role, is_admin")
+            .eq("id", userId)
+            .maybeSingle(),
+          supabase
+            .from("professionals")
+            .select("active")
+            .eq("id", userId)
+            .maybeSingle(),
+        ]);
         profileRole =
           (prof as unknown as { role?: string | null } | null)?.role ?? null;
         profileIsAdmin =
           (prof as unknown as { is_admin?: boolean | null } | null)
             ?.is_admin === true;
+        professionalIsActive =
+          (professional as { active?: boolean | null } | null)?.active === true;
       }
     } catch {
       // ignore profile lookup errors
@@ -193,13 +203,13 @@ export async function middleware(request: NextRequest) {
     ).toLowerCase();
     const lowered =
       typeof profileRole === "string" ? profileRole.toLowerCase() : null;
-    if (activeRole === "pro") {
+    if (activeRole === "pro" && professionalIsActive) {
       const u = request.nextUrl.clone();
       u.pathname = "/pro";
       return NextResponse.redirect(u);
     }
     if (activeRole === "client") return response;
-    if (lowered === "pro") {
+    if (lowered === "pro" && professionalIsActive) {
       const u = request.nextUrl.clone();
       u.pathname = "/pro";
       return NextResponse.redirect(u);
