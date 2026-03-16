@@ -18,13 +18,34 @@ export async function GET() {
       );
 
     const uid = auth.user.id;
-    const { data: profile } = await (supabase as any)
-      .from("profiles")
-      .select("role, is_client_pro")
-      .eq("id", uid)
-      .maybeSingle();
+    const [profileRes, professionalRes, applicationRes] = await Promise.all([
+      (supabase as any)
+        .from("profiles")
+        .select("role")
+        .eq("id", uid)
+        .maybeSingle(),
+      (supabase as any)
+        .from("professionals")
+        .select("id, active")
+        .eq("id", uid)
+        .maybeSingle(),
+      (supabase as any)
+        .from("pro_applications")
+        .select("status")
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const profile = profileRes.data;
+    const hasActiveProfessional =
+      Boolean(professionalRes.data?.id) &&
+      professionalRes.data?.active === true;
+    const lastStatus = (applicationRes.data?.status || "").toLowerCase();
+    const isApprovedStatus =
+      lastStatus === "accepted" || lastStatus === "approved";
 
-    const canSwitch = Boolean(profile?.is_client_pro);
+    const canSwitch = hasActiveProfessional || isApprovedStatus;
     const currentRole = (profile?.role ?? null) as
       | null
       | "client"

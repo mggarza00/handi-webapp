@@ -21,6 +21,24 @@ const RefSchema = z.object({
 });
 const RFC_REGEX = /^[A-ZÑ&]{3,4}[0-9]{6}[A-Z0-9]{3}$/;
 
+function normalizeWebsite(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function isValidWebsite(value: string): boolean {
+  const normalized = normalizeWebsite(value);
+  if (!normalized) return true;
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const PayloadSchema = z
   .object({
     full_name: z.string().min(2).max(120),
@@ -35,14 +53,15 @@ const PayloadSchema = z
     company_legal_name: z.string().min(2).optional(),
     company_industry: z.string().min(1).optional(),
     company_employees_count: z.number().int().min(1).optional(),
-    company_website: z
-      .string()
-      .optional()
-      .refine((s) => !s || /^https?:\/\//i.test(s), "Sitio inválido"),
+    company_website: z.preprocess((value) => {
+      if (typeof value !== "string") return undefined;
+      const normalized = normalizeWebsite(value);
+      return normalized || undefined;
+    }, z.string().url().optional()),
     services_desc: z.string().min(10).max(2000),
     cities: z.array(z.string().min(2).max(120)).min(1).max(20),
-    categories: z.array(z.string().min(2).max(120)).min(1).max(20),
-    subcategories: z.array(z.string().min(1).max(120)).max(50).optional(),
+    categories: z.array(z.string().min(2).max(120)).min(1),
+    subcategories: z.array(z.string().min(1).max(120)).optional(),
     years_experience: z.number().int().min(0).max(80),
     can_issue_invoices: z.boolean().optional(),
     authorize_handi_to_issue_invoices: z.boolean().optional(),
@@ -126,7 +145,7 @@ const PayloadSchema = z
           message: "Inválido",
         });
       }
-      if (data.company_website && !/^https?:\/\//i.test(data.company_website)) {
+      if (data.company_website && !isValidWebsite(data.company_website)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["company_website"],
@@ -196,6 +215,10 @@ export async function POST(req: Request) {
     const bodyWithDefaults = {
       ...raw,
       full_name: maybeFullName || defaultFullName || "",
+      company_website:
+        typeof raw["company_website"] === "string"
+          ? normalizeWebsite(raw["company_website"])
+          : raw["company_website"],
     };
 
     const parsed = PayloadSchema.safeParse(bodyWithDefaults);
@@ -350,17 +373,6 @@ export async function POST(req: Request) {
         }
       } catch {
         // ignore if notifications table is missing
-      }
-      // Marcar flags auxiliares en profiles (best-effort; ignorable en dev)
-      try {
-        await admin
-          .from("profiles")
-          .upsert(
-            { id: auth.user.id, is_professional: true, is_client: true },
-            { onConflict: "id" },
-          );
-      } catch {
-        /* ignore */
       }
     }
     const adminRecipients = dedupeEmails([

@@ -203,9 +203,12 @@ export async function POST(
         } catch {
           /* ignore */
         }
-        // Optionally mark profile as pro-enabled for UI switches
+        // Mark profile as pro-enabled for UI switches only after approval
         try {
-          await admin.from("profiles").update({ role: "pro" }).eq("id", uid);
+          await admin
+            .from("profiles")
+            .update({ role: "pro", is_client_pro: true })
+            .eq("id", uid);
         } catch {
           /* ignore */
         }
@@ -230,7 +233,30 @@ export async function POST(
       } catch {
         // ignore if table missing
       }
-    } else if (parsed.data.status === "rejected" && uid) {
+    } else if (
+      (parsed.data.status === "rejected" || parsed.data.status === "pending") &&
+      uid
+    ) {
+      // Ensure pending/rejected applications do not keep pro capabilities active
+      try {
+        await admin
+          .from("professionals")
+          .update({ active: false, updated_at: new Date().toISOString() })
+          .eq("id", uid);
+      } catch {
+        /* ignore */
+      }
+      try {
+        await admin
+          .from("profiles")
+          .update({ role: "client", is_client_pro: false })
+          .eq("id", uid);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (parsed.data.status === "rejected" && uid) {
       // In-app notification for the professional (rejected)
       try {
         const base =

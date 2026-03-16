@@ -493,6 +493,14 @@ export default async function ProHomePage() {
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user ?? null;
   if (!user) redirect("/login");
+  const { data: professional } = await supabase
+    .from("professionals")
+    .select("id, active")
+    .eq("id", user.id)
+    .maybeSingle<{ id: string; active: boolean | null }>();
+  if (!professional?.id || professional.active !== true) {
+    redirect("/pro-apply");
+  }
 
   const uid = user.id;
 
