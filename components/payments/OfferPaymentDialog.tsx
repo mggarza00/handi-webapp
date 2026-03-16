@@ -21,6 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
 import { computeClientTotals } from "@/lib/payments/fees";
 
 type PaymentMethod = "card" | "paypal";
@@ -125,8 +127,30 @@ function usePaymentIntent(
           .catch(() => null)) as PaymentIntentResponse | null;
         if (cancelled) return;
         if (!res.ok || !json?.clientSecret) {
-          const message = json?.error || "No se pudo iniciar el pago";
-          setState((prev) => ({ ...prev, loading: false, error: message }));
+          const normalized = normalizeAppError(
+            {
+              message: json?.error || "PAYMENT_INTENT_FAILED",
+              detail: json?.error || null,
+            },
+            {
+              status: res.status,
+              source: "payments.payment-intent",
+            },
+          );
+          setState((prev) => ({
+            ...prev,
+            loading: false,
+            error: normalized.userMessage,
+          }));
+          reportError({
+            error: json?.error || "PAYMENT_INTENT_FAILED",
+            normalized,
+            area: "payments",
+            feature: "create-payment-intent",
+            route: "chat.offer-payment",
+            blocking: true,
+            extra: { offerId },
+          });
           return;
         }
         const breakdown =
@@ -154,8 +178,23 @@ function usePaymentIntent(
         }));
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : "Error de red";
-        setState((prev) => ({ ...prev, loading: false, error: message }));
+        const normalized = normalizeAppError(err, {
+          source: "payments.payment-intent",
+        });
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: normalized.userMessage,
+        }));
+        reportError({
+          error: err,
+          normalized,
+          area: "payments",
+          feature: "create-payment-intent",
+          route: "chat.offer-payment",
+          blocking: true,
+          extra: { offerId },
+        });
       }
     })();
     return () => {
@@ -223,7 +262,18 @@ function PaymentContent({
       redirect: "if_required",
     });
     if (result.error) {
-      setError(result.error.message || "No se pudo procesar el pago");
+      const normalized = normalizeAppError(result.error, {
+        source: "payments.confirm-payment",
+      });
+      setError(normalized.userMessage);
+      reportError({
+        error: result.error,
+        normalized,
+        area: "payments",
+        feature: "confirm-payment",
+        route: "chat.offer-payment",
+        blocking: true,
+      });
       setSubmitting(false);
       return;
     }

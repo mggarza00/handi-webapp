@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -102,13 +104,16 @@ export default function RoleOnboarding({
         ) {
           // When pro is not approved yet, onboarding must continue in /pro-apply instead of blocking with an error.
           const infoMessage =
-            j?.detail ||
-            "Para usar Handi como profesional, primero completa tu postulacion.";
+            "Para usar Handi como profesional, primero completa tu postulación.";
           toast.info(infoMessage);
           router.replace("/pro-apply");
           return;
         }
-        throw new Error(j?.detail || j?.error || "No se pudo guardar tu rol");
+        throw {
+          message: j?.error || "ROLE_SETUP_FAILED",
+          detail: j?.detail || null,
+          status: res.status,
+        };
       }
       try {
         document.cookie = "handi_pre_role=; path=/; max-age=0; samesite=lax";
@@ -126,10 +131,24 @@ export default function RoleOnboarding({
         }
       }, 80);
     } catch (e) {
-      const message =
-        e instanceof Error ? e.message : "No se pudo guardar tu rol";
-      toast.error(message);
-      setErrorMsg(message);
+      const normalized = normalizeAppError(e, {
+        source: "onboarding.select-role",
+      });
+      const userMessage =
+        normalized.code === "UNEXPECTED_ERROR"
+          ? "No pudimos completar tu onboarding. Intenta de nuevo."
+          : normalized.userMessage;
+      toast.error(userMessage);
+      setErrorMsg(userMessage);
+      reportError({
+        error: e,
+        normalized: { ...normalized, code: "ONBOARDING_FAILED" },
+        area: "onboarding",
+        feature: "role-selection",
+        route: "/onboarding/elige-rol",
+        blocking: true,
+        extra: { selectedRole: selected },
+      });
     } finally {
       setSubmitting(false);
     }

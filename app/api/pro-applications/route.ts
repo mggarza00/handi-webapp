@@ -44,7 +44,11 @@ const PayloadSchema = z
     categories: z.array(z.string().min(2).max(120)).min(1).max(20),
     subcategories: z.array(z.string().min(1).max(120)).max(50).optional(),
     years_experience: z.number().int().min(0).max(80),
-    privacy_accept: z.literal(true),
+    can_issue_invoices: z.boolean().optional(),
+    authorize_handi_to_issue_invoices: z.boolean().optional(),
+    privacy_notice_accepted: z.literal(true).optional(),
+    privacy_accept: z.literal(true).optional(),
+    signature: z.string().min(1).max(200000).optional(),
     references: z.array(RefSchema).min(1).max(10),
     uploads: z.object({
       // legacy (persona física) - ahora opcional
@@ -64,6 +68,35 @@ const PayloadSchema = z
     }),
   })
   .superRefine((data, ctx) => {
+    const privacyAccepted = Boolean(
+      data.privacy_notice_accepted ?? data.privacy_accept,
+    );
+    if (!privacyAccepted) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["privacy_notice_accepted"],
+        message: "Debes aceptar el aviso de privacidad",
+      });
+    }
+    if (!data.signature || !data.signature.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["signature"],
+        message: "Firma requerida",
+      });
+    }
+    if (
+      !data.empresa &&
+      !data.can_issue_invoices &&
+      !data.authorize_handi_to_issue_invoices
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["authorize_handi_to_issue_invoices"],
+        message:
+          "Debes tener facultad para facturar o autorizar a Handi a facturar",
+      });
+    }
     if (data.empresa) {
       if (
         !data.company_legal_name ||
@@ -178,6 +211,9 @@ export async function POST(req: Request) {
     }
 
     const p = parsed.data;
+    const privacyNoticeAccepted = Boolean(
+      p.privacy_notice_accepted ?? p.privacy_accept,
+    );
     // Persist registro (auditoría) – asegurar inserción aunque no haya SERVICE_ROLE
     const admin = (() => {
       try {
@@ -214,6 +250,11 @@ export async function POST(req: Request) {
       years_experience: p.years_experience,
       refs: p.references,
       uploads: p.uploads,
+      can_issue_invoices: p.can_issue_invoices ?? null,
+      authorize_handi_to_issue_invoices:
+        p.authorize_handi_to_issue_invoices ?? null,
+      privacy_notice_accepted: privacyNoticeAccepted,
+      signature: p.signature ?? null,
       status: "pending",
     } as Record<string, unknown>;
 
@@ -340,6 +381,9 @@ export async function POST(req: Request) {
       <p><b>Correo:</b> ${escapeHtml(p.email)}</p>
       <p><b>RFC:</b> ${escapeHtml(p.rfc)}</p>
       <p><b>Empresa:</b> ${p.empresa ? "Sí" : "No"}</p>
+      <p><b>Facultad para facturar:</b> ${p.can_issue_invoices ? "Sí" : "No"}</p>
+      <p><b>Autoriza a Handi a facturar:</b> ${p.authorize_handi_to_issue_invoices ? "Sí" : "No"}</p>
+      <p><b>Aviso de privacidad aceptado:</b> ${privacyNoticeAccepted ? "Sí" : "No"}</p>
       ${
         p.empresa
           ? `

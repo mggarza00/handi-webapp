@@ -3,6 +3,9 @@ import * as React from "react";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
 
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
+
 export default function UserTypeInfo({
   currentRole,
   onAction,
@@ -76,7 +79,13 @@ export default function UserTypeInfo({
         body: JSON.stringify({ to: switchedTo }),
       });
       const j = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(j?.detail || j?.error || "switch_failed");
+      if (!res.ok) {
+        throw {
+          message: j?.error || "SWITCH_FAILED",
+          detail: j?.detail || null,
+          status: res.status,
+        };
+      }
       const nextRole =
         switchedTo === "profesional"
           ? "pro"
@@ -114,8 +123,21 @@ export default function UserTypeInfo({
         }, 120);
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "No se pudo cambiar el tipo";
-      toast.error(msg);
+      const normalized = normalizeAppError(e, {
+        source: "profile.switch-active-role",
+      });
+      const userMessage =
+        "No pudimos cambiar tu tipo de usuario. Intenta de nuevo.";
+      toast.error(userMessage);
+      reportError({
+        error: e,
+        normalized: { ...normalized, code: "ROLE_SWITCH_FAILED" },
+        area: "profile",
+        feature: "user-type-info-switch",
+        route: pathname || "unknown",
+        blocking: true,
+        extra: { requestedRole: switchedTo },
+      });
     } finally {
       setSubmitting(false);
     }

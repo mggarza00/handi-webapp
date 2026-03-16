@@ -56,6 +56,8 @@ import {
 import StatusMultiSelect from "@/components/filters/StatusMultiSelect";
 import CreateRequestButton from "@/components/requests/CreateRequestButton";
 import { CITIES } from "@/lib/cities";
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
 import { formatCurrencyMXN } from "@/lib/format";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { toast } from "@/components/ui/use-toast";
@@ -523,7 +525,13 @@ export default function RequestsClientPage() {
           },
         );
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json?.error || "Request failed");
+        if (!res.ok) {
+          throw {
+            message: json?.error || "REQUESTS_LIST_FAILED",
+            detail: json?.detail || null,
+            status: res.status,
+          };
+        }
 
         const pageData = Array.isArray(json?.data)
           ? (json.data as RequestItem[])
@@ -543,11 +551,30 @@ export default function RequestsClientPage() {
 
       setItems(allItems);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "UNKNOWN");
+      const normalized = normalizeAppError(e, {
+        source: "requests.list",
+      });
+      setError("No pudimos cargar tus solicitudes. Intenta de nuevo.");
+      if (
+        normalized.code === "AUTH_SESSION_INVALID" ||
+        normalized.code === "AUTH_REQUIRED" ||
+        normalized.code === "PROFILE_INCONSISTENT"
+      ) {
+        const next = `${pathname}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`;
+        router.replace(`/auth/sign-in?next=${encodeURIComponent(next)}`);
+      }
+      reportError({
+        error: e,
+        normalized,
+        area: "requests",
+        feature: "requests-mine-list",
+        route: "/requests?mine=1",
+        blocking: true,
+      });
     } finally {
       setLoading(false);
     }
-  }, [status, city, isMy]);
+  }, [status, city, isMy, pathname, router, searchParams]);
 
   React.useEffect(() => {
     void fetchList();
@@ -852,14 +879,26 @@ export default function RequestsClientPage() {
         description: `${addedCount} archivo(s) listos para guardar`,
       });
     } catch (e) {
+      const normalized = normalizeAppError(e, {
+        source: "requests.attachments.upload",
+      });
       const message = e instanceof Error ? e.message : String(e);
       const friendly =
         message === "upload_timeout" || message.includes("aborted")
           ? "El upload tardo demasiado. Intenta de nuevo."
-          : message;
+          : normalized.userMessage;
       setError(friendly);
       setUploadErrorById((prev) => ({ ...prev, [itemId]: friendly }));
       toast("No se pudo subir la imagen", { description: friendly });
+      reportError({
+        error: e,
+        normalized,
+        area: "requests",
+        feature: "upload-attachments",
+        route: "/requests",
+        blocking: false,
+        extra: { requestId: itemId },
+      });
     } finally {
       setUploadingById((prev) => ({ ...prev, [itemId]: false }));
     }
@@ -903,7 +942,11 @@ export default function RequestsClientPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) {
-        throw new Error(json?.detail || json?.error || `Error ${res.status}`);
+        throw {
+          message: json?.error || "REQUEST_UPDATE_FAILED",
+          detail: json?.detail || null,
+          status: res.status,
+        };
       }
 
       setUploadErrorById((prev) => ({ ...prev, [itemId]: null }));
@@ -911,9 +954,21 @@ export default function RequestsClientPage() {
       cancelEditing(itemId);
       await fetchList();
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      setError(message);
-      toast("No se pudo guardar", { description: message });
+      const normalized = normalizeAppError(e, {
+        source: "requests.update",
+      });
+      const userMessage = "No pudimos guardar los cambios. Intenta de nuevo.";
+      setError(userMessage);
+      toast("No se pudo guardar", { description: userMessage });
+      reportError({
+        error: e,
+        normalized,
+        area: "requests",
+        feature: "edit-request",
+        route: "/requests",
+        blocking: true,
+        extra: { requestId: itemId },
+      });
     } finally {
       setSavingById((prev) => ({ ...prev, [itemId]: false }));
     }
@@ -929,12 +984,30 @@ export default function RequestsClientPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) {
-        throw new Error(json?.detail || json?.error || `Error ${res.status}`);
+        throw {
+          message: json?.error || "REQUEST_DELETE_FAILED",
+          detail: json?.detail || null,
+          status: res.status,
+        };
       }
       if (editingId === itemId) cancelEditing(itemId);
       await fetchList();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const normalized = normalizeAppError(e, {
+        source: "requests.delete",
+      });
+      const userMessage = "No pudimos eliminar la solicitud. Intenta de nuevo.";
+      setError(userMessage);
+      toast("No se pudo eliminar", { description: userMessage });
+      reportError({
+        error: e,
+        normalized,
+        area: "requests",
+        feature: "delete-request",
+        route: "/requests",
+        blocking: true,
+        extra: { requestId: itemId },
+      });
     } finally {
       setDeletingById((prev) => ({ ...prev, [itemId]: false }));
     }
@@ -1011,7 +1084,7 @@ export default function RequestsClientPage() {
       </div>
 
       {loading ? <p className="text-sm text-slate-500">Cargando...</p> : null}
-      {error ? <p className="text-sm text-red-600">Error: {error}</p> : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       {!loading && !error ? (
         <div>

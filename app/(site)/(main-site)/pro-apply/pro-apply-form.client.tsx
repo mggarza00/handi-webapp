@@ -30,6 +30,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { CITIES } from "@/lib/cities";
+import { normalizeAppError } from "@/lib/errors/app-error";
+import { reportError } from "@/lib/errors/report-error";
 import CompanyToggle from "@/components/forms/CompanyToggle";
 import CompanyFields from "@/components/forms/CompanyFields";
 import SlideDown from "@/components/forms/SlideDown";
@@ -84,7 +86,11 @@ const AppSchema = z
     categories: z.array(z.string().min(2).max(120)).min(1).max(20),
     subcategories: z.array(z.string().min(1).max(120)).max(50).optional(),
     years_experience: z.number().int().min(0).max(80),
+    can_issue_invoices: z.boolean().optional(),
+    authorize_handi_to_issue_invoices: z.boolean().optional(),
+    privacy_notice_accepted: z.literal(true).optional(),
     privacy_accept: z.literal(true),
+    signature: z.string().min(1).optional(),
     references: z
       .array(
         z.object({
@@ -309,6 +315,9 @@ export default function ProApplyForm({
         categories?: string[];
         subcategories?: string[];
         years_experience?: string;
+        can_issue_invoices?: boolean;
+        authorize_handi_to_issue_invoices?: boolean;
+        privacy_notice_accepted?: boolean;
         privacy_accept?: boolean;
         references?: Reference[];
         billing_can_invoice_self?: boolean;
@@ -340,9 +349,16 @@ export default function ProApplyForm({
           setSelectedSubcategories(d.subcategories);
         if (typeof d.years_experience === "string")
           setYears(d.years_experience);
-        if (typeof d.privacy_accept === "boolean") setPrivacy(d.privacy_accept);
+        if (typeof d.privacy_notice_accepted === "boolean")
+          setPrivacy(d.privacy_notice_accepted);
+        else if (typeof d.privacy_accept === "boolean")
+          setPrivacy(d.privacy_accept);
+        if (typeof d.can_issue_invoices === "boolean")
+          setCanInvoiceSelf(d.can_issue_invoices);
         if (typeof d.billing_can_invoice_self === "boolean")
           setCanInvoiceSelf(d.billing_can_invoice_self);
+        if (typeof d.authorize_handi_to_issue_invoices === "boolean")
+          setAuthorizeHandi(d.authorize_handi_to_issue_invoices);
         if (typeof d.billing_authorize_handi === "boolean")
           setAuthorizeHandi(d.billing_authorize_handi);
         if (Array.isArray(d.references) && d.references.length === 3)
@@ -375,6 +391,9 @@ export default function ProApplyForm({
       categories: selectedCategories,
       subcategories: selectedSubcategories,
       years_experience: years,
+      can_issue_invoices: canInvoiceSelf,
+      authorize_handi_to_issue_invoices: authorizeHandi,
+      privacy_notice_accepted: privacy,
       privacy_accept: privacy,
       billing_can_invoice_self: canInvoiceSelf,
       billing_authorize_handi: authorizeHandi,
@@ -1154,7 +1173,11 @@ export default function ProApplyForm({
       categories: cat,
       subcategories: selectedSubcategories,
       years_experience: years ? Number(years) : NaN,
+      can_issue_invoices: canInvoiceSelf,
+      authorize_handi_to_issue_invoices: authorizeHandi,
+      privacy_notice_accepted: privacy,
       privacy_accept: privacy,
+      signature: sigPreviewUrl || undefined,
       references: refsTrimmed,
     } as const;
     const companyForParse = !empresa
@@ -1443,6 +1466,23 @@ export default function ProApplyForm({
         `${prefix}signature-${Date.now()}.png`,
       );
       uploads.signature_url = sigUp.url;
+      const signatureText =
+        sigPreviewUrl ||
+        (() => {
+          try {
+            const canvas = sigCanvasRef.current;
+            return canvas ? canvas.toDataURL("image/png") : "";
+          } catch {
+            return "";
+          }
+        })();
+      if (!signatureText) {
+        const msg = "No se pudo procesar la firma. Vuelve a firmar, por favor.";
+        setError(msg);
+        toast.error(msg);
+        setFileErrs((prev) => ({ ...prev, sig: true }));
+        return { ok: false, errorStep: 5 };
+      }
 
       // 2) Upsert profile and elevate to pro
       const profRes = await fetch("/api/profile/setup", {
@@ -1511,7 +1551,11 @@ export default function ProApplyForm({
           years_experience: Number(years),
           references: refsTrimmed,
           uploads,
-          privacy_accept: true,
+          can_issue_invoices: canInvoiceSelf,
+          authorize_handi_to_issue_invoices: authorizeHandi,
+          privacy_notice_accepted: privacy,
+          privacy_accept: privacy,
+          signature: signatureText,
         }),
       });
       if (!appRes.ok) {
@@ -1527,8 +1571,20 @@ export default function ProApplyForm({
       window.location.href = "/pro-apply/submitted";
       return { ok: true };
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido");
-      toast.error(e instanceof Error ? e.message : "Error desconocido");
+      const normalized = normalizeAppError(e, {
+        source: "pro-apply.submit",
+      });
+      const userMessage = "No pudimos enviar tu postulación. Intenta de nuevo.";
+      setError(userMessage);
+      toast.error(userMessage);
+      reportError({
+        error: e,
+        normalized,
+        area: "pro-apply",
+        feature: "submit-application",
+        route: "/pro-apply",
+        blocking: true,
+      });
       return { ok: false, errorStep: findFirstStepWithErrors() };
     } finally {
       setLoading(false);
