@@ -113,6 +113,7 @@ const SORT_OPTIONS = [
   { value: "oldest", label: "Mas antiguas" },
   { value: "status", label: "Por estatus" },
 ] as const;
+const REQUESTS_PAGE_SIZE = 12;
 
 function SecurityBadgeIcon({ className }: { className?: string }) {
   return (
@@ -470,6 +471,7 @@ export default function RequestsClientPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
+  const [currentPage, setCurrentPage] = React.useState(1);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({});
   const [savingById, setSavingById] = React.useState<Record<string, boolean>>(
@@ -499,16 +501,47 @@ export default function RequestsClientPage() {
       if (effectiveStatus) qs.set("status", effectiveStatus);
       if (city) qs.set("city", city);
       if (isMy) qs.set("mine", "1");
-      const res = await fetch(
-        `/api/requests${qs.toString() ? `?${qs.toString()}` : ""}`,
-        {
-          cache: "no-store",
-          credentials: "include",
-        },
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || "Request failed");
-      setItems(Array.isArray(json?.data) ? (json.data as RequestItem[]) : []);
+      qs.set("limit", "100");
+
+      const allItems: RequestItem[] = [];
+      const seenIds = new Set<string>();
+      let cursor: string | null = null;
+      let guard = 0;
+
+      do {
+        const pageQs = new URLSearchParams(qs.toString());
+        if (cursor) {
+          pageQs.set("cursor", cursor);
+          pageQs.set("dir", "next");
+        }
+
+        const res = await fetch(
+          `/api/requests${pageQs.toString() ? `?${pageQs.toString()}` : ""}`,
+          {
+            cache: "no-store",
+            credentials: "include",
+          },
+        );
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || "Request failed");
+
+        const pageData = Array.isArray(json?.data)
+          ? (json.data as RequestItem[])
+          : [];
+        for (const item of pageData) {
+          if (!item?.id || seenIds.has(item.id)) continue;
+          seenIds.add(item.id);
+          allItems.push(item);
+        }
+
+        cursor =
+          typeof json?.nextCursor === "string" && json.nextCursor.length > 0
+            ? json.nextCursor
+            : null;
+        guard += 1;
+      } while (cursor && guard < 20);
+
+      setItems(allItems);
     } catch (e) {
       setError(e instanceof Error ? e.message : "UNKNOWN");
     } finally {
@@ -625,6 +658,24 @@ export default function RequestsClientPage() {
       return a.id.localeCompare(b.id);
     });
   }, [visibleItems, sort]);
+
+  const totalPages = React.useMemo(
+    () => Math.max(1, Math.ceil(sortedItems.length / REQUESTS_PAGE_SIZE)),
+    [sortedItems.length],
+  );
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [status, city, mine, sort, query]);
+
+  React.useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
+
+  const pagedItems = React.useMemo(() => {
+    const from = (currentPage - 1) * REQUESTS_PAGE_SIZE;
+    return sortedItems.slice(from, from + REQUESTS_PAGE_SIZE);
+  }, [currentPage, sortedItems]);
 
   function updateSearch(next: Record<string, string | undefined>) {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -966,7 +1017,7 @@ export default function RequestsClientPage() {
         <div>
           {sortedItems.length ? (
             <ul className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-              {sortedItems.map((item) => {
+              {pagedItems.map((item) => {
                 const isEditing = editingId === item.id;
                 const draft = drafts[item.id];
                 const ui = statusUi(item.status);
@@ -1393,6 +1444,44 @@ export default function RequestsClientPage() {
               )}
             </div>
           )}
+          {sortedItems.length ? (
+            <div className="mt-4 flex justify-center">
+              <div className="w-full max-w-xs">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-lg"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(1, prev - 1))
+                    }
+                    disabled={currentPage <= 1}
+                  >
+                    Anterior
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 flex-1 cursor-default justify-center rounded-lg text-center"
+                    disabled
+                  >
+                    Página {currentPage} de {totalPages}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-lg"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage >= totalPages}
+                  >
+                    Siguiente
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { normalizeAvatarUrl } from "@/lib/avatar";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
@@ -217,6 +218,17 @@ export default function AgreementsClient({ requestId, supportId }: Props) {
     }
   }
 
+  function handleGoToProfessionals() {
+    if (typeof document === "undefined") return;
+    const el = document.getElementById("available-professionals");
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "start" });
+    el.classList.add("ring-2", "ring-[#082877]/30");
+    window.setTimeout(() => {
+      el.classList.remove("ring-2", "ring-[#082877]/30");
+    }, 1800);
+  }
+
   return (
     <Card className="border-slate-200">
       <CardHeader className="pb-3">
@@ -228,9 +240,24 @@ export default function AgreementsClient({ requestId, supportId }: Props) {
         ) : error ? (
           <p className="text-sm text-red-600">{error}</p>
         ) : viewItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No existen acuerdos por el momento.
-          </p>
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-900">
+              Aún no has contratado a nadie
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Para continuar, inicia un chat con uno de los profesionales
+              disponibles.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={handleGoToProfessionals}
+            >
+              Hablar con un profesional
+            </Button>
+          </div>
         ) : (
           <ul className="divide-y">
             {viewItems.map((item) => {

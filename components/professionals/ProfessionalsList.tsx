@@ -12,6 +12,8 @@ import { createSupabaseBrowser } from "@/lib/supabase/client";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 
+const REQUEST_DETAIL_CHAT_HELPER_SEEN_KEY = "request_detail_chat_helper_seen";
+
 type Professional = {
   id: string;
   full_name?: string | null;
@@ -49,8 +51,21 @@ export default function ProfessionalsList({
   const [meId, setMeId] = React.useState<string | null>(null);
   const [mounted, setMounted] = React.useState(false);
   const [chatOpen, setChatOpen] = React.useState(false);
-  const [conversationId, setConversationId] = React.useState<string | null>(null);
+  const [conversationId, setConversationId] = React.useState<string | null>(
+    null,
+  );
   const [requestBudget, setRequestBudget] = React.useState<number | null>(null);
+  const [showChatCoachmark, setShowChatCoachmark] = React.useState(false);
+  const [isDesktop, setIsDesktop] = React.useState(false);
+
+  const dismissChatCoachmark = React.useCallback(() => {
+    setShowChatCoachmark(false);
+    try {
+      localStorage.setItem(REQUEST_DETAIL_CHAT_HELPER_SEEN_KEY, "1");
+    } catch {
+      // ignore localStorage errors
+    }
+  }, []);
 
   // Lazy-load ChatPanel only when needed to avoid pulling its chunk during initial hydration
   // const ChatPanel = React.useMemo(() => dynamic<ChatPanelProps>(() => import("@/components/chat/ChatPanel").then((m) => m.default), { ssr: false, loading: () => null }), []);
@@ -68,7 +83,8 @@ export default function ProfessionalsList({
           signal: ac.signal,
         });
         const j = await r.json().catch(() => ({}));
-        if (!ac.signal.aborted && r.ok && j?.user?.id) setMeId(j.user.id as string);
+        if (!ac.signal.aborted && r.ok && j?.user?.id)
+          setMeId(j.user.id as string);
       } catch {
         // ignore AbortError or network issues silently
       }
@@ -161,13 +177,39 @@ export default function ProfessionalsList({
     };
   }, [category, subcategory, city, onlyProfessionalId, requestId]);
 
+  React.useEffect(() => {
+    if (!mounted || items.length === 0) {
+      setShowChatCoachmark(false);
+      return;
+    }
+    try {
+      const seen =
+        localStorage.getItem(REQUEST_DETAIL_CHAT_HELPER_SEEN_KEY) === "1";
+      setShowChatCoachmark(!seen);
+    } catch {
+      setShowChatCoachmark(false);
+    }
+  }, [mounted, items.length]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const apply = () => setIsDesktop(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+    };
+  }, []);
+
   if (!mounted) return <div className={className}>Cargando…</div>;
   if (loading) return <div className={className}>Cargando profesionales…</div>;
   if (error) {
     if (onlyProfessionalId) return null;
     return (
       <div className={className}>
-        No se encuentran profesionales disponibles para esta solicitud por el momento, te notificaremos cuando se presente uno.
+        No se encuentran profesionales disponibles para esta solicitud por el
+        momento, te notificaremos cuando se presente uno.
       </div>
     );
   }
@@ -175,17 +217,35 @@ export default function ProfessionalsList({
     if (onlyProfessionalId) return null;
     return (
       <div className={className}>
-        No se encuentran profesionales disponibles para esta solicitud por el momento, te notificaremos cuando se presente uno.
+        No se encuentran profesionales disponibles para esta solicitud por el
+        momento, te notificaremos cuando se presente uno.
       </div>
     );
   }
 
   return (
-    <div className={"space-y-3 " + (className ?? "")}> 
-      {items.map((p) => (
+    <div className={"space-y-3 " + (className ?? "")}>
+      {showChatCoachmark && isDesktop ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          <div className="flex items-start justify-between gap-2">
+            <p className="leading-5">
+              Chatea con un profesional para contratarlo.
+            </p>
+            <button
+              type="button"
+              aria-label="Cerrar ayuda"
+              className="shrink-0 rounded p-0.5 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700"
+              onClick={dismissChatCoachmark}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {items.map((p, index) => (
         <Card
           key={p.id}
-          className="p-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/60"
+          className="p-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/60 transition-shadow"
           onClick={(event) => {
             if (event.defaultPrevented) return;
             router.push(`/profiles/${p.id}`);
@@ -229,17 +289,28 @@ export default function ProfessionalsList({
                 onClick={async (event) => {
                   event.preventDefault();
                   event.stopPropagation();
+                  if (showChatCoachmark && isDesktop && index === 0) {
+                    dismissChatCoachmark();
+                  }
                   try {
                     setStartingFor(p.id);
                     // Ensure we know current user id so ChatPanel can pass x-user-id to API
                     if (!meId) {
                       try {
-                        const rMe = await fetch(`/api/me`, { cache: "no-store", credentials: "include" });
+                        const rMe = await fetch(`/api/me`, {
+                          cache: "no-store",
+                          credentials: "include",
+                        });
                         const jMe = await rMe.json().catch(() => ({}));
-                        if (rMe.ok && jMe?.user?.id) setMeId(jMe.user.id as string);
-                      } catch { /* ignore */ }
+                        if (rMe.ok && jMe?.user?.id)
+                          setMeId(jMe.user.id as string);
+                      } catch {
+                        /* ignore */
+                      }
                     }
-                    const { data: { session } } = await supabase.auth.getSession();
+                    const {
+                      data: { session },
+                    } = await supabase.auth.getSession();
                     const res = await fetch(`/api/chat/start`, {
                       method: "POST",
                       headers: {
@@ -257,18 +328,27 @@ export default function ProfessionalsList({
                     });
                     const j = await res.json().catch(() => ({}));
                     if (res.status === 401) {
-                      const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
-                      router.push(`/auth/sign-in?next=${encodeURIComponent(here)}`);
+                      const here =
+                        typeof window !== "undefined"
+                          ? window.location.pathname + window.location.search
+                          : "/";
+                      router.push(
+                        `/auth/sign-in?next=${encodeURIComponent(here)}`,
+                      );
                       return;
                     }
                     if (!res.ok) throw new Error(j?.error || "start_failed");
-                    const convId: string | undefined = j?.data?.id ?? j?.conversation?.id;
+                    const convId: string | undefined =
+                      j?.data?.id ?? j?.conversation?.id;
                     if (convId) {
                       setConversationId(convId);
                       setChatOpen(true);
                     }
                   } catch (e) {
-                    const msg = e instanceof Error ? e.message : "No se pudo iniciar el chat";
+                    const msg =
+                      e instanceof Error
+                        ? e.message
+                        : "No se pudo iniciar el chat";
                     toast.error(msg);
                   } finally {
                     setStartingFor(null);
@@ -284,7 +364,7 @@ export default function ProfessionalsList({
       ))}
       {chatOpen && conversationId ? (
         <ChatPanel
-          key={`${conversationId}:${meId ?? ''}`}
+          key={`${conversationId}:${meId ?? ""}`}
           conversationId={conversationId}
           onClose={() => setChatOpen(false)}
           userId={meId}
