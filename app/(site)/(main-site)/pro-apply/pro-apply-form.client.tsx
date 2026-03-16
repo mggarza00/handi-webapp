@@ -226,6 +226,7 @@ export default function ProApplyForm({
     categories: false,
     subcategories: false,
     years_experience: false,
+    billing_authorization: false,
     privacy_accept: false,
   });
   const [refErrs, setRefErrs] = React.useState<
@@ -693,6 +694,13 @@ export default function ProApplyForm({
     }
   }, [fieldErrs.subcategories, selectedSubcategories]);
 
+  React.useEffect(() => {
+    if (!fieldErrs.billing_authorization) return;
+    if (canInvoiceSelf || authorizeHandi) {
+      setFieldErrs((prev) => ({ ...prev, billing_authorization: false }));
+    }
+  }, [authorizeHandi, canInvoiceSelf, fieldErrs.billing_authorization]);
+
   // Signature drawing handlers (pointer events) bind when dialog opens
   React.useEffect(() => {
     if (!sigOpen) return;
@@ -929,7 +937,9 @@ export default function ProApplyForm({
     if (hasStep4Errors) return 4;
 
     const hasStep5Errors =
-      Boolean(fieldErrs.privacy_accept) || Boolean(fileErrs.sig);
+      Boolean(fieldErrs.billing_authorization) ||
+      Boolean(fieldErrs.privacy_accept) ||
+      Boolean(fileErrs.sig);
     if (hasStep5Errors) return 5;
 
     return 1;
@@ -1069,15 +1079,16 @@ export default function ProApplyForm({
     }
 
     if (step === 5) {
+      const billingErr = !empresa && !canInvoiceSelf && !authorizeHandi;
       const privacyErr = !privacy;
       const sigErr = !sigDirty;
-      setFieldErrs((prev) => ({ ...prev, privacy_accept: privacyErr }));
+      setFieldErrs((prev) => ({
+        ...prev,
+        billing_authorization: billingErr,
+        privacy_accept: privacyErr,
+      }));
       setFileErrs((prev) => ({ ...prev, sig: sigErr }));
-      if (
-        (!empresa && !canInvoiceSelf && !authorizeHandi) ||
-        privacyErr ||
-        sigErr
-      ) {
+      if (billingErr || privacyErr || sigErr) {
         toast.error("Revisa los campos marcados");
         return false;
       }
@@ -1102,6 +1113,7 @@ export default function ProApplyForm({
       categories: false,
       subcategories: false,
       years_experience: false,
+      billing_authorization: false,
       privacy_accept: false,
     });
     setRefErrs([
@@ -1158,7 +1170,7 @@ export default function ProApplyForm({
       setError(msg);
       toast.error(msg);
       setFieldErrs((prev) => ({ ...prev, subcategories: true }));
-      return { ok: false, errorStep: 5 };
+      return { ok: false, errorStep: 1 };
     }
 
     // Solo validar campos de empresa si el switch está activado
@@ -1224,8 +1236,13 @@ export default function ProApplyForm({
             return "Selecciona al menos una categoría";
           case "years_experience":
             return "Ingresa años de experiencia válidos";
+          case "billing_authorization":
+            return "Selecciona una opción de facturación";
           case "privacy_accept":
+          case "privacy_notice_accepted":
             return "Debes aceptar el Aviso de Privacidad";
+          case "signature":
+            return "Firma requerida";
           default:
             return "Revisa este campo";
         }
@@ -1248,6 +1265,7 @@ export default function ProApplyForm({
         "Se requiere autorización del usuario para elaborar facturas a su nombre.";
       setError(msg);
       toast.error(msg);
+      setFieldErrs((prev) => ({ ...prev, billing_authorization: true }));
       return { ok: false, errorStep: 5 };
     }
 
@@ -2237,7 +2255,14 @@ export default function ProApplyForm({
 
         <Step label="Facturación">
           {!empresa && (
-            <section className="rounded-xl border bg-white p-5 shadow-sm">
+            <section
+              className={cn(
+                "rounded-xl border bg-white p-5 shadow-sm",
+                fieldErrs.billing_authorization
+                  ? "border-pink-500 ring-1 ring-pink-500/40"
+                  : "",
+              )}
+            >
               <h2 className="mb-3 text-base font-semibold">Facturación</h2>
               <div className="space-y-3">
                 <CompanyToggle
@@ -2246,6 +2271,12 @@ export default function ProApplyForm({
                   onChange={(v) => {
                     setCanInvoiceSelf(v);
                     if (v) setAuthorizeHandi(false);
+                    if (v) {
+                      setFieldErrs((prev) => ({
+                        ...prev,
+                        billing_authorization: false,
+                      }));
+                    }
                   }}
                   label="Tengo facultad de elaborar las facturas de mis servicios"
                 />
@@ -2254,7 +2285,15 @@ export default function ProApplyForm({
                     <CompanyToggle
                       id="billing-authorize"
                       checked={authorizeHandi}
-                      onChange={setAuthorizeHandi}
+                      onChange={(v) => {
+                        setAuthorizeHandi(v);
+                        if (v) {
+                          setFieldErrs((prev) => ({
+                            ...prev,
+                            billing_authorization: false,
+                          }));
+                        }
+                      }}
                       label="Autorizo que Handi elabore las facturas de mis servicios"
                     />
                     <Tooltip>
@@ -2273,6 +2312,11 @@ export default function ProApplyForm({
                       </TooltipContent>
                     </Tooltip>
                   </div>
+                )}
+                {fieldErrs.billing_authorization && (
+                  <p className="text-xs text-pink-600">
+                    Selecciona una opción de facturación para continuar.
+                  </p>
                 )}
               </div>
             </section>
