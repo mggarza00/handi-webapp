@@ -106,7 +106,7 @@ export function renderHandiEmailLayoutHtml(opts: HandiEmailLayoutOpts): string {
                 ${
                   cta && fallbackUrl
                     ? `
-                <p style="margin:0 0 8px;font-size:13px;color:#334155;">Si el botÃ³n no funciona, copia y pega este enlace:</p>
+                <p style="margin:0 0 8px;font-size:13px;color:#334155;">Si el botón no funciona, copia y pega este enlace:</p>
                 <p style="margin:0 0 18px;font-size:12px;line-height:1.6;color:#001447;word-break:break-all;">${escapeHtml(fallbackUrl)}</p>
                 `
                     : ""
@@ -126,7 +126,7 @@ export function renderHandiEmailLayoutHtml(opts: HandiEmailLayoutOpts): string {
               <td style="padding:18px 32px 26px;border-top:1px solid #e5e7eb;background:#f9fafb;font-size:12px;line-height:1.6;color:#667085;">
                 <div style="font-weight:700;color:#082877;margin-bottom:6px;">Handi</div>
                 <div style="margin-bottom:6px;">Soporte: <a href="mailto:${escapeAttribute(supportEmail)}" style="color:#082877;text-decoration:none;">${escapeHtml(supportEmail)}</a></div>
-                <div style="margin-bottom:6px;">Â© ${year} Handi. Todos los derechos reservados.</div>
+                <div style="margin-bottom:6px;">© ${year} Handi. Todos los derechos reservados.</div>
               </td>
             </tr>
           </table>
