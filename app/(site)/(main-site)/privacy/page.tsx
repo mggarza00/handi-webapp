@@ -1,7 +1,28 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import type { Metadata } from "next";
+
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Aviso de privacidad",
+  description:
+    "Consulta el aviso de privacidad de Handi y el manejo de datos personales.",
+  alternates: { canonical: "/privacy" },
+  openGraph: {
+    title: "Aviso de privacidad | Handi",
+    description:
+      "Consulta el aviso de privacidad de Handi y el manejo de datos personales.",
+    url: "/privacy",
+    type: "article",
+  },
+  twitter: {
+    card: "summary",
+    title: "Aviso de privacidad | Handi",
+    description:
+      "Consulta el aviso de privacidad de Handi y el manejo de datos personales.",
+  },
+};
 
 async function getPrivacyMd(): Promise<string> {
   const mdPath = path.join(

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -41,6 +42,13 @@ import { getAdminSupabase } from "@/lib/supabase/admin";
 import { UI_STATUS_LABELS, type RequestStatus } from "@/lib/request-status";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Panel profesional",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 const stackSansHeading = localFont({
   src: "../../../../public/fonts/Stack_Sans_Text/static/StackSansText-SemiBold.ttf",

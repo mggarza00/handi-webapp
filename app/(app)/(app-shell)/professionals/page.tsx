@@ -1,9 +1,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { headers } from "next/headers";
+import type { Metadata } from "next";
 
 import ProfessionalsFiltersAndGrid from "./ProfessionalsFiltersAndGrid.client";
 
+import CampaignCtaGroup from "@/components/seo/CampaignCtaGroup.client";
+import CampaignTrustSection from "@/components/seo/CampaignTrustSection";
 import { CITIES } from "@/lib/cities";
 
 type Pro = {
@@ -21,6 +24,25 @@ type Pro = {
 };
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Profesionales verificados",
+  description:
+    "Encuentra profesionales verificados por ciudad y servicio. Compara perfiles, experiencia y disponibilidad en Handi.",
+  alternates: { canonical: "/professionals" },
+  openGraph: {
+    title: "Profesionales verificados | Handi",
+    description:
+      "Encuentra profesionales verificados por ciudad y servicio. Compara perfiles, experiencia y disponibilidad en Handi.",
+    url: "/professionals",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Profesionales verificados | Handi",
+    description:
+      "Encuentra profesionales verificados por ciudad y servicio. Compara perfiles, experiencia y disponibilidad en Handi.",
+  },
+};
 
 function getBaseUrl() {
   // Preferir host actual; fallback a envs
@@ -92,10 +114,65 @@ export default async function Professionals({
     new Set(pairs.map((p) => p.category).filter(Boolean)),
   ).sort();
   const hasItems = items.length > 0;
+  const canonical = `${base}/professionals`;
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Profesionales verificados en Handi",
+    description:
+      "Listado publico de profesionales disponibles por ciudad y categoria.",
+    url: canonical,
+  };
+  const itemListJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: items.slice(0, 24).map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${base}/profiles/${item.id}`,
+      name: item.full_name || `Profesional ${index + 1}`,
+    })),
+  };
 
   return (
     <div className="space-y-6 mx-auto max-w-6xl px-4 md:px-6 py-4">
-      <h2 className="text-2xl font-semibold">Profesionales</h2>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+      />
+      {items.length > 0 ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+        />
+      ) : null}
+
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <h1 className="text-2xl font-semibold text-slate-900">Profesionales</h1>
+        <p className="mt-2 text-sm text-slate-600">
+          Explora perfiles verificados, revisa experiencia y encuentra apoyo
+          para servicios del hogar en tu ciudad.
+        </p>
+        <div className="mt-4">
+          <CampaignCtaGroup
+            trackingContext={{
+              pageType: "professionals_index",
+              placement: "hero",
+            }}
+            primary={{ label: "Solicitar servicio", href: "/requests/new" }}
+            secondary={{ label: "Explorar servicios", href: "/servicios" }}
+          />
+        </div>
+      </section>
+      <CampaignTrustSection
+        pageType="professionals_index"
+        sectionId="professionals-index-trust"
+        points={[
+          "Perfiles publicos con experiencia, servicios y resenas.",
+          "Filtros por ciudad y categoria para llegar mas rapido al match.",
+          "Flujo directo para crear solicitud y convertir en contacto.",
+        ]}
+      />
       <ProfessionalsFiltersAndGrid
         cities={[...CITIES]}
         categories={categoriesList}

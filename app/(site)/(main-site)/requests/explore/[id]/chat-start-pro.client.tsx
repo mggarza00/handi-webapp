@@ -4,11 +4,20 @@ import { useRouter } from "next/navigation";
 
 import ChatPanel from "@/components/chat/ChatPanel";
 import { Button } from "@/components/ui/button";
+import { trackContactIntent } from "@/lib/analytics/track";
 
-export default function ChatStartPro({ requestId, initialConversationId }: { requestId: string; initialConversationId?: string | null }) {
+export default function ChatStartPro({
+  requestId,
+  initialConversationId,
+}: {
+  requestId: string;
+  initialConversationId?: string | null;
+}) {
   const router = useRouter();
   const [me, setMe] = React.useState<string | null>(null);
-  const [conversationId, setConversationId] = React.useState<string | null>(initialConversationId ?? null);
+  const [conversationId, setConversationId] = React.useState<string | null>(
+    initialConversationId ?? null,
+  );
   const [open, setOpen] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
 
@@ -16,7 +25,10 @@ export default function ChatStartPro({ requestId, initialConversationId }: { req
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`/api/me`, { cache: "no-store", credentials: "include" });
+        const r = await fetch(`/api/me`, {
+          cache: "no-store",
+          credentials: "include",
+        });
         const j = await r.json().catch(() => ({}));
         if (!cancelled && r.ok && j?.user?.id) setMe(j.user.id as string);
       } catch {
@@ -30,7 +42,10 @@ export default function ChatStartPro({ requestId, initialConversationId }: { req
 
   async function onStart() {
     if (!me) {
-      const here = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
+      const here =
+        typeof window !== "undefined"
+          ? window.location.pathname + window.location.search
+          : "/";
       router.push(`/auth/sign-in?next=${encodeURIComponent(here)}`);
       return;
     }
@@ -51,7 +66,20 @@ export default function ChatStartPro({ requestId, initialConversationId }: { req
       const j = await res.json().catch(() => ({}));
       const conv = j?.data || j?.conversation || null;
       const id = conv?.id as string | undefined;
+      const conversionEventId =
+        typeof j?.meta?.conversion_event_id === "string"
+          ? j.meta.conversion_event_id
+          : undefined;
       if (res.ok && id) {
+        trackContactIntent({
+          event_id: conversionEventId,
+          source_page: `/requests/explore/${requestId}`,
+          user_type: "pro",
+          request_id: requestId,
+          profile_id: me,
+          conversation_id: id,
+          placement: "request_explore_chat_start",
+        });
         setConversationId(id);
         setOpen(true);
       }

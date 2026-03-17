@@ -3,6 +3,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { usePathname, useRouter } from "next/navigation";
 
+import { trackRoleSwitched } from "@/lib/analytics/track";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
 
@@ -93,6 +94,15 @@ export default function UserTypeInfo({
             ? "client"
             : ((j?.data?.role ?? null) as "client" | "pro" | "admin" | null);
       if (nextRole) {
+        trackRoleSwitched({
+          source_page: pathname || undefined,
+          origin_role: (activeRole ?? "unknown") as
+            | "client"
+            | "pro"
+            | "admin"
+            | "unknown",
+          destination_role: nextRole,
+        });
         setActiveRole(nextRole);
         setOther(
           nextRole === "pro"

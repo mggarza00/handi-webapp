@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import ChatPanel from "@/components/chat/ChatPanel";
 import { Button } from "@/components/ui/button";
+import { trackContactIntent } from "@/lib/analytics/track";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = {
@@ -150,7 +151,22 @@ export default function ChatClient({
         }
         const conv = j?.data || j?.conversation || null;
         const id = conv?.id as string | undefined;
+        const conversionEventId =
+          typeof j?.meta?.conversion_event_id === "string"
+            ? j.meta.conversion_event_id
+            : undefined;
         if (res.ok && id) {
+          trackContactIntent({
+            event_id: conversionEventId,
+            source_page: `/requests/${requestId}`,
+            user_type: isCustomerSelected ? "pro" : "client",
+            request_id: requestId,
+            profile_id: proId,
+            conversation_id: id,
+            placement: open
+              ? "request_chat_selector_open_chat"
+              : "request_chat_selector_background",
+          });
           setConversationId(id);
           if (open) setChatOpen(true);
           return id;

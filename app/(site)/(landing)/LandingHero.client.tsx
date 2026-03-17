@@ -17,6 +17,7 @@ import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.clie
 import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
 import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
+import { trackHeroCtaClicked } from "@/lib/analytics/track";
 
 type LandingHeroProps = {
   variant: "guest" | "client" | "other";
@@ -170,7 +171,10 @@ export default function LandingHero({
     };
 
     const win = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      requestIdleCallback?: (
+        cb: () => void,
+        opts?: { timeout: number },
+      ) => number;
       cancelIdleCallback?: (handle: number) => void;
     };
     let idleHandle: number | null = null;
@@ -317,6 +321,19 @@ export default function LandingHero({
                     <div className="mt-[70px] md:mt-12">
                       <HeroClientActions
                         ctaLabel="Solicitar un servicio"
+                        onPrimaryCtaClick={() =>
+                          trackHeroCtaClicked({
+                            page_type: "home",
+                            placement: "hero",
+                            source_page:
+                              typeof window !== "undefined"
+                                ? window.location.pathname
+                                : undefined,
+                            cta_label: "Solicitar un servicio",
+                            cta_target: "/requests/new",
+                            user_type: "client",
+                          })
+                        }
                         addresses={savedAddresses}
                         selectedAddress={selectedAddress}
                         onAddressChange={(addr) =>

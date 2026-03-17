@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import {
+  trackLoginCompleted,
+  trackSignUpCompleted,
+  trackSignUpStarted,
+} from "@/lib/analytics/track";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type EmailAuthMode = "login" | "signup";
@@ -47,7 +52,14 @@ export function useEmailPasswordAuth({
     password: string,
   ): Promise<AuthResult> => {
     setLoading(true);
+    const sourcePage =
+      typeof window !== "undefined"
+        ? window.location.pathname
+        : "/auth/sign-in";
     try {
+      if (mode === "signup") {
+        trackSignUpStarted({ method: "email", source_page: sourcePage });
+      }
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -69,8 +81,29 @@ export function useEmailPasswordAuth({
         });
         if (error) throw error;
         if (!data?.session) {
+          trackSignUpCompleted({
+            method: "email",
+            user_type: "client",
+            source_page: sourcePage,
+            pending_email_confirmation: true,
+          });
           return { ok: true, pendingEmailConfirmation: true };
         }
+      }
+
+      if (mode === "signup") {
+        trackSignUpCompleted({
+          method: "email",
+          user_type: "client",
+          source_page: sourcePage,
+          pending_email_confirmation: false,
+        });
+      } else {
+        trackLoginCompleted({
+          method: "email",
+          user_type: "client",
+          source_page: sourcePage,
+        });
       }
 
       router.replace(nextWithToast);

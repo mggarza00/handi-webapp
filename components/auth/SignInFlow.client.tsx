@@ -18,6 +18,7 @@ import {
 } from "@/lib/auth/flow";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { trackLoginCompleted } from "@/lib/analytics/track";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
@@ -151,6 +152,16 @@ export function SignInFlowCard({
         setHasSession(authed);
         setSessionChecked(true);
         if (authed) {
+          const fromAuthCallback = Boolean(
+            sp?.get("code") || sp?.get("auth_link"),
+          );
+          if (fromAuthCallback) {
+            trackLoginCompleted({
+              method: "google",
+              user_type: "client",
+              source_page: "/auth/sign-in",
+            });
+          }
           router.replace(next);
           router.refresh();
           onClose?.();
@@ -162,7 +173,7 @@ export function SignInFlowCard({
     return () => {
       active = false;
     };
-  }, [next, onClose, router, supabase]);
+  }, [next, onClose, router, sp, supabase]);
 
   const goToEmailStep = () => {
     setStep("email");

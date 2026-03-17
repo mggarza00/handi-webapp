@@ -15,27 +15,42 @@ import RequestNotificationsToast from "@/components/pwa/RequestNotificationsToas
 import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.client";
 import RegisterSW from "@/app/register-sw";
 import VercelLiveGuard from "@/components/VercelLiveGuard.client";
+import AttributionCapture from "@/components/analytics/AttributionCapture.client";
+import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const appBaseUrl = getAppBaseUrl();
+const defaultDescription =
+  "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mas.";
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Handi",
+  url: appBaseUrl,
+  logo: `${appBaseUrl}/images/LOGO_HANDI_DB.png`,
+};
+const websiteJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "Handi",
+  url: appBaseUrl,
+  inLanguage: "es-MX",
+};
+
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ||
-      process.env.NEXT_PUBLIC_BASE_URL ||
-      "http://localhost:3000",
-  ),
+  metadataBase: new URL(appBaseUrl),
   applicationName: "Handi",
   title: {
     default: "Handi",
     template: "%s | Handi",
   },
-  description:
-    "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
+  description: defaultDescription,
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Handi",
-    description:
-      "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
+    description: defaultDescription,
     url: "/",
     siteName: "Handi",
     images: ["/images/LOGO_HANDI_DB.png"],
@@ -45,8 +60,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Handi",
-    description:
-      "La plataforma que te conecta con expertos de confianza para trabajos en casa: limpieza, reparaciones y mucho más.",
+    description: defaultDescription,
     images: ["/images/LOGO_HANDI_DB.png"],
   },
   manifest: "/manifest.webmanifest",
@@ -80,6 +94,18 @@ new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
 ='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','GTM-PFWQ4LRF');`,
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(organizationJsonLd),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(websiteJsonLd),
           }}
         />
         <meta charSet="utf-8" />
@@ -182,6 +208,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
             style={{ display: "none", visibility: "hidden" }}
           />
         </noscript>
+        <AttributionCapture />
         {/* Google One Tap (solo cliente; no renderiza UI propia) */}
         <OneTapMount />
         <VercelLiveGuard />
@@ -195,7 +222,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
         <LeafletCSS />
         {/* Ensure Service Worker is registered (place above install/notify banners) */}
         <RegisterSW />
-        {/* Updater deshabilitado para no mostrar banner de nueva versión */}
+        {/* Updater deshabilitado para no mostrar banner de nueva version */}
         {/* PWA install banner (Android native + iOS simulated) */}
         <InstallAppBanner />
         {/* First-use notifications permission toast/help */}

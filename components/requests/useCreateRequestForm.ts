@@ -22,6 +22,10 @@ import {
 } from "@/lib/drafts";
 import { CITIES } from "@/lib/cities";
 import { buildStorageKey, buildUltraSafeKey } from "@/lib/storage-sanitize";
+import {
+  trackRequestCreateStarted,
+  trackRequestCreated,
+} from "@/lib/analytics/track";
 import { track } from "@/lib/telemetry";
 
 type ClassificationSuggestion = {
@@ -524,16 +528,22 @@ export function useCreateRequestForm(): CreateRequestFormApi {
             return false;
           }
           // fallback a Supabase directo (solo en dev/local con Supabase URL válida)
-          const { data, error } = await supabaseBrowser.rpc(
-            "upsert_user_address",
-            {
-              address_line: line,
-              address_place_id: placeId,
-              lat: addressLat,
-              lng: addressLng,
-              label: null,
-            },
-          );
+          const rpcClient = supabaseBrowser as unknown as {
+            rpc: (
+              fn: string,
+              args: Record<string, unknown>,
+            ) => Promise<{
+              data: unknown;
+              error: { message?: string; code?: string } | null;
+            }>;
+          };
+          const { data, error } = await rpcClient.rpc("upsert_user_address", {
+            address_line: line,
+            address_place_id: placeId,
+            lat: addressLat,
+            lng: addressLng,
+            label: null,
+          });
           if (error) {
             const msg =
               (error as { message?: string; code?: string })?.message || "";
@@ -930,6 +940,8 @@ export function useCreateRequestForm(): CreateRequestFormApi {
     [fetchAddrSuggestions],
   );
 
+  const hasTrackedRequestCreateStartRef = useRef(false);
+
   // Zod schema (same as page)
   const FormSchema = z.object({
     title: z.string().min(3, "Mínimo 3 caracteres").max(120),
@@ -977,6 +989,13 @@ export function useCreateRequestForm(): CreateRequestFormApi {
   async function handleSubmit(opts?: { onSuccess?: (newId?: string) => void }) {
     setSubmitting(true);
     setErrors({});
+    if (!hasTrackedRequestCreateStartRef.current) {
+      hasTrackedRequestCreateStartRef.current = true;
+      trackRequestCreateStarted({
+        source_page: "/requests/new",
+        user_type: "client",
+      });
+    }
     try {
       // Auth gating
       try {
@@ -1207,6 +1226,14 @@ export function useCreateRequestForm(): CreateRequestFormApi {
         return;
       }
       const newId: string | undefined = j?.data?.id;
+      trackRequestCreated({
+        request_id: newId,
+        service_category: category || undefined,
+        service_subcategory: subcategory || undefined,
+        city: parsed.data.city,
+        source_page: "/requests/new",
+        user_type: "client",
+      });
 
       try {
         await fetch("/api/profile/active-user-type", {

@@ -32,6 +32,10 @@ import { cn } from "@/lib/utils";
 import { CITIES } from "@/lib/cities";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
+import {
+  trackProApplyStarted,
+  trackProApplySubmitted,
+} from "@/lib/analytics/track";
 import CompanyToggle from "@/components/forms/CompanyToggle";
 import CompanyFields from "@/components/forms/CompanyFields";
 import SlideDown from "@/components/forms/SlideDown";
@@ -178,6 +182,7 @@ export default function ProApplyForm({
   const [ok, setOk] = React.useState<string | null>(null);
   const TOTAL_STEPS = 5;
   const [currentStep, setCurrentStep] = React.useState(1);
+  const hasTrackedApplyStartRef = React.useRef(false);
 
   // Basic fields
   const [fullName, setFullName] = React.useState(defaultFullName || "");
@@ -316,6 +321,15 @@ export default function ProApplyForm({
     error?: string;
     detail?: string;
   };
+
+  React.useEffect(() => {
+    if (hasTrackedApplyStartRef.current) return;
+    hasTrackedApplyStartRef.current = true;
+    trackProApplyStarted({
+      source_page: "/pro-apply",
+      user_type: "client",
+    });
+  }, []);
 
   // Load draft on mount
   React.useEffect(() => {
@@ -1600,6 +1614,12 @@ export default function ProApplyForm({
         const msg = j?.detail || j?.error || "No se pudo enviar la postulación";
         throw new Error(msg);
       }
+      trackProApplySubmitted({
+        source_page: "/pro-apply",
+        user_type: "client",
+        service_category: cat[0] || undefined,
+        city: cities[0] || undefined,
+      });
 
       toast.success("¡Postulación enviada!");
       clearDraft("draft:apply-professional");
