@@ -12,7 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import CityMultiSelect from "@/components/profile/CityMultiSelect";
 import CategoryPicker from "@/components/profile/CategoryPicker";
-import { AvatarField } from "@/components/profile/AvatarField";
+import {
+  AvatarField,
+  type AvatarFieldChange,
+} from "@/components/profile/AvatarField";
 import { fixMojibake } from "@/lib/text";
 
 const Schema = z.object({
@@ -21,19 +24,22 @@ const Schema = z.object({
   service_cities: z.array(z.string()).min(1, "Agrega al menos una ciudad"),
   categories: z.array(z.string()).min(1, "Selecciona al menos una categoría"),
   subcategories: z.array(z.string()).optional(),
-  years_experience: z.preprocess((v) => {
-    if (typeof v === "number") return Number.isFinite(v) ? v : 0;
-    if (typeof v === "string") {
-      const t = v.trim();
-      if (t === "") return 0;
-      const n = Number(t);
-      return Number.isFinite(n) ? n : 0;
-    }
-    return 0;
-  }, z.number().int().min(0, "Años inválidos").max(80, "Años inválidos")),
+  years_experience: z.preprocess(
+    (v) => {
+      if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+      if (typeof v === "string") {
+        const t = v.trim();
+        if (t === "") return 0;
+        const n = Number(t);
+        return Number.isFinite(n) ? n : 0;
+      }
+      return 0;
+    },
+    z.number().int().min(0, "Años inválidos").max(80, "Años inválidos"),
+  ),
   bio: z.string().max(800).optional(),
   // Internal/compat fields (not user-entered directly)
-  avatar_url: z.string().url().optional().or(z.literal("")),
+  avatar_url: z.string().optional().or(z.literal("")),
   city: z.string().optional(),
 });
 
@@ -61,19 +67,44 @@ type Profile = {
   subcategories?: Array<{ name: string }> | null;
 } | null;
 
-export default function SetupForm({ initial, onRequestChanges }: { initial: Profile; onRequestChanges?: (fd: FormData) => Promise<{ ok: boolean; error?: string }> }) {
+export default function SetupForm({
+  initial,
+  onRequestChanges,
+}: {
+  initial: Profile;
+  onRequestChanges?: (fd: FormData) => Promise<{ ok: boolean; error?: string }>;
+}) {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
 
   const [avatarUrl, setAvatarUrl] = React.useState(initial?.avatar_url ?? "");
+  const [avatarDraftPath, setAvatarDraftPath] = React.useState<string | null>(
+    null,
+  );
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = React.useState<string | null>(
+    null,
+  );
+  const [avatarLegacyUrl, setAvatarLegacyUrl] = React.useState<string | null>(
+    null,
+  );
   const sanitizedCities = sanitizeCityArray(initial?.cities ?? null);
-  const fallbackCity = typeof initial?.city === "string" && initial.city ? fixMojibake(initial.city) : "";
+  const fallbackCity =
+    typeof initial?.city === "string" && initial.city
+      ? fixMojibake(initial.city)
+      : "";
   const defaultServiceCities =
-    sanitizedCities.length > 0 ? sanitizedCities : fallbackCity ? [fallbackCity] : [];
-  const [serviceCities, setServiceCities] = React.useState<string[]>(defaultServiceCities);
-  const [picks, setPicks] = React.useState<Array<{ category: string; subcategory?: string | null }>>([]);
+    sanitizedCities.length > 0
+      ? sanitizedCities
+      : fallbackCity
+        ? [fallbackCity]
+        : [];
+  const [serviceCities, setServiceCities] =
+    React.useState<string[]>(defaultServiceCities);
+  const [picks, setPicks] = React.useState<
+    Array<{ category: string; subcategory?: string | null }>
+  >([]);
   const [gallery, setGallery] = React.useState<
     Array<{ url: string; path: string; name: string; size: number | null }>
   >([]);
@@ -95,7 +126,11 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       subcategories: [],
     },
   });
-  const { register, handleSubmit, formState: { errors } } = form;
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = form;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -145,7 +180,9 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
     form.setValue("service_cities", serviceCities, { shouldValidate: true });
   }, [form, serviceCities]);
   React.useEffect(() => {
-    const uniqueCategories = Array.from(new Set(picks.map((p) => p.category).filter(Boolean)));
+    const uniqueCategories = Array.from(
+      new Set(picks.map((p) => p.category).filter(Boolean)),
+    );
     const subcats = picks.map((p) => p.subcategory || "").filter(Boolean);
     form.setValue("categories", uniqueCategories, { shouldValidate: true });
     form.setValue("subcategories", subcats, { shouldValidate: false });
@@ -159,23 +196,26 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
     const subcats = data.subcategories || [];
     try {
       const fd = new FormData();
-        fd.set("full_name", fixMojibake(data.full_name) || "");
-        fd.set("avatar_url", avatarUrl);
-        fd.set("headline", fixMojibake(data.headline) || "");
-        fd.set("bio", fixMojibake(data.bio || ""));
-        fd.set("years_experience", String(data.years_experience ?? ""));
-        // Compat: main_city (city) = first of service_cities
-        fd.set("city", (data.service_cities?.[0] ?? ""));
-        fd.set("service_cities", JSON.stringify(data.service_cities || []));
-        fd.set("categories", JSON.stringify(uniqueCategories));
-        fd.set("subcategories", JSON.stringify(subcats));
-        // Include current private gallery paths for admin approval
-        try {
-          const paths = (gallery || []).map((g) => g.path).filter(Boolean);
-          fd.set("gallery_paths", JSON.stringify(paths));
-        } catch {
-          /* ignore */
-        }
+      fd.set("full_name", fixMojibake(data.full_name) || "");
+      if (avatarDraftPath) fd.set("avatar_draft_path", avatarDraftPath);
+      if (avatarPreviewUrl) fd.set("avatar_preview_url", avatarPreviewUrl);
+      // Compat: keep legacy avatar_url only when no draft path exists.
+      if (!avatarDraftPath) fd.set("avatar_url", avatarLegacyUrl || avatarUrl);
+      fd.set("headline", fixMojibake(data.headline) || "");
+      fd.set("bio", fixMojibake(data.bio || ""));
+      fd.set("years_experience", String(data.years_experience ?? ""));
+      // Compat: main_city (city) = first of service_cities
+      fd.set("city", data.service_cities?.[0] ?? "");
+      fd.set("service_cities", JSON.stringify(data.service_cities || []));
+      fd.set("categories", JSON.stringify(uniqueCategories));
+      fd.set("subcategories", JSON.stringify(subcats));
+      // Include current private gallery paths for admin approval
+      try {
+        const paths = (gallery || []).map((g) => g.path).filter(Boolean);
+        fd.set("gallery_paths", JSON.stringify(paths));
+      } catch {
+        /* ignore */
+      }
       let ok = false;
       // Prefer server action when available
       if (onRequestChanges) {
@@ -191,6 +231,8 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
         const payload = {
           full_name: getFormString(fd, "full_name"),
           avatar_url: getFormString(fd, "avatar_url"),
+          avatar_draft_path: getFormString(fd, "avatar_draft_path"),
+          avatar_preview_url: getFormString(fd, "avatar_preview_url"),
           headline: getFormString(fd, "headline"),
           bio: getFormString(fd, "bio"),
           years_experience: Number(fd.get("years_experience") || 0),
@@ -210,37 +252,48 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           throw new Error(j?.error || "No se pudo enviar la solicitud");
         }
       }
-        // Redirige a la pantalla de confirmación
-        try {
-          router.push("/profile/changes-requested");
-          // Fallback duro en caso de que el router falle silenciosamente
-          setTimeout(() => {
-            try { window.location.assign("/profile/changes-requested"); } catch { /* ignore */ }
-          }, 300);
-          return;
-        } catch {
-          // fallback: mostrar mensaje en esta página si la navegación falla
-          setOk("Tu solicitud fue enviada a revisión.");
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? (e.message || "Error desconocido") : "Error desconocido";
-        if (/NO_CHANGES/i.test(msg)) {
-          setError("No hay cambios por enviar. Realiza al menos una modificación antes de solicitar.");
-        } else {
-          setError(msg);
-        }
-      } finally {
-        setLoading(false);
+      // Redirige a la pantalla de confirmación
+      try {
+        router.push("/profile/changes-requested");
+        // Fallback duro en caso de que el router falle silenciosamente
+        setTimeout(() => {
+          try {
+            window.location.assign("/profile/changes-requested");
+          } catch {
+            /* ignore */
+          }
+        }, 300);
+        return;
+      } catch {
+        // fallback: mostrar mensaje en esta página si la navegación falla
+        setOk("Tu solicitud fue enviada a revisión.");
       }
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message || "Error desconocido"
+          : "Error desconocido";
+      if (/NO_CHANGES/i.test(msg)) {
+        setError(
+          "No hay cambios por enviar. Realiza al menos una modificación antes de solicitar.",
+        );
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   function onInvalid() {
     const e = form.formState.errors;
     const messages: string[] = [];
     if (e.headline?.message) messages.push(String(e.headline.message));
-    if (e.service_cities?.message) messages.push(String(e.service_cities.message));
+    if (e.service_cities?.message)
+      messages.push(String(e.service_cities.message));
     if (e.categories?.message) messages.push(String(e.categories.message));
-    if (e.years_experience?.message) messages.push(String(e.years_experience.message));
+    if (e.years_experience?.message)
+      messages.push(String(e.years_experience.message));
     if (e.full_name?.message) messages.push(String(e.full_name.message));
     const msg = messages[0] || "Revisa la información faltante";
     toast.error(msg);
@@ -252,41 +305,81 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div>
-        <label className="block text-sm mb-1" htmlFor="full_name">Nombre completo</label>
+        <label className="block text-sm mb-1" htmlFor="full_name">
+          Nombre completo
+        </label>
         <Input
           id="full_name"
           value={fixMojibake(initial?.full_name) || ""}
           readOnly
           disabled
         />
-        <input type="hidden" value={fixMojibake(initial?.full_name) || ""} {...register("full_name")} />
-        {errors.full_name && <p className="mt-1 text-xs text-red-600">{String(errors.full_name.message)}</p>}
+        <input
+          type="hidden"
+          value={fixMojibake(initial?.full_name) || ""}
+          {...register("full_name")}
+        />
+        {errors.full_name && (
+          <p className="mt-1 text-xs text-red-600">
+            {String(errors.full_name.message)}
+          </p>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm mb-1" htmlFor="headline">Título</label>
+        <label className="block text-sm mb-1" htmlFor="headline">
+          Título
+        </label>
         <Input
           id="headline"
           placeholder="Ej. Electricista residencial certificado"
           defaultValue={fixMojibake(initial?.headline) || ""}
           {...register("headline")}
         />
-        {errors.headline && <p className="mt-1 text-xs text-red-600">{String(errors.headline.message)}</p>}
+        {errors.headline && (
+          <p className="mt-1 text-xs text-red-600">
+            {String(errors.headline.message)}
+          </p>
+        )}
       </div>
 
-      <AvatarField userId={meId ?? ""} url={avatarUrl} onChangeUrl={setAvatarUrl} />
+      <AvatarField
+        userId={meId ?? ""}
+        url={avatarUrl}
+        onChangeAvatar={(value: AvatarFieldChange) => {
+          setAvatarUrl(value.displayUrl || "");
+          setAvatarDraftPath(value.draftPath || null);
+          setAvatarPreviewUrl(value.previewUrl || null);
+          setAvatarLegacyUrl(value.legacyUrl || null);
+        }}
+      />
 
       <div>
-        <label className="block text-sm mb-1">Ciudades en las que ofrece sus servicios</label>
+        <label className="block text-sm mb-1">
+          Ciudades en las que ofrece sus servicios
+        </label>
         <CityMultiSelect
           value={(serviceCities || []).join(", ")}
-          onChange={(csv) => setServiceCities(csv.split(",").map((s) => s.trim()).filter(Boolean))}
+          onChange={(csv) =>
+            setServiceCities(
+              csv
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean),
+            )
+          }
         />
-        {errors.service_cities && <p className="mt-1 text-xs text-red-600">{String(errors.service_cities.message)}</p>}
+        {errors.service_cities && (
+          <p className="mt-1 text-xs text-red-600">
+            {String(errors.service_cities.message)}
+          </p>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm mb-1" htmlFor="bio">Descripción de servicios</label>
+        <label className="block text-sm mb-1" htmlFor="bio">
+          Descripción de servicios
+        </label>
         <Textarea
           id="bio"
           rows={4}
@@ -294,11 +387,17 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           defaultValue={(fixMojibake(initial?.bio) || "").slice(0, 800)}
           {...register("bio")}
         />
-        {errors.bio && <p className="mt-1 text-xs text-red-600">{String(errors.bio.message)}</p>}
+        {errors.bio && (
+          <p className="mt-1 text-xs text-red-600">
+            {String(errors.bio.message)}
+          </p>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm mb-1" htmlFor="years_experience">Años de experiencia</label>
+        <label className="block text-sm mb-1" htmlFor="years_experience">
+          Años de experiencia
+        </label>
         <Input
           id="years_experience"
           type="number"
@@ -306,28 +405,39 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
           max={80}
           step={1}
           defaultValue={
-            typeof initial?.years_experience === "number" && !Number.isNaN(initial.years_experience)
+            typeof initial?.years_experience === "number" &&
+            !Number.isNaN(initial.years_experience)
               ? initial.years_experience
               : 0
           }
           {...register("years_experience" as const, { valueAsNumber: true })}
         />
-        {errors.years_experience && <p className="mt-1 text-xs text-red-600">{String(errors.years_experience.message)}</p>}
+        {errors.years_experience && (
+          <p className="mt-1 text-xs text-red-600">
+            {String(errors.years_experience.message)}
+          </p>
+        )}
       </div>
 
       <div>
-        <label className="block text-sm mb-1">Categorías y subcategorías (usa + para desplegar)</label>
+        <label className="block text-sm mb-1">
+          Categorías y subcategorías (usa + para desplegar)
+        </label>
         <CategoryPicker
           value={picks}
           onChange={setPicks}
           initialCategories={initialCategoryNames}
           initialSubcategories={initialSubcategoryNames}
         />
-        <p className="mt-1 text-xs text-slate-500">Usa (+) para ver y elegir subcategorías.</p>
-        {errors.categories && <p className="mt-1 text-xs text-red-600">{String(errors.categories.message)}</p>}
+        <p className="mt-1 text-xs text-slate-500">
+          Usa (+) para ver y elegir subcategorías.
+        </p>
+        {errors.categories && (
+          <p className="mt-1 text-xs text-red-600">
+            {String(errors.categories.message)}
+          </p>
+        )}
       </div>
-
-      
 
       <div>
         <h3 className="text-sm font-medium mb-1">Galería profesional</h3>
@@ -353,9 +463,15 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
                   throw new Error(`Tipo inválido para ${f.name}`);
                 const fd = new FormData();
                 fd.set("file", f);
-                const r = await fetch(`/api/profiles/${meId}/gallery`, { method: "POST", body: fd });
+                const r = await fetch(`/api/profiles/${meId}/gallery`, {
+                  method: "POST",
+                  body: fd,
+                });
                 const j = await r.json().catch(() => null);
-                if (!r.ok) throw new Error(j?.detail || j?.error || "No se pudo subir imagen");
+                if (!r.ok)
+                  throw new Error(
+                    j?.detail || j?.error || "No se pudo subir imagen",
+                  );
               }
               const g = await fetch(`/api/profiles/${meId}/gallery`, {
                 headers: { "Content-Type": "application/json; charset=utf-8" },
@@ -419,10 +535,10 @@ export default function SetupForm({ initial, onRequestChanges }: { initial: Prof
         <Button type="submit" disabled={loading}>
           {loading ? "Enviando…" : "Solicitar cambios"}
         </Button>
-        <p className="mt-2 text-xs text-slate-600">Tus cambios serán revisados por el equipo antes de publicarse.</p>
+        <p className="mt-2 text-xs text-slate-600">
+          Tus cambios serán revisados por el equipo antes de publicarse.
+        </p>
       </div>
     </form>
   );
 }
-
-
