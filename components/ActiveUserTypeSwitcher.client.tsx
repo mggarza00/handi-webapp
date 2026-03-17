@@ -2,6 +2,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { trackRoleSwitched } from "@/lib/analytics/track";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
 
@@ -56,6 +57,12 @@ export default function ActiveUserTypeSwitcher() {
           status: res.status,
         };
       }
+      const destinationRole = other === "profesional" ? "pro" : "client";
+      trackRoleSwitched({
+        source_page: "header",
+        origin_role: other === "profesional" ? "client" : "pro",
+        destination_role: destinationRole,
+      });
       toast.success(`Tipo activo cambiado a ${other}`);
       const targetPath = other === "profesional" ? "/pro" : "/";
       window.location.href = targetPath;

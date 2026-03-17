@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 import SetupForm from "./setup.client";
 import { createChangeRequest } from "./actions";
@@ -12,6 +13,13 @@ import createClient from "@/utils/supabase/server";
 import type { Database } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Configurar perfil",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 type ProfessionalRow = Database["public"]["Tables"]["professionals"]["Row"];

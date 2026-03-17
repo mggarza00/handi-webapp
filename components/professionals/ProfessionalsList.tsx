@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
+import { trackContactIntent } from "@/lib/analytics/track";
 
 const REQUEST_DETAIL_CHAT_HELPER_SEEN_KEY = "request_detail_chat_helper_seen";
 
@@ -340,7 +341,20 @@ export default function ProfessionalsList({
                     if (!res.ok) throw new Error(j?.error || "start_failed");
                     const convId: string | undefined =
                       j?.data?.id ?? j?.conversation?.id;
+                    const conversionEventId =
+                      typeof j?.meta?.conversion_event_id === "string"
+                        ? j.meta.conversion_event_id
+                        : undefined;
                     if (convId) {
+                      trackContactIntent({
+                        event_id: conversionEventId,
+                        source_page: `/requests/${requestId}`,
+                        user_type: "client",
+                        request_id: requestId,
+                        profile_id: p.id,
+                        conversation_id: convId,
+                        placement: "request_professionals_list_message_button",
+                      });
                       setConversationId(convId);
                       setChatOpen(true);
                     }

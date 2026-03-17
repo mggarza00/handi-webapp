@@ -4,6 +4,10 @@ import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+import {
+  trackProApplyStarted,
+  trackRequestCreateStarted,
+} from "@/lib/analytics/track";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 
@@ -16,6 +20,10 @@ export default function HowToUseHandiSection() {
   const LEGACY_STORAGE_KEY = "handi:auto-open-request-wizard";
 
   const handleClientCta = () => {
+    trackRequestCreateStarted({
+      source_page: "/",
+      user_type: "unknown",
+    });
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_KEY, "pending");
       window.sessionStorage.setItem(LEGACY_STORAGE_KEY, "pending");
@@ -28,6 +36,10 @@ export default function HowToUseHandiSection() {
   };
 
   const handleProCta = () => {
+    trackProApplyStarted({
+      source_page: "/",
+      user_type: "unknown",
+    });
     toast({ title: "Inicia sesion para postularte como profesional" });
     router.push("/auth/sign-in?next=%2Fpro-apply&toast=pro-apply");
   };

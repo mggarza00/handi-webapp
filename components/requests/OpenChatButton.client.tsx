@@ -1,6 +1,8 @@
 "use client";
 import * as React from "react";
 
+import { trackContactIntent } from "@/lib/analytics/track";
+
 type Props = { requestId: string };
 
 function logDebugError(scope: string, error: unknown) {
@@ -26,7 +28,9 @@ export default function OpenChatButton({ requestId }: Props) {
           credentials: "include",
         });
         const j = await r.json().catch(() => ({}));
-        const apps = Array.isArray(j?.data) ? (j.data as Array<{ professional_id?: string }>) : [];
+        const apps = Array.isArray(j?.data)
+          ? (j.data as Array<{ professional_id?: string }>)
+          : [];
         if (apps.length) {
           const candidate = apps[0]?.professional_id;
           if (typeof candidate === "string") proId = candidate;
@@ -44,7 +48,9 @@ export default function OpenChatButton({ requestId }: Props) {
             credentials: "include",
           });
           const j = await r.json().catch(() => ({}));
-          const rows = Array.isArray(j?.data) ? (j.data as Array<{ professional_id?: string }>) : [];
+          const rows = Array.isArray(j?.data)
+            ? (j.data as Array<{ professional_id?: string }>)
+            : [];
           if (rows.length) {
             const candidate = rows[0]?.professional_id;
             if (typeof candidate === "string") proId = candidate;
@@ -65,8 +71,27 @@ export default function OpenChatButton({ requestId }: Props) {
           });
           const sj = await s.json().catch(() => ({}));
           const convIdRaw = sj?.data?.id;
-          const convId = typeof convIdRaw === "string" && convIdRaw.length ? convIdRaw : null;
+          const convId =
+            typeof convIdRaw === "string" && convIdRaw.length
+              ? convIdRaw
+              : null;
+          const conversionEventId =
+            typeof sj?.meta?.conversion_event_id === "string"
+              ? sj.meta.conversion_event_id
+              : undefined;
           if (s.ok && convId) {
+            trackContactIntent({
+              event_id: conversionEventId,
+              source_page:
+                typeof window !== "undefined"
+                  ? window.location.pathname
+                  : undefined,
+              user_type: "unknown",
+              request_id: requestId,
+              profile_id: proId,
+              conversation_id: convId,
+              placement: "request_open_chat_button",
+            });
             window.location.assign(`/mensajes/${convId}`);
             return;
           }

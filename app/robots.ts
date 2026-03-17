@@ -1,12 +1,54 @@
 import type { MetadataRoute } from "next";
 
+import { getAppBaseUrl, isLocalBaseUrl } from "@/lib/seo/site-url";
+
 export default function robots(): MetadataRoute.Robots {
-  const base =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    "http://localhost:3000";
+  const base = getAppBaseUrl();
+  if (isLocalBaseUrl(base)) {
+    return {
+      rules: [{ userAgent: "*", disallow: "/" }],
+      sitemap: `${base}/sitemap.xml`,
+    };
+  }
+
   return {
-    rules: [{ userAgent: "*", allow: "/" }],
+    rules: [
+      {
+        userAgent: "*",
+        allow: [
+          "/",
+          "/help",
+          "/privacy",
+          "/terms-and-conditions",
+          "/politicas-facturacion",
+          "/professionals",
+          "/profiles/",
+          "/servicios",
+          "/servicios/",
+          "/ciudades",
+          "/ciudades/",
+        ],
+        disallow: [
+          "/admin",
+          "/api",
+          "/auth",
+          "/messages",
+          "/mensajes",
+          "/notifications",
+          "/profile/",
+          "/settings/",
+          "/requests/new",
+          "/requests/",
+          "/pro",
+          "/favorites",
+          "/applied",
+          "/pagos",
+          "/receipts",
+          "/recibos",
+          "/dev",
+        ],
+      },
+    ],
     sitemap: `${base}/sitemap.xml`,
   };
 }

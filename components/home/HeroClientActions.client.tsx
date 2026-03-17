@@ -30,6 +30,7 @@ type HeroClientActionsProps = {
   addressPillClassName?: string;
   showButton?: boolean;
   showPill?: boolean;
+  onPrimaryCtaClick?: () => void;
 };
 
 export default function HeroClientActions({
@@ -41,6 +42,7 @@ export default function HeroClientActions({
   addressPillClassName,
   showButton = true,
   showPill = true,
+  onPrimaryCtaClick,
 }: HeroClientActionsProps) {
   const [open, setOpen] = useState(false);
   const [addrOpen, setAddrOpen] = useState(false);
@@ -103,7 +105,10 @@ export default function HeroClientActions({
               "btn-contratar whitespace-nowrap px-7 sm:px-8 md:px-10 !w-auto min-w-[200px] sm:min-w-[220px]",
               triggerClassName,
             )}
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              onPrimaryCtaClick?.();
+              setOpen(true);
+            }}
           >
             {ctaLabel}
             <span className="btn-circle" aria-hidden="true" />

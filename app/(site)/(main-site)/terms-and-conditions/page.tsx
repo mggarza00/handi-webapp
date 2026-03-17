@@ -1,7 +1,28 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import type { Metadata } from "next";
+
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Terminos y condiciones",
+  description:
+    "Revisa los terminos y condiciones de uso de la plataforma Handi.",
+  alternates: { canonical: "/terms-and-conditions" },
+  openGraph: {
+    title: "Terminos y condiciones | Handi",
+    description:
+      "Revisa los terminos y condiciones de uso de la plataforma Handi.",
+    url: "/terms-and-conditions",
+    type: "article",
+  },
+  twitter: {
+    card: "summary",
+    title: "Terminos y condiciones | Handi",
+    description:
+      "Revisa los terminos y condiciones de uso de la plataforma Handi.",
+  },
+};
 
 async function getTermsMd(): Promise<string> {
   const mdPath = path.join(

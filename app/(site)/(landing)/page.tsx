@@ -1,4 +1,5 @@
 import { cookies, headers } from "next/headers";
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import LandingPage from "./LandingPage";
@@ -44,6 +45,25 @@ type SavedAddress = {
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = {
+  title: "Handi | Encuentra profesionales para tu hogar",
+  description:
+    "Solicita servicios para tu hogar y conecta con profesionales verificados para mantenimiento, reparaciones, limpieza y mas.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Handi | Encuentra profesionales para tu hogar",
+    description:
+      "Solicita servicios para tu hogar y conecta con profesionales verificados para mantenimiento, reparaciones, limpieza y mas.",
+    url: "/",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Handi | Encuentra profesionales para tu hogar",
+    description:
+      "Solicita servicios para tu hogar y conecta con profesionales verificados para mantenimiento, reparaciones, limpieza y mas.",
+  },
+};
 
 const CATALOG_REVALIDATE_SECONDS = 300;
 const TOP_CATEGORY_SAMPLE = 2000;

@@ -11,6 +11,7 @@ import { useProspects } from "@/lib/hooks/useProspects";
 import ChatPanel from "@/components/chat/ChatPanel";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
+import { trackContactIntent } from "@/lib/analytics/track";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = { requestId: string };
@@ -183,7 +184,20 @@ export default function ProspectsClient({ requestId }: Props) {
                     }
                     const conv = j?.data || j?.conversation || null;
                     const id = conv?.id as string | undefined;
+                    const conversionEventId =
+                      typeof j?.meta?.conversion_event_id === "string"
+                        ? j.meta.conversion_event_id
+                        : undefined;
                     if (res.ok && id) {
+                      trackContactIntent({
+                        event_id: conversionEventId,
+                        source_page: `/requests/${requestId}`,
+                        user_type: "client",
+                        request_id: requestId,
+                        profile_id: proId,
+                        conversation_id: id,
+                        placement: "request_prospects_message_button",
+                      });
                       setConversationId(id);
                       setChatOpen(true);
                     }

@@ -2,10 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as React from "react";
 import { headers } from "next/headers";
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import localFont from "next/font/local";
 
 import type { Database } from "@/types/supabase";
+import ProfessionalProfileViewTracker from "@/components/analytics/ProfessionalProfileViewTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
 import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
 import ProfileHeaderCard from "@/components/profiles/ProfileHeaderCard";
@@ -14,6 +16,7 @@ import CertChip from "@/components/profiles/CertChip";
 import CompletedWorks from "@/components/profiles/CompletedWorks";
 import PhotoMasonry from "@/components/profiles/PhotoMasonry";
 import ReviewsListClient from "@/components/profiles/ReviewsList.client";
+import CampaignCtaGroup from "@/components/seo/CampaignCtaGroup.client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -23,6 +26,7 @@ import {
 } from "@/lib/profiles/data";
 import { getProJobsWithPhotos } from "@/lib/profiles/jobs";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { normalizeAvatarUrl } from "@/lib/avatar";
 import createClient from "@/utils/supabase/server";
 
 const stackSansHeading = localFont({
@@ -91,7 +95,11 @@ function getBaseUrl() {
 
 export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: { id: string };
+}): Promise<Metadata> {
   const base = getBaseUrl();
   try {
     const supa = getAdminSupabase() as SupabaseClient<Database>;
@@ -108,34 +116,39 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
         ? `${bioText.slice(0, 157)}...`
         : bioText || "Perfil profesional en Handi";
 
-    const imageUrl =
+    const imageUrl = normalizeAvatarUrl(
       getString(profileData?.avatar_url) ||
-      getString(proData?.avatar_url) ||
-      `${base}/avatar.png`;
+        getString(proData?.avatar_url) ||
+        `${base}/avatar.png`,
+    );
+    const canonical = `/profiles/${params.id}`;
 
     return {
-      title: `${titleName} · Handi`,
+      title: `${titleName} | Handi`,
       description: desc,
+      alternates: { canonical },
       openGraph: {
-        title: `${titleName} · Handi`,
+        title: `${titleName} | Handi`,
         description: desc,
-        url: `${base}/profiles/${params.id}`,
-        images: [imageUrl],
+        url: canonical,
+        images: imageUrl ? [imageUrl] : undefined,
         siteName: "Handi",
         type: "profile",
       },
       twitter: {
         card: "summary_large_image",
-        title: `${titleName} · Handi`,
+        title: `${titleName} | Handi`,
         description: desc,
-        images: [imageUrl],
+        images: imageUrl ? [imageUrl] : undefined,
       },
     };
   } catch {
-    return { title: "Perfil · Handi" };
+    return {
+      title: "Perfil | Handi",
+      alternates: { canonical: `/profiles/${params.id}` },
+    };
   }
 }
-
 export default async function PublicProfilePage({ params }: Ctx) {
   const supa = getAdminSupabase() as SupabaseClient<Database>;
   const proId = params.id;
@@ -243,6 +256,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
     getString(profileData?.avatar_url) ||
     getString(proData?.avatar_url) ||
     "/avatar.png";
+  const normalizedAvatarUrl = normalizeAvatarUrl(avatarUrl);
   const cityLabel =
     getString(profileData?.city) || getString(proData?.city) || null;
   const serviceCities = overview.cities ?? [];
@@ -256,9 +270,101 @@ export default async function PublicProfilePage({ params }: Ctx) {
   const isVerified = Boolean(
     getBoolean(proData.verified) || getBoolean(proData.is_featured),
   );
+  const baseUrl = getBaseUrl();
+  const canonicalProfileUrl = `${baseUrl}/profiles/${proId}`;
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Inicio",
+        item: `${baseUrl}/`,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: "Profesionales",
+        item: `${baseUrl}/professionals`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: displayName,
+        item: canonicalProfileUrl,
+      },
+    ],
+  };
+  const personJsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: displayName,
+    url: canonicalProfileUrl,
+  };
+  if (normalizedAvatarUrl) personJsonLd.image = normalizedAvatarUrl;
+  if (bio && bio.trim()) personJsonLd.description = bio.trim();
+  if (cityLabel) {
+    personJsonLd.homeLocation = {
+      "@type": "City",
+      name: cityLabel,
+    };
+  }
+
+  const professionalServiceJsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "ProfessionalService",
+    name: `${displayName} | Servicios en Handi`,
+    url: canonicalProfileUrl,
+    provider: {
+      "@type": "Person",
+      name: displayName,
+    },
+  };
+  if (bio && bio.trim()) professionalServiceJsonLd.description = bio.trim();
+  if (normalizedAvatarUrl)
+    professionalServiceJsonLd.image = normalizedAvatarUrl;
+  if (serviceCities.length > 0) {
+    professionalServiceJsonLd.areaServed = serviceCities.map((city) => ({
+      "@type": "City",
+      name: city,
+    }));
+  } else if (cityLabel) {
+    professionalServiceJsonLd.areaServed = {
+      "@type": "City",
+      name: cityLabel,
+    };
+  }
+  if (
+    typeof averageRating === "number" &&
+    Number.isFinite(averageRating) &&
+    typeof reviewsData.count === "number" &&
+    reviewsData.count > 0
+  ) {
+    professionalServiceJsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: Number(averageRating.toFixed(1)),
+      reviewCount: reviewsData.count,
+    };
+  }
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+      <ProfessionalProfileViewTracker profileId={proId} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(professionalServiceJsonLd),
+        }}
+      />
       <Breadcrumbs
         items={[
           { label: "Inicio", href: "/" },
@@ -289,6 +395,31 @@ export default async function PublicProfilePage({ params }: Ctx) {
           ) : null
         }
       />
+      {!isOwner ? (
+        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Listo para avanzar con tu servicio?
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            Publica tu solicitud para recibir propuestas y comparar opciones con
+            contexto de precio, disponibilidad y experiencia.
+          </p>
+          <div className="mt-4">
+            <CampaignCtaGroup
+              trackingContext={{
+                pageType: "professional_profile",
+                placement: "post_header",
+                profileId: proId,
+              }}
+              primary={{ label: "Solicitar servicio", href: "/requests/new" }}
+              secondary={{
+                label: "Ver mas profesionales",
+                href: "/professionals",
+              }}
+            />
+          </div>
+        </Card>
+      ) : null}
 
       <section className="space-y-4">
         <Card className="rounded-2xl border bg-white shadow-sm">
@@ -308,7 +439,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
                 label="Experiencia"
                 value={
                   typeof yearsExperience === "number"
-                    ? `${yearsExperience} años`
+                    ? `${yearsExperience} a\u00f1os`
                     : "-"
                 }
               />
