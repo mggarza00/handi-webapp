@@ -26,6 +26,7 @@ import {
   SidebarProvider,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { getMyProfileHref } from "@/lib/profiles/get-my-profile-href";
 
 export interface NavLink {
   href: string;
@@ -122,6 +123,7 @@ function OpenButton({ hasBadge }: { hasBadge?: boolean }) {
 type MobileMenuProps = {
   links?: NavLink[];
   isAuth?: boolean;
+  userId?: string | null;
   role?: Role;
   avatarUrl?: string | null;
   fullName?: string | null;
@@ -131,6 +133,7 @@ type MobileMenuProps = {
 function MobileMenuDrawer({
   items,
   isAuth,
+  userId,
   role,
   avatarUrl,
   fullName,
@@ -138,6 +141,7 @@ function MobileMenuDrawer({
 }: {
   items: NavLink[];
   isAuth: boolean;
+  userId: string | null;
   role: Role;
   avatarUrl: string | null;
   fullName: string | null;
@@ -462,6 +466,7 @@ function MobileMenuDrawer({
   ).toUpperCase();
 
   const requestsLink = items.find((l) => l.href.startsWith("/requests"));
+  const myProfileHref = getMyProfileHref({ role, userId });
   const otherLinks = items.filter((l) => !l.href.startsWith("/requests"));
   const navLinks = role === "client" && requestsLink ? otherLinks : items;
   const getIcon = (l: NavLink): string | null => {
@@ -713,7 +718,7 @@ function MobileMenuDrawer({
                 </div>
                 <div className="my-1 h-px bg-neutral-200" />
                 <Link
-                  href="/me"
+                  href={myProfileHref}
                   onClick={() => setOpen(false)}
                   className="block rounded px-2 py-1.5 text-sm hover:bg-neutral-100"
                 >
@@ -756,6 +761,7 @@ function MobileMenuDrawer({
 export default function MobileMenu({
   links,
   isAuth = false,
+  userId = null,
   role = null,
   avatarUrl = null,
   fullName = null,
@@ -769,6 +775,7 @@ export default function MobileMenu({
         <MobileMenuDrawer
           items={items}
           isAuth={isAuth}
+          userId={userId}
           role={role}
           avatarUrl={avatarUrl}
           fullName={fullName}

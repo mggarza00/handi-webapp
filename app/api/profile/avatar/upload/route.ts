@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const MAX_SIZE = 5 * 1024 * 1024;
+const DRAFT_BUCKET = "profile-change-avatars";
 const ALLOWED_MIME = new Map<string, string>([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
@@ -68,13 +69,12 @@ export async function POST(req: Request) {
 
     const admin = getAdminSupabase();
 
-    const bucket = "avatars";
     const { data: got } = await admin.storage
-      .getBucket(bucket)
+      .getBucket(DRAFT_BUCKET)
       .catch(() => ({ data: null as null }));
     if (!got) {
-      await admin.storage.createBucket(bucket, {
-        public: true,
+      await admin.storage.createBucket(DRAFT_BUCKET, {
+        public: false,
         fileSizeLimit: String(MAX_SIZE),
         allowedMimeTypes: Array.from(ALLOWED_MIME.keys()),
       });
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
 
     const ab = await file.arrayBuffer();
     const buf = Buffer.from(ab);
-    const up = await admin.storage.from(bucket).upload(path, buf, {
+    const up = await admin.storage.from(DRAFT_BUCKET).upload(path, buf, {
       contentType: file.type,
       upsert: false,
       cacheControl: "3600",
@@ -99,22 +99,21 @@ export async function POST(req: Request) {
       );
     }
 
-    const pub = admin.storage.from(bucket).getPublicUrl(path).data;
-    const url = pub?.publicUrl || "";
-    if (!url) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "NO_URL",
-          detail: "No se pudo generar la URL pública.",
-        },
-        { status: 500, headers: JSONH },
-      );
-    }
+    const signed = await admin.storage
+      .from(DRAFT_BUCKET)
+      .createSignedUrl(path, 60 * 60)
+      .catch(() => ({ data: null as null }));
 
     // Do NOT persist in DB here. The setup page must request changes for admin approval.
-    // Return the URL so the client can include it in the change request payload.
-    return NextResponse.json({ ok: true, url }, { headers: JSONH });
+    // Return draft reference and a temporary signed preview URL.
+    return NextResponse.json(
+      {
+        ok: true,
+        draft_path: path,
+        preview_url: signed.data?.signedUrl || null,
+      },
+      { headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

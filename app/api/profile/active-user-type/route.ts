@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 
 import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -71,6 +71,7 @@ export async function POST(req: Request) {
 
     // Map Spanish to existing DB role enum
     const role = to === "cliente" ? "client" : "pro";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("profiles")
       .update({ role } as Database["public"]["Tables"]["profiles"]["Update"])
@@ -84,10 +85,22 @@ export async function POST(req: Request) {
         { status, headers: JSONH },
       );
     }
-    return NextResponse.json(
+    const res = NextResponse.json(
       { ok: true, data },
       { status: 200, headers: JSONH },
     );
+    try {
+      res.cookies.set("active_role", role, {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 180,
+      });
+    } catch {
+      /* ignore cookie set errors */
+    }
+    return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
     return NextResponse.json(

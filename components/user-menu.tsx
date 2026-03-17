@@ -4,11 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getMyProfileHref } from "@/lib/profiles/get-my-profile-href";
+
+type Role = "client" | "pro" | "admin" | null;
 
 export default function UserMenu({
+  userId,
+  role = null,
   fullName,
   avatarUrl,
 }: {
+  userId?: string | null;
+  role?: Role;
   fullName: string | null;
   avatarUrl: string | null;
 }) {
@@ -31,6 +38,7 @@ export default function UserMenu({
       ?.slice(0, 2)
       ?.join("") || "U"
   ).toUpperCase();
+  const myProfileHref = getMyProfileHref({ role, userId });
 
   return (
     <div className="relative" ref={ref}>
@@ -53,7 +61,7 @@ export default function UserMenu({
           className="absolute right-0 mt-2 w-48 overflow-hidden rounded-md border bg-white shadow-lg"
         >
           <Link
-            href="/me"
+            href={myProfileHref}
             className="block px-3 py-2 text-sm hover:bg-gray-50"
             role="menuitem"
           >

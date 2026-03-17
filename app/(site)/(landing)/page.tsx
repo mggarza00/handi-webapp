@@ -1,4 +1,5 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import LandingPage from "./LandingPage";
 import {
@@ -15,6 +16,7 @@ import {
   ensureGreetingPreferenceForProfile,
   extractFirstName,
 } from "@/lib/profile";
+import { resolveActiveView } from "@/lib/routing/active-view";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
@@ -118,6 +120,7 @@ export default async function Page() {
 
   let profile: ProfileRow | null = null;
   let hasActiveProfessional = false;
+  const activeRoleCookie = cookies().get("active_role")?.value || null;
   if (user) {
     const baseSelect =
       "id, full_name, first_name, role, avatar_url, is_client_pro, is_admin";
@@ -144,6 +147,16 @@ export default async function Page() {
       .maybeSingle<{ id: string; active: boolean | null }>();
     hasActiveProfessional =
       Boolean(professional?.id) && professional?.active === true;
+
+    const effectiveView = resolveActiveView({
+      activeRoleCookie,
+      profileRole: typeof profile?.role === "string" ? profile.role : null,
+      isClientPro: profile?.is_client_pro === true,
+      professionalIsActive: hasActiveProfessional,
+    });
+    if (effectiveView === "pro" && hasActiveProfessional) {
+      redirect("/pro");
+    }
   }
 
   let savedAddresses: SavedAddress[] = [];

@@ -40,6 +40,7 @@ async function getSessionInfo() {
   if (!user)
     return {
       isAuth: false as const,
+      userId: null as null,
       role: null as null,
       is_admin: false as const,
       avatar_url: null as null,
@@ -134,6 +135,7 @@ async function getSessionInfo() {
   );
   return {
     isAuth: true as const,
+    userId: user.id,
     role,
     is_admin: profile?.is_admin === true,
     is_client_pro: profile?.is_client_pro === true && hasActiveProfessional,
@@ -159,6 +161,7 @@ async function getSessionInfoSafe() {
             m === "professional" ? "pro" : (m as "client" | "admin");
           return {
             isAuth: true as const,
+            userId: null as null,
             role: mappedRole,
             is_admin: m === "admin",
             is_client_pro: mappedRole === "pro",
@@ -177,6 +180,7 @@ async function getSessionInfoSafe() {
     if (!hasEnv) {
       return {
         isAuth: false as const,
+        userId: null as null,
         role: null as null,
         is_admin: false as const,
         is_client_pro: false as const,
@@ -188,6 +192,7 @@ async function getSessionInfoSafe() {
   } catch {
     return {
       isAuth: false as const,
+      userId: null as null,
       role: null as null,
       is_admin: false as const,
       is_client_pro: false as const,
@@ -220,8 +225,15 @@ export default async function SiteHeader() {
       </header>
     );
   }
-  const { isAuth, role, is_admin, is_client_pro, avatar_url, full_name } =
-    await getSessionInfoSafe();
+  const {
+    isAuth,
+    userId,
+    role,
+    is_admin,
+    is_client_pro,
+    avatar_url,
+    full_name,
+  } = await getSessionInfoSafe();
   const cookieStore = cookies();
   const proApply =
     cookieStore.get("handi_pro_apply")?.value === "1" ||
@@ -429,6 +441,7 @@ export default async function SiteHeader() {
                 <MobileMenu
                   links={mobileLinks}
                   isAuth={isAuth}
+                  userId={userId}
                   role={role}
                   avatarUrl={avatar_url}
                   fullName={full_name}
@@ -759,6 +772,7 @@ export default async function SiteHeader() {
 
               {isAuth ? (
                 <AvatarDropdown
+                  userId={userId}
                   avatarUrl={avatar_url}
                   fullName={full_name}
                   role={role}
@@ -779,6 +793,7 @@ export default async function SiteHeader() {
                 <PublicLandingLoginMenu loginHref="/auth/sign-in" />
               ) : (
                 <AvatarDropdown
+                  userId={userId}
                   avatarUrl={avatar_url}
                   fullName={full_name}
                   role={role}

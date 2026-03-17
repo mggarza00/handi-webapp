@@ -107,20 +107,14 @@ export default function UserTypeInfo({
           ? `Tipo activo cambiado a ${switchedTo}`
           : "Tipo activo actualizado",
       );
-      // Asegura que la página de destino reciba el rol actualizado desde el servidor.
+      // Navegación dura para evitar estados transitorios con homepage cruzada.
       const targetPath = nextRole === "pro" ? "/pro" : "/";
-      if (pathname === targetPath) {
-        router.refresh();
+      if (typeof window !== "undefined") {
+        window.location.assign(targetPath);
+      } else if (pathname !== targetPath) {
+        router.push(targetPath);
       } else {
-        const url = `${targetPath}?r=${Date.now()}`; // rompe posibles cachés del router
-        router.push(url);
-        setTimeout(() => {
-          try {
-            router.refresh();
-          } catch {
-            void 0; // ignore
-          }
-        }, 120);
+        router.refresh();
       }
     } catch (e) {
       const normalized = normalizeAppError(e, {

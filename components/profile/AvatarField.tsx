@@ -9,14 +9,22 @@ import { normalizeAvatarUrl } from "@/lib/avatar";
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
 
+export type AvatarFieldChange = {
+  displayUrl: string;
+  draftPath: string | null;
+  previewUrl: string | null;
+  // Legacy fallback while old payloads still exist.
+  legacyUrl: string | null;
+};
+
 export function AvatarField({
   url,
   userId,
-  onChangeUrl,
+  onChangeAvatar,
 }: {
   url?: string;
   userId: string;
-  onChangeUrl: (u: string) => void;
+  onChangeAvatar: (value: AvatarFieldChange) => void;
 }) {
   const [avatarUrl, setAvatarUrl] = React.useState<string>(url || "");
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
@@ -134,12 +142,30 @@ export function AvatarField({
                 body: fd,
               });
               const j = await r.json().catch(() => null);
-              if (!r.ok || !j?.url)
+              const draftPath =
+                typeof j?.draft_path === "string" && j.draft_path.trim()
+                  ? j.draft_path.trim()
+                  : null;
+              const previewFromApi =
+                typeof j?.preview_url === "string" && j.preview_url.trim()
+                  ? j.preview_url.trim()
+                  : null;
+              const legacyUrl =
+                typeof j?.url === "string" && j.url.trim()
+                  ? j.url.trim()
+                  : null;
+              const nextUrl = previewFromApi || legacyUrl || localPreview;
+              if (!r.ok || (!draftPath && !legacyUrl))
                 throw new Error(j?.detail || "No se pudo subir el avatar");
-              setAvatarUrl(j.url);
-              onChangeUrl(j.url);
+              setAvatarUrl(nextUrl);
+              onChangeAvatar({
+                displayUrl: nextUrl,
+                draftPath,
+                previewUrl: previewFromApi,
+                legacyUrl,
+              });
 
-              const resolved = normalizeAvatarUrl(j.url) || j.url;
+              const resolved = normalizeAvatarUrl(nextUrl) || nextUrl;
               if (resolved) {
                 await new Promise<void>((resolve, reject) => {
                   const img = new window.Image();

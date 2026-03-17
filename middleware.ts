@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { CookieMethodsServer } from "@supabase/ssr/dist/main/types";
 
+import {
+  getDefaultHomeForActiveRole,
+  resolveActiveView,
+} from "@/lib/routing/active-view";
 import updateSession from "@/utils/supabase/middleware";
 
 const ADMIN_ROLES = new Set([
@@ -147,6 +151,7 @@ export async function middleware(request: NextRequest) {
   let user: unknown = null;
   let profileRole: string | null = null;
   let profileIsAdmin = false;
+  let profileIsClientPro = false;
   let professionalIsActive = false;
 
   if (supabase) {
@@ -158,7 +163,7 @@ export async function middleware(request: NextRequest) {
         const [{ data: prof }, { data: professional }] = await Promise.all([
           supabase
             .from("profiles")
-            .select("role, is_admin")
+            .select("role, is_admin, is_client_pro")
             .eq("id", userId)
             .maybeSingle(),
           supabase
@@ -172,6 +177,9 @@ export async function middleware(request: NextRequest) {
         profileIsAdmin =
           (prof as unknown as { is_admin?: boolean | null } | null)
             ?.is_admin === true;
+        profileIsClientPro =
+          (prof as unknown as { is_client_pro?: boolean | null } | null)
+            ?.is_client_pro === true;
         professionalIsActive =
           (professional as { active?: boolean | null } | null)?.active === true;
       }
@@ -197,24 +205,61 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(u);
   }
   // RedirecciÃ³n condicional del home a /pro si el usuario estÃ¡ en vista Pro
-  if (pathname === "/") {
-    const activeRole = (
-      request.cookies.get("active_role")?.value || ""
-    ).toLowerCase();
-    const lowered =
-      typeof profileRole === "string" ? profileRole.toLowerCase() : null;
-    if (activeRole === "pro" && professionalIsActive) {
+  if (user) {
+    const activeRoleCookie = request.cookies.get("active_role")?.value || null;
+    const effectiveView = resolveActiveView({
+      activeRoleCookie,
+      profileRole,
+      isClientPro: profileIsClientPro,
+      professionalIsActive,
+    });
+    const effectiveHome = getDefaultHomeForActiveRole(effectiveView);
+
+    try {
+      if ((activeRoleCookie || "") !== effectiveView) {
+        response.cookies.set("active_role", effectiveView, {
+          path: "/",
+          sameSite: "lax",
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 60 * 60 * 24 * 180,
+        });
+      }
+    } catch {
+      // ignore cookie write errors
+    }
+
+    if (pathname === "/" && effectiveHome === "/pro") {
       const u = request.nextUrl.clone();
       u.pathname = "/pro";
-      return NextResponse.redirect(u);
+      const redirectRes = NextResponse.redirect(u);
+      redirectRes.cookies.set("active_role", effectiveView, {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 180,
+      });
+      return redirectRes;
     }
-    if (activeRole === "client") return response;
-    if (lowered === "pro" && professionalIsActive) {
+    if (pathname === "/pro" && effectiveHome === "/") {
       const u = request.nextUrl.clone();
-      u.pathname = "/pro";
-      return NextResponse.redirect(u);
+      const wantsProButInactive =
+        (activeRoleCookie || "").toLowerCase() === "pro" ||
+        (profileRole || "").toLowerCase() === "pro" ||
+        profileIsClientPro;
+      u.pathname =
+        wantsProButInactive && !professionalIsActive ? "/pro-apply" : "/";
+      const redirectRes = NextResponse.redirect(u);
+      redirectRes.cookies.set("active_role", effectiveView, {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 180,
+      });
+      return redirectRes;
     }
-    return response;
   }
 
   if (!pathname.startsWith("/admin")) {

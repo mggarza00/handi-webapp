@@ -5,16 +5,19 @@ import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import { getMyProfileHref } from "@/lib/profiles/get-my-profile-href";
 import UserTypeInfo from "@/components/UserTypeInfo.client";
 
 type Role = "client" | "pro" | "admin" | null;
 
 export default function AvatarDropdown({
+  userId,
   avatarUrl,
   fullName,
   role,
   isClientPro,
 }: {
+  userId: string | null;
   avatarUrl: string | null;
   fullName: string | null;
   role: Role;
@@ -67,6 +70,7 @@ export default function AvatarDropdown({
     role === "pro" || isClientPro
       ? "Configura tu perfil de profesional"
       : "Configura tu perfil";
+  const myProfileHref = getMyProfileHref({ role, userId });
   return (
     <details ref={detailsRef} className="group relative">
       <summary
@@ -93,7 +97,7 @@ export default function AvatarDropdown({
         <UserTypeInfo currentRole={role} onAction={closeDropdown} />
         <div className="my-1 h-px bg-white/20" />
         <Link
-          href="/me"
+          href={myProfileHref}
           onClick={closeDropdown}
           className="block rounded px-2 py-1.5 text-sm text-white hover:bg-white/10"
         >
