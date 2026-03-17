@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import localFont from "next/font/local";
 import {
@@ -35,6 +36,7 @@ import {
   extractFirstName,
   type Profile,
 } from "@/lib/profile";
+import { resolveActiveView } from "@/lib/routing/active-view";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import { UI_STATUS_LABELS, type RequestStatus } from "@/lib/request-status";
 
@@ -493,13 +495,37 @@ export default async function ProHomePage() {
   const { data: auth } = await supabase.auth.getUser();
   const user = auth?.user ?? null;
   if (!user) redirect("/login");
-  const { data: professional } = await supabase
-    .from("professionals")
-    .select("id, active")
-    .eq("id", user.id)
-    .maybeSingle<{ id: string; active: boolean | null }>();
-  if (!professional?.id || professional.active !== true) {
-    redirect("/pro-apply");
+  const [{ data: professional }, { data: profile }] = await Promise.all([
+    supabase
+      .from("professionals")
+      .select("id, active")
+      .eq("id", user.id)
+      .maybeSingle<{ id: string; active: boolean | null }>(),
+    supabase
+      .from("profiles")
+      .select("role, is_client_pro")
+      .eq("id", user.id)
+      .maybeSingle<{ role: string | null; is_client_pro: boolean | null }>(),
+  ]);
+  const professionalIsActive =
+    Boolean(professional?.id) && professional?.active === true;
+  const activeRoleCookie = cookies().get("active_role")?.value || null;
+  const effectiveView = resolveActiveView({
+    activeRoleCookie,
+    profileRole: typeof profile?.role === "string" ? profile.role : null,
+    isClientPro: profile?.is_client_pro === true,
+    professionalIsActive,
+  });
+
+  if (!professionalIsActive) {
+    const wantsProButInactive =
+      (activeRoleCookie || "").toLowerCase() === "pro" ||
+      (profile?.role || "").toLowerCase() === "pro" ||
+      profile?.is_client_pro === true;
+    redirect(wantsProButInactive ? "/pro-apply" : "/");
+  }
+  if (effectiveView !== "pro") {
+    redirect("/");
   }
 
   const uid = user.id;
