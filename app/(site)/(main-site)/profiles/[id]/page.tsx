@@ -16,7 +16,6 @@ import CertChip from "@/components/profiles/CertChip";
 import CompletedWorks from "@/components/profiles/CompletedWorks";
 import PhotoMasonry from "@/components/profiles/PhotoMasonry";
 import ReviewsListClient from "@/components/profiles/ReviewsList.client";
-import CampaignCtaGroup from "@/components/seo/CampaignCtaGroup.client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -395,31 +394,6 @@ export default async function PublicProfilePage({ params }: Ctx) {
           ) : null
         }
       />
-      {!isOwner ? (
-        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Listo para avanzar con tu servicio?
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Publica tu solicitud para recibir propuestas y comparar opciones con
-            contexto de precio, disponibilidad y experiencia.
-          </p>
-          <div className="mt-4">
-            <CampaignCtaGroup
-              trackingContext={{
-                pageType: "professional_profile",
-                placement: "post_header",
-                profileId: proId,
-              }}
-              primary={{ label: "Solicitar servicio", href: "/requests/new" }}
-              secondary={{
-                label: "Ver mas profesionales",
-                href: "/professionals",
-              }}
-            />
-          </div>
-        </Card>
-      ) : null}
 
       <section className="space-y-4">
         <Card className="rounded-2xl border bg-white shadow-sm">

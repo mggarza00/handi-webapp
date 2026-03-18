@@ -4,8 +4,6 @@ import { notFound } from "next/navigation";
 
 import LocalLandingTracker from "@/components/analytics/LocalLandingTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
-import CampaignFaq from "@/components/seo/CampaignFaq.client";
-import CampaignTrustSection from "@/components/seo/CampaignTrustSection";
 import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
 import { Card } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
@@ -95,32 +93,6 @@ export default function CityLandingPage({ params }: { params: Params }) {
     })),
   };
 
-  const faqs = [
-    {
-      question: `Que tipos de servicios puedo solicitar en ${city.name}?`,
-      answer:
-        "Puedes solicitar servicios de mantenimiento, reparaciones, limpieza y categorias activas para la ciudad.",
-    },
-    {
-      question: "Como elijo el servicio correcto?",
-      answer:
-        "Revisa la landing por servicio, valida el alcance y publica tu solicitud con detalles claros.",
-    },
-  ];
-
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
-    })),
-  };
-
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
       <LocalLandingTracker landingType="city" citySlug={city.slug} />
@@ -137,10 +109,6 @@ export default function CityLandingPage({ params }: { params: Params }) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       <Breadcrumbs
@@ -164,27 +132,15 @@ export default function CityLandingPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Como solicitar un servicio en {city.name}
-          </h2>
-          <ol className="mt-3 space-y-2 text-sm text-slate-600">
-            <li>1. Elige la categoria que mejor describe tu necesidad.</li>
-            <li>2. Publica tu solicitud con detalles del trabajo.</li>
-            <li>3. Revisa opciones y avanza con la propuesta ideal.</li>
-          </ol>
-        </Card>
-        <CampaignTrustSection
-          pageType="city_landing"
-          sectionId="city-landing-trust"
-          citySlug={city.slug}
-          points={[
-            "Perfiles publicos con experiencia y servicios.",
-            "Resenas para evaluar calidad y atencion.",
-            "Flujo claro para solicitar y comparar opciones.",
-          ]}
-        />
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Como solicitar un servicio en {city.name}
+        </h2>
+        <ol className="mt-3 space-y-2 text-sm text-slate-600">
+          <li>1. Elige la categoria que mejor describe tu necesidad.</li>
+          <li>2. Publica tu solicitud con detalles del trabajo.</li>
+          <li>3. Revisa opciones y avanza con la propuesta ideal.</li>
+        </ol>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -217,19 +173,6 @@ export default function CityLandingPage({ params }: { params: Params }) {
             </p>
           </Card>
         )}
-      </section>
-
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">
-          Preguntas frecuentes en {city.name}
-        </h2>
-        <div className="mt-3">
-          <CampaignFaq
-            pageType="city_landing"
-            citySlug={city.slug}
-            items={faqs}
-          />
-        </div>
       </section>
     </main>
   );
