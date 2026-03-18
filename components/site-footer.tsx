@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Instagram } from "lucide-react";
 
 const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "soporte@handi.mx";
@@ -8,7 +9,7 @@ export default function SiteFooter() {
   return (
     <footer className="relative overflow-hidden border-t border-[#112C74] bg-[#112C74] text-white">
       <div className="mx-auto max-w-5xl px-4 pb-10 pt-0 md:pt-10">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
           <div>
             <div className="mb-3 flex flex-col items-start space-y-4">
               <Image
@@ -108,6 +109,23 @@ export default function SiteFooter() {
                 >
                   Centro de ayuda
                 </Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-white">Social</p>
+            <ul className="space-y-1 text-sm text-white">
+              <li>
+                <a
+                  href="https://www.instagram.com/handi_mx/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Visitar Instagram de Handi"
+                  className="inline-flex items-center gap-2 font-light text-white hover:text-[#F4571F]"
+                >
+                  <Instagram className="h-4 w-4" aria-hidden="true" />
+                  <span>@handi_mx</span>
+                </a>
               </li>
             </ul>
           </div>

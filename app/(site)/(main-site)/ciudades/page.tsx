@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { Card } from "@/components/ui/card";
 import { SEO_CITIES, getServicesForCity } from "@/lib/seo/local-landings";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
@@ -48,7 +47,7 @@ export default function CitiesSeoIndexPage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
@@ -61,32 +60,32 @@ export default function CitiesSeoIndexPage() {
         items={[{ label: "Inicio", href: "/" }, { label: "Ciudades" }]}
       />
 
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">
           Ciudades con cobertura inicial
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+        <p className="max-w-3xl text-sm text-slate-600">
           Revisa ciudades activas y entra a las rutas locales de servicios
           disponibles en cada zona.
         </p>
-      </section>
+      </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {SEO_CITIES.map((city) => {
           const serviceCount = getServicesForCity(city.slug).length;
           return (
-            <Card
+            <article
               key={city.slug}
-              className="rounded-2xl border bg-white p-5 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white p-4"
             >
-              <h2 className="text-xl font-semibold text-slate-900">
+              <h2 className="text-base font-semibold text-slate-900">
                 {city.name}
               </h2>
-              <p className="mt-2 text-sm text-slate-600">{city.stateName}</p>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-1 text-sm text-slate-600">{city.stateName}</p>
+              <p className="mt-1 text-xs text-slate-500">
                 {serviceCount} servicios activos en esta fase.
               </p>
-              <div className="mt-4">
+              <div className="mt-3">
                 <Link
                   href={`/ciudades/${city.slug}`}
                   className="text-sm font-semibold text-[#082877] hover:underline"
@@ -94,7 +93,7 @@ export default function CitiesSeoIndexPage() {
                   Ver servicios por ciudad
                 </Link>
               </div>
-            </Card>
+            </article>
           );
         })}
       </section>

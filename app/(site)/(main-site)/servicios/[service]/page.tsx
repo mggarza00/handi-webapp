@@ -4,8 +4,6 @@ import { notFound } from "next/navigation";
 
 import LocalLandingTracker from "@/components/analytics/LocalLandingTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
-import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
-import { Card } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 import {
   getCitiesForService,
@@ -92,7 +90,7 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
   };
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
       <LocalLandingTracker landingType="service" serviceSlug={service.slug} />
       <script
         type="application/ld+json"
@@ -111,60 +109,52 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
         ]}
       />
 
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">
           {service.name} a domicilio
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          {service.shortDescription}
+        <p className="max-w-3xl text-sm text-slate-600">
+          {service.shortDescription} {service.adCopy}
         </p>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          {service.adCopy}
+        <p className="text-sm text-slate-600">
+          Explora ciudades disponibles para este servicio:
         </p>
-        <div className="mt-4">
-          <LocalLandingCtas landingType="service" serviceSlug={service.slug} />
-        </div>
+      </header>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {cities.map((city) => (
+          <article
+            key={city.slug}
+            className="rounded-xl border border-slate-200 bg-white p-4"
+          >
+            <h2 className="text-base font-semibold text-slate-900">
+              {city.name}
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {service.name} en {city.name}
+            </p>
+            <div className="mt-3">
+              <Link
+                href={`/servicios/${service.slug}/${city.slug}`}
+                className="text-sm font-semibold text-[#082877] hover:underline"
+              >
+                Ver opciones en {city.name}
+              </Link>
+            </div>
+          </article>
+        ))}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-xl font-semibold text-slate-900">
-          Ciudades prioritarias para {service.name.toLowerCase()}
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {cities.map((city) => (
-            <Card
-              key={city.slug}
-              className="rounded-2xl border bg-white p-5 shadow-sm"
-            >
-              <h3 className="text-lg font-semibold text-slate-900">
-                {city.name}
-              </h3>
-              <p className="mt-2 text-sm text-slate-600">
-                Solicita {service.name.toLowerCase()} en {city.name} con
-                profesionales de Handi.
-              </p>
-              <div className="mt-3">
-                <Link
-                  href={`/servicios/${service.slug}/${city.slug}`}
-                  className="text-sm font-semibold text-[#082877] hover:underline"
-                >
-                  Ver landing local
-                </Link>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Cobertura y alcance
-        </h2>
-        <p className="mt-2 text-sm text-slate-600">
-          Estas rutas priorizan ciudades con demanda activa para mantener mejor
-          disponibilidad y tiempos de respuesta.
-        </p>
-      </section>
+      <p className="text-sm text-slate-600">
+        Tambien puedes revisar profesionales relacionados en{" "}
+        <Link
+          href="/professionals"
+          className="font-semibold text-[#082877] hover:underline"
+        >
+          /professionals
+        </Link>
+        .
+      </p>
     </main>
   );
 }

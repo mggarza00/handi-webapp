@@ -144,7 +144,11 @@ export function trackLocalLandingCtaClicked(params: {
   landing_type: "service" | "city" | "service_city";
   service_slug?: string;
   city_slug?: string;
-  cta_type: "request_new" | "professionals_list" | "service_city_link";
+  cta_type:
+    | "request_new"
+    | "auth_before_request"
+    | "professionals_list"
+    | "service_city_link";
   source_page?: string;
 }): void {
   trackEvent("local_landing_cta_clicked", params);

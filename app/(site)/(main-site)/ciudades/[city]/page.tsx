@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 
 import LocalLandingTracker from "@/components/analytics/LocalLandingTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
-import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
 import { Card } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 import {
@@ -94,7 +93,7 @@ export default function CityLandingPage({ params }: { params: Params }) {
   };
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
       <LocalLandingTracker landingType="city" citySlug={city.slug} />
       <script
         type="application/ld+json"
@@ -119,41 +118,27 @@ export default function CityLandingPage({ params }: { params: Params }) {
         ]}
       />
 
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">
           Servicios en {city.name}
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+        <p className="max-w-3xl text-sm text-slate-600">
           Consulta las categorias activas en {city.name}, {city.stateName}, y
-          elige la mejor ruta para solicitar apoyo en tu hogar.
+          entra directo a cada servicio por ciudad.
         </p>
-        <div className="mt-4">
-          <LocalLandingCtas landingType="city" citySlug={city.slug} />
-        </div>
-      </section>
+      </header>
 
-      <section className="rounded-2xl border bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Como solicitar un servicio en {city.name}
-        </h2>
-        <ol className="mt-3 space-y-2 text-sm text-slate-600">
-          <li>1. Elige la categoria que mejor describe tu necesidad.</li>
-          <li>2. Publica tu solicitud con detalles del trabajo.</li>
-          <li>3. Revisa opciones y avanza con la propuesta ideal.</li>
-        </ol>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {services.length ? (
           services.map((service) => (
             <Card
               key={service.slug}
-              className="rounded-2xl border bg-white p-5 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white p-4"
             >
-              <h2 className="text-xl font-semibold text-slate-900">
+              <h2 className="text-base font-semibold text-slate-900">
                 {service.name}
               </h2>
-              <p className="mt-2 text-sm text-slate-600">
+              <p className="mt-1 text-sm text-slate-600">
                 {service.shortDescription}
               </p>
               <div className="mt-3">
@@ -161,7 +146,7 @@ export default function CityLandingPage({ params }: { params: Params }) {
                   href={`/servicios/${service.slug}/${city.slug}`}
                   className="text-sm font-semibold text-[#082877] hover:underline"
                 >
-                  Ver landing local
+                  Ver opciones en {city.name}
                 </Link>
               </div>
             </Card>

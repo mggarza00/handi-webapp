@@ -30,6 +30,7 @@ const organizationJsonLd = {
   name: "Handi",
   url: appBaseUrl,
   logo: `${appBaseUrl}/images/LOGO_HANDI_DB.png`,
+  sameAs: ["https://www.instagram.com/handi_mx/"],
 };
 const websiteJsonLd = {
   "@context": "https://schema.org",
