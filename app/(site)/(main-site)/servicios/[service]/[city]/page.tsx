@@ -4,10 +4,7 @@ import { notFound } from "next/navigation";
 
 import LocalLandingTracker from "@/components/analytics/LocalLandingTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
-import CampaignFaq from "@/components/seo/CampaignFaq.client";
-import CampaignTrustSection from "@/components/seo/CampaignTrustSection";
 import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
-import { Card } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 import {
   ACTIVE_SERVICE_CITY_COMBINATIONS,
@@ -118,37 +115,6 @@ export default function LocalServiceCityLandingPage({
     },
   };
 
-  const faqs = [
-    {
-      question: `Que incluye ${service.name.toLowerCase()} en ${city.name}?`,
-      answer:
-        "Incluye solicitudes para diagnostico, reparacion, mantenimiento y servicios relacionados segun tu necesidad especifica.",
-    },
-    {
-      question: "Cuanto tarda recibir respuestas?",
-      answer:
-        "Depende de la demanda en la zona, pero la plataforma esta enfocada en conectar rapido con profesionales disponibles.",
-    },
-    {
-      question: "Como comparar opciones antes de elegir?",
-      answer:
-        "Revisa perfil, experiencia, resenas y detalle de servicio para decidir con mayor confianza.",
-    },
-  ];
-
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
-    })),
-  };
-
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
       <LocalLandingTracker
@@ -163,10 +129,6 @@ export default function LocalServiceCityLandingPage({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       <Breadcrumbs
@@ -198,33 +160,19 @@ export default function LocalServiceCityLandingPage({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-900">
-            Como funciona en Handi
-          </h2>
-          <ol className="mt-3 space-y-2 text-sm text-slate-600">
-            <li>1. Describe tu necesidad en el formulario de solicitud.</li>
-            <li>2. Recibe respuestas de profesionales en tu zona.</li>
-            <li>3. Compara opciones y avanza con la mejor propuesta.</li>
-          </ol>
-          <p className="mt-3 text-sm text-slate-600">
-            Esta ruta local esta optimizada para usuarios que buscan{" "}
-            {service.name.toLowerCase()} en {city.name}.
-          </p>
-        </Card>
-        <CampaignTrustSection
-          pageType="service_city_landing"
-          sectionId="service-city-trust"
-          serviceSlug={service.slug}
-          citySlug={city.slug}
-          title={`Confianza para ${service.name.toLowerCase()} en ${city.name}`}
-          points={[
-            "Perfiles publicos para comparar experiencia y resenas.",
-            "Proceso guiado para publicar y evaluar propuestas.",
-            "Flujo de contratacion con pagos protegidos.",
-          ]}
-        />
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-semibold text-slate-900">
+          Como funciona en Handi
+        </h2>
+        <ol className="mt-3 space-y-2 text-sm text-slate-600">
+          <li>1. Describe tu necesidad en el formulario de solicitud.</li>
+          <li>2. Recibe respuestas de profesionales en tu zona.</li>
+          <li>3. Compara opciones y avanza con la mejor propuesta.</li>
+        </ol>
+        <p className="mt-3 text-sm text-slate-600">
+          Esta ruta local esta optimizada para usuarios que buscan{" "}
+          {service.name.toLowerCase()} en {city.name}.
+        </p>
       </section>
 
       <section className="rounded-2xl border bg-white p-6 shadow-sm">
@@ -247,20 +195,6 @@ export default function LocalServiceCityLandingPage({
               Pronto agregaremos mas combinaciones para esta ciudad.
             </p>
           )}
-        </div>
-      </section>
-
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">
-          Preguntas frecuentes en {city.name}
-        </h2>
-        <div className="mt-3">
-          <CampaignFaq
-            pageType="service_city_landing"
-            serviceSlug={service.slug}
-            citySlug={city.slug}
-            items={faqs}
-          />
         </div>
       </section>
     </main>

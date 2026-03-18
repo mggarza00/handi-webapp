@@ -14,7 +14,6 @@ import DeferOnIdle from "@/components/DeferOnIdle.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import MobileCarousel from "@/components/MobileCarousel";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
-import CampaignCtaGroup from "@/components/seo/CampaignCtaGroup.client";
 
 type LandingPageProps = {
   variant: "guest" | "client" | "other";
@@ -401,34 +400,6 @@ export default function LandingPage({
     </section>
   );
 
-  const campaignCtaBand = (
-    <section className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">
-            {isClientVariant
-              ? "Tienes un servicio pendiente? Empieza en minutos."
-              : "Necesitas ayuda en casa? Conecta con profesionales en Handi."}
-          </p>
-          <p className="text-sm text-slate-600">
-            Ruta recomendada para trafico de campanas y busquedas de alta
-            intencion.
-          </p>
-        </div>
-        <CampaignCtaGroup
-          className="flex flex-wrap gap-2"
-          trackingContext={{
-            pageType: "home",
-            placement: "cta_band",
-            userType: isClientVariant ? "client" : "unknown",
-          }}
-          primary={{ label: "Solicitar servicio", href: "/requests/new" }}
-          secondary={{ label: "Ver profesionales", href: "/professionals" }}
-        />
-      </div>
-    </section>
-  );
-
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <HiddenIfClientHasSession>
@@ -441,7 +412,6 @@ export default function LandingPage({
         fullName={fullName}
         savedAddresses={savedAddresses}
       />
-      {campaignCtaBand}
       {isClientVariant ? (
         <>
           {servicesSection}

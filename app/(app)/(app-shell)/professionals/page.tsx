@@ -5,8 +5,6 @@ import type { Metadata } from "next";
 
 import ProfessionalsFiltersAndGrid from "./ProfessionalsFiltersAndGrid.client";
 
-import CampaignCtaGroup from "@/components/seo/CampaignCtaGroup.client";
-import CampaignTrustSection from "@/components/seo/CampaignTrustSection";
 import { CITIES } from "@/lib/cities";
 
 type Pro = {
@@ -153,26 +151,7 @@ export default async function Professionals({
           Explora perfiles verificados, revisa experiencia y encuentra apoyo
           para servicios del hogar en tu ciudad.
         </p>
-        <div className="mt-4">
-          <CampaignCtaGroup
-            trackingContext={{
-              pageType: "professionals_index",
-              placement: "hero",
-            }}
-            primary={{ label: "Solicitar servicio", href: "/requests/new" }}
-            secondary={{ label: "Explorar servicios", href: "/servicios" }}
-          />
-        </div>
       </section>
-      <CampaignTrustSection
-        pageType="professionals_index"
-        sectionId="professionals-index-trust"
-        points={[
-          "Perfiles publicos con experiencia, servicios y resenas.",
-          "Filtros por ciudad y categoria para llegar mas rapido al match.",
-          "Flujo directo para crear solicitud y convertir en contacto.",
-        ]}
-      />
       <ProfessionalsFiltersAndGrid
         cities={[...CITIES]}
         categories={categoriesList}

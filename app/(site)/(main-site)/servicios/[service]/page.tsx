@@ -4,8 +4,6 @@ import { notFound } from "next/navigation";
 
 import LocalLandingTracker from "@/components/analytics/LocalLandingTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
-import CampaignFaq from "@/components/seo/CampaignFaq.client";
-import CampaignTrustSection from "@/components/seo/CampaignTrustSection";
 import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
 import { Card } from "@/components/ui/card";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
@@ -93,36 +91,6 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
     })),
   };
 
-  const faqs = [
-    {
-      question: `Como solicitar ${service.name.toLowerCase()} en Handi?`,
-      answer:
-        "Crea una solicitud con tu necesidad, ciudad y detalles. Recibiras respuestas de profesionales para comparar opciones.",
-    },
-    {
-      question: "Puedo revisar experiencia antes de contratar?",
-      answer:
-        "Si. Puedes revisar perfiles publicos, servicios ofrecidos, resenas y trabajos previos antes de tomar una decision.",
-    },
-    {
-      question: "En que ciudades esta disponible este servicio?",
-      answer: `Actualmente esta priorizado en ${cities.map((city) => city.name).join(", ")}.`,
-    },
-  ];
-
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
-    })),
-  };
-
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
       <LocalLandingTracker landingType="service" serviceSlug={service.slug} />
@@ -133,10 +101,6 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       <Breadcrumbs
@@ -192,40 +156,14 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
-        <CampaignTrustSection
-          pageType="service_landing"
-          sectionId="service-landing-trust"
-          serviceSlug={service.slug}
-          title={`Por que usar Handi para ${service.name.toLowerCase()}`}
-          points={[
-            "Publica una solicitud en minutos y compara respuestas.",
-            "Revisa perfiles con experiencia y servicios relacionados.",
-            "Coordina detalles desde el flujo principal de la plataforma.",
-          ]}
-        />
-        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Cobertura y alcance
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Estas landings cubren ciudades prioritarias de lanzamiento para
-            mejorar respuesta y disponibilidad del servicio.
-          </p>
-        </Card>
-      </section>
-
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-semibold text-slate-900">
-          Preguntas frecuentes
+      <section className="rounded-2xl border bg-white p-5 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Cobertura y alcance
         </h2>
-        <div className="mt-3">
-          <CampaignFaq
-            pageType="service_landing"
-            serviceSlug={service.slug}
-            items={faqs}
-          />
-        </div>
+        <p className="mt-2 text-sm text-slate-600">
+          Estas rutas priorizan ciudades con demanda activa para mantener mejor
+          disponibilidad y tiempos de respuesta.
+        </p>
       </section>
     </main>
   );

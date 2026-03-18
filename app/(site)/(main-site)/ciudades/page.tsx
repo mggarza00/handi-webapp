@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import CampaignCtaGroup from "@/components/seo/CampaignCtaGroup.client";
-import CampaignTrustSection from "@/components/seo/CampaignTrustSection";
 import { Card } from "@/components/ui/card";
 import { SEO_CITIES, getServicesForCity } from "@/lib/seo/local-landings";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
@@ -68,46 +66,9 @@ export default function CitiesSeoIndexPage() {
           Ciudades con cobertura inicial
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Esta base de landings locales se enfoca en ciudades prioritarias para
-          crecimiento organico y campanas de Google Ads.
+          Revisa ciudades activas y entra a las rutas locales de servicios
+          disponibles en cada zona.
         </p>
-        <div className="mt-4">
-          <CampaignCtaGroup
-            trackingContext={{ pageType: "cities_index", placement: "hero" }}
-            primary={{ label: "Solicitar servicio", href: "/requests/new" }}
-            secondary={{ label: "Explorar servicios", href: "/servicios" }}
-          />
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Cobertura inicial
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            Esta fase prioriza zonas con mayor demanda para servicios de hogar.
-          </p>
-        </Card>
-        <CampaignTrustSection
-          pageType="cities_index"
-          sectionId="cities-index-trust"
-          title="Servicios y confianza"
-          points={[
-            "Rutas directas por ciudad para reducir pasos.",
-            "Categorias activas con CTA de conversion claros.",
-            "Perfiles de profesionales disponibles por zona.",
-          ]}
-        />
-        <Card className="rounded-2xl border bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Escalabilidad
-          </h2>
-          <p className="mt-2 text-sm text-slate-600">
-            La estructura permite ampliar ciudades y servicios sin rehacer
-            rutas.
-          </p>
-        </Card>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
