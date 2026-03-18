@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { Card } from "@/components/ui/card";
 import { SEO_SERVICES, getCitiesForService } from "@/lib/seo/local-landings";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
@@ -48,7 +47,7 @@ export default function ServicesSeoIndexPage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
@@ -61,25 +60,25 @@ export default function ServicesSeoIndexPage() {
         items={[{ label: "Inicio", href: "/" }, { label: "Servicios" }]}
       />
 
-      <section className="rounded-2xl border bg-white p-6 shadow-sm">
+      <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">
           Servicios para tu hogar
         </h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-600">
-          Encuentra servicios por tipo de necesidad y compara opciones en tu
-          ciudad.
+        <p className="max-w-3xl text-sm text-slate-600">
+          Explora servicios disponibles y entra a su indice por ciudad para
+          encontrar opciones mas rapido.
         </p>
-      </section>
+      </header>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {SEO_SERVICES.map((service) => {
           const cityCount = getCitiesForService(service.slug).length;
           return (
-            <Card
+            <article
               key={service.slug}
-              className="rounded-2xl border bg-white p-5 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white p-4"
             >
-              <h2 className="text-xl font-semibold text-slate-900">
+              <h2 className="text-base font-semibold text-slate-900">
                 {service.name}
               </h2>
               <p className="mt-2 text-sm text-slate-600">
@@ -88,15 +87,15 @@ export default function ServicesSeoIndexPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Disponible en {cityCount} ciudades prioritarias.
               </p>
-              <div className="mt-4">
+              <div className="mt-3">
                 <Link
                   href={`/servicios/${service.slug}`}
                   className="text-sm font-semibold text-[#082877] hover:underline"
                 >
-                  Ver landing del servicio
+                  Ver ciudades para este servicio
                 </Link>
               </div>
-            </Card>
+            </article>
           );
         })}
       </section>
