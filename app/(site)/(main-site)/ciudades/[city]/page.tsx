@@ -26,10 +26,10 @@ export async function generateMetadata({
   const city = getSeoCityBySlug(params.city);
   if (!city) return { title: "Ciudad no encontrada" };
   const canonical = `/ciudades/${city.slug}`;
-  const description = `Explora servicios disponibles en ${city.name} y encuentra profesionales para tu hogar con Handi.`;
+  const description = `Encuentra servicios para el hogar en ${city.name}. Explora opciones por categoria y entra a la ruta local de contratacion.`;
 
   return {
-    title: `Servicios para hogar en ${city.name}`,
+    title: `Servicios para el hogar en ${city.name} | Handi`,
     description,
     alternates: { canonical },
     openGraph: {
@@ -91,6 +91,30 @@ export default function CityLandingPage({ params }: { params: Params }) {
       url: `${baseUrl}/servicios/${service.slug}/${city.slug}`,
     })),
   };
+  const cityFaqItems = [
+    {
+      question: `Que servicios del hogar puedo solicitar en ${city.name}?`,
+      answer:
+        "Puedes solicitar trabajos de plomeria, electricidad, jardineria, carpinteria, limpieza y apoyo general segun disponibilidad.",
+    },
+    {
+      question: `Como elijo el servicio correcto en ${city.name}?`,
+      answer:
+        "Entra a la ruta del servicio y ciudad para ver alcance, zonas atendidas y opciones recomendadas antes de solicitar.",
+    },
+  ];
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: cityFaqItems.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.answer,
+      },
+    })),
+  };
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
@@ -109,6 +133,10 @@ export default function CityLandingPage({ params }: { params: Params }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
 
       <Breadcrumbs
         items={[
@@ -125,6 +153,9 @@ export default function CityLandingPage({ params }: { params: Params }) {
         <p className="max-w-3xl text-sm text-slate-600">
           Consulta las categorias activas en {city.name}, {city.stateName}, y
           entra directo a cada servicio por ciudad.
+        </p>
+        <p className="text-sm text-slate-600">
+          Zonas con mayor demanda: {city.zones.slice(0, 4).join(", ")}.
         </p>
       </header>
 
@@ -158,6 +189,25 @@ export default function CityLandingPage({ params }: { params: Params }) {
             </p>
           </Card>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Preguntas frecuentes en {city.name}
+        </h2>
+        <div className="space-y-2">
+          {cityFaqItems.map((item) => (
+            <details
+              key={item.question}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-3"
+            >
+              <summary className="cursor-pointer text-sm font-medium text-slate-900">
+                {item.question}
+              </summary>
+              <p className="mt-2 text-sm text-slate-600">{item.answer}</p>
+            </details>
+          ))}
+        </div>
       </section>
     </main>
   );

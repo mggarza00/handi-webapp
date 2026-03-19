@@ -40,6 +40,7 @@ export default function robots(): MetadataRoute.Robots {
           "/requests/new",
           "/requests/",
           "/pro",
+          "/landing",
           "/favorites",
           "/applied",
           "/pagos",

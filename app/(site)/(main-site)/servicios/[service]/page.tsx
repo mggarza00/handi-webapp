@@ -25,21 +25,21 @@ export async function generateMetadata({
   const service = getSeoServiceBySlug(params.service);
   if (!service) return { title: "Servicio no encontrado" };
   const canonical = `/servicios/${service.slug}`;
-  const description = `${service.shortDescription} ${service.adCopy}`;
+  const description = `Compara opciones de ${service.keyword} para Monterrey y San Pedro Garza Garcia. Elige ciudad, revisa cobertura y cotiza con Handi.`;
 
   return {
-    title: `${service.name} a domicilio en Handi`,
+    title: `${service.name} en Monterrey y San Pedro | Elige ciudad`,
     description,
     alternates: { canonical },
     openGraph: {
-      title: `${service.name} a domicilio | Handi`,
+      title: `${service.name} en Monterrey y San Pedro | Elige ciudad`,
       description,
       url: canonical,
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${service.name} a domicilio | Handi`,
+      title: `${service.name} en Monterrey y San Pedro | Elige ciudad`,
       description,
     },
   };
@@ -76,7 +76,7 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
   const serviceJsonLd = {
     "@context": "https://schema.org",
     "@type": "Service",
-    name: `${service.name} a domicilio`,
+    name: `${service.name} en Monterrey y San Pedro`,
     description: service.shortDescription,
     provider: {
       "@type": "Organization",
@@ -111,7 +111,7 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
 
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">
-          {service.name} a domicilio
+          {service.name} en Monterrey y San Pedro
         </h1>
         <p className="max-w-3xl text-sm text-slate-600">
           {service.shortDescription} {service.adCopy}
@@ -143,6 +143,17 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
             </div>
           </article>
         ))}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Problemas comunes que atiende este servicio
+        </h2>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+          {service.commonIssues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
       </section>
 
       <p className="text-sm text-slate-600">

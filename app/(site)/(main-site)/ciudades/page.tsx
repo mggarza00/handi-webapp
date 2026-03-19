@@ -2,26 +2,31 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { SEO_CITIES, getServicesForCity } from "@/lib/seo/local-landings";
+import {
+  ACTIVE_SERVICE_CITY_COMBINATIONS,
+  SEO_CITIES,
+  getSeoServiceBySlug,
+  getServicesForCity,
+} from "@/lib/seo/local-landings";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const metadata: Metadata = {
-  title: "Ciudades con cobertura",
+  title: "Ciudades con servicios para el hogar | Monterrey y San Pedro",
   description:
-    "Revisa ciudades con cobertura inicial en Handi y encuentra servicios para el hogar por zona.",
+    "Revisa cobertura por ciudad para contratar servicios del hogar. Entra a rutas locales de Monterrey y San Pedro Garza Garcia.",
   alternates: { canonical: "/ciudades" },
   openGraph: {
-    title: "Ciudades con cobertura | Handi",
+    title: "Ciudades con servicios para el hogar | Monterrey y San Pedro",
     description:
-      "Revisa ciudades con cobertura inicial en Handi y encuentra servicios para el hogar por zona.",
+      "Indice local por ciudad para buscar servicios del hogar en Nuevo Leon.",
     url: "/ciudades",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ciudades con cobertura | Handi",
+    title: "Ciudades con servicios para el hogar | Monterrey y San Pedro",
     description:
-      "Revisa ciudades con cobertura inicial en Handi y encuentra servicios para el hogar por zona.",
+      "Explora rutas locales por ciudad y entra directo al servicio que necesitas.",
   },
 };
 
@@ -45,6 +50,17 @@ export default function CitiesSeoIndexPage() {
       url: `${baseUrl}/ciudades/${city.slug}`,
     })),
   };
+  const priorityCityRoutes = ACTIVE_SERVICE_CITY_COMBINATIONS.slice(0, 10)
+    .map((combo) => {
+      const service = getSeoServiceBySlug(combo.serviceSlug);
+      const city = SEO_CITIES.find((item) => item.slug === combo.citySlug);
+      if (!service || !city) return null;
+      return {
+        href: `/servicios/${service.slug}/${city.slug}`,
+        label: `${service.keyword} en ${city.name}`,
+      };
+    })
+    .filter((item): item is { href: string; label: string } => Boolean(item));
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
@@ -65,8 +81,8 @@ export default function CitiesSeoIndexPage() {
           Ciudades con cobertura inicial
         </h1>
         <p className="max-w-3xl text-sm text-slate-600">
-          Revisa ciudades activas y entra a las rutas locales de servicios
-          disponibles en cada zona.
+          Revisa ciudades activas y entra a los servicios disponibles en cada
+          zona para contratar con mayor rapidez.
         </p>
       </header>
 
@@ -96,6 +112,23 @@ export default function CitiesSeoIndexPage() {
             </article>
           );
         })}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Rutas locales destacadas
+        </h2>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {priorityCityRoutes.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
       </section>
     </main>
   );
