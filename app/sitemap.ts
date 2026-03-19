@@ -34,13 +34,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${base}/servicios`,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.8,
+      priority: 0.9,
     },
     {
       url: `${base}/ciudades`,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.7,
+      priority: 0.85,
     },
     {
       url: `${base}/privacy`,
@@ -80,12 +80,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  for (const combo of ACTIVE_SERVICE_CITY_COMBINATIONS) {
+  const sortedCombos = [...ACTIVE_SERVICE_CITY_COMBINATIONS].sort(
+    (a, b) => b.priority - a.priority,
+  );
+  for (const combo of sortedCombos) {
     routes.push({
       url: `${base}/servicios/${combo.serviceSlug}/${combo.citySlug}`,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.8,
+      priority: combo.priority >= 10 ? 0.95 : combo.priority >= 8 ? 0.9 : 0.8,
     });
   }
 

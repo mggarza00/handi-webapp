@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     description:
       "Postulate como profesional en Handi. Landing de campana para adquisicion pro.",
   },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function CampaignProsLandingPage() {

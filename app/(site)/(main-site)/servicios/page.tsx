@@ -2,26 +2,31 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
-import { SEO_SERVICES, getCitiesForService } from "@/lib/seo/local-landings";
+import {
+  ACTIVE_SERVICE_CITY_COMBINATIONS,
+  SEO_SERVICES,
+  getCitiesForService,
+  getSeoCityBySlug,
+} from "@/lib/seo/local-landings";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const metadata: Metadata = {
-  title: "Servicios para el hogar",
+  title: "Servicios para el hogar en Monterrey y San Pedro | Cotiza hoy",
   description:
-    "Explora servicios para el hogar en Handi y encuentra profesionales para plomeria, electricidad, limpieza, pintura y reparaciones.",
+    "Encuentra plomero, electricista, jardinero, carpintero, limpieza y mozo en Monterrey y San Pedro. Elige servicio y cotiza en minutos.",
   alternates: { canonical: "/servicios" },
   openGraph: {
-    title: "Servicios para el hogar | Handi",
+    title: "Servicios para el hogar en Monterrey y San Pedro | Cotiza hoy",
     description:
-      "Explora servicios para el hogar en Handi y encuentra profesionales para plomeria, electricidad, limpieza, pintura y reparaciones.",
+      "Indice local para contratar profesionales del hogar en Monterrey y San Pedro Garza Garcia.",
     url: "/servicios",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Servicios para el hogar | Handi",
+    title: "Servicios para el hogar en Monterrey y San Pedro | Cotiza hoy",
     description:
-      "Explora servicios para el hogar en Handi y encuentra profesionales para plomeria, electricidad, limpieza, pintura y reparaciones.",
+      "Explora servicios locales y entra a rutas por ciudad para contratar mas rapido.",
   },
 };
 
@@ -45,6 +50,19 @@ export default function ServicesSeoIndexPage() {
       url: `${baseUrl}/servicios/${service.slug}`,
     })),
   };
+  const popularLocalSearches = ACTIVE_SERVICE_CITY_COMBINATIONS.slice(0, 8)
+    .map((combo) => {
+      const service = SEO_SERVICES.find(
+        (item) => item.slug === combo.serviceSlug,
+      );
+      const city = getSeoCityBySlug(combo.citySlug);
+      if (!service || !city) return null;
+      return {
+        href: `/servicios/${service.slug}/${city.slug}`,
+        label: `${service.keyword} en ${city.name}`,
+      };
+    })
+    .filter((item): item is { href: string; label: string } => Boolean(item));
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
@@ -65,8 +83,8 @@ export default function ServicesSeoIndexPage() {
           Servicios para tu hogar
         </h1>
         <p className="max-w-3xl text-sm text-slate-600">
-          Explora servicios disponibles y entra a su indice por ciudad para
-          encontrar opciones mas rapido.
+          Explora servicios por especialidad y entra a cada ruta local para
+          contratar en Monterrey y San Pedro Garza Garcia.
         </p>
       </header>
 
@@ -98,6 +116,23 @@ export default function ServicesSeoIndexPage() {
             </article>
           );
         })}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Busquedas locales populares
+        </h2>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {popularLocalSearches.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
       </section>
     </main>
   );

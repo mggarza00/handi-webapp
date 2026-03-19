@@ -46,22 +46,22 @@ type SavedAddress = {
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
-  title: "Handi | Encuentra profesionales para tu hogar",
+  title: "Servicios para el hogar en Monterrey y San Pedro",
   description:
-    "Solicita servicios para tu hogar y conecta con profesionales verificados para mantenimiento, reparaciones, limpieza y mas.",
+    "Encuentra plomero, electricista, jardinero, carpintero, limpieza y mozo en Monterrey y San Pedro Garza Garcia.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Handi | Encuentra profesionales para tu hogar",
+    title: "Servicios para el hogar en Monterrey y San Pedro | Handi",
     description:
-      "Solicita servicios para tu hogar y conecta con profesionales verificados para mantenimiento, reparaciones, limpieza y mas.",
+      "Marketplace de servicios para el hogar con profesionales verificados en Nuevo Leon.",
     url: "/",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Handi | Encuentra profesionales para tu hogar",
+    title: "Servicios para el hogar en Monterrey y San Pedro | Handi",
     description:
-      "Solicita servicios para tu hogar y conecta con profesionales verificados para mantenimiento, reparaciones, limpieza y mas.",
+      "Solicita servicios para el hogar con enfoque local en Monterrey y San Pedro Garza Garcia.",
   },
 };
 

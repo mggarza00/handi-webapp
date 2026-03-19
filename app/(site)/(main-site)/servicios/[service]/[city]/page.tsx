@@ -19,6 +19,22 @@ type Params = {
   city: string;
 };
 
+const SERVICE_CTA_BY_SLUG: Record<string, string> = {
+  plomero: "Atiende fugas, destapes e instalaciones con mayor rapidez.",
+  electricista: "Resuelve fallas electricas y mejora la seguridad de tu hogar.",
+  jardinero: "Recupera y mantiene tus areas verdes con apoyo profesional.",
+  carpintero: "Ajusta puertas, muebles y detalles de madera en casa.",
+  limpieza: "Organiza limpiezas profundas o recurrentes segun tu necesidad.",
+  mozo: "Consigue apoyo practico para tareas generales del hogar.",
+};
+
+const CITY_CONTEXT_BY_SLUG: Record<string, string> = {
+  monterrey:
+    "Monterrey concentra alta demanda en zonas residenciales y areas con actividad diaria intensa.",
+  "san-pedro-garza-garcia":
+    "San Pedro Garza Garcia suele requerir atencion puntual y coordinacion por colonia.",
+};
+
 export function generateStaticParams(): Params[] {
   return ACTIVE_SERVICE_CITY_COMBINATIONS.map((item) => ({
     service: item.serviceSlug,
@@ -37,20 +53,20 @@ export async function generateMetadata({
     return { title: "Landing no encontrada" };
   }
   const canonical = `/servicios/${service.slug}/${city.slug}`;
-  const description = `Solicita ${service.name.toLowerCase()} en ${city.name}. ${service.adCopy}`;
+  const description = `Solicita ${service.keyword} en ${city.name} y recibe opciones verificadas para tu hogar. Cotiza hoy en Handi.`;
   return {
-    title: `${service.name} en ${city.name} | Solicita en Handi`,
+    title: `${service.name} en ${city.name} | Cotiza hoy`,
     description,
     alternates: { canonical },
     openGraph: {
-      title: `${service.name} en ${city.name} | Handi`,
+      title: `${service.name} en ${city.name} | Cotiza hoy en Handi`,
       description,
       url: canonical,
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${service.name} en ${city.name} | Handi`,
+      title: `${service.name} en ${city.name} | Cotiza hoy en Handi`,
       description,
     },
   };
@@ -72,6 +88,14 @@ export default function LocalServiceCityLandingPage({
   const cityServices = getServicesForCity(city.slug).filter(
     (item) => item.slug !== service.slug,
   );
+  const serviceCtaContext =
+    SERVICE_CTA_BY_SLUG[service.slug] ||
+    "Solicita el servicio con detalles claros para recibir mejores opciones.";
+  const cityContext =
+    CITY_CONTEXT_BY_SLUG[city.slug] ||
+    `${city.name} tiene cobertura activa para solicitudes residenciales en distintas zonas.`;
+  const topZones = city.zones.slice(0, 4);
+  const topIssue = service.commonIssues[0] || "mantenimiento residencial";
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -114,6 +138,32 @@ export default function LocalServiceCityLandingPage({
       url: baseUrl,
     },
   };
+  const faqItems = [
+    {
+      question: `Como contratar ${service.keyword} en ${city.name}?`,
+      answer: `Describe tu necesidad, agrega direccion en ${city.name} y horario estimado, y compara respuestas de profesionales disponibles en zonas como ${topZones.join(", ")}.`,
+    },
+    {
+      question: `Que incluye el servicio de ${service.keyword} en ${city.name}?`,
+      answer: `Incluye atencion a tareas frecuentes como ${topIssue.toLowerCase()}, ademas de trabajos relacionados segun el alcance de tu solicitud y la zona donde se realizara el servicio.`,
+    },
+    {
+      question: `Cuanto tarda recibir opciones de ${service.keyword} en ${city.name}?`,
+      answer: `Depende del horario y la zona, pero puedes mejorar tiempos indicando referencias de colonia y detalles claros del trabajo desde el inicio.`,
+    },
+  ];
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
@@ -130,6 +180,10 @@ export default function LocalServiceCityLandingPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
 
       <Breadcrumbs
         items={[
@@ -145,10 +199,12 @@ export default function LocalServiceCityLandingPage({
           {service.name} en {city.name}
         </h1>
         <p className="max-w-3xl text-sm text-slate-600">
-          Solicita {service.name.toLowerCase()} en {city.name}, {city.stateName}
-          , y conecta con profesionales verificados.
+          Solicita {service.keyword} en {city.name}, {city.stateName}, y conecta
+          con profesionales verificados para resolver necesidades de hogar con
+          mayor rapidez.
         </p>
-        <p className="max-w-3xl text-sm text-slate-600">{service.adCopy}</p>
+        <p className="max-w-3xl text-sm text-slate-600">{serviceCtaContext}</p>
+        <p className="max-w-3xl text-sm text-slate-600">{cityContext}</p>
         <div className="pt-1">
           <LocalLandingCtas
             landingType="service_city"
@@ -156,12 +212,53 @@ export default function LocalServiceCityLandingPage({
             citySlug={city.slug}
           />
         </div>
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-slate-900">
+            Beneficios de contratar con Handi
+          </h2>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+            {service.benefits.map((benefit) => (
+              <li key={benefit}>{benefit}</li>
+            ))}
+          </ul>
+        </div>
         <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
           <li>Describe tu necesidad y presupuesto.</li>
           <li>Recibe respuestas de profesionales en tu zona.</li>
           <li>Compara opciones y avanza con la mejor propuesta.</li>
         </ul>
       </header>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Zonas atendidas en {city.name}
+        </h2>
+        <p className="text-sm text-slate-600">
+          Estas colonias y zonas tienen mayor cobertura para solicitudes de{" "}
+          {service.keyword}.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {city.zones.map((zone) => (
+            <span
+              key={zone}
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700"
+            >
+              {zone}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Problemas frecuentes de {service.keyword} en {city.name}
+        </h2>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+          {service.commonIssues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold text-slate-900">
@@ -183,6 +280,51 @@ export default function LocalServiceCityLandingPage({
               Pronto agregaremos mas combinaciones para esta ciudad.
             </p>
           )}
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Explora mas rutas locales
+        </h2>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <Link
+            href={`/servicios/${service.slug}`}
+            className="text-sm font-medium text-[#082877] hover:underline"
+          >
+            Ver {service.name.toLowerCase()} por ciudad
+          </Link>
+          <Link
+            href={`/ciudades/${city.slug}`}
+            className="text-sm font-medium text-[#082877] hover:underline"
+          >
+            Ver todos los servicios en {city.name}
+          </Link>
+          <Link
+            href="/servicios"
+            className="text-sm font-medium text-[#082877] hover:underline"
+          >
+            Ir al indice de servicios
+          </Link>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-slate-900">
+          Preguntas frecuentes
+        </h2>
+        <div className="space-y-2">
+          {faqItems.map((item) => (
+            <details
+              key={item.question}
+              className="rounded-lg border border-slate-200 bg-white px-4 py-3"
+            >
+              <summary className="cursor-pointer text-sm font-medium text-slate-900">
+                {item.question}
+              </summary>
+              <p className="mt-2 text-sm text-slate-600">{item.answer}</p>
+            </details>
+          ))}
         </div>
       </section>
     </main>

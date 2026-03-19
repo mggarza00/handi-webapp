@@ -21,6 +21,10 @@ export const metadata: Metadata = {
     description:
       "Solicita servicios para tu hogar con Handi. Landing de campana para clientes.",
   },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function CampaignClientsLandingPage() {
