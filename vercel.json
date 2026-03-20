@@ -6,12 +6,6 @@
   },
   "installCommand": "npm install",
   "buildCommand": "npm run build",
-  "rewrites": [
-    {
-      "source": "/favicon.ico",
-      "destination": "/images/handifav_sinfondo.png"
-    }
-  ],
   "redirects": [
     {
       "source": "/:path*",
