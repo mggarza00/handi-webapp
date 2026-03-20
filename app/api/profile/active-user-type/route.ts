@@ -1,6 +1,4 @@
 import { NextResponse } from "next/server";
-
-import type { Database } from "@/types/supabase";
 import createClient from "@/utils/supabase/server";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -69,28 +67,46 @@ export async function POST(req: Request) {
       }
     }
 
-    // Map Spanish to existing DB role enum
-    const role = to === "cliente" ? "client" : "pro";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
+    const activeRole = to === "cliente" ? "client" : "pro";
+    // Keep profiles.role as canonical capability, not as ephemeral active-view toggle.
+    // For onboarding compatibility, only backfill role when it is currently missing.
+    const { data: profile } = await supabase
       .from("profiles")
-      .update({ role } as Database["public"]["Tables"]["profiles"]["Update"])
-      .eq("id", userId)
       .select("id, role")
-      .single();
-    if (error) {
-      const status = /permission|rls/i.test(error.message) ? 403 : 400;
-      return NextResponse.json(
-        { ok: false, error: "UPDATE_FAILED", detail: error.message },
-        { status, headers: JSONH },
-      );
+      .eq("id", userId)
+      .maybeSingle<{ id: string; role: string | null }>();
+    let profileRole = (profile?.role || "").toString().trim().toLowerCase();
+
+    if (!profileRole) {
+      const canonicalRole = activeRole;
+      const { error: updateError } = await (supabase as any)
+        .from("profiles")
+        .update({ role: canonicalRole })
+        .eq("id", userId);
+      if (updateError) {
+        const status = /permission|rls/i.test(updateError.message) ? 403 : 400;
+        return NextResponse.json(
+          { ok: false, error: "UPDATE_FAILED", detail: updateError.message },
+          { status, headers: JSONH },
+        );
+      }
+      profileRole = canonicalRole;
     }
+
     const res = NextResponse.json(
-      { ok: true, data },
+      {
+        ok: true,
+        data: {
+          id: userId,
+          active_role: activeRole,
+          role: activeRole,
+          profile_role: profileRole || null,
+        },
+      },
       { status: 200, headers: JSONH },
     );
     try {
-      res.cookies.set("active_role", role, {
+      res.cookies.set("active_role", activeRole, {
         path: "/",
         sameSite: "lax",
         httpOnly: true,
