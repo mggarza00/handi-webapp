@@ -1872,7 +1872,7 @@ export default function ProApplyForm({
                 />
               </div>
               <div>
-                <label className="block text-sm mb-1">T\u00edtulo</label>
+                <label className="block text-sm mb-1">Título</label>
                 <Input
                   aria-invalid={fieldErrs.headline}
                   value={headline}
