@@ -8,6 +8,7 @@ import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 import {
   ACTIVE_SERVICE_CITY_COMBINATIONS,
+  getLocalLandingEditorial,
   getSeoCityBySlug,
   getSeoServiceBySlug,
   getServicesForCity,
@@ -96,6 +97,21 @@ export default function LocalServiceCityLandingPage({
     `${city.name} tiene cobertura activa para solicitudes residenciales en distintas zonas.`;
   const topZones = city.zones.slice(0, 4);
   const topIssue = service.commonIssues[0] || "mantenimiento residencial";
+  const landingEditorial = getLocalLandingEditorial(service.slug, city.slug);
+  const responseTimeText =
+    landingEditorial?.responseTime ||
+    "Respuesta habitual en el mismo dia segun zona y horario.";
+  const trustSignals = landingEditorial?.trustSignals || [
+    "Perfiles verificados con experiencia en hogar.",
+    "Comparacion de opciones antes de contratar.",
+    "Seguimiento del servicio desde la solicitud.",
+  ];
+  const processSteps = landingEditorial?.processSteps || [
+    "Describe la necesidad con detalles claros.",
+    "Compara opciones disponibles en tu zona.",
+    "Coordina visita y confirma alcance del servicio.",
+  ];
+  const localSummary = landingEditorial?.localSummary || cityContext;
 
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -138,7 +154,7 @@ export default function LocalServiceCityLandingPage({
       url: baseUrl,
     },
   };
-  const faqItems = [
+  const faqItems = landingEditorial?.faq || [
     {
       question: `Como contratar ${service.keyword} en ${city.name}?`,
       answer: `Describe tu necesidad, agrega direccion en ${city.name} y horario estimado, y compara respuestas de profesionales disponibles en zonas como ${topZones.join(", ")}.`,
@@ -204,7 +220,10 @@ export default function LocalServiceCityLandingPage({
           mayor rapidez.
         </p>
         <p className="max-w-3xl text-sm text-slate-600">{serviceCtaContext}</p>
-        <p className="max-w-3xl text-sm text-slate-600">{cityContext}</p>
+        <p className="max-w-3xl text-sm text-slate-600">{localSummary}</p>
+        <p className="max-w-3xl text-sm text-slate-600">
+          Tiempo de respuesta estimado: {responseTimeText}
+        </p>
         <div className="pt-1">
           <LocalLandingCtas
             landingType="service_city"
@@ -212,21 +231,31 @@ export default function LocalServiceCityLandingPage({
             citySlug={city.slug}
           />
         </div>
+        <p className="text-xs text-slate-500">
+          Compara opciones, define alcance y solicita cotizacion en minutos.
+        </p>
         <div className="space-y-1">
           <h2 className="text-base font-semibold text-slate-900">
-            Beneficios de contratar con Handi
+            Senales de confianza
           </h2>
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-            {service.benefits.map((benefit) => (
-              <li key={benefit}>{benefit}</li>
+            {[...service.benefits, ...trustSignals]
+              .slice(0, 5)
+              .map((benefit) => (
+                <li key={benefit}>{benefit}</li>
+              ))}
+          </ul>
+        </div>
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold text-slate-900">
+            Proceso simple de contratacion
+          </h2>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
+            {processSteps.map((step) => (
+              <li key={step}>{step}</li>
             ))}
           </ul>
         </div>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-          <li>Describe tu necesidad y presupuesto.</li>
-          <li>Recibe respuestas de profesionales en tu zona.</li>
-          <li>Compara opciones y avanza con la mejor propuesta.</li>
-        </ul>
       </header>
 
       <section className="space-y-2">

@@ -21,6 +21,14 @@ export type ServiceCityCombination = {
   priority: number;
 };
 
+export type LocalLandingEditorial = {
+  responseTime: string;
+  trustSignals: string[];
+  processSteps: string[];
+  localSummary: string;
+  faq: Array<{ question: string; answer: string }>;
+};
+
 export const SEO_SERVICES: SeoService[] = [
   {
     slug: "plomero",
@@ -198,6 +206,175 @@ export const ACTIVE_SERVICE_CITY_COMBINATIONS: ServiceCityCombination[] = [
   },
 ];
 
+const LOCAL_LANDING_EDITORIAL: Record<string, LocalLandingEditorial> = {
+  "plomero:monterrey": {
+    responseTime:
+      "Respuesta habitual en 1 a 3 horas en zonas con cobertura alta.",
+    trustSignals: [
+      "Perfiles verificados con historial de trabajos en hogar.",
+      "Comparacion de opciones antes de decidir.",
+      "Flujo con registro de mensajes y detalle del alcance.",
+    ],
+    processSteps: [
+      "Comparte el problema exacto (fuga, destape, instalacion) y tu colonia.",
+      "Recibe opciones de profesionales disponibles en Monterrey.",
+      "Elige la mejor alternativa y coordina horario de visita.",
+    ],
+    localSummary:
+      "En Monterrey, las solicitudes de plomeria suelen concentrarse en fugas y destapes en zonas residenciales con alta rotacion diaria.",
+    faq: [
+      {
+        question:
+          "Que datos ayudan a cotizar plomeria mas rapido en Monterrey?",
+        answer:
+          "Incluye fotos del problema, tipo de instalacion afectada, colonia y horario disponible para acelerar diagnostico y respuesta.",
+      },
+      {
+        question: "Puedo solicitar apoyo para emergencia de fuga?",
+        answer:
+          "Si. Indica que es urgente en la descripcion y agrega referencias claras de acceso para priorizar la atencion.",
+      },
+      {
+        question: "Que tipo de trabajos de plomeria se atienden?",
+        answer:
+          "Se atienden fugas, destapes, cambios de llaves, ajustes de sanitarios e instalaciones residenciales comunes.",
+      },
+    ],
+  },
+  "plomero:san-pedro-garza-garcia": {
+    responseTime:
+      "Respuesta habitual en 1 a 4 horas segun horario y zona de San Pedro.",
+    trustSignals: [
+      "Profesionales con experiencia en servicios residenciales de detalle.",
+      "Seguimiento del servicio desde la solicitud inicial.",
+      "Comparacion transparente de alternativas disponibles.",
+    ],
+    processSteps: [
+      "Describe tu necesidad y agrega referencias de colonia en San Pedro.",
+      "Compara opciones de plomero con base en experiencia y disponibilidad.",
+      "Coordina visita con alcance y horario definidos desde el inicio.",
+    ],
+    localSummary:
+      "En San Pedro Garza Garcia, la demanda de plomeria suele requerir coordinacion puntual por fraccionamiento y horario de acceso.",
+    faq: [
+      {
+        question: "Como mejorar tiempos de atencion en San Pedro?",
+        answer:
+          "Agrega colonia exacta, tipo de acceso y franja horaria disponible para facilitar la planeacion de visita.",
+      },
+      {
+        question: "Puedo solicitar ajuste e instalacion en una misma visita?",
+        answer:
+          "Si, cuando el alcance este bien descrito. Conviene listar cada tarea para recibir propuestas mas precisas.",
+      },
+      {
+        question: "Que problemas se atienden con mayor frecuencia?",
+        answer:
+          "Fugas en banos y cocina, cambios de accesorios y mantenimiento preventivo en lineas de agua.",
+      },
+    ],
+  },
+  "electricista:monterrey": {
+    responseTime:
+      "Respuesta habitual en 2 a 4 horas para diagnostico inicial en Monterrey.",
+    trustSignals: [
+      "Perfiles con experiencia en instalaciones y fallas residenciales.",
+      "Comparacion de alternativas antes de contratar.",
+      "Registro de alcance y seguimiento del trabajo solicitado.",
+    ],
+    processSteps: [
+      "Describe la falla (apagones, contactos, protecciones) y zona.",
+      "Recibe opciones de electricista disponibles en Monterrey.",
+      "Elige propuesta y agenda visita con alcance confirmado.",
+    ],
+    localSummary:
+      "En Monterrey, las solicitudes de electricista se enfocan en fallas de seguridad, ajustes de carga e instalaciones interiores.",
+    faq: [
+      {
+        question: "Que debo incluir para solicitar electricista en Monterrey?",
+        answer:
+          "Tipo de falla, area afectada, si hay riesgo inmediato y fotos del tablero o punto de instalacion cuando sea posible.",
+      },
+      {
+        question: "Atienden instalaciones nuevas y reparaciones?",
+        answer:
+          "Si. Puedes solicitar desde cambios de contactos hasta revisiones de linea e instalacion de luminarias.",
+      },
+      {
+        question: "Cuanto tarda una visita de diagnostico?",
+        answer:
+          "Depende de la zona y horario, pero un diagnostico inicial suele programarse el mismo dia en cobertura alta.",
+      },
+    ],
+  },
+  "electricista:san-pedro-garza-garcia": {
+    responseTime:
+      "Respuesta habitual en 2 a 5 horas, segun colonia y disponibilidad del horario.",
+    trustSignals: [
+      "Opciones verificadas para trabajos electricos residenciales.",
+      "Comparacion de propuestas por alcance y disponibilidad.",
+      "Seguimiento del servicio hasta la coordinacion final.",
+    ],
+    processSteps: [
+      "Comparte la falla y agrega referencias de acceso en San Pedro.",
+      "Revisa opciones de electricista para tu horario objetivo.",
+      "Confirma alcance, visita y condiciones antes de contratar.",
+    ],
+    localSummary:
+      "En San Pedro, los servicios electricos suelen requerir coordinacion cuidadosa por horario y tipo de instalacion residencial.",
+    faq: [
+      {
+        question: "Que tipo de fallas electricas se atienden en San Pedro?",
+        answer:
+          "Se atienden variaciones de voltaje, protecciones que se disparan, contactos con falla e instalaciones domesticas.",
+      },
+      {
+        question: "Puedo solicitar instalacion y revision en una sola visita?",
+        answer:
+          "Si, si indicas desde el inicio todas las tareas y areas involucradas para una cotizacion mas realista.",
+      },
+      {
+        question: "Como acelerar la atencion del servicio?",
+        answer:
+          "Indica colonia, horario preferido, tipo de falla y evidencia visual para facilitar la asignacion.",
+      },
+    ],
+  },
+  "limpieza:monterrey": {
+    responseTime:
+      "Respuesta habitual en 2 a 6 horas para servicios programados en Monterrey.",
+    trustSignals: [
+      "Perfiles con historial de servicios en limpieza residencial.",
+      "Proceso claro para detallar alcance y frecuencia.",
+      "Comparacion de opciones antes de confirmar contratacion.",
+    ],
+    processSteps: [
+      "Define si necesitas limpieza general, profunda o por evento.",
+      "Comparte metros aproximados, zonas prioritarias y horario.",
+      "Compara opciones y agenda el servicio segun disponibilidad.",
+    ],
+    localSummary:
+      "En Monterrey, la limpieza de hogar suele solicitarse para mantenimiento semanal, mudanzas y preparacion de espacios.",
+    faq: [
+      {
+        question: "Que datos ayudan a cotizar limpieza en Monterrey?",
+        answer:
+          "Tipo de limpieza, tamano del espacio, numero de banos y zonas prioritarias para recibir opciones mejor ajustadas.",
+      },
+      {
+        question: "Puedo pedir limpieza puntual y recurrente?",
+        answer:
+          "Si. Puedes solicitar una visita unica o plantear una frecuencia semanal/quincenal en la solicitud.",
+      },
+      {
+        question: "Se puede incluir limpieza post remodelacion?",
+        answer:
+          "Si, siempre que se especifique en la descripcion para definir alcance, tiempos y condiciones del servicio.",
+      },
+    ],
+  },
+};
+
 export function getSeoServiceBySlug(slug: string) {
   const canonicalSlug = SERVICE_SLUG_ALIASES[slug] || slug;
   return SEO_SERVICES.find((service) => service.slug === canonicalSlug) ?? null;
@@ -233,4 +410,11 @@ export function isActiveServiceCity(
   return ACTIVE_SERVICE_CITY_COMBINATIONS.some(
     (item) => item.serviceSlug === serviceSlug && item.citySlug === citySlug,
   );
+}
+
+export function getLocalLandingEditorial(
+  serviceSlug: string,
+  citySlug: string,
+): LocalLandingEditorial | null {
+  return LOCAL_LANDING_EDITORIAL[`${serviceSlug}:${citySlug}`] ?? null;
 }

@@ -395,6 +395,46 @@ export default async function PublicProfilePage({ params }: Ctx) {
         }
       />
 
+      {!isOwner ? (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-slate-900">
+            Servicios locales populares
+          </h2>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            <Link
+              href="/servicios/plomero/monterrey"
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              Plomero en Monterrey
+            </Link>
+            <Link
+              href="/servicios/plomero/san-pedro-garza-garcia"
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              Plomero en San Pedro
+            </Link>
+            <Link
+              href="/servicios/electricista/monterrey"
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              Electricista en Monterrey
+            </Link>
+            <Link
+              href="/servicios/electricista/san-pedro-garza-garcia"
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              Electricista en San Pedro
+            </Link>
+            <Link
+              href="/servicios/limpieza/monterrey"
+              className="text-sm font-medium text-[#082877] hover:underline"
+            >
+              Limpieza en Monterrey
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
       <section className="space-y-4">
         <Card className="rounded-2xl border bg-white shadow-sm">
           <div className="p-5 space-y-4">
