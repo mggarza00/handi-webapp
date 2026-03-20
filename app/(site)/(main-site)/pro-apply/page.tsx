@@ -36,23 +36,31 @@ async function getProfileDefaults(
   userId: string,
   supabase: SupabaseClient<Database>,
 ) {
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("full_name, role")
-    .eq("id", userId)
-    .maybeSingle<{
-      full_name: string | null;
-      role: ProfileRow["role"] | null;
-    }>();
+  const [profileRes, proRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, role")
+      .eq("id", userId)
+      .maybeSingle<{
+        full_name: string | null;
+        role: ProfileRow["role"] | null;
+      }>(),
+    supabase
+      .from("professionals")
+      .select("headline")
+      .eq("id", userId)
+      .maybeSingle<{ headline: string | null }>(),
+  ]);
 
-  if (error) {
-    console.error("Error fetching profile defaults:", error);
-    return { fullName: "", role: null };
+  if (profileRes.error) {
+    console.error("Error fetching profile defaults:", profileRes.error);
+    return { fullName: "", role: null, headline: "" };
   }
 
   return {
-    fullName: data?.full_name ?? "",
-    role: data?.role ?? null,
+    fullName: profileRes.data?.full_name ?? "",
+    role: profileRes.data?.role ?? null,
+    headline: proRes.data?.headline ?? "",
   };
 }
 
@@ -66,7 +74,7 @@ export default async function ProApplyPage() {
     redirect("/auth/sign-in?next=/pro-apply");
   }
 
-  const [{ fullName, role }, latestStatus] = await Promise.all([
+  const [{ fullName, role, headline }, latestStatus] = await Promise.all([
     getProfileDefaults(user.id, supabase),
     getLatestApplicationStatus(user.id, supabase),
   ]);
@@ -110,6 +118,7 @@ export default async function ProApplyPage() {
         userId={user.id}
         userEmail={user.email ?? ""}
         defaultFullName={fullName}
+        defaultHeadline={headline}
       />
     </section>
   );

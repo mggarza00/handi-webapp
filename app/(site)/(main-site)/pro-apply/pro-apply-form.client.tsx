@@ -85,9 +85,46 @@ function isValidClabe(input: string): boolean {
   return dv === clabe.charCodeAt(17) - 48;
 }
 
+function normalizeUniqueStrings(values: string[]): string[] {
+  return Array.from(
+    new Set(values.map((value) => value.trim()).filter(Boolean)),
+  );
+}
+
+function normalizeSelectedSubcategories(
+  categories: string[],
+  subcategories: string[],
+  groupedSubcats: Record<string, string[]>,
+): string[] {
+  const normalizedCategories = normalizeUniqueStrings(categories);
+  if (normalizedCategories.length === 0) return [];
+
+  const normalizedSubcategories = normalizeUniqueStrings(subcategories);
+  if (normalizedSubcategories.length === 0) return [];
+
+  const allowed = new Set<string>();
+  let hasKnownTaxonomy = false;
+  normalizedCategories.forEach((category) => {
+    const options = groupedSubcats[category] || [];
+    if (options.length > 0) {
+      hasKnownTaxonomy = true;
+      options.forEach((subcategory) => allowed.add(subcategory));
+    }
+  });
+
+  // If taxonomy data isn't available for the selected categories, preserve
+  // manual choices instead of dropping user data.
+  if (!hasKnownTaxonomy) return normalizedSubcategories;
+
+  return normalizedSubcategories.filter((subcategory) =>
+    allowed.has(subcategory),
+  );
+}
+
 const AppSchema = z
   .object({
     full_name: z.string().min(2).max(120),
+    headline: z.string().min(2).max(120),
     phone: z.string().min(8).max(20),
     email: z.string().email(),
     rfc: z
@@ -167,14 +204,27 @@ const AppSchema = z
 
 type Reference = { name: string; phone: string; relation: string };
 
+// Temporary launch relaxation for pro onboarding. Keep structure reversible.
+const TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS = {
+  requireIndividualCv: false,
+  requireIndividualLetters: false,
+  showOnlyOneReference: true,
+  requireCompanyIncorporationDoc: false,
+  requireCompanyRepIds: false,
+} as const;
+
+const EMPTY_REFERENCE: Reference = { name: "", phone: "", relation: "" };
+
 export default function ProApplyForm({
   userId,
   userEmail,
   defaultFullName = "",
+  defaultHeadline = "",
 }: {
   userId: string;
   userEmail: string;
   defaultFullName?: string;
+  defaultHeadline?: string;
 }) {
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB (aligned with storage limit)
   const [loading, setLoading] = React.useState(false);
@@ -186,6 +236,7 @@ export default function ProApplyForm({
 
   // Basic fields
   const [fullName, setFullName] = React.useState(defaultFullName || "");
+  const [headline, setHeadline] = React.useState(defaultHeadline || "");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState(userEmail || "");
   const [rfc, setRfc] = React.useState("");
@@ -206,6 +257,8 @@ export default function ProApplyForm({
     React.useState(false);
   const classifyAbortRef = React.useRef<AbortController | null>(null);
   const lastUserEditRef = React.useRef(0);
+  const hasManualCategorySelectionRef = React.useRef(false);
+  const hasManualSubcategorySelectionRef = React.useRef(false);
   const lastAutoAppliedRef = React.useRef<string>("");
   const selectedCatsRef = React.useRef<string[]>([]);
   const selectedSubsRef = React.useRef<string[]>([]);
@@ -237,6 +290,7 @@ export default function ProApplyForm({
   // Error UI states
   const [fieldErrs, setFieldErrs] = React.useState<Record<string, boolean>>({
     full_name: false,
+    headline: false,
     phone: false,
     email: false,
     rfc: false,
@@ -255,11 +309,7 @@ export default function ProApplyForm({
   });
   const [refErrs, setRefErrs] = React.useState<
     Array<{ name: boolean; phone: boolean; relation: boolean }>
-  >([
-    { name: false, phone: false, relation: false },
-    { name: false, phone: false, relation: false },
-    { name: false, phone: false, relation: false },
-  ]);
+  >([{ name: false, phone: false, relation: false }]);
   const [fileErrs, setFileErrs] = React.useState<{
     // persona física
     cv: boolean;
@@ -300,12 +350,8 @@ export default function ProApplyForm({
   const [repIdFront, setRepIdFront] = React.useState<File | null>(null);
   const [repIdBack, setRepIdBack] = React.useState<File | null>(null);
 
-  // References (3 fijas)
-  const [refs, setRefs] = React.useState<Reference[]>([
-    { name: "", phone: "", relation: "" },
-    { name: "", phone: "", relation: "" },
-    { name: "", phone: "", relation: "" },
-  ]);
+  // References (temporarily one visible reference for launch)
+  const [refs, setRefs] = React.useState<Reference[]>([EMPTY_REFERENCE]);
 
   // Signature
   const sigCanvasRef = React.useRef<HTMLCanvasElement | null>(null); // persistent/offscreen canvas used for upload
@@ -336,6 +382,7 @@ export default function ProApplyForm({
     try {
       const d = readDraft<{
         full_name?: string;
+        headline?: string;
         phone?: string;
         email?: string;
         rfc?: string;
@@ -363,6 +410,7 @@ export default function ProApplyForm({
       }>("draft:apply-professional");
       if (d) {
         if (typeof d.full_name === "string") setFullName(d.full_name);
+        if (typeof d.headline === "string") setHeadline(d.headline);
         if (typeof d.phone === "string") setPhone(d.phone);
         if (typeof d.email === "string") setEmail(d.email);
         if (typeof d.rfc === "string") setRfc(d.rfc);
@@ -395,8 +443,16 @@ export default function ProApplyForm({
           setAuthorizeHandi(d.authorize_handi_to_issue_invoices);
         if (typeof d.billing_authorize_handi === "boolean")
           setAuthorizeHandi(d.billing_authorize_handi);
-        if (Array.isArray(d.references) && d.references.length === 3)
-          setRefs(d.references);
+        if (Array.isArray(d.references) && d.references.length > 0) {
+          const first = d.references[0];
+          setRefs([
+            {
+              name: String(first?.name ?? ""),
+              phone: String(first?.phone ?? ""),
+              relation: String(first?.relation ?? ""),
+            },
+          ]);
+        }
         if (typeof d.bank_holder === "string") setBankHolder(d.bank_holder);
         if (typeof d.bank_name === "string") setBankName(d.bank_name);
         if (typeof d.bank_clabe === "string") setBankClabe(d.bank_clabe);
@@ -412,6 +468,7 @@ export default function ProApplyForm({
   React.useEffect(() => {
     writeDraft("draft:apply-professional", {
       full_name: fullName,
+      headline,
       phone,
       email,
       rfc,
@@ -431,7 +488,7 @@ export default function ProApplyForm({
       privacy_accept: privacy,
       billing_can_invoice_self: canInvoiceSelf,
       billing_authorize_handi: authorizeHandi,
-      references: refs,
+      references: refs.slice(0, 1),
       bank_holder: bankHolder,
       bank_name: bankName,
       bank_clabe: bankClabe,
@@ -439,6 +496,7 @@ export default function ProApplyForm({
     });
   }, [
     fullName,
+    headline,
     phone,
     email,
     rfc,
@@ -680,21 +738,35 @@ export default function ProApplyForm({
             )
           : [];
 
-        const dedupe = (arr: string[]) =>
-          Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
-        const cats = dedupe(nextCats);
-        const subs = dedupe(nextSubs);
+        const cats = normalizeUniqueStrings(nextCats);
+        const subs = normalizeUniqueStrings(nextSubs);
 
         const hasExisting =
           selectedCatsRef.current.length > 0 ||
           selectedSubsRef.current.length > 0;
         if (confidence < 0.35 && hasExisting) return;
 
+        const manualCategories = hasManualCategorySelectionRef.current;
+        const manualSubcategories = hasManualSubcategorySelectionRef.current;
+        if (manualCategories && manualSubcategories) return;
+
+        const categoriesToApply = manualCategories
+          ? selectedCatsRef.current
+          : cats;
+        const subcategoriesToApply = manualSubcategories
+          ? selectedSubsRef.current
+          : normalizeSelectedSubcategories(
+              categoriesToApply,
+              subs,
+              groupedSubcats,
+            );
+
+        if (!categoriesToApply.length && !subcategoriesToApply.length) return;
+
         const key = JSON.stringify({
-          c: [...cats].sort(),
-          s: [...subs].sort(),
+          c: [...categoriesToApply].sort(),
+          s: [...subcategoriesToApply].sort(),
         });
-        if (!cats.length && !subs.length) return;
         if (key === lastAutoAppliedRef.current) return;
         const currentKey = JSON.stringify({
           c: [...selectedCatsRef.current].sort(),
@@ -703,8 +775,9 @@ export default function ProApplyForm({
         if (key === currentKey) return;
 
         lastAutoAppliedRef.current = key;
-        setSelectedCategories(cats);
-        setSelectedSubcategories(subs);
+        if (!manualCategories) setSelectedCategories(categoriesToApply);
+        if (!manualSubcategories)
+          setSelectedSubcategories(subcategoriesToApply);
       } catch (err) {
         if ((err as { name?: string } | null)?.name !== "AbortError") {
           /* ignore */
@@ -718,7 +791,7 @@ export default function ProApplyForm({
       window.clearTimeout(handle);
       classifyAbortRef.current?.abort();
     };
-  }, [servicesDesc, taxonomyPairs]);
+  }, [groupedSubcats, servicesDesc, taxonomyPairs]);
 
   React.useEffect(() => {
     if (!fieldErrs.subcategories) return;
@@ -932,6 +1005,7 @@ export default function ProApplyForm({
   function findFirstStepWithErrors() {
     const hasStep1Errors =
       Boolean(fieldErrs.full_name) ||
+      Boolean(fieldErrs.headline) ||
       Boolean(fieldErrs.phone) ||
       Boolean(fieldErrs.email) ||
       Boolean(fieldErrs.rfc) ||
@@ -947,14 +1021,17 @@ export default function ProApplyForm({
     if (hasStep1Errors) return 1;
 
     const hasStep2Errors =
-      Boolean(fileErrs.cv) ||
-      Boolean(fileErrs.letters) ||
+      (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualCv &&
+        Boolean(fileErrs.cv)) ||
+      (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualLetters &&
+        Boolean(fileErrs.letters)) ||
       Boolean(fileErrs.idFront) ||
       Boolean(fileErrs.idBack) ||
-      Boolean(fileErrs.companyDoc) ||
+      (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc &&
+        Boolean(fileErrs.companyDoc)) ||
       Boolean(fileErrs.companyCsf) ||
-      Boolean(fileErrs.repIdFront) ||
-      Boolean(fileErrs.repIdBack);
+      (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds &&
+        (Boolean(fileErrs.repIdFront) || Boolean(fileErrs.repIdBack)));
     if (hasStep2Errors) return 2;
 
     const hasStep3Errors = refErrs.some(
@@ -981,16 +1058,24 @@ export default function ProApplyForm({
   function validateStepBeforeNext(step: number) {
     if (step === 1) {
       const yearsNumber = Number(years);
+      const normalizedStepCategories =
+        normalizeUniqueStrings(selectedCategories);
+      const normalizedStepSubcategories = normalizeSelectedSubcategories(
+        normalizedStepCategories,
+        selectedSubcategories,
+        groupedSubcats,
+      );
       const nextErrs: Record<string, boolean> = {
         ...fieldErrs,
         full_name: fullName.trim().length < 2,
+        headline: headline.trim().length < 2,
         phone: phone.trim().length < 8,
         email: !z.string().email().safeParse(email).success,
         rfc: !RFC_REGEX.test((rfc || "").trim().toUpperCase()),
         services_desc: servicesDesc.trim().length < 10,
         cities: selectedCities.length < 1,
-        categories: selectedCategories.length < 1,
-        subcategories: selectedSubcategories.length < 1,
+        categories: normalizedStepCategories.length < 1,
+        subcategories: normalizedStepSubcategories.length < 1,
         years_experience:
           !Number.isFinite(yearsNumber) ||
           years === "" ||
@@ -1035,26 +1120,39 @@ export default function ProApplyForm({
         repIdBack: false,
       };
       if (empresa) {
-        nextFileErrs.companyDoc = !companyDoc || companyDoc.size > max;
+        nextFileErrs.companyDoc =
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc &&
+          (!companyDoc || companyDoc.size > max);
         nextFileErrs.companyCsf = !companyCsf || companyCsf.size > max;
-        nextFileErrs.repIdFront = Boolean(repIdFront && repIdFront.size > max);
-        nextFileErrs.repIdBack = Boolean(repIdBack && repIdBack.size > max);
+        nextFileErrs.repIdFront =
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds &&
+          Boolean(repIdFront && repIdFront.size > max);
+        nextFileErrs.repIdBack =
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds &&
+          Boolean(repIdBack && repIdBack.size > max);
       } else {
-        nextFileErrs.cv = !cvFile;
-        nextFileErrs.letters = (letters?.length ?? 0) < 1;
+        nextFileErrs.cv =
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualCv &&
+          !cvFile;
+        nextFileErrs.letters =
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualLetters &&
+          (letters?.length ?? 0) < 1;
         nextFileErrs.idFront = !idFront;
         nextFileErrs.idBack = !idBack;
       }
       setFileErrs(nextFileErrs);
       const hasError = empresa
-        ? nextFileErrs.companyDoc ||
-          nextFileErrs.companyCsf ||
-          nextFileErrs.repIdFront ||
-          nextFileErrs.repIdBack
-        : nextFileErrs.cv ||
-          nextFileErrs.letters ||
-          nextFileErrs.idFront ||
-          nextFileErrs.idBack;
+        ? nextFileErrs.companyCsf ||
+          (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc &&
+            nextFileErrs.companyDoc) ||
+          (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds &&
+            (nextFileErrs.repIdFront || nextFileErrs.repIdBack))
+        : nextFileErrs.idFront ||
+          nextFileErrs.idBack ||
+          (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualCv &&
+            nextFileErrs.cv) ||
+          (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualLetters &&
+            nextFileErrs.letters);
       if (hasError) {
         toast.error("Revisa los campos marcados");
         return false;
@@ -1063,7 +1161,13 @@ export default function ProApplyForm({
     }
 
     if (step === 3) {
-      const nextRefErrs = refs.map((r) => ({
+      const refsForValidation = refs.slice(0, 1);
+      if (refsForValidation.length === 0) {
+        setRefErrs([{ name: true, phone: true, relation: true }]);
+        toast.error("Revisa los campos marcados");
+        return false;
+      }
+      const nextRefErrs = refsForValidation.map((r) => ({
         name: (r.name || "").trim().length < 2,
         phone: (r.phone || "").trim().length < 8,
         relation: (r.relation || "").trim().length < 2,
@@ -1138,6 +1242,7 @@ export default function ProApplyForm({
     setOk(null);
     setFieldErrs({
       full_name: false,
+      headline: false,
       phone: false,
       email: false,
       services_desc: false,
@@ -1148,11 +1253,7 @@ export default function ProApplyForm({
       billing_authorization: false,
       privacy_accept: false,
     });
-    setRefErrs([
-      { name: false, phone: false, relation: false },
-      { name: false, phone: false, relation: false },
-      { name: false, phone: false, relation: false },
-    ]);
+    setRefErrs([{ name: false, phone: false, relation: false }]);
     setFileErrs({
       cv: false,
       letters: false,
@@ -1167,12 +1268,24 @@ export default function ProApplyForm({
     });
 
     const cities = selectedCities.slice();
-    const cat = selectedCategories.slice();
-    const refsTrimmed = refs.map((r) => ({
+    const effectiveCategories = normalizeUniqueStrings(selectedCategories);
+    const effectiveSubcategories = normalizeSelectedSubcategories(
+      effectiveCategories,
+      selectedSubcategories,
+      groupedSubcats,
+    );
+    const refsTrimmed = refs.slice(0, 1).map((r) => ({
       name: (r.name || "").trim(),
       phone: (r.phone || "").trim(),
       relation: (r.relation || "").trim(),
     }));
+    if (refsTrimmed.length === 0) {
+      const msg = "Ingresa al menos una referencia laboral.";
+      setError(msg);
+      toast.error(msg);
+      setRefErrs([{ name: true, phone: true, relation: true }]);
+      return { ok: false, errorStep: 3 };
+    }
     for (let i = 0; i < refsTrimmed.length; i++) {
       const r = refsTrimmed[i];
       const problems: string[] = [];
@@ -1197,7 +1310,7 @@ export default function ProApplyForm({
         return { ok: false, errorStep: 3 };
       }
     }
-    if (selectedSubcategories.length === 0) {
+    if (effectiveSubcategories.length === 0) {
       const msg = "Selecciona las subcategorias de tus servicios.";
       setError(msg);
       toast.error(msg);
@@ -1209,14 +1322,15 @@ export default function ProApplyForm({
     const effectiveFullName = fullName.trim();
     const baseForParse = {
       full_name: effectiveFullName,
+      headline: headline.trim(),
       phone,
       email,
       rfc,
       empresa,
       services_desc: servicesDesc,
       cities,
-      categories: cat,
-      subcategories: selectedSubcategories,
+      categories: effectiveCategories,
+      subcategories: effectiveSubcategories,
       years_experience: years ? Number(years) : NaN,
       can_issue_invoices: canInvoiceSelf,
       authorize_handi_to_issue_invoices: authorizeHandi,
@@ -1250,6 +1364,8 @@ export default function ProApplyForm({
             return "Ingresa un RFC válido";
           case "full_name":
             return "Ingresa tu nombre completo";
+          case "headline":
+            return "Ingresa un t\u00edtulo";
           case "phone":
             return "Ingresa un teléfono válido (mín. 8 dígitos)";
           case "empresa":
@@ -1306,19 +1422,23 @@ export default function ProApplyForm({
     if (empresa) {
       // Validación de documentos de empresa
       const max = 10 * 1024 * 1024; // 10MB
-      if (!companyDoc) {
-        const msg = "Sube el acta constitutiva.";
-        setError(msg);
-        toast.error(msg);
-        setFileErrs((p) => ({ ...p, companyDoc: true }));
-        return { ok: false, errorStep: 2 };
-      }
-      if (companyDoc.size > max) {
-        const msg = "Acta constitutiva excede 10 MB.";
-        setError(msg);
-        toast.error(msg);
-        setFileErrs((p) => ({ ...p, companyDoc: true }));
-        return { ok: false, errorStep: 2 };
+      if (
+        TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc
+      ) {
+        if (!companyDoc) {
+          const msg = "Sube el acta constitutiva.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, companyDoc: true }));
+          return { ok: false, errorStep: 2 };
+        }
+        if (companyDoc.size > max) {
+          const msg = "Acta constitutiva excede 10 MB.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, companyDoc: true }));
+          return { ok: false, errorStep: 2 };
+        }
       }
       if (!companyCsf) {
         const msg = "Sube la constancia de situación fiscal (CSF).";
@@ -1334,35 +1454,41 @@ export default function ProApplyForm({
         setFileErrs((p) => ({ ...p, companyCsf: true }));
         return { ok: false, errorStep: 2 };
       }
-      if (repIdFront && repIdFront.size > max) {
-        const msg = "Identificación (frente) excede 10 MB.";
-        setError(msg);
-        toast.error(msg);
-        setFileErrs((p) => ({ ...p, repIdFront: true }));
-        return { ok: false, errorStep: 2 };
-      }
-      if (repIdBack && repIdBack.size > max) {
-        const msg = "Identificación (reverso) excede 10 MB.";
-        setError(msg);
-        toast.error(msg);
-        setFileErrs((p) => ({ ...p, repIdBack: true }));
-        return { ok: false, errorStep: 2 };
+      if (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds) {
+        if (repIdFront && repIdFront.size > max) {
+          const msg = "Identificación (frente) excede 10 MB.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, repIdFront: true }));
+          return { ok: false, errorStep: 2 };
+        }
+        if (repIdBack && repIdBack.size > max) {
+          const msg = "Identificación (reverso) excede 10 MB.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, repIdBack: true }));
+          return { ok: false, errorStep: 2 };
+        }
       }
     } else {
       // Validación de documentos para persona física
-      if (!cvFile) {
-        const msg = "Sube tu CV (PDF o DOC).";
-        setError(msg);
-        toast.error(msg);
-        setFileErrs((p) => ({ ...p, cv: true }));
-        return { ok: false, errorStep: 2 };
+      if (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualCv) {
+        if (!cvFile) {
+          const msg = "Sube tu CV (PDF o DOC).";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, cv: true }));
+          return { ok: false, errorStep: 2 };
+        }
       }
-      if ((letters?.length ?? 0) < 1) {
-        const msg = "Sube al menos una carta de recomendación.";
-        setError(msg);
-        toast.error(msg);
-        setFileErrs((p) => ({ ...p, letters: true }));
-        return { ok: false, errorStep: 2 };
+      if (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualLetters) {
+        if ((letters?.length ?? 0) < 1) {
+          const msg = "Sube al menos una carta de recomendación.";
+          setError(msg);
+          toast.error(msg);
+          setFileErrs((p) => ({ ...p, letters: true }));
+          return { ok: false, errorStep: 2 };
+        }
       }
       if (!idFront || !idBack) {
         const msg = "Sube fotos de tu identificación (ambos lados).";
@@ -1416,19 +1542,27 @@ export default function ProApplyForm({
       const uploads: Record<string, string | string[]> = {};
       if (empresa) {
         const compPrefix = `applications/${userId}/company/`;
-        const docUp = await uploadViaApi(
-          companyDoc!,
-          `${compPrefix}doc-incorporation-${Date.now()}-${encodeURIComponent(companyDoc!.name)}`,
-          "applications",
-        );
-        uploads.company_doc_incorporation_url = docUp.url;
+        if (
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc &&
+          companyDoc
+        ) {
+          const docUp = await uploadViaApi(
+            companyDoc,
+            `${compPrefix}doc-incorporation-${Date.now()}-${encodeURIComponent(companyDoc.name)}`,
+            "applications",
+          );
+          uploads.company_doc_incorporation_url = docUp.url;
+        }
         const csfUp = await uploadViaApi(
           companyCsf!,
           `${compPrefix}csf-${Date.now()}-${encodeURIComponent(companyCsf!.name)}`,
           "applications",
         );
         uploads.company_csf_url = csfUp.url;
-        if (repIdFront) {
+        if (
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds &&
+          repIdFront
+        ) {
           const repFUp = await uploadViaApi(
             repIdFront,
             `${compPrefix}rep-id-front-${Date.now()}-${encodeURIComponent(repIdFront.name)}`,
@@ -1436,7 +1570,10 @@ export default function ProApplyForm({
           );
           uploads.company_rep_id_front_url = repFUp.url;
         }
-        if (repIdBack) {
+        if (
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds &&
+          repIdBack
+        ) {
           const repBUp = await uploadViaApi(
             repIdBack,
             `${compPrefix}rep-id-back-${Date.now()}-${encodeURIComponent(repIdBack.name)}`,
@@ -1445,21 +1582,28 @@ export default function ProApplyForm({
           uploads.company_rep_id_back_url = repBUp.url;
         }
       } else {
-        // Persona física: subir CV, cartas y identificación (frente/reverso) al bucket por defecto
-        const cvUp = await uploadViaApi(
-          cvFile!,
-          `${prefix}cv-${Date.now()}.${(cvFile!.name.split(".").pop() || "pdf").toLowerCase()}`,
-        );
-        uploads.cv_url = cvUp.url;
-        const lettersUrls: string[] = [];
-        for (const f of letters) {
-          const up = await uploadViaApi(
-            f,
-            `${prefix}letter-${Date.now()}-${encodeURIComponent(f.name)}`,
+        // Persona física: en lanzamiento solo se exige identificación oficial.
+        if (
+          TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualCv &&
+          cvFile
+        ) {
+          const cvUp = await uploadViaApi(
+            cvFile,
+            `${prefix}cv-${Date.now()}.${(cvFile.name.split(".").pop() || "pdf").toLowerCase()}`,
           );
-          lettersUrls.push(up.url);
+          uploads.cv_url = cvUp.url;
         }
-        uploads.letters_urls = lettersUrls;
+        if (TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualLetters) {
+          const lettersUrls: string[] = [];
+          for (const f of letters) {
+            const up = await uploadViaApi(
+              f,
+              `${prefix}letter-${Date.now()}-${encodeURIComponent(f.name)}`,
+            );
+            lettersUrls.push(up.url);
+          }
+          uploads.letters_urls = lettersUrls;
+        }
         const idFrontUp = await uploadViaApi(
           idFront!,
           `${prefix}id-front-${Date.now()}-${encodeURIComponent(idFront!.name)}`,
@@ -1542,11 +1686,12 @@ export default function ProApplyForm({
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
           full_name: effectiveFullName,
+          headline: headline.trim(),
           city: cities[0],
           cities,
           years_experience: years ? Number(years) : undefined,
-          categories: cat,
-          subcategories: selectedSubcategories,
+          categories: effectiveCategories,
+          subcategories: effectiveSubcategories,
           bio: servicesDesc,
           empresa,
         }),
@@ -1582,6 +1727,7 @@ export default function ProApplyForm({
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
           full_name: effectiveFullName,
+          headline: headline.trim(),
           phone,
           email,
           rfc,
@@ -1598,8 +1744,8 @@ export default function ProApplyForm({
             : {}),
           services_desc: servicesDesc,
           cities,
-          categories: cat,
-          subcategories: selectedSubcategories,
+          categories: effectiveCategories,
+          subcategories: effectiveSubcategories,
           years_experience: Number(years),
           references: refsTrimmed,
           uploads,
@@ -1618,7 +1764,7 @@ export default function ProApplyForm({
       trackProApplySubmitted({
         source_page: "/pro-apply",
         user_type: "client",
-        service_category: cat[0] || undefined,
+        service_category: effectiveCategories[0] || undefined,
         city: cities[0] || undefined,
       });
 
@@ -1726,6 +1872,30 @@ export default function ProApplyForm({
                 />
               </div>
               <div>
+                <label className="block text-sm mb-1">T\u00edtulo</label>
+                <Input
+                  aria-invalid={fieldErrs.headline}
+                  value={headline}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setHeadline(value);
+                    if (value.trim().length >= 2 && fieldErrs.headline) {
+                      setFieldErrs((prev) => ({ ...prev, headline: false }));
+                    }
+                  }}
+                  placeholder={
+                    empresa
+                      ? "ej. Especialistas en plomer\u00eda, Especialistas en reparaciones y mantenimiento, etc."
+                      : "ej. plomero, jardinero, electricista"
+                  }
+                />
+                {fieldErrs.headline && (
+                  <p className="text-xs text-pink-600 mt-1">
+                    Ingresa un t\u00edtulo
+                  </p>
+                )}
+              </div>
+              <div>
                 <label className="block text-sm mb-1">
                   Teléfono de contacto
                 </label>
@@ -1831,6 +2001,7 @@ export default function ProApplyForm({
                   value={selectedCategories}
                   onChange={(v) => {
                     lastUserEditRef.current = Date.now();
+                    hasManualCategorySelectionRef.current = true;
                     setSelectedCategories(v);
                   }}
                   disabled={loadingCats}
@@ -1871,6 +2042,7 @@ export default function ProApplyForm({
                                   size="sm"
                                   onClick={() => {
                                     lastUserEditRef.current = Date.now();
+                                    hasManualSubcategorySelectionRef.current = true;
                                     const all = new Set<string>(
                                       selectedSubcategories,
                                     );
@@ -1895,6 +2067,7 @@ export default function ProApplyForm({
                                         checked={checked}
                                         onChange={(e) => {
                                           lastUserEditRef.current = Date.now();
+                                          hasManualSubcategorySelectionRef.current = true;
                                           const next = e.currentTarget.checked
                                             ? Array.from(
                                                 new Set([
@@ -1954,39 +2127,43 @@ export default function ProApplyForm({
           <section className="rounded-xl border bg-white p-5 shadow-sm">
             <h2 className="mb-3 text-base font-semibold">Documentos</h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="block text-sm mb-1">
-                  Sube tu CV (PDF o DOC)
-                </label>
-                <Input
-                  className={cn(
-                    fileErrs.cv &&
-                      "border-pink-500 focus-visible:ring-pink-500/50",
-                  )}
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={(e) =>
-                    setCvFile(e.currentTarget.files?.[0] ?? null)
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm mb-1">
-                  Cartas de recomendación (al menos una)
-                </label>
-                <Input
-                  className={cn(
-                    fileErrs.letters &&
-                      "border-pink-500 focus-visible:ring-pink-500/50",
-                  )}
-                  type="file"
-                  accept="image/*,.pdf"
-                  multiple
-                  onChange={(e) =>
-                    setLetters(Array.from(e.currentTarget.files ?? []))
-                  }
-                />
-              </div>
+              {TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualCv && (
+                <div>
+                  <label className="block text-sm mb-1">
+                    Sube tu CV (PDF o DOC)
+                  </label>
+                  <Input
+                    className={cn(
+                      fileErrs.cv &&
+                        "border-pink-500 focus-visible:ring-pink-500/50",
+                    )}
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(e) =>
+                      setCvFile(e.currentTarget.files?.[0] ?? null)
+                    }
+                  />
+                </div>
+              )}
+              {TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireIndividualLetters && (
+                <div>
+                  <label className="block text-sm mb-1">
+                    Cartas de recomendación (al menos una)
+                  </label>
+                  <Input
+                    className={cn(
+                      fileErrs.letters &&
+                        "border-pink-500 focus-visible:ring-pink-500/50",
+                    )}
+                    type="file"
+                    accept="image/*,.pdf"
+                    multiple
+                    onChange={(e) =>
+                      setLetters(Array.from(e.currentTarget.files ?? []))
+                    }
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm mb-1">
                   Identificación oficial (frente)
@@ -2031,22 +2208,24 @@ export default function ProApplyForm({
                 Tamaño máximo 10 MB por archivo. Formatos: PDF, JPG o PNG.
               </p>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <label className="block text-sm mb-1">
-                    Acta constitutiva
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.companyDoc &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept="application/pdf,image/*"
-                    onChange={(e) =>
-                      setCompanyDoc(e.currentTarget.files?.[0] ?? null)
-                    }
-                  />
-                </div>
+                {TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc && (
+                  <div>
+                    <label className="block text-sm mb-1">
+                      Acta constitutiva
+                    </label>
+                    <Input
+                      className={cn(
+                        fileErrs.companyDoc &&
+                          "border-pink-500 focus-visible:ring-pink-500/50",
+                      )}
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={(e) =>
+                        setCompanyDoc(e.currentTarget.files?.[0] ?? null)
+                      }
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm mb-1">
                     Constancia de situación fiscal (CSF)
@@ -2063,38 +2242,42 @@ export default function ProApplyForm({
                     }
                   />
                 </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Identificación representante legal (frente)
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.repIdFront &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) =>
-                      setRepIdFront(e.currentTarget.files?.[0] ?? null)
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">
-                    Identificación representante legal (reverso)
-                  </label>
-                  <Input
-                    className={cn(
-                      fileErrs.repIdBack &&
-                        "border-pink-500 focus-visible:ring-pink-500/50",
-                    )}
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) =>
-                      setRepIdBack(e.currentTarget.files?.[0] ?? null)
-                    }
-                  />
-                </div>
+                {TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyRepIds && (
+                  <>
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Identificación representante legal (frente)
+                      </label>
+                      <Input
+                        className={cn(
+                          fileErrs.repIdFront &&
+                            "border-pink-500 focus-visible:ring-pink-500/50",
+                        )}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) =>
+                          setRepIdFront(e.currentTarget.files?.[0] ?? null)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm mb-1">
+                        Identificación representante legal (reverso)
+                      </label>
+                      <Input
+                        className={cn(
+                          fileErrs.repIdBack &&
+                            "border-pink-500 focus-visible:ring-pink-500/50",
+                        )}
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={(e) =>
+                          setRepIdBack(e.currentTarget.files?.[0] ?? null)
+                        }
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </section>
           </SlideDown>
@@ -2110,62 +2293,74 @@ export default function ProApplyForm({
               (exjefes o clientes).
             </p>
             <div className="space-y-3">
-              {refs.map((r, idx) => (
-                <div key={idx} className="space-y-3">
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                    <Input
-                      className={cn(
-                        refErrs[idx]?.name &&
-                          "border-pink-500 focus-visible:ring-pink-500/50",
-                      )}
-                      placeholder="Nombre"
-                      value={r.name}
-                      onChange={(e) =>
-                        setRefs((arr) =>
-                          arr.map((x, i) =>
-                            i === idx ? { ...x, name: e.target.value } : x,
-                          ),
-                        )
-                      }
-                    />
-                    <Input
-                      className={cn(
-                        refErrs[idx]?.phone &&
-                          "border-pink-500 focus-visible:ring-pink-500/50",
-                      )}
-                      placeholder="Teléfono"
-                      value={r.phone}
-                      onChange={(e) =>
-                        setRefs((arr) =>
-                          arr.map((x, i) =>
-                            i === idx ? { ...x, phone: e.target.value } : x,
-                          ),
-                        )
-                      }
-                    />
-                    <Input
-                      className={cn(
-                        refErrs[idx]?.relation &&
-                          "border-pink-500 focus-visible:ring-pink-500/50",
-                      )}
-                      placeholder={
-                        empresa
-                          ? "ej. Proveedor o Cliente"
-                          : "Relación (ej. jefe anterior)"
-                      }
-                      value={r.relation}
-                      onChange={(e) =>
-                        setRefs((arr) =>
-                          arr.map((x, i) =>
-                            i === idx ? { ...x, relation: e.target.value } : x,
-                          ),
-                        )
-                      }
-                    />
+              {refs
+                .slice(
+                  0,
+                  TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.showOnlyOneReference
+                    ? 1
+                    : refs.length,
+                )
+                .map((r, idx) => (
+                  <div key={idx} className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                      <Input
+                        className={cn(
+                          refErrs[idx]?.name &&
+                            "border-pink-500 focus-visible:ring-pink-500/50",
+                        )}
+                        placeholder="Nombre"
+                        value={r.name}
+                        onChange={(e) =>
+                          setRefs((arr) =>
+                            arr.map((x, i) =>
+                              i === idx ? { ...x, name: e.target.value } : x,
+                            ),
+                          )
+                        }
+                      />
+                      <Input
+                        className={cn(
+                          refErrs[idx]?.phone &&
+                            "border-pink-500 focus-visible:ring-pink-500/50",
+                        )}
+                        placeholder="Teléfono"
+                        value={r.phone}
+                        onChange={(e) =>
+                          setRefs((arr) =>
+                            arr.map((x, i) =>
+                              i === idx ? { ...x, phone: e.target.value } : x,
+                            ),
+                          )
+                        }
+                      />
+                      <Input
+                        className={cn(
+                          refErrs[idx]?.relation &&
+                            "border-pink-500 focus-visible:ring-pink-500/50",
+                        )}
+                        placeholder={
+                          empresa
+                            ? "ej. Proveedor o Cliente"
+                            : "Relación (ej. jefe anterior)"
+                        }
+                        value={r.relation}
+                        onChange={(e) =>
+                          setRefs((arr) =>
+                            arr.map((x, i) =>
+                              i === idx
+                                ? { ...x, relation: e.target.value }
+                                : x,
+                            ),
+                          )
+                        }
+                      />
+                    </div>
+                    {idx < 2 &&
+                    !TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.showOnlyOneReference ? (
+                      <Separator className="my-2" />
+                    ) : null}
                   </div>
-                  {idx < 2 ? <Separator className="my-2" /> : null}
-                </div>
-              ))}
+                ))}
             </div>
           </section>
         </Step>

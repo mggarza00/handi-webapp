@@ -40,9 +40,15 @@ function isValidWebsite(value: string): boolean {
   }
 }
 
+// Temporary launch relaxation. Keep payload support for all existing fields.
+const TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS = {
+  requireCompanyIncorporationDoc: false,
+} as const;
+
 const PayloadSchema = z
   .object({
     full_name: z.string().min(2).max(120),
+    headline: z.string().trim().min(2).max(120),
     phone: z.string().min(8).max(20),
     email: z.string().email(),
     rfc: z
@@ -153,7 +159,10 @@ const PayloadSchema = z
           message: "Inválido",
         });
       }
-      if (!data.uploads.company_doc_incorporation_url) {
+      if (
+        TEMPORARY_PRO_APPLY_RELAXED_REQUIREMENTS.requireCompanyIncorporationDoc &&
+        !data.uploads.company_doc_incorporation_url
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["uploads", "company_doc_incorporation_url"],
@@ -248,6 +257,7 @@ export async function POST(req: Request) {
     const record = {
       user_id: auth.user.id,
       full_name: p.full_name,
+      headline: p.headline,
       phone: p.phone,
       email: p.email,
       rfc: p.rfc,
@@ -303,6 +313,7 @@ export async function POST(req: Request) {
       const minimal = {
         user_id: auth.user.id,
         full_name: p.full_name,
+        headline: p.headline,
         phone: p.phone,
         email: p.email,
         services_desc: p.services_desc,
@@ -389,6 +400,7 @@ export async function POST(req: Request) {
     const html = `
       <h2>Nueva postulación profesional</h2>
       <p><b>Nombre:</b> ${escapeHtml(p.full_name)}</p>
+      <p><b>Título:</b> ${escapeHtml(p.headline)}</p>
       <p><b>Teléfono:</b> ${escapeHtml(p.phone)}</p>
       <p><b>Correo:</b> ${escapeHtml(p.email)}</p>
       <p><b>RFC:</b> ${escapeHtml(p.rfc)}</p>
