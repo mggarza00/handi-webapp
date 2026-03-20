@@ -86,3 +86,52 @@ Escalar captacion organica transaccional para servicios del hogar, empezando por
 5. Consolidar snippets de confianza reales:
    - reseñas verificadas por servicio y ciudad
    - tiempos de respuesta promedio por zona (si hay datos confiables).
+
+## Cierre de priorizacion (publicacion recomendada)
+
+### Paginas prioritarias a publicar primero
+
+- `/servicios/plomero/monterrey`
+- `/servicios/plomero/san-pedro-garza-garcia`
+- `/servicios/electricista/monterrey`
+- `/servicios/electricista/san-pedro-garza-garcia`
+- `/servicios/limpieza/monterrey`
+- `/servicios/carpintero/monterrey`
+
+### Paginas que no conviene crear todavia
+
+- combinaciones con baja o nula demanda comprobada por ciudad
+- paginas por colonia individual sin cobertura operativa estable
+- duplicados semanticos por sinonimos (ej. `plomeria` y `plomero` indexables al mismo tiempo)
+- variaciones de landing de campaña (`/landing/*`) para SEO organico
+
+### Riesgos de canibalizacion
+
+- competir con multiples slugs para la misma intencion local (servicio equivalente)
+- superponer contenido de `/servicios/[service]` con `/servicios/[service]/[city]` sin diferenciar alcance
+- repetir FAQs identicas en todas las ciudades sin contexto local
+- enlazar de forma dispersa sin reforzar una URL canonica principal por intencion
+
+## Conversion improvements
+
+1. Mantener como prioridad comercial estas landings:
+   - `/servicios/plomero/monterrey`
+   - `/servicios/plomero/san-pedro-garza-garcia`
+   - `/servicios/electricista/monterrey`
+   - `/servicios/electricista/san-pedro-garza-garcia`
+   - `/servicios/limpieza/monterrey`
+2. Reforzar consistentemente en esas URLs:
+   - senales de confianza visibles (verificados, atencion rapida, cotizacion clara)
+   - proceso de contratacion compacto y orientado a accion
+   - FAQs especificas por servicio + ciudad
+3. Priorizar rutas de conversion y continuidad:
+   - usuario con sesion: `Solicitar servicio` -> flujo real de solicitud
+   - usuario sin sesion: `Registrate y solicita un servicio` -> `/auth/sign-in?next=...`
+4. Mantener enlaces internos de alto valor desde:
+   - home (`/`) hacia combinaciones top
+   - perfiles publicos hacia landings locales prioritarias
+   - hubs (`/servicios`, `/ciudades`) hacia combinaciones activas
+5. Preparar fase siguiente (sin sobrecargar UI):
+   - snippets de prueba social real por combinacion
+   - validacion mensual de CTR en titles/meta por landing
+   - ajustes de copy segun conversion real por ciudad/servicio
