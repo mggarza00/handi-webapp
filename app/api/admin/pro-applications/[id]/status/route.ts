@@ -79,7 +79,10 @@ export async function POST(
         if (app) {
           if (app.full_name) patch.full_name = app.full_name;
           const appHeadline = (app as { headline?: string | null }).headline;
-          if (typeof appHeadline === "string" && appHeadline.trim().length >= 2) {
+          if (
+            typeof appHeadline === "string" &&
+            appHeadline.trim().length >= 2
+          ) {
             patch.headline = appHeadline.trim();
           }
           const appServicesDesc = (app as { services_desc?: string | null })
