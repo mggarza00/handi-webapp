@@ -12,6 +12,7 @@ import {
   getLoginErrorPresentation,
   isValidEmailForRecovery,
 } from "@/lib/auth/flow";
+import { isValidPersonName, normalizePersonName } from "@/lib/auth/user-name";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { isBlockedDomain } from "@/lib/utils/validateEmailDomain";
@@ -40,6 +41,7 @@ export default function EmailPasswordForm({
   showTitle = false,
   externalRecoveryMessage = null,
 }: EmailPasswordFormProps) {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -123,7 +125,11 @@ export default function EmailPasswordForm({
       setError("Por favor ingresa tu correo electronico.");
       return;
     }
-    if (!emailLooksValid || trimmedEmail.length < 6 || isBlockedDomain(trimmedEmail)) {
+    if (
+      !emailLooksValid ||
+      trimmedEmail.length < 6 ||
+      isBlockedDomain(trimmedEmail)
+    ) {
       setError(
         "Usa un correo valido y evita dominios genericos (ej: test.com, example.com, mailinator.com).",
       );
@@ -142,12 +148,22 @@ export default function EmailPasswordForm({
       setError("Ingresa un correo valido para continuar.");
       return;
     }
+    const normalizedName = normalizePersonName(fullName);
+    if (targetMode === "signup" && !isValidPersonName(normalizedName)) {
+      setError("Ingresa tu nombre completo (2 a 120 caracteres).");
+      return;
+    }
     if (!password.trim()) {
       setError("Ingresa tu contrasena para continuar.");
       return;
     }
 
-    const result = await submit(targetMode, trimmedEmail, password);
+    const result = await submit(
+      targetMode,
+      trimmedEmail,
+      password,
+      normalizedName,
+    );
     if (!result.ok) {
       const presentation = getLoginErrorPresentation(result.error);
       setError(presentation.message);
@@ -281,6 +297,25 @@ export default function EmailPasswordForm({
           </p>
         </div>
       ) : null}
+
+      <div className="space-y-1">
+        <label
+          className="text-sm font-medium text-slate-700"
+          htmlFor="full-name"
+        >
+          Nombre
+        </label>
+        <input
+          id="full-name"
+          data-testid="full-name"
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Tu nombre"
+          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm shadow-sm focus:border-[#0b835e] focus:outline-none"
+          autoComplete="name"
+        />
+      </div>
 
       <div className="space-y-1">
         <label className="text-sm font-medium text-slate-700" htmlFor="email">

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAdminSupabase } from "../../../../../../lib/supabase/admin";
 import { notifyProApplicationDecision } from "@/lib/notifications";
 import { assertAdminOrJson } from "@/lib/auth-admin";
+import { normalizePersonName } from "@/lib/auth/user-name";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 const Schema = z.object({
@@ -178,10 +179,22 @@ export async function POST(
         try {
           const name = (patch.full_name as string | null) || null;
           if (typeof name === "string" && name.trim().length >= 2) {
+            const normalizedName = normalizePersonName(name);
             await admin
               .from("profiles")
-              .update({ full_name: name.trim() })
+              .update({ full_name: normalizedName })
               .eq("id", uid);
+
+            const authUserRes = await admin.auth.admin.getUserById(uid);
+            const currentMetadata = (authUserRes.data.user?.user_metadata ??
+              {}) as Record<string, unknown>;
+            await admin.auth.admin.updateUserById(uid, {
+              user_metadata: {
+                ...currentMetadata,
+                full_name: normalizedName,
+                display_name: normalizedName,
+              },
+            });
           }
         } catch {
           /* ignore */

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import getRouteClient from "@/lib/supabase/route-client";
 import { isExpiredOrUsedAuthLink } from "@/lib/auth/flow";
+import { resolveUserMetadataName } from "@/lib/auth/user-name";
 import { env } from "@/lib/env";
 import type { Database } from "@/types/supabase";
 
@@ -124,14 +125,13 @@ async function ensureProfile(
   const typedProfilesTable = profilesTable as unknown as LooseProfilesTable;
 
   const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
-  const fullName =
-    typeof metadata.full_name === "string" ? metadata.full_name : null;
+  const resolvedName = resolveUserMetadataName(metadata);
   const avatarUrl =
     typeof metadata.avatar_url === "string" ? metadata.avatar_url : null;
   const email = typeof user.email === "string" ? user.email : null;
 
   const { data: existing, error } = await typedProfilesTable
-    .select("id, role")
+    .select("id, role, full_name, avatar_url, email")
     .eq("id", user.id)
     .maybeSingle<ProfileTable["Row"]>();
 
@@ -143,7 +143,7 @@ async function ensureProfile(
   if (!existing) {
     const payload: ProfileInsert = {
       id: user.id,
-      full_name: fullName,
+      full_name: resolvedName || null,
       avatar_url: avatarUrl,
       email,
     };
@@ -154,13 +154,14 @@ async function ensureProfile(
     return (inserted?.role as "client" | "pro" | "admin" | null) ?? null;
   }
 
-  const updatePayload: ProfileUpdate = {
-    full_name: fullName,
-    avatar_url: avatarUrl,
-    email,
-  };
+  const updatePayload: ProfileUpdate = {};
+  if (resolvedName) updatePayload.full_name = resolvedName;
+  if (avatarUrl) updatePayload.avatar_url = avatarUrl;
+  if (email) updatePayload.email = email;
 
-  await typedProfilesTable.update(updatePayload).eq("id", user.id);
+  if (Object.keys(updatePayload).length > 0) {
+    await typedProfilesTable.update(updatePayload).eq("id", user.id);
+  }
 
   return (existing.role as "client" | "pro" | "admin" | null) ?? null;
 }
