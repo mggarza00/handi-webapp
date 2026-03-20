@@ -83,7 +83,6 @@ export default function LandingPage({
           {/* Mobile carousel effect */}
           <div className="md:hidden -mx-4 overflow-x-hidden">
             <DeferOnIdle
-              delayMs={1500}
               fallback={<div className="h-[340px]" aria-hidden="true" />}
             >
               <MobileCarousel
@@ -325,7 +324,6 @@ export default function LandingPage({
         <div className="space-y-3" id="profesionales-cerca-de-ti">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"></p>
           <DeferOnIdle
-            delayMs={1500}
             fallback={
               <div
                 className="mt-12 rounded-[32px] bg-white px-4 py-12 shadow-[0_22px_70px_-40px_rgba(8,40,119,0.45)] ring-1 ring-slate-100/80 md:px-8"

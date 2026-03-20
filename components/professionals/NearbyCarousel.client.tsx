@@ -628,7 +628,19 @@ export default function NearbyCarousel() {
     };
   }, [items.length, showSecondRow]);
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="mt-12 mx-[calc(50%-50vw)] w-screen px-[var(--site-gutter)]">
+        <div
+          className="rounded-[32px] bg-white px-4 py-12 shadow-[0_22px_70px_-40px_rgba(8,40,119,0.45)] ring-1 ring-slate-100/80 md:px-8"
+          aria-hidden="true"
+        >
+          <div className="mx-auto h-8 w-56 animate-pulse rounded-full bg-slate-200" />
+          <div className="mt-10 h-[320px] animate-pulse rounded-3xl bg-slate-100" />
+        </div>
+      </div>
+    );
+  }
   if (!items || items.length === 0) return null;
 
   const shown = items.slice(0, visibleCount);
