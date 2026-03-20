@@ -4,6 +4,7 @@ import type { CookieMethodsServer } from "@supabase/ssr/dist/main/types";
 
 import {
   getDefaultHomeForActiveRole,
+  hasProCapability,
   resolveActiveView,
 } from "@/lib/routing/active-view";
 import updateSession from "@/utils/supabase/middleware";
@@ -246,8 +247,10 @@ export async function middleware(request: NextRequest) {
       const u = request.nextUrl.clone();
       const wantsProButInactive =
         (activeRoleCookie || "").toLowerCase() === "pro" ||
-        (profileRole || "").toLowerCase() === "pro" ||
-        profileIsClientPro;
+        hasProCapability({
+          profileRole,
+          isClientPro: profileIsClientPro,
+        });
       u.pathname =
         wantsProButInactive && !professionalIsActive ? "/pro-apply" : "/";
       const redirectRes = NextResponse.redirect(u);

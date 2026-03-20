@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import createClient from "@/utils/supabase/server";
 
-import type { Database } from "@/types/supabase";
-
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export const dynamic = "force-dynamic";
@@ -62,22 +60,17 @@ export async function POST(req: Request) {
     }
 
     const role = to === "cliente" ? "client" : "pro";
-    const { data, error } = await (supabase as any)
-      .from("profiles")
-      .update({ role } as Database["public"]["Tables"]["profiles"]["Update"])
-      .eq("id", auth.user.id)
-      .select("id, role")
-      .single();
-    if (error) {
-      const status = /permission|rls/i.test(error.message) ? 403 : 400;
-      return NextResponse.json(
-        { ok: false, error: "UPDATE_FAILED", detail: error.message },
-        { status, headers: JSONH },
-      );
-    }
-    // Además, sincronizamos la cookie 'active_role' para que el middleware y SSR respeten la vista activa
+    // Do not mutate profiles.role for active-view switching.
+    // Cookie active_role is the active-view source of truth.
     const res = NextResponse.json(
-      { ok: true, data },
+      {
+        ok: true,
+        data: {
+          id: auth.user.id,
+          active_role: role,
+          role,
+        },
+      },
       { status: 200, headers: JSONH },
     );
     try {

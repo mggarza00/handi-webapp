@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import createClient from "@/utils/supabase/server";
-
-import type { Database } from "@/types/supabase";
+import { resolveActiveView } from "@/lib/routing/active-view";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -18,10 +18,11 @@ export async function GET() {
       );
 
     const uid = auth.user.id;
+    const activeRoleCookie = cookies().get("active_role")?.value ?? null;
     const [profileRes, professionalRes, applicationRes] = await Promise.all([
       (supabase as any)
         .from("profiles")
-        .select("role")
+        .select("role, is_client_pro")
         .eq("id", uid)
         .maybeSingle(),
       (supabase as any)
@@ -46,17 +47,15 @@ export async function GET() {
       lastStatus === "accepted" || lastStatus === "approved";
 
     const canSwitch = hasActiveProfessional || isApprovedStatus;
-    const currentRole = (profile?.role ?? null) as
-      | null
-      | "client"
-      | "pro"
-      | "admin";
-    const other =
-      currentRole === "pro"
-        ? "cliente"
-        : currentRole === "client"
-          ? "profesional"
-          : null;
+    const currentRole = resolveActiveView({
+      activeRoleCookie,
+      profileRole: (profile?.role ?? null) as string | null,
+      isClientPro:
+        (profile as { is_client_pro?: boolean | null } | null)
+          ?.is_client_pro === true,
+      professionalIsActive: hasActiveProfessional,
+    });
+    const other = currentRole === "pro" ? "cliente" : ("profesional" as const);
     return NextResponse.json(
       { ok: true, canSwitch, other },
       { headers: JSONH },

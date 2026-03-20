@@ -1,10 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import getRouteClient from "@/lib/supabase/route-client";
 import { isExpiredOrUsedAuthLink } from "@/lib/auth/flow";
 import { resolveUserMetadataName } from "@/lib/auth/user-name";
 import { env } from "@/lib/env";
+import {
+  getDefaultHomeForActiveRole,
+  resolveActiveView,
+} from "@/lib/routing/active-view";
 import type { Database } from "@/types/supabase";
 
 export const runtime = "nodejs";
@@ -15,7 +20,7 @@ export async function GET(req: Request) {
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const typeParam = (url.searchParams.get("type") || "").toLowerCase();
-  const rawNext = url.searchParams.get("next") || "/";
+  const rawNext = (url.searchParams.get("next") || "").trim();
   const next = rawNext.startsWith("/") ? rawNext : "/";
   const toast = url.searchParams.get("toast");
   const nextUrl = new URL(next, env.appUrl);
@@ -63,6 +68,13 @@ export async function GET(req: Request) {
       if (toast) onboardingUrl.searchParams.set("toast", toast);
       return NextResponse.redirect(onboardingUrl, { status: 302 });
     }
+
+    if (!rawNext || next === "/") {
+      const home = await resolveDefaultCallbackHome(supabase);
+      nextUrl.pathname = home;
+      nextUrl.search = "";
+      if (toast) nextUrl.searchParams.set("toast", toast);
+    }
   } catch (err) {
     const anyErr = err as unknown as {
       status?: number;
@@ -103,6 +115,36 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.redirect(nextUrl, { status: 302 });
+}
+
+async function resolveDefaultCallbackHome(
+  supabase: SupabaseClient<Database>,
+): Promise<"/" | "/pro"> {
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id;
+  if (!userId) return "/";
+
+  const activeRoleCookie = cookies().get("active_role")?.value ?? null;
+  const [{ data: profile }, { data: professional }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role, is_client_pro")
+      .eq("id", userId)
+      .maybeSingle<{ role: string | null; is_client_pro: boolean | null }>(),
+    supabase
+      .from("professionals")
+      .select("active")
+      .eq("id", userId)
+      .maybeSingle<{ active: boolean | null }>(),
+  ]);
+
+  const view = resolveActiveView({
+    activeRoleCookie,
+    profileRole: profile?.role ?? null,
+    isClientPro: profile?.is_client_pro === true,
+    professionalIsActive: professional?.active === true,
+  });
+  return getDefaultHomeForActiveRole(view);
 }
 
 async function ensureProfile(
@@ -150,7 +192,7 @@ async function ensureProfile(
     const { data: inserted } = await typedProfilesTable
       .insert(payload)
       .select("role")
-      .maybeSingle();
+      .maybeSingle<{ role: "client" | "pro" | "admin" | null }>();
     return (inserted?.role as "client" | "pro" | "admin" | null) ?? null;
   }
 

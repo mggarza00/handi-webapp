@@ -7,6 +7,14 @@ export type ResolveActiveViewInput = {
   professionalIsActive: boolean;
 };
 
+export function hasProCapability(input: {
+  profileRole?: string | null;
+  isClientPro?: boolean | null;
+}): boolean {
+  const profileRole = (input.profileRole || "").toString().trim().toLowerCase();
+  return profileRole === "pro" || input.isClientPro === true;
+}
+
 export function resolveActiveView(
   input: ResolveActiveViewInput,
 ): ActiveViewRole {
@@ -14,14 +22,16 @@ export function resolveActiveView(
     .toString()
     .trim()
     .toLowerCase();
-  const profileRole = (input.profileRole || "").toString().trim().toLowerCase();
   const hasActiveProfessional = input.professionalIsActive === true;
+  const proCapability = hasProCapability(input);
 
-  if (cookieRole === "pro" && hasActiveProfessional) return "pro";
+  if (cookieRole === "pro" && hasActiveProfessional && proCapability)
+    return "pro";
   if (cookieRole === "client") return "client";
 
-  // Fallback when cookie is missing/desynced: prefer DB role only if pro is truly active.
-  if (profileRole === "pro" && hasActiveProfessional) return "pro";
+  // Fallback when cookie is missing/desynced: default to pro only when
+  // user can operate as pro and has an active professional profile.
+  if (hasActiveProfessional && proCapability) return "pro";
 
   // client/admin/unknown always collapse to client-facing home.
   return "client";

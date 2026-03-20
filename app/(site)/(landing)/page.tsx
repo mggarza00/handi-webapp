@@ -17,7 +17,10 @@ import {
   ensureGreetingPreferenceForProfile,
   extractFirstName,
 } from "@/lib/profile";
-import { resolveActiveView } from "@/lib/routing/active-view";
+import {
+  getDefaultHomeForActiveRole,
+  resolveActiveView,
+} from "@/lib/routing/active-view";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 import type { Database } from "@/types/supabase";
@@ -174,7 +177,7 @@ export default async function Page() {
       isClientPro: profile?.is_client_pro === true,
       professionalIsActive: hasActiveProfessional,
     });
-    if (effectiveView === "pro" && hasActiveProfessional) {
+    if (getDefaultHomeForActiveRole(effectiveView) === "/pro") {
       redirect("/pro");
     }
   }
