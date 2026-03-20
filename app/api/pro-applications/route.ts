@@ -10,6 +10,7 @@ import {
   getAdminProfileEmails,
   getConfiguredAdminEmails,
 } from "@/lib/profile-change-notify";
+import { normalizePersonName } from "@/lib/auth/user-name";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
@@ -208,13 +209,12 @@ export async function POST(req: Request) {
     const isRecord = (v: unknown): v is Record<string, unknown> =>
       v !== null && typeof v === "object";
     const raw = isRecord(body) ? body : {};
-    const maybeFullName =
-      typeof raw["full_name"] === "string"
-        ? (raw["full_name"] as string).trim()
-        : "";
+    const maybeFullName = normalizePersonName(raw["full_name"]);
+    const profileFallbackName = normalizePersonName(defaultFullName ?? "");
     const bodyWithDefaults = {
       ...raw,
-      full_name: maybeFullName || defaultFullName || "",
+      // Keep the submitted name when present (e.g. company commercial name).
+      full_name: maybeFullName || profileFallbackName || "",
       company_website:
         typeof raw["company_website"] === "string"
           ? normalizeWebsite(raw["company_website"])

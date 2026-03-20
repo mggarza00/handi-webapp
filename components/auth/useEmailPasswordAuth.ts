@@ -8,6 +8,7 @@ import {
   trackSignUpCompleted,
   trackSignUpStarted,
 } from "@/lib/analytics/track";
+import { isValidPersonName, normalizePersonName } from "@/lib/auth/user-name";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 export type EmailAuthMode = "login" | "signup";
@@ -50,6 +51,7 @@ export function useEmailPasswordAuth({
     mode: EmailAuthMode,
     email: string,
     password: string,
+    fullName?: string,
   ): Promise<AuthResult> => {
     setLoading(true);
     const sourcePage =
@@ -67,6 +69,13 @@ export function useEmailPasswordAuth({
         });
         if (error) throw error;
       } else {
+        const trimmedFullName = normalizePersonName(fullName ?? "");
+        if (!isValidPersonName(trimmedFullName)) {
+          return {
+            ok: false,
+            error: "Ingresa tu nombre completo (2 a 120 caracteres).",
+          };
+        }
         const base =
           typeof window !== "undefined"
             ? window.location.origin.replace(/\/$/, "")
@@ -77,7 +86,13 @@ export function useEmailPasswordAuth({
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          ...(emailRedirectTo ? { options: { emailRedirectTo } } : {}),
+          options: {
+            ...(emailRedirectTo ? { emailRedirectTo } : {}),
+            data: {
+              full_name: trimmedFullName,
+              display_name: trimmedFullName,
+            },
+          },
         });
         if (error) throw error;
         if (!data?.session) {

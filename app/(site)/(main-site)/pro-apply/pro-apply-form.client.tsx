@@ -1206,8 +1206,9 @@ export default function ProApplyForm({
     }
 
     // Solo validar campos de empresa si el switch está activado
+    const effectiveFullName = fullName.trim();
     const baseForParse = {
-      full_name: fullName,
+      full_name: effectiveFullName,
       phone,
       email,
       rfc,
@@ -1540,7 +1541,7 @@ export default function ProApplyForm({
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
-          full_name: fullName,
+          full_name: effectiveFullName,
           city: cities[0],
           cities,
           years_experience: years ? Number(years) : undefined,
@@ -1580,7 +1581,7 @@ export default function ProApplyForm({
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({
-          full_name: fullName,
+          full_name: effectiveFullName,
           phone,
           email,
           rfc,
