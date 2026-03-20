@@ -45,7 +45,7 @@ export async function POST(
         const { data: app } = await admin
           .from("pro_applications")
           .select(
-            "full_name, phone, cities, categories, subcategories, years_experience, empresa, is_company, rfc, company_legal_name, company_industry, company_employees_count, company_website, company_doc_incorporation_url, company_csf_url, company_rep_id_front_url, company_rep_id_back_url",
+            "full_name, headline, services_desc, phone, cities, categories, subcategories, years_experience, empresa, is_company, rfc, company_legal_name, company_industry, company_employees_count, company_website, company_doc_incorporation_url, company_csf_url, company_rep_id_front_url, company_rep_id_back_url",
           )
           .eq("id", params.id)
           .single();
@@ -78,6 +78,18 @@ export async function POST(
         }
         if (app) {
           if (app.full_name) patch.full_name = app.full_name;
+          const appHeadline = (app as { headline?: string | null }).headline;
+          if (typeof appHeadline === "string" && appHeadline.trim().length >= 2) {
+            patch.headline = appHeadline.trim();
+          }
+          const appServicesDesc = (app as { services_desc?: string | null })
+            .services_desc;
+          if (
+            typeof appServicesDesc === "string" &&
+            appServicesDesc.trim().length >= 10
+          ) {
+            patch.bio = appServicesDesc.trim();
+          }
           if ((app as unknown as { rfc?: string | null }).rfc)
             patch.rfc = (app as unknown as { rfc?: string | null })
               .rfc as string;
