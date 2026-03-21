@@ -16,6 +16,7 @@ import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.
 import RegisterSW from "@/app/register-sw";
 import VercelLiveGuard from "@/components/VercelLiveGuard.client";
 import AttributionCapture from "@/components/analytics/AttributionCapture.client";
+import AndroidWebViewControls from "@/components/capacitor/AndroidWebViewControls.client";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const runtime = "nodejs";
@@ -217,6 +218,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
           />
         </noscript>
         <AttributionCapture />
+        <AndroidWebViewControls />
         {/* Google One Tap (solo cliente; no renderiza UI propia) */}
         <OneTapMount />
         <VercelLiveGuard />
