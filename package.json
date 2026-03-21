@@ -92,12 +92,24 @@
     "deploy:vercel": "node scripts/deploy-vercel.mjs",
     "audit:assets": "node scripts/audit-large-assets.mjs",
     "audit:raw": "node scripts/audit-raw-strings.mjs",
-    "audit:webpack": "npm run -s audit:assets && npm run -s audit:raw"
+    "audit:webpack": "npm run -s audit:assets && npm run -s audit:raw",
+    "cap:sync": "npx cap sync",
+    "cap:copy": "npx cap copy",
+    "cap:add:android": "npx cap add android",
+    "cap:add:ios": "npx cap add ios",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios",
+    "cap:update": "npx cap update"
   },
   "engines": {
     "node": ">=18 <23"
   },
   "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/browser": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
     "@fontsource/inter": "^5.2.8",
     "@gsap/react": "^2.1.2",
     "@hookform/resolvers": "^3.10.0",
@@ -164,6 +176,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.0.0",
     "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.56.1",
     "@prisma/client": "^6.14.0",

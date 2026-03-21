@@ -35,3 +35,16 @@ test-results/
 !lib/supabase/**
 
 .vercel
+
+# Capacitor native local artifacts
+android/.gradle/
+android/.idea/
+android/app/build/
+android/local.properties
+ios/App/App/public/
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/.symlinks/
+ios/App/Podfile.lock
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
