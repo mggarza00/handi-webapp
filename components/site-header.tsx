@@ -19,6 +19,7 @@ import PublicLandingHeader from "@/components/PublicLandingHeader.client";
 import HeaderLogoSwap from "@/components/HeaderLogoSwap.client";
 import CreateRequestButton from "@/components/requests/CreateRequestButton";
 import PublicLandingLoginMenu from "@/components/PublicLandingLoginMenu.client";
+import { resolveHeaderRole } from "@/lib/routing/header-active-role";
 
 type Role = "client" | "pro" | "admin";
 
@@ -42,7 +43,9 @@ async function getSessionInfo() {
       isAuth: false as const,
       userId: null as null,
       role: null as null,
+      profile_role: null as null,
       is_admin: false as const,
+      professional_is_active: false as const,
       avatar_url: null as null,
       full_name: null as null,
     };
@@ -111,8 +114,6 @@ async function getSessionInfo() {
     hasActiveProfessional = proActive?.active === true;
   }
   const rawRole = (profile?.role ?? null) as Role | null;
-  const role: Role | null =
-    rawRole === "pro" && !hasActiveProfessional ? "client" : rawRole;
   type UserMeta = { avatar_url?: string | null; full_name?: string | null };
   const meta = (user.user_metadata as unknown as UserMeta) || {};
   const pickNonEmpty = (...values: Array<string | null | undefined>) => {
@@ -136,9 +137,11 @@ async function getSessionInfo() {
   return {
     isAuth: true as const,
     userId: user.id,
-    role,
+    role: rawRole,
+    profile_role: rawRole,
     is_admin: profile?.is_admin === true,
     is_client_pro: profile?.is_client_pro === true && hasActiveProfessional,
+    professional_is_active: hasActiveProfessional,
     avatar_url: avatarUrl,
     full_name: fullName,
   };
@@ -163,8 +166,10 @@ async function getSessionInfoSafe() {
             isAuth: true as const,
             userId: null as null,
             role: mappedRole,
+            profile_role: mappedRole,
             is_admin: m === "admin",
             is_client_pro: mappedRole === "pro",
+            professional_is_active: mappedRole === "pro",
             avatar_url: null as null,
             full_name: null as null,
           };
@@ -182,8 +187,10 @@ async function getSessionInfoSafe() {
         isAuth: false as const,
         userId: null as null,
         role: null as null,
+        profile_role: null as null,
         is_admin: false as const,
         is_client_pro: false as const,
+        professional_is_active: false as const,
         avatar_url: null as null,
         full_name: null as null,
       };
@@ -194,8 +201,10 @@ async function getSessionInfoSafe() {
       isAuth: false as const,
       userId: null as null,
       role: null as null,
+      profile_role: null as null,
       is_admin: false as const,
       is_client_pro: false as const,
+      professional_is_active: false as const,
       avatar_url: null as null,
       full_name: null as null,
     };
@@ -229,18 +238,29 @@ export default async function SiteHeader() {
     isAuth,
     userId,
     role,
+    profile_role,
     is_admin,
     is_client_pro,
+    professional_is_active,
     avatar_url,
     full_name,
   } = await getSessionInfoSafe();
   const cookieStore = cookies();
+  const activeRoleCookie = cookieStore.get("active_role")?.value ?? null;
   const proApply =
     cookieStore.get("handi_pro_apply")?.value === "1" ||
     cookieStore.get("handee_pro_apply")?.value === "1";
+  const effectiveRole = resolveHeaderRole({
+    isAuth,
+    isAdmin: is_admin,
+    activeRoleCookie,
+    profileRole: profile_role ?? role ?? null,
+    isClientPro: is_client_pro,
+    professionalIsActive: professional_is_active,
+  });
 
   // El logo siempre debe redirigir a la pÃ¡gina de inicio
-  const leftHref = role === "pro" ? "/pro" : "/";
+  const leftHref = effectiveRole === "pro" ? "/pro" : "/";
   const publicNavItems = [
     {
       href: "/#servicios-populares",
@@ -277,7 +297,7 @@ export default async function SiteHeader() {
       size: "sm",
       testId: "btn-login",
     });
-  } else if (role === "client") {
+  } else if (effectiveRole === "client") {
     rightLinks.push(
       {
         href: "/requests/new",
@@ -296,7 +316,7 @@ export default async function SiteHeader() {
         testId: "nav-client",
       },
     );
-  } else if (role === "pro") {
+  } else if (effectiveRole === "pro") {
     // Both pro buttons should use the compact 'Trabajos realizados' design
     rightLinks.push(
       {
@@ -323,7 +343,7 @@ export default async function SiteHeader() {
         className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
       },
     );
-  } else if (role === "admin" || is_admin) {
+  } else if (effectiveRole === "admin" || is_admin) {
     rightLinks.push(
       {
         href: "/admin",
@@ -365,14 +385,16 @@ export default async function SiteHeader() {
   if (
     !proApply &&
     isAuth &&
-    (role === "client" || role === "admin" || is_admin)
+    (effectiveRole === "client" || effectiveRole === "admin" || is_admin)
   ) {
     const hasRequestsLink = rightLinks.some((l) =>
       l.href.startsWith("/requests"),
     );
     if (!hasRequestsLink) {
       const href =
-        role === "admin" || is_admin ? "/requests" : "/requests?mine=1";
+        effectiveRole === "admin" || is_admin
+          ? "/requests"
+          : "/requests?mine=1";
       rightLinks.push({
         href,
         label: "Mis solicitudes",
@@ -394,7 +416,7 @@ export default async function SiteHeader() {
   const mobileLinks = (() => {
     const base = rightLinks.filter((x) => x.href !== "/auth/sign-in");
     // Para profesionales, ocultar en el menÃº mÃ³vil los botones que ya estÃ¡n en el tab bar
-    if (role === "pro") {
+    if (effectiveRole === "pro") {
       return base.filter(
         (l) =>
           l.href !== "/requests/explore" &&
@@ -403,7 +425,7 @@ export default async function SiteHeader() {
       );
     }
     // Para clientes, ocultar "Nueva solicitud" y "Mis solicitudes" en el menú lateral móvil
-    if (role === "client") {
+    if (effectiveRole === "client") {
       return base.filter(
         (l) =>
           l.href !== "/requests/new" &&
@@ -442,7 +464,7 @@ export default async function SiteHeader() {
                   links={mobileLinks}
                   isAuth={isAuth}
                   userId={userId}
-                  role={role}
+                  role={effectiveRole}
                   avatarUrl={avatar_url}
                   fullName={full_name}
                   isClientPro={is_client_pro}
@@ -509,7 +531,7 @@ export default async function SiteHeader() {
             ) : null}
 
             {/* Botones centrados (cliente y profesional) - desktop */}
-            {role === "client" ? (
+            {effectiveRole === "client" ? (
               <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
                 <div className="flex items-center gap-1 rounded-full bg-black/20 px-2 py-1 backdrop-blur">
                   {/* Orden: Mis solicitudes (izq), Nueva Solicitud (der) */}
@@ -561,7 +583,7 @@ export default async function SiteHeader() {
               </div>
             ) : null}
 
-            {role === "pro" ? (
+            {effectiveRole === "pro" ? (
               <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center">
                 <div className="flex items-center gap-2 rounded-full bg-black/20 px-2.5 py-1.5 backdrop-blur">
                   {rightLinks
@@ -632,14 +654,14 @@ export default async function SiteHeader() {
                 // Evitar duplicar los botones centrados del cliente y profesional
                 .filter((l) => {
                   if (
-                    role === "client" &&
+                    effectiveRole === "client" &&
                     (l.label === "Mis solicitudes" ||
                       l.label === "Nueva solicitud")
                   ) {
                     return false;
                   }
                   if (
-                    role === "pro" &&
+                    effectiveRole === "pro" &&
                     (l.href === "/requests/explore" ||
                       l.href === "/pro/calendar" ||
                       l.href === "/applied")
@@ -775,7 +797,7 @@ export default async function SiteHeader() {
                   userId={userId}
                   avatarUrl={avatar_url}
                   fullName={full_name}
-                  role={role}
+                  role={effectiveRole}
                   isClientPro={is_client_pro}
                 />
               ) : null}
@@ -796,7 +818,7 @@ export default async function SiteHeader() {
                   userId={userId}
                   avatarUrl={avatar_url}
                   fullName={full_name}
-                  role={role}
+                  role={effectiveRole}
                   isClientPro={is_client_pro}
                 />
               )}
@@ -805,7 +827,7 @@ export default async function SiteHeader() {
         </div>
       </header>
       {/* Pro mobile tabbar removed as requested */}
-      {isAuth && role === "pro" ? <ProMobileTabbar /> : null}
+      {isAuth && effectiveRole === "pro" ? <ProMobileTabbar /> : null}
     </>
   );
 }
