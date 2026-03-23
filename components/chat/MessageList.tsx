@@ -619,8 +619,8 @@ export default function MessageList({
                   variant="outline"
                   className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
                 >
-                  Los servicios agendados se agregan a tu calendario en
-                  automÃ¡tico.
+                  {"Los servicios agendados se agregan a tu calendario en "}
+                  {"autom\u00E1tico."}
                 </Badge>
               </div>
             </div>
@@ -869,12 +869,12 @@ export default function MessageList({
       return (
         <div className="space-y-1">
           <div className="text-sm font-medium text-slate-800">
-            CotizaciÃ³n enviada
+            {"Cotizaci\u00F3n enviada"}
           </div>
           {totalFmt ? (
             <div className="text-sm text-slate-700">Total: {totalFmt}</div>
           ) : null}
-          {/* Fallback: si aÃºn no hay adjunto, muestra la imagen renderizada por API */}
+          {/* Fallback: si aun no hay adjunto, muestra la imagen renderizada por API */}
           {canRenderRemoteImage ? (
             <div className="pt-1">
               <button
@@ -885,14 +885,14 @@ export default function MessageList({
                   )
                 }
                 className="block overflow-hidden rounded-md border hover:opacity-90"
-                aria-label="Abrir cotizaciÃ³n"
-                title="Abrir cotizaciÃ³n"
+                aria-label={"Abrir cotizaci\u00F3n"}
+                title={"Abrir cotizaci\u00F3n"}
               >
                 {!hasImgError ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={`/api/quotes/${encodeURIComponent(qid)}/image`}
-                    alt="CotizaciÃ³n"
+                    alt={"Cotizaci\u00F3n"}
                     className="block max-h-56 object-contain"
                     style={{ maxWidth: 300 }}
                     onError={() =>
@@ -904,7 +904,7 @@ export default function MessageList({
                   />
                 ) : (
                   <div className="flex h-40 w-full max-w-[300px] items-center justify-center rounded-md bg-slate-50 text-slate-500 text-sm border border-slate-200">
-                    Ver cotizaciÃ³n
+                    {"Ver cotizaci\u00F3n"}
                   </div>
                 )}
               </button>
@@ -1276,8 +1276,8 @@ export default function MessageList({
                 variant="outline"
                 className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
               >
-                Los servicios agendados se agregan a tu calendario en
-                automÃ¡tico.
+                {"Los servicios agendados se agregan a tu calendario en "}
+                {"autom\u00E1tico."}
               </Badge>
             </div>
           </div>
@@ -1415,9 +1415,11 @@ export default function MessageList({
             className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent"
           >
             <DialogHeader className="sr-only">
-              <DialogTitle>PrevisualizaciÃ³n de cotizaciÃ³n</DialogTitle>
+              <DialogTitle>
+                {"Previsualizaci\u00F3n de cotizaci\u00F3n"}
+              </DialogTitle>
               <DialogDescription>
-                Imagen generada de la cotizaciÃ³n enviada.
+                {"Imagen generada de la cotizaci\u00F3n enviada."}
               </DialogDescription>
             </DialogHeader>
             {quoteLightbox ? (
@@ -1433,7 +1435,7 @@ export default function MessageList({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={quoteLightbox}
-                  alt="CotizaciÃ³n"
+                  alt={"Cotizaci\u00F3n"}
                   className="h-auto w-full rounded object-contain"
                   onLoad={() => setQuoteImgLoading(false)}
                   onError={() => setQuoteImgLoading(false)}
