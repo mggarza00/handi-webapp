@@ -2,6 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
+import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
+import LocalMarketplaceHero from "@/components/seo/LocalMarketplaceHero";
+import MarketplaceCard from "@/components/seo/MarketplaceCard";
+import HowItWorksSection from "@/components/shared/HowItWorksSection";
+import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
+import {
+  LANDING_IMAGES,
+  getServiceLandingImage,
+} from "@/lib/seo/landing-images";
 import {
   ACTIVE_SERVICE_CITY_COMBINATIONS,
   SEO_SERVICES,
@@ -65,7 +74,7 @@ export default function ServicesSeoIndexPage() {
     .filter((item): item is { href: string; label: string } => Boolean(item));
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
+    <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:space-y-10 md:py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
@@ -78,47 +87,58 @@ export default function ServicesSeoIndexPage() {
         items={[{ label: "Inicio", href: "/" }, { label: "Servicios" }]}
       />
 
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">
-          Servicios para tu hogar
-        </h1>
-        <p className="max-w-3xl text-sm text-slate-600">
-          Explora servicios por especialidad y entra a cada ruta local para
-          contratar en Monterrey y San Pedro Garza Garcia.
-        </p>
-      </header>
+      <LocalMarketplaceHero
+        eyebrow="Marketplace Handi"
+        title="Servicios para tu hogar"
+        subtitle="Explora categorias, compara cobertura local y elige rapido el servicio ideal para tu hogar."
+        quickSignals={[
+          "Cobertura en Monterrey y San Pedro",
+          "Categorias verificadas",
+          "Solicitud directa",
+        ]}
+        imageSrc={LANDING_IMAGES.platform}
+        imageAlt="Plataforma Handi para servicios del hogar"
+        ctas={
+          <div className="space-y-3">
+            <LocalLandingCtas
+              landingType="service"
+              authLabel="Solicitar servicio"
+              unauthLabel="Registrarme y solicitar servicio"
+            />
+          </div>
+        }
+      />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {SEO_SERVICES.map((service) => {
-          const cityCount = getCitiesForService(service.slug).length;
-          return (
-            <article
-              key={service.slug}
-              className="rounded-xl border border-slate-200 bg-white p-4"
-            >
-              <h2 className="text-base font-semibold text-slate-900">
-                {service.name}
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                {service.shortDescription}
-              </p>
-              <p className="mt-2 text-xs text-slate-500">
-                Disponible en {cityCount} ciudades prioritarias.
-              </p>
-              <div className="mt-3">
-                <Link
-                  href={`/servicios/${service.slug}`}
-                  className="text-sm font-semibold text-[#082877] hover:underline"
-                >
-                  Ver ciudades para este servicio
-                </Link>
-              </div>
-            </article>
-          );
-        })}
+      <HowItWorksSection className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white via-white to-[#eef4ff]" />
+
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold text-slate-900">
+          Elige una categoria
+        </h2>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {SEO_SERVICES.map((service) => {
+            const cityCount = getCitiesForService(service.slug).length;
+            return (
+              <MarketplaceCard
+                key={service.slug}
+                title={service.name}
+                description={service.shortDescription}
+                href={`/servicios/${service.slug}`}
+                ctaLabel="Ver ciudades para este servicio"
+                imageSrc={getServiceLandingImage(service.slug)}
+                imageAlt={service.name}
+                badges={[
+                  `${cityCount} ciudades prioritarias`,
+                  "Servicio residencial",
+                  "Comparacion de opciones",
+                ]}
+              />
+            );
+          })}
+        </div>
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-2 rounded-2xl border border-slate-200 bg-[#f8faff] p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
           Busquedas locales populares
         </h2>
@@ -134,6 +154,8 @@ export default function ServicesSeoIndexPage() {
           ))}
         </div>
       </section>
+
+      <ProtectedPaymentsCard className="bg-transparent" />
     </main>
   );
 }
