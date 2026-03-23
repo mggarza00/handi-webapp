@@ -112,7 +112,7 @@ export async function renderQuotePNG(input: {
       notes:
         input.notes && String(input.notes).trim().length > 0
           ? String(input.notes)
-          : "Precios en MXN. Cotización válida por 7 días.",
+          : undefined,
       brandHex: "#0E7490",
       grayHex: "#E5E7EB",
     }),

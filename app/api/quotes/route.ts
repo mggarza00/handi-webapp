@@ -25,6 +25,7 @@ const BodySchema = z.object({
   conversation_id: z.string().uuid(),
   items: z.array(ItemSchema).min(1),
   currency: z.string().trim().toUpperCase().default("MXN"),
+  details: z.string().trim().optional(),
   notes: z.string().trim().optional(),
   folio: z.string().trim().max(40).optional(),
 });
@@ -44,6 +45,14 @@ export async function POST(req: Request) {
 
     const body = BodySchema.parse(await req.json());
     const conversationId = body.conversation_id;
+    const normalizedDetails = (() => {
+      const details =
+        typeof body.details === "string" ? body.details.trim() : "";
+      if (details.length) return details;
+      const notes = typeof body.notes === "string" ? body.notes.trim() : "";
+      if (notes.length) return notes;
+      return null;
+    })();
 
     // Validate pro participation
     const { data: conv } = await admin
@@ -85,9 +94,10 @@ export async function POST(req: Request) {
         items: body.items,
         total,
         folio: body.folio || null,
+        details: normalizedDetails,
         status: "sent",
       })
-      .select("id,currency,total,folio")
+      .select("id,currency,total,folio,details")
       .single();
     if (!ins?.data) {
       const msg = (ins?.error as any)?.message || "QUOTE_CREATE_FAILED";
@@ -99,6 +109,9 @@ export async function POST(req: Request) {
     const quoteId: string = ins.data.id;
     const shortId = quoteId.slice(0, 8);
     const folio = (ins.data as any)?.folio as string | null;
+    const quoteDetails =
+      ((ins.data as any)?.details as string | null | undefined) ??
+      normalizedDetails;
 
     // Load names for rendering
     const [proProfile, clientProfile] = await Promise.all([
@@ -136,14 +149,11 @@ export async function POST(req: Request) {
       /* ignore */
     }
 
-    // Compose details text: only notes authored by the pro
-    let detailsText: string | null = null;
-    {
-      if (typeof BodySchema.shape.notes !== "undefined") {
-        const raw = await (async () => body.notes)();
-        if (raw && raw.trim().length) detailsText = raw.trim();
-      }
-    }
+    // Source of truth: persisted quote.details
+    const detailsText =
+      typeof quoteDetails === "string" && quoteDetails.trim().length
+        ? quoteDetails.trim()
+        : null;
 
     let png: { buffer: Buffer; contentType: "image/png" } | null = null;
     try {
@@ -217,8 +227,7 @@ export async function POST(req: Request) {
     }
 
     if (messageId) {
-      const notesValue =
-        body.notes && body.notes.trim().length ? body.notes.trim() : undefined;
+      const notesValue = detailsText || undefined;
       await mergeMessagePayload(messageId, {
         quote_id: quoteId,
         items: body.items,
@@ -342,10 +351,7 @@ export async function POST(req: Request) {
               total,
               currency: body.currency || "MXN",
               image_path: uploadedKey,
-              notes:
-                body.notes && body.notes.trim().length
-                  ? body.notes.trim()
-                  : undefined,
+              notes: detailsText || undefined,
               folio: folio && folio.trim().length ? folio : shortId,
             } as unknown as Record<string, unknown>,
           } as any)
@@ -376,6 +382,19 @@ export async function POST(req: Request) {
           ok: true,
           id: quoteId,
           total,
+          details: detailsText,
+          data: {
+            id: quoteId,
+            total,
+            currency: body.currency || "MXN",
+            details: detailsText,
+          },
+          quote: {
+            id: quoteId,
+            total,
+            currency: body.currency || "MXN",
+            details: detailsText,
+          },
           image_url: signed ?? null,
           sync_hint: {
             conversation_id: conversationId,
@@ -394,6 +413,19 @@ export async function POST(req: Request) {
         ok: true,
         id: quoteId,
         total,
+        details: detailsText,
+        data: {
+          id: quoteId,
+          total,
+          currency: body.currency || "MXN",
+          details: detailsText,
+        },
+        quote: {
+          id: quoteId,
+          total,
+          currency: body.currency || "MXN",
+          details: detailsText,
+        },
         image_url: null,
         sync_hint: {
           conversation_id: conversationId,
