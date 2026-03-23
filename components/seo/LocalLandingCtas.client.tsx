@@ -13,12 +13,16 @@ type Props = {
   landingType: "service" | "city" | "service_city";
   serviceSlug?: string;
   citySlug?: string;
+  authLabel?: string;
+  unauthLabel?: string;
 };
 
 export default function LocalLandingCtas({
   landingType,
   serviceSlug,
   citySlug,
+  authLabel = "Solicitar servicio",
+  unauthLabel = "Registrarme y solicitar servicio",
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -58,13 +62,13 @@ export default function LocalLandingCtas({
     typeof window !== "undefined" ? window.location.pathname : undefined;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2.5">
       {hasSession ? (
         <CreateRequestButton
-          label="Solicitar servicio"
-          size="sm"
-          variant="outline"
-          className="h-8 rounded-full px-3 text-xs"
+          label={authLabel}
+          size="default"
+          variant="default"
+          className="h-10 rounded-full bg-[#082877] px-5 text-sm font-semibold text-white hover:bg-[#0d3a9c]"
           onClick={() =>
             trackLocalLandingCtaClicked({
               landing_type: landingType,
@@ -78,9 +82,8 @@ export default function LocalLandingCtas({
       ) : (
         <Button
           asChild
-          size="sm"
-          variant="outline"
-          className="h-8 rounded-full px-3 text-xs"
+          size="default"
+          className="h-10 rounded-full bg-[#082877] px-5 text-sm font-semibold text-white hover:bg-[#0d3a9c]"
         >
           <Link
             href={signInHref}
@@ -94,13 +97,13 @@ export default function LocalLandingCtas({
               })
             }
           >
-            Regístrate y solicita un servicio
+            {unauthLabel}
           </Link>
         </Button>
       )}
       <Link
         href="/professionals"
-        className="text-xs font-semibold text-[#082877] hover:underline"
+        className="inline-flex h-10 items-center justify-center rounded-full border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:border-slate-400"
         onClick={() =>
           trackLocalLandingCtaClicked({
             landing_type: landingType,

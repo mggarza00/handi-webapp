@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import Breadcrumbs from "@/components/breadcrumbs";
+import LocalMarketplaceHero from "@/components/seo/LocalMarketplaceHero";
+import MarketplaceCard from "@/components/seo/MarketplaceCard";
+import HowItWorksSection from "@/components/shared/HowItWorksSection";
+import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
+import { LANDING_IMAGES } from "@/lib/seo/landing-images";
 import {
   ACTIVE_SERVICE_CITY_COMBINATIONS,
   SEO_CITIES,
@@ -63,7 +68,7 @@ export default function CitiesSeoIndexPage() {
     .filter((item): item is { href: string; label: string } => Boolean(item));
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
+    <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:space-y-10 md:py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
@@ -76,45 +81,54 @@ export default function CitiesSeoIndexPage() {
         items={[{ label: "Inicio", href: "/" }, { label: "Ciudades" }]}
       />
 
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">
-          Ciudades con cobertura inicial
-        </h1>
-        <p className="max-w-3xl text-sm text-slate-600">
-          Revisa ciudades activas y entra a los servicios disponibles en cada
-          zona para contratar con mayor rapidez.
-        </p>
-      </header>
+      <LocalMarketplaceHero
+        eyebrow="Cobertura local"
+        title="Ciudades con servicios activos"
+        subtitle="Explora cobertura por ciudad y entra a rutas locales para decidir rapido."
+        quickSignals={[
+          "Monterrey y San Pedro",
+          "Rutas por categoria",
+          "Cobertura por zonas",
+        ]}
+        imageSrc={LANDING_IMAGES.city}
+        imageAlt="Cobertura de servicios por ciudad"
+        ctas={
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/servicios"
+              className="inline-flex items-center justify-center rounded-full bg-[#082877] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0d3a9c]"
+            >
+              Ver servicios
+            </Link>
+          </div>
+        }
+      />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <HowItWorksSection className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white via-white to-[#eef4ff]" />
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {SEO_CITIES.map((city) => {
           const serviceCount = getServicesForCity(city.slug).length;
           return (
-            <article
+            <MarketplaceCard
               key={city.slug}
-              className="rounded-xl border border-slate-200 bg-white p-4"
-            >
-              <h2 className="text-base font-semibold text-slate-900">
-                {city.name}
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">{city.stateName}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                {serviceCount} servicios activos en esta fase.
-              </p>
-              <div className="mt-3">
-                <Link
-                  href={`/ciudades/${city.slug}`}
-                  className="text-sm font-semibold text-[#082877] hover:underline"
-                >
-                  Ver servicios por ciudad
-                </Link>
-              </div>
-            </article>
+              title={city.name}
+              description={`Explora categorias activas en ${city.name} y entra directo a las rutas de contratacion local.`}
+              href={`/ciudades/${city.slug}`}
+              ctaLabel="Ver servicios por ciudad"
+              imageSrc={LANDING_IMAGES.city}
+              imageAlt={city.name}
+              badges={[
+                city.stateName,
+                `${serviceCount} servicios activos`,
+                `${city.zones.length} zonas destacadas`,
+              ]}
+            />
           );
         })}
       </section>
 
-      <section className="space-y-2">
+      <section className="space-y-2 rounded-2xl border border-slate-200 bg-[#f8faff] p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
           Rutas locales destacadas
         </h2>
@@ -130,6 +144,8 @@ export default function CitiesSeoIndexPage() {
           ))}
         </div>
       </section>
+
+      <ProtectedPaymentsCard className="bg-transparent" />
     </main>
   );
 }

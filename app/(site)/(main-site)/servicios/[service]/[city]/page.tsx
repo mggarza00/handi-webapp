@@ -4,7 +4,14 @@ import { notFound } from "next/navigation";
 
 import LocalLandingTracker from "@/components/analytics/LocalLandingTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
+import LocalInfoBand from "@/components/seo/LocalInfoBand";
 import LocalLandingCtas from "@/components/seo/LocalLandingCtas.client";
+import LocalMarketplaceHero from "@/components/seo/LocalMarketplaceHero";
+import MarketplaceCard from "@/components/seo/MarketplaceCard";
+import TrustSignalChips from "@/components/seo/TrustSignalChips";
+import HowItWorksSection from "@/components/shared/HowItWorksSection";
+import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
+import { getServiceLandingImage } from "@/lib/seo/landing-images";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 import {
   ACTIVE_SERVICE_CITY_COMBINATIONS,
@@ -106,11 +113,6 @@ export default function LocalServiceCityLandingPage({
     "Comparacion de opciones antes de contratar.",
     "Seguimiento del servicio desde la solicitud.",
   ];
-  const processSteps = landingEditorial?.processSteps || [
-    "Describe la necesidad con detalles claros.",
-    "Compara opciones disponibles en tu zona.",
-    "Coordina visita y confirma alcance del servicio.",
-  ];
   const localSummary = landingEditorial?.localSummary || cityContext;
 
   const breadcrumbJsonLd = {
@@ -181,8 +183,10 @@ export default function LocalServiceCityLandingPage({
     })),
   };
 
+  const heroSignals = ["Verificados", "Respuesta rapida", "Cotizacion clara"];
+
   return (
-    <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 md:py-8">
+    <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:space-y-10 md:py-8">
       <LocalLandingTracker
         landingType="service_city"
         serviceSlug={service.slug}
@@ -210,135 +214,106 @@ export default function LocalServiceCityLandingPage({
         ]}
       />
 
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold text-slate-900">
-          {service.name} en {city.name}
-        </h1>
-        <p className="max-w-3xl text-sm text-slate-600">
-          Solicita {service.keyword} en {city.name}, {city.stateName}, y conecta
-          con profesionales verificados para resolver necesidades de hogar con
-          mayor rapidez.
-        </p>
-        <p className="max-w-3xl text-sm text-slate-600">{serviceCtaContext}</p>
-        <p className="max-w-3xl text-sm text-slate-600">{localSummary}</p>
-        <p className="max-w-3xl text-sm text-slate-600">
-          Tiempo de respuesta estimado: {responseTimeText}
-        </p>
-        <div className="pt-1">
-          <LocalLandingCtas
-            landingType="service_city"
-            serviceSlug={service.slug}
-            citySlug={city.slug}
-          />
-        </div>
-        <p className="text-xs text-slate-500">
-          Compara opciones, define alcance y solicita cotizacion en minutos.
-        </p>
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold text-slate-900">
-            Senales de confianza
-          </h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-            {[...service.benefits, ...trustSignals]
-              .slice(0, 5)
-              .map((benefit) => (
-                <li key={benefit}>{benefit}</li>
-              ))}
-          </ul>
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-base font-semibold text-slate-900">
-            Proceso simple de contratacion
-          </h2>
-          <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-            {processSteps.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ul>
-        </div>
-      </header>
-
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Zonas atendidas en {city.name}
-        </h2>
-        <p className="text-sm text-slate-600">
-          Estas colonias y zonas tienen mayor cobertura para solicitudes de{" "}
-          {service.keyword}.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {city.zones.map((zone) => (
-            <span
-              key={zone}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700"
+      <LocalMarketplaceHero
+        eyebrow={`${service.name} en ${city.name}`}
+        title={`${service.name} confiable para tu hogar en ${city.name}`}
+        subtitle={`${serviceCtaContext} ${localSummary}`}
+        quickSignals={heroSignals}
+        stickyAside
+        imageSrc={getServiceLandingImage(service.slug)}
+        imageAlt={`${service.name} en ${city.name}`}
+        ctas={
+          <div className="space-y-3">
+            <LocalLandingCtas
+              landingType="service_city"
+              serviceSlug={service.slug}
+              citySlug={city.slug}
+            />
+            <Link
+              href={`/servicios/${service.slug}`}
+              className="inline-flex text-xs font-semibold text-[#082877] hover:underline"
             >
-              {zone}
-            </span>
-          ))}
-        </div>
+              Ver cobertura de {service.keyword} en otras ciudades
+            </Link>
+          </div>
+        }
+        secondaryNote="Compara opciones, define alcance y solicita en minutos."
+        aside={
+          <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Decision rapida
+            </p>
+            <div className="rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3">
+              <p className="text-xs text-slate-500">Respuesta estimada</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {responseTimeText}
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3">
+              <p className="text-xs text-slate-500">Tipo de servicio</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                Servicio residencial
+              </p>
+            </div>
+            <div className="rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3">
+              <p className="text-xs text-slate-500">Cobertura activa</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">
+                {topZones.join(", ")}
+              </p>
+            </div>
+          </div>
+        }
+      />
+
+      <HowItWorksSection className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white via-white to-[#eef4ff]" />
+
+      <TrustSignalChips
+        title="Senales de confianza"
+        items={[...trustSignals, ...service.benefits].slice(0, 6)}
+      />
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <LocalInfoBand
+          title={`Zonas atendidas en ${city.name}`}
+          description={`Estas colonias y zonas tienen cobertura activa para solicitudes de ${service.keyword}.`}
+          chips={city.zones}
+        />
+        <LocalInfoBand
+          title={`Trabajos frecuentes de ${service.keyword}`}
+          description="Estos son los escenarios mas solicitados para este servicio en la ciudad."
+          chips={service.commonIssues}
+        />
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Problemas frecuentes de {service.keyword} en {city.name}
-        </h2>
-        <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
-          {service.commonIssues.map((issue) => (
-            <li key={issue}>{issue}</li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="space-y-3">
+      <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">
           Otras opciones en {city.name}
         </h2>
-        <div className="space-y-2">
-          {cityServices.length ? (
-            cityServices.map((item) => (
-              <Link
+        {cityServices.length ? (
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {cityServices.map((item) => (
+              <MarketplaceCard
                 key={item.slug}
+                title={`${item.name} en ${city.name}`}
+                description={item.shortDescription}
                 href={`/servicios/${item.slug}/${city.slug}`}
-                className="block text-sm font-medium text-[#082877] hover:underline"
-              >
-                {item.name} en {city.name}
-              </Link>
-            ))
-          ) : (
-            <p className="text-sm text-slate-600">
-              Pronto agregaremos mas combinaciones para esta ciudad.
-            </p>
-          )}
-        </div>
+                ctaLabel={`Explorar ${item.keyword} en ${city.name}`}
+                badges={[
+                  "Cobertura activa",
+                  "Servicio residencial",
+                  "Cotizacion clara",
+                ]}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">
+            Pronto agregaremos mas combinaciones para esta ciudad.
+          </p>
+        )}
       </section>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Explora mas rutas locales
-        </h2>
-        <div className="flex flex-wrap gap-x-4 gap-y-2">
-          <Link
-            href={`/servicios/${service.slug}`}
-            className="text-sm font-medium text-[#082877] hover:underline"
-          >
-            Ver {service.name.toLowerCase()} por ciudad
-          </Link>
-          <Link
-            href={`/ciudades/${city.slug}`}
-            className="text-sm font-medium text-[#082877] hover:underline"
-          >
-            Ver todos los servicios en {city.name}
-          </Link>
-          <Link
-            href="/servicios"
-            className="text-sm font-medium text-[#082877] hover:underline"
-          >
-            Ir al indice de servicios
-          </Link>
-        </div>
-      </section>
-
-      <section className="space-y-3">
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
           Preguntas frecuentes
         </h2>
@@ -346,16 +321,41 @@ export default function LocalServiceCityLandingPage({
           {faqItems.map((item) => (
             <details
               key={item.question}
-              className="rounded-lg border border-slate-200 bg-white px-4 py-3"
+              className="group rounded-xl border border-slate-200 bg-white px-4 py-3"
             >
-              <summary className="cursor-pointer text-sm font-medium text-slate-900">
-                {item.question}
+              <summary className="cursor-pointer list-none text-sm font-semibold text-slate-900">
+                <span>{item.question}</span>
               </summary>
-              <p className="mt-2 text-sm text-slate-600">{item.answer}</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                {item.answer}
+              </p>
             </details>
           ))}
         </div>
       </section>
+
+      <section className="flex flex-wrap gap-x-5 gap-y-2 rounded-2xl border border-slate-200 bg-[#f8faff] p-4 md:p-5">
+        <Link
+          href={`/servicios/${service.slug}`}
+          className="text-sm font-semibold text-[#082877] hover:underline"
+        >
+          Ver {service.name.toLowerCase()} por ciudad
+        </Link>
+        <Link
+          href={`/ciudades/${city.slug}`}
+          className="text-sm font-semibold text-[#082877] hover:underline"
+        >
+          Ver todos los servicios en {city.name}
+        </Link>
+        <Link
+          href="/servicios"
+          className="text-sm font-semibold text-[#082877] hover:underline"
+        >
+          Ir al indice de servicios
+        </Link>
+      </section>
+
+      <ProtectedPaymentsCard className="bg-transparent" />
     </main>
   );
 }
