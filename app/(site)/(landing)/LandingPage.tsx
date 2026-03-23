@@ -158,29 +158,6 @@ export default function LandingPage({
           <p className="text-sm text-slate-600">
             Explora las categorías más contratadas por nuestros clientes.
           </p>
-          <p className="text-sm text-slate-600">
-            Atajos locales:{" "}
-            <Link
-              href="/servicios/plomero/monterrey"
-              className="font-medium text-[#082877] hover:underline"
-            >
-              plomero en Monterrey
-            </Link>
-            {" · "}
-            <Link
-              href="/servicios/electricista/monterrey"
-              className="font-medium text-[#082877] hover:underline"
-            >
-              electricista en Monterrey
-            </Link>
-            {" · "}
-            <Link
-              href="/servicios/limpieza/monterrey"
-              className="font-medium text-[#082877] hover:underline"
-            >
-              limpieza en Monterrey
-            </Link>
-          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
