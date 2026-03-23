@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -620,7 +620,7 @@ export default function MessageList({
                   className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
                 >
                   Los servicios agendados se agregan a tu calendario en
-                  automático.
+                  automÃ¡tico.
                 </Badge>
               </div>
             </div>
@@ -864,20 +864,18 @@ export default function MessageList({
       const totalFmt = Number.isFinite(total)
         ? formatCurrency(total, currency || "MXN")
         : null;
-      const hasAttachment =
-        Array.isArray(message.attachments) && message.attachments.length > 0;
       const canRenderRemoteImage = qid && !qid.startsWith("tmp");
       const hasImgError = qid ? quoteImgError[qid] : false;
       return (
         <div className="space-y-1">
           <div className="text-sm font-medium text-slate-800">
-            Cotización enviada
+            CotizaciÃ³n enviada
           </div>
           {totalFmt ? (
             <div className="text-sm text-slate-700">Total: {totalFmt}</div>
           ) : null}
-          {/* Fallback: si aún no hay adjunto, muestra la imagen renderizada por API */}
-          {!hasAttachment && canRenderRemoteImage ? (
+          {/* Fallback: si aÃºn no hay adjunto, muestra la imagen renderizada por API */}
+          {canRenderRemoteImage ? (
             <div className="pt-1">
               <button
                 type="button"
@@ -887,14 +885,14 @@ export default function MessageList({
                   )
                 }
                 className="block overflow-hidden rounded-md border hover:opacity-90"
-                aria-label="Abrir cotización"
-                title="Abrir cotización"
+                aria-label="Abrir cotizaciÃ³n"
+                title="Abrir cotizaciÃ³n"
               >
                 {!hasImgError ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={`/api/quotes/${encodeURIComponent(qid)}/image`}
-                    alt="Cotización"
+                    alt="CotizaciÃ³n"
                     className="block max-h-56 object-contain"
                     style={{ maxWidth: 300 }}
                     onError={() =>
@@ -906,7 +904,7 @@ export default function MessageList({
                   />
                 ) : (
                   <div className="flex h-40 w-full max-w-[300px] items-center justify-center rounded-md bg-slate-50 text-slate-500 text-sm border border-slate-200">
-                    Ver cotización
+                    Ver cotizaciÃ³n
                   </div>
                 )}
               </button>
@@ -1279,7 +1277,7 @@ export default function MessageList({
                 className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
               >
                 Los servicios agendados se agregan a tu calendario en
-                automático.
+                automÃ¡tico.
               </Badge>
             </div>
           </div>
@@ -1332,7 +1330,9 @@ export default function MessageList({
                     }
                     return renderBody(m);
                   })()}
-                  {Array.isArray(m.attachments) && m.attachments.length > 0 ? (
+                  {m.messageType !== "quote" &&
+                  Array.isArray(m.attachments) &&
+                  m.attachments.length > 0 ? (
                     <div className="mt-2">
                       <AttachmentList
                         items={m.attachments}
@@ -1415,9 +1415,9 @@ export default function MessageList({
             className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent"
           >
             <DialogHeader className="sr-only">
-              <DialogTitle>Previsualización de cotización</DialogTitle>
+              <DialogTitle>PrevisualizaciÃ³n de cotizaciÃ³n</DialogTitle>
               <DialogDescription>
-                Imagen generada de la cotización enviada.
+                Imagen generada de la cotizaciÃ³n enviada.
               </DialogDescription>
             </DialogHeader>
             {quoteLightbox ? (
@@ -1433,7 +1433,7 @@ export default function MessageList({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={quoteLightbox}
-                  alt="Cotización"
+                  alt="CotizaciÃ³n"
                   className="h-auto w-full rounded object-contain"
                   onLoad={() => setQuoteImgLoading(false)}
                   onError={() => setQuoteImgLoading(false)}

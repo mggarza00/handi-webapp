@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getDbClientForRequest, getUserFromRequestOrThrow, getDevUserFromHeader } from "@/lib/auth-route";
+import {
+  getDbClientForRequest,
+  getUserFromRequestOrThrow,
+  getDevUserFromHeader,
+} from "@/lib/auth-route";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -15,22 +19,36 @@ const BodySchema = z.object({
   items: z.array(ItemSchema).min(1),
   total: z.coerce.number().finite().positive().optional(),
   image_path: z.string().trim().optional(),
+  details: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
 });
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
   try {
     const ct = (req.headers.get("content-type") || "").toLowerCase();
     if (!ct.includes("application/json"))
-      return NextResponse.json({ ok: false, error: "UNSUPPORTED_MEDIA_TYPE" }, { status: 415, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "UNSUPPORTED_MEDIA_TYPE" },
+        { status: 415, headers: JSONH },
+      );
 
     let usedDevFallback = false;
     let { user } = (await getDevUserFromHeader(req)) ?? { user: null as any };
-    if (!user) ({ user } = await getUserFromRequestOrThrow(req)); else usedDevFallback = true;
-    const supabase = usedDevFallback ? await getDbClientForRequest(req) : await getDbClientForRequest(req);
+    if (!user) ({ user } = await getUserFromRequestOrThrow(req));
+    else usedDevFallback = true;
+    const supabase = usedDevFallback
+      ? await getDbClientForRequest(req)
+      : await getDbClientForRequest(req);
 
     const conversationId = (params?.id || "").trim();
     if (!conversationId)
-      return NextResponse.json({ ok: false, error: "MISSING_CONVERSATION" }, { status: 400, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "MISSING_CONVERSATION" },
+        { status: 400, headers: JSONH },
+      );
 
     // Validate user is the pro participant
     const { data: conv } = await (supabase as any)
@@ -38,13 +56,36 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       .select("id, customer_id, pro_id")
       .eq("id", conversationId)
       .maybeSingle();
-    if (!conv) return NextResponse.json({ ok: false, error: "FORBIDDEN_OR_NOT_FOUND" }, { status: 403, headers: JSONH });
+    if (!conv)
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN_OR_NOT_FOUND" },
+        { status: 403, headers: JSONH },
+      );
     if (String(conv.pro_id) !== user.id)
-      return NextResponse.json({ ok: false, error: "ONLY_PRO_CAN_QUOTE" }, { status: 403, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: "ONLY_PRO_CAN_QUOTE" },
+        { status: 403, headers: JSONH },
+      );
 
     const body = BodySchema.parse(await req.json());
-    const computedTotal = body.items.reduce((acc, it) => acc + Number(it.amount || 0), 0);
-    const total = typeof body.total === "number" && Number.isFinite(body.total) && body.total > 0 ? body.total : computedTotal;
+    const computedTotal = body.items.reduce(
+      (acc, it) => acc + Number(it.amount || 0),
+      0,
+    );
+    const total =
+      typeof body.total === "number" &&
+      Number.isFinite(body.total) &&
+      body.total > 0
+        ? body.total
+        : computedTotal;
+    const details = (() => {
+      const fromDetails =
+        typeof body.details === "string" ? body.details.trim() : "";
+      if (fromDetails.length) return fromDetails;
+      const fromNotes = typeof body.notes === "string" ? body.notes.trim() : "";
+      if (fromNotes.length) return fromNotes;
+      return null;
+    })();
 
     const ins = await (supabase as any)
       .from("quotes")
@@ -56,22 +97,35 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         items: body.items,
         total,
         image_path: body.image_path || null,
-        status: 'sent',
+        details,
+        status: "sent",
       })
-      .select("id")
+      .select("id, details")
       .single();
     if (!ins?.data) {
       const msg = (ins?.error as any)?.message || "QUOTE_CREATE_FAILED";
-      return NextResponse.json({ ok: false, error: msg }, { status: 400, headers: JSONH });
+      return NextResponse.json(
+        { ok: false, error: msg },
+        { status: 400, headers: JSONH },
+      );
     }
 
-    return NextResponse.json({ ok: true, id: ins.data.id }, { status: 201, headers: JSONH });
+    return NextResponse.json(
+      {
+        ok: true,
+        id: ins.data.id,
+        details: (ins.data as any)?.details ?? details,
+      },
+      { status: 201, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";
-    return NextResponse.json({ ok: false, error: msg }, { status: 400, headers: JSONH });
+    return NextResponse.json(
+      { ok: false, error: msg },
+      { status: 400, headers: JSONH },
+    );
   }
 }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-

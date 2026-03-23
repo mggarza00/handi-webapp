@@ -1,4 +1,4 @@
-// app/api/quotes/[id]/image/route.ts
+﻿// app/api/quotes/[id]/image/route.ts
 import { NextResponse } from "next/server";
 import React from "react";
 import satori from "satori";
@@ -34,7 +34,7 @@ export async function GET(
     const id = (params?.id || "").trim();
     if (!id) return new Response("Missing id", { status: 400 });
 
-    // Auth: permitir dev override; si no hay sesión, continuar (solo lectura server-side)
+    // Auth: permitir dev override; si no hay sesiÃ³n, continuar (solo lectura server-side)
     let user = (await getDevUserFromHeader(req))?.user ?? null;
     if (!user) {
       try {
@@ -46,11 +46,11 @@ export async function GET(
 
     const admin = createServerClient();
 
-    // Cargar quote + validar participación
+    // Cargar quote + validar participaciÃ³n
     let { data: quote } = await admin
       .from("quotes")
       .select(
-        "id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio, image_path",
+        "id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio, image_path, details",
       )
       .eq("id", id)
       .maybeSingle();
@@ -60,7 +60,7 @@ export async function GET(
       const { data: alt } = await admin
         .from("quotes")
         .select(
-          "id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio, image_path",
+          "id, conversation_id, professional_id, client_id, currency, items, total, created_at, folio, image_path, details",
         )
         .or(`lower(folio).eq.${id.toLowerCase()},id.like.${id}%`)
         .order("created_at", { ascending: false })
@@ -103,17 +103,8 @@ export async function GET(
         .maybeSingle(),
     ]);
 
-    // Si ya hay una imagen en Storage, redirige a la URL firmada
-    const imagePath = (quote as any).image_path as string | null;
-    if (imagePath && typeof imagePath === "string" && imagePath.trim().length) {
-      try {
-        const { getSignedUrl } = await import("@/lib/storage/quotes");
-        const signed = await getSignedUrl(imagePath, 600);
-        if (signed) return NextResponse.redirect(signed, 302);
-      } catch {
-        // Si falla, continúa a render dinámico
-      }
-    }
+    // No redirigir a image_path para evitar servir una imagen stale.
+    // Esta ruta debe renderizar desde quotes.details como fuente de verdad.
 
     // Armar props para el componente visual
     const items = Array.isArray((quote as any).items)
@@ -125,27 +116,34 @@ export async function GET(
         }))
       : [];
 
-    // Resolve service title + details (notes from pro only)
+    // Resolve service title + details
     let serviceTitle: string | null = null;
-    let detailsText: string | null = null;
+    let detailsText =
+      typeof (quote as any)?.details === "string" &&
+      (quote as any).details.trim().length
+        ? String((quote as any).details).trim()
+        : null;
     try {
-      // 1) Prefer 'notes' sent by pro in the original quote message payload
-      const { data: msg } = await admin
-        .from("messages")
-        .select("payload")
-        .eq("conversation_id", (quote as any).conversation_id)
-        .eq("message_type", "quote")
-        .filter("payload->>quote_id", "eq", id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      const payload = (msg as any)?.payload as Record<string, unknown> | null;
-      const notes =
-        payload && typeof (payload as any).notes === "string"
-          ? String((payload as any).notes)
-          : null;
+      // Fallback temporal para cotizaciones antiguas sin quotes.details
+      if (!detailsText) {
+        const { data: msg } = await admin
+          .from("messages")
+          .select("payload")
+          .eq("conversation_id", (quote as any).conversation_id)
+          .eq("message_type", "quote")
+          .filter("payload->>quote_id", "eq", String((quote as any).id))
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle();
+        const payload = (msg as any)?.payload as Record<string, unknown> | null;
+        const notes =
+          payload && typeof (payload as any).notes === "string"
+            ? String((payload as any).notes)
+            : null;
+        if (notes && notes.trim().length) detailsText = notes.trim();
+      }
 
-      // 2) Request meta (title only)
+      // Request meta (title only)
       const reqId = (conv as any)?.request_id as string | null;
       if (reqId) {
         const { data: req } = await admin
@@ -156,8 +154,6 @@ export async function GET(
         const title = (req as any)?.title as string | null;
         if (title && title.trim().length) serviceTitle = title.trim();
       }
-
-      if (notes && notes.trim().length) detailsText = notes.trim();
     } catch {
       detailsText = detailsText || null;
     }
@@ -202,7 +198,7 @@ export async function GET(
       watermarkUrl: `${base}/images/FAVICON_FOOTER.png`,
       logoDataUrl,
       watermarkDataUrl,
-      title: "Cotización",
+      title: "CotizaciÃ³n",
       folio: (quote as any)?.folio
         ? String((quote as any).folio)
         : String((quote as any).id).slice(0, 8),
@@ -260,7 +256,7 @@ export async function GET(
     } catch (err) {
       console.error("[quote-image] satori render error", err);
       // Fallback SVG minimal en caso de error (evita 500)
-      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1600"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" text-anchor="middle" font-family="Inter, Arial" font-size="32" fill="#0F172A">Cotización ${props.folio}</text></svg>`;
+      svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1600"><rect width="100%" height="100%" fill="#fff"/><text x="50%" y="50%" text-anchor="middle" font-family="Inter, Arial" font-size="32" fill="#0F172A">CotizaciÃ³n ${props.folio}</text></svg>`;
     }
 
     // Intentar convertir a PNG con Resvg; si falla, devolver SVG

@@ -145,7 +145,7 @@ export default function QuoteComposerDialog({
             items: payloadItems,
             currency: "MXN",
             folio,
-            notes:
+            details:
               values.details && values.details.trim().length
                 ? values.details.trim()
                 : undefined,
