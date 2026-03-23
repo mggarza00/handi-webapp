@@ -35,7 +35,7 @@ type SignInFlowCardProps = {
 };
 
 const FeatureBullet = ({ children }: { children: ReactNode }) => (
-  <li className="flex items-start gap-3 text-white/90 drop-shadow-[0_4px_12px_rgba(0,0,0,0.35)]">
+  <li className="flex items-start gap-3 text-white/85 drop-shadow-[0_3px_10px_rgba(0,0,0,0.32)]">
     <span className="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-[#a6d234]" />
     <span className="text-sm leading-relaxed">{children}</span>
   </li>
@@ -230,17 +230,18 @@ export function SignInFlowCard({
             alt="Profesionales Handi listos para ayudarte"
             fill
             sizes="(min-width: 768px) 640px, 100vw"
-            className="object-cover"
+            className="object-cover saturate-[1.06] contrast-[1.03]"
             priority={isModal}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/65 via-black/45 to-black/25" />
-          <div className="relative z-10 space-y-6">
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 via-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/22 via-transparent to-black/10" />
+          <div className="relative z-10 max-w-[30rem] space-y-6 rounded-2xl border border-white/10 bg-black/20 p-6 backdrop-blur-[1px]">
             <p
-              className={`${stackSansMedium.className} text-3xl font-semibold leading-tight text-white drop-shadow-[0_6px_24px_rgba(0,0,0,0.45)]`}
+              className={`${stackSansMedium.className} text-3xl font-semibold leading-tight text-white drop-shadow-[0_10px_26px_rgba(0,0,0,0.52)]`}
             >
               Conecta con expertos de confianza.
             </p>
-            <ul className="space-y-3">
+            <ul className="space-y-3.5">
               <FeatureBullet>
                 Categorias desde mantenimiento hasta cuidado para personas.
               </FeatureBullet>
