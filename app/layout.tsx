@@ -9,7 +9,6 @@ import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import CreateRequestWizardRoot from "@/components/requests/CreateRequestWizardRoot";
 import { concertOne, inter, nunito, rubik, varelaRound } from "@/lib/fonts";
 import LeafletCSS from "@/components/LeafletCSS.client";
-import OneTapMount from "@/components/OneTapMount";
 import InstallAppBanner from "@/components/pwa/InstallAppBanner";
 import RequestNotificationsToast from "@/components/pwa/RequestNotificationsToast";
 import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.client";
@@ -209,8 +208,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
         </noscript>
         <AttributionCapture />
         <AndroidWebViewControls />
-        {/* Google One Tap (solo cliente; no renderiza UI propia) */}
-        <OneTapMount />
         <VercelLiveGuard />
         {children}
         <ClientToaster />

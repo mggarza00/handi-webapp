@@ -15,12 +15,24 @@ import {
 
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
-import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
 import { trackHeroCtaClicked } from "@/lib/analytics/track";
 
 const HeroClientActions = dynamic(
   () => import("@/components/home/HeroClientActions.client"),
   { ssr: false },
+);
+const RoleSelectionDialog = dynamic(
+  () => import("@/components/RoleSelectionDialog.client"),
+  {
+    ssr: false,
+    loading: () => (
+      <span
+        className={`${stackSansMedium.className} btn-contratar inline-flex min-h-11 min-w-36 items-center justify-center`}
+      >
+        Comenzar
+      </span>
+    ),
+  },
 );
 
 type LandingHeroProps = {
@@ -211,10 +223,7 @@ export default function LandingHero({
   const heroGuest = (
     <section id="hero" className="relative isolate overflow-hidden bg-slate-50">
       <div className="relative w-full">
-        <div
-          className="guest-hero__visual relative w-full md:aspect-[21/9] lg:h-[620px]"
-          style={{ minHeight: "calc(100vh - var(--hero-header-height))" }}
-        >
+        <div className="guest-hero__visual relative w-full min-h-[620px] sm:min-h-[680px] md:aspect-[21/9] md:min-h-[560px] lg:h-[620px]">
           <Image
             src="/images/hero-guest-home.webp"
             alt="Profesional industrial trabajando con equipo de seguridad"
@@ -274,7 +283,7 @@ export default function LandingHero({
           className="client-hero relative isolate overflow-hidden bg-slate-900 text-white"
         >
           <div className="relative w-full">
-            <div className="client-hero__visual relative w-full min-h-[400px] sm:aspect-[16/9] sm:min-h-[480px] md:aspect-[21/9] md:min-h-[520px] lg:min-h-[560px] xl:min-h-[600px] max-h-[880px]">
+            <div className="client-hero__visual relative w-full min-h-[520px] sm:aspect-[16/9] sm:min-h-[560px] md:aspect-[21/9] md:min-h-[520px] lg:min-h-[560px] xl:min-h-[600px] max-h-[880px]">
               <Image
                 src="/images/hero-client-home.webp"
                 alt="Cliente Handi en casa"
