@@ -459,7 +459,7 @@ body {
     font-style: normal;
   }
   .rubik {
-    font-family: Rubik, sans-serif;
+    font-family: var(--font-rubik), sans-serif;
     font-style: normal;
   }
   .font-350 {

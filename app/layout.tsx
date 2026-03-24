@@ -7,7 +7,7 @@ import ClientToaster from "@/components/ClientToaster";
 import AssistantPanel from "@/components/assistant/AssistantPanel";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import CreateRequestWizardRoot from "@/components/requests/CreateRequestWizardRoot";
-import { concertOne, inter, nunito, varelaRound } from "@/lib/fonts";
+import { concertOne, inter, nunito, rubik, varelaRound } from "@/lib/fonts";
 import LeafletCSS from "@/components/LeafletCSS.client";
 import OneTapMount from "@/components/OneTapMount";
 import InstallAppBanner from "@/components/pwa/InstallAppBanner";
@@ -97,12 +97,12 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${inter.variable} ${nunito.variable} ${varelaRound.variable} ${concertOne.variable}`}
+      className={`${inter.variable} ${nunito.variable} ${varelaRound.variable} ${concertOne.variable} ${rubik.variable}`}
     >
       <head>
         <Script
           id="gtm-init"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
@@ -126,16 +126,6 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
         <meta charSet="utf-8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,300..900;1,300..900&display=swap"
-          rel="stylesheet"
-        />
         {/* Apple splash screens */}
         <link
           rel="apple-touch-startup-image"

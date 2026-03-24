@@ -11,7 +11,7 @@ export default function LandingPageStyles() {
       @media (width <= 768px) {
         .client-hero__visual {
           min-height: calc(
-            100vh - var(--hero-header-height) - var(--hero-tabbar-height) -
+            88svh - var(--hero-header-height) - var(--hero-tabbar-height) -
               (2 * var(--hero-padding))
           );
           padding-bottom: calc(
@@ -20,7 +20,7 @@ export default function LandingPageStyles() {
         }
         .guest-hero__visual {
           min-height: calc(
-            100vh - var(--hero-header-height) - (1.5 * var(--hero-padding))
+            86svh - var(--hero-header-height) - (1.5 * var(--hero-padding))
           );
           padding-bottom: calc(
             var(--hero-padding) + env(safe-area-inset-bottom, 0px)

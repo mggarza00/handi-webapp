@@ -3,6 +3,7 @@
 
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 
 import {
@@ -12,12 +13,15 @@ import {
   stackSansMedium,
 } from "./landing-fonts";
 
-import HeroClientActions from "@/components/home/HeroClientActions.client";
 import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import PaymentProtectionBadge from "@/components/PaymentProtectionBadge";
 import RoleSelectionDialog from "@/components/RoleSelectionDialog.client";
-import { openCreateRequestWizard } from "@/components/requests/CreateRequestWizardRoot";
 import { trackHeroCtaClicked } from "@/lib/analytics/track";
+
+const HeroClientActions = dynamic(
+  () => import("@/components/home/HeroClientActions.client"),
+  { ssr: false },
+);
 
 type LandingHeroProps = {
   variant: "guest" | "client" | "other";
@@ -78,7 +82,11 @@ export default function LandingHero({
     if (!shouldAutoOpen) return;
     window.sessionStorage.removeItem(STORAGE_KEY);
     const timer = window.setTimeout(() => {
-      openCreateRequestWizard();
+      void import("@/components/requests/CreateRequestWizardRoot").then(
+        ({ openCreateRequestWizard }) => {
+          openCreateRequestWizard();
+        },
+      );
     }, 400);
     return () => window.clearTimeout(timer);
   }, [isClientVariant]);
@@ -208,22 +216,24 @@ export default function LandingHero({
           style={{ minHeight: "calc(100vh - var(--hero-header-height))" }}
         >
           <Image
-            src="/images/be204f42cd07529e6b8dc2c7c9218d6f5728f12b.jpg"
+            src="/images/hero-guest-home.webp"
             alt="Profesional industrial trabajando con equipo de seguridad"
             fill
             className="object-cover"
             sizes="100vw"
             priority
+            fetchPriority="high"
+            quality={70}
           />
           <div
-            className={`${stackSansMedium.className} absolute left-6 top-36 w-[240px] text-white font-semibold leading-[1.04] text-[26px] drop-shadow-[0_14px_32px_rgba(0,0,0,0.55)] md:left-[96px] md:top-[180px] md:w-[300px] md:text-[38px]`}
+            className={`${stackSansMedium.className} absolute left-6 top-36 w-[240px] text-white font-semibold leading-[1.04] text-[26px] drop-shadow-[0_4px_10px_rgba(0,0,0,0.35)] md:left-[96px] md:top-[180px] md:w-[300px] md:text-[38px] md:drop-shadow-[0_14px_32px_rgba(0,0,0,0.55)]`}
             ref={heroTitleRef}
           >
             <span className="block">No es magia,</span>
             <span className="block">es Handi</span>
           </div>
           <p
-            className={`${interLight.className} absolute left-6 top-[220px] w-[260px] text-white text-sm leading-snug text-left opacity-0 drop-shadow-[0_12px_28px_rgba(0,0,0,0.5)] md:left-[96px] md:top-[270px] md:w-[380px] md:text-base`}
+            className={`${interLight.className} absolute left-6 top-[220px] w-[260px] text-white text-sm leading-snug text-left opacity-0 drop-shadow-[0_3px_8px_rgba(0,0,0,0.3)] md:left-[96px] md:top-[270px] md:w-[380px] md:text-base md:drop-shadow-[0_12px_28px_rgba(0,0,0,0.5)]`}
             ref={heroSubtitleRef}
           >
             <span className="block font-semibold">
@@ -266,14 +276,16 @@ export default function LandingHero({
           <div className="relative w-full">
             <div className="client-hero__visual relative w-full min-h-[400px] sm:aspect-[16/9] sm:min-h-[480px] md:aspect-[21/9] md:min-h-[520px] lg:min-h-[560px] xl:min-h-[600px] max-h-[880px]">
               <Image
-                src="/images/ac305e5695416fe62abbe78d5ed7297e99cebbfa (1).jpg"
+                src="/images/hero-client-home.webp"
                 alt="Cliente Handi en casa"
                 fill
                 className="object-cover"
-                sizes="100vw"
+                sizes="(max-width: 768px) 100vw, 1152px"
                 priority
+                fetchPriority="high"
+                quality={70}
               />
-              <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/45 to-black/20" />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/24 to-black/10 md:bg-gradient-to-br md:from-black/65 md:via-black/45 md:to-black/20" />
               <div className="absolute inset-0 flex h-full flex-col justify-center px-6 py-8 md:block md:px-0 md:py-0">
                 <div className="md:absolute md:left-[96px] md:top-[60px] lg:top-[70px] absolute left-6 top-6 sm:static sm:left-auto sm:top-auto">
                   <h1

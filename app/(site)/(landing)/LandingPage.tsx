@@ -9,9 +9,8 @@ import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { stackSansMedium } from "./landing-fonts";
 
 import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
-import HomeSignInModal from "@/components/auth/HomeSignInModal.client";
+import HomeSignInModalHost from "@/components/auth/HomeSignInModalHost.client";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
-import HiddenIfClientHasSession from "@/components/HiddenIfClientHasSession.client";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 import HowItWorksSection from "@/components/shared/HowItWorksSection";
 import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
@@ -274,9 +273,7 @@ export default function LandingPage({
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-      <HiddenIfClientHasSession>
-        <HomeSignInModal />
-      </HiddenIfClientHasSession>
+      <HomeSignInModalHost />
       <LandingWarmup />
       <LandingHero
         variant={variant}

@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { Menu } from "lucide-react";
 
+import { openHomeSignInModal } from "@/lib/auth/home-sign-in-modal";
+
 type Props = {
   loginHref?: string;
 };
@@ -42,12 +44,20 @@ export default function PublicLandingLoginMenu({
     setOpen(false);
   }, [pathname]);
 
+  const handleLoginClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!isHome) return;
+    event.preventDefault();
+    setOpen(false);
+    openHomeSignInModal();
+  };
+
   if (hideOnPage) return null;
 
   if (!isHome) {
     return (
       <Link
         href={loginHref}
+        onClick={handleLoginClick}
         className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-slate-800"
       >
         <span>Iniciar sesión</span>
@@ -69,14 +79,15 @@ export default function PublicLandingLoginMenu({
         aria-label={open ? "Cerrar menú" : "Abrir menú de inicio de sesión"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/20 px-3 py-2 text-white shadow-sm backdrop-blur transition hover:bg-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/20 px-3 py-2 text-white shadow-sm transition hover:bg-black/30 md:backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       >
         <Menu className="h-5 w-5" />
       </button>
       {open ? (
-        <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl bg-white/95 text-slate-800 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+        <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl bg-white/95 text-slate-800 shadow-lg ring-1 ring-slate-200 md:backdrop-blur">
           <Link
             href={loginHref}
+            onClick={handleLoginClick}
             className="flex items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-slate-100"
           >
             <span>Iniciar sesión</span>
