@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { hasUsableAvatar } from "@/lib/chat/chat-identity";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import createClient from "@/utils/supabase/server";
 
@@ -45,6 +46,22 @@ const toNames = (value: unknown): string[] => {
         .filter(Boolean),
     ),
   );
+};
+
+const asTrimmed = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
+
+const pickBestAvatar = (...candidates: Array<unknown>): string | null => {
+  const normalized = candidates
+    .map((value) => asTrimmed(value))
+    .filter((value): value is string => Boolean(value));
+  for (const candidate of normalized) {
+    if (hasUsableAvatar(candidate)) return candidate;
+  }
+  return normalized[0] ?? null;
 };
 
 export async function GET(
@@ -106,6 +123,30 @@ export async function GET(
           .maybeSingle(),
       ]);
 
+    let authUserName: string | null = null;
+    let authUserAvatar: string | null = null;
+    try {
+      const authResult = await admin.auth.admin.getUserById(targetId);
+      const metadata = (authResult.data?.user?.user_metadata ?? null) as Record<
+        string,
+        unknown
+      > | null;
+      authUserName =
+        asTrimmed(metadata?.full_name) ??
+        asTrimmed(metadata?.name) ??
+        asTrimmed(authResult.data?.user?.email) ??
+        null;
+      authUserAvatar =
+        asTrimmed(metadata?.avatar_url) ??
+        asTrimmed(metadata?.picture) ??
+        asTrimmed(metadata?.avatar) ??
+        asTrimmed(metadata?.photo_url) ??
+        null;
+    } catch {
+      authUserName = null;
+      authUserAvatar = null;
+    }
+
     if (!pro && !prof && !proView)
       return NextResponse.json(
         { ok: false, error: "NOT_FOUND" },
@@ -113,15 +154,16 @@ export async function GET(
       );
 
     const full_name =
-      (typeof pro?.full_name === "string" ? pro.full_name : null) ||
-      (typeof proView?.full_name === "string" ? proView.full_name : null) ||
-      (typeof prof?.full_name === "string" ? prof.full_name : null) ||
-      null;
-    const avatar_url =
-      (typeof pro?.avatar_url === "string" ? pro.avatar_url : null) ||
-      (typeof proView?.avatar_url === "string" ? proView.avatar_url : null) ||
-      (typeof prof?.avatar_url === "string" ? prof.avatar_url : null) ||
-      null;
+      asTrimmed(pro?.full_name) ??
+      asTrimmed(proView?.full_name) ??
+      asTrimmed(prof?.full_name) ??
+      authUserName;
+    const avatar_url = pickBestAvatar(
+      pro?.avatar_url,
+      proView?.avatar_url,
+      prof?.avatar_url,
+      authUserAvatar,
+    );
     const city =
       (typeof pro?.city === "string" ? pro.city : null) ||
       (typeof proView?.city === "string" ? proView.city : null) ||

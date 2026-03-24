@@ -208,7 +208,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
               );
               return {
                 id: String(it.id),
-                title: identity.title,
+                title: identity.title || "Contacto",
                 preview:
                   typeof it.lastMessagePreview === "string"
                     ? it.lastMessagePreview
@@ -261,7 +261,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           );
           return {
             id: String(it.id),
-            title: identity.title,
+            title: identity.title || "Contacto",
             preview:
               typeof it.lastMessagePreview === "string"
                 ? it.lastMessagePreview
@@ -304,7 +304,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           map.set(row.id, {
             ...existing,
             ...row,
-            title: identity.title,
+            title: identity.title || existing.title || "Contacto",
             avatarUrl: identity.avatarUrl,
             otherLastActiveAt: identity.otherLastActiveAt,
             preview: row.preview ?? existing.preview ?? null,
@@ -394,7 +394,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           );
           return {
             ...c,
-            title: merged.title,
+            title: merged.title || c.title || "Contacto",
             avatarUrl: merged.avatarUrl,
             otherLastActiveAt: merged.otherLastActiveAt,
           };
@@ -417,9 +417,13 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           const me = meIdRef.current;
           let peerId: string | null =
             conversationPeerRef.current.get(cid) ?? null;
+          if (peerId && me && peerId === me) {
+            conversationPeerRef.current.delete(cid);
+            peerId = null;
+          }
           const senderId =
             typeof row?.sender_id === "string" ? row.sender_id.trim() : "";
-          if (!peerId && senderId && (!me || senderId !== me)) {
+          if (!peerId && me && senderId && senderId !== me) {
             peerId = senderId;
           }
           if (!peerId) {
@@ -435,7 +439,9 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
               peerId = me === parts.pro_id ? parts.customer_id : parts.pro_id;
             }
           }
+          if (!peerId && !me) return;
           if (!peerId) return;
+          if (me && peerId === me) return;
           conversationPeerRef.current.set(cid, peerId);
           const profile = await fetchProfileIdentity(peerId);
           if (profile) {
@@ -458,6 +464,20 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
       revalidateRoomsBestEffort,
     ],
   );
+
+  useEffect(() => {
+    if (!meId) return;
+    const pending = items
+      .filter(
+        (item) =>
+          isPlaceholderChatTitle(item.title) ||
+          !hasUsableAvatar(item.avatarUrl),
+      )
+      .map((item) => item.id);
+    for (const cid of pending) {
+      void hydrateConversationIdentity(cid);
+    }
+  }, [items, meId, hydrateConversationIdentity]);
 
   // Clear unread on navigation into a conversation
   useEffect(() => {
@@ -507,7 +527,7 @@ export default function ChatList({ chats }: { chats: ChatSummary[] }) {
           );
           const provisional: ChatSummary = {
             id: cid,
-            title: initialIdentity.title,
+            title: initialIdentity.title || "Contacto",
             preview: body || null,
             lastMessageAt: createdAt,
             unread: isActive ? false : true,
