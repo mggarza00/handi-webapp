@@ -1,31 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import { SignInFlowCard } from "./SignInFlow.client";
 
-export default function HomeSignInModal() {
-  const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+type HomeSignInModalProps = {
+  onClose: () => void;
+};
 
+export default function HomeSignInModal({ onClose }: HomeSignInModalProps) {
   useEffect(() => {
-    setMounted(true);
-    setOpen(true);
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setOpen(false);
+        onClose();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
-  if (!mounted || !open) return null;
+  }, [onClose]);
 
   const modal = (
     <div
@@ -38,10 +31,10 @@ export default function HomeSignInModal() {
         type="button"
         aria-label="Cerrar"
         className="absolute inset-0 z-0 bg-white/55 backdrop-blur-[4px]"
-        onClick={() => setOpen(false)}
+        onClick={onClose}
       />
       <div className="relative z-10 w-full max-w-full md:max-w-5xl">
-        <SignInFlowCard variant="modal" onClose={() => setOpen(false)} />
+        <SignInFlowCard variant="modal" onClose={onClose} />
       </div>
     </div>
   );

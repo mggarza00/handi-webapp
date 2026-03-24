@@ -4,15 +4,8 @@ export default function Head() {
       <link
         rel="preload"
         as="image"
-        href="/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg"
-        fetchPriority="low"
-      />
-      <link
-        rel="preload"
-        as="image"
-        href="/icons/candado_lima.svg"
-        type="image/svg+xml"
-        fetchPriority="low"
+        href="/images/hero-guest-home.webp"
+        fetchPriority="high"
       />
     </>
   );

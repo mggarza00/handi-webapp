@@ -2,14 +2,18 @@
 
 import { useEffect } from "react";
 
-const WARM_IMAGES = [
-  "/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg",
-  "/icons/candado_lima.svg",
-];
+const WARM_IMAGES = ["/images/e533c387b9255d160d3c89dacf043df7010ca64b.jpg"];
 
 export default function LandingWarmup() {
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (window.matchMedia?.("(max-width: 767px)").matches) return;
+    if (
+      (navigator as Navigator & { connection?: { saveData?: boolean } })
+        .connection?.saveData
+    ) {
+      return;
+    }
 
     const warm = () => {
       WARM_IMAGES.forEach((src) => {
@@ -29,13 +33,22 @@ export default function LandingWarmup() {
     let idleHandle: number | null = null;
     let timeoutHandle: number | null = null;
 
-    if (win.requestIdleCallback) {
-      idleHandle = win.requestIdleCallback(warm, { timeout: 2000 });
+    const scheduleWarmup = () => {
+      if (win.requestIdleCallback) {
+        idleHandle = win.requestIdleCallback(warm, { timeout: 4000 });
+      } else {
+        timeoutHandle = window.setTimeout(warm, 2800);
+      }
+    };
+
+    if (document.readyState === "complete") {
+      scheduleWarmup();
     } else {
-      timeoutHandle = window.setTimeout(warm, 1200);
+      window.addEventListener("load", scheduleWarmup, { once: true });
     }
 
     return () => {
+      window.removeEventListener("load", scheduleWarmup);
       if (idleHandle !== null && win.cancelIdleCallback) {
         win.cancelIdleCallback(idleHandle);
       }

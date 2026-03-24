@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { MouseEvent, useState } from "react";
+
+import { openHomeSignInModal } from "@/lib/auth/home-sign-in-modal";
 
 type NavItem = {
   href: string;
@@ -23,8 +26,16 @@ export default function PublicLandingHeader({
   loginHref,
 }: Props) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const isHome = pathname === "/";
   const toggleMobileMenu = () => setIsMobileMenuOpen((prev) => !prev);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+  const handleLoginClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!isHome) return;
+    event.preventDefault();
+    openHomeSignInModal();
+    closeMobileMenu();
+  };
 
   return (
     <div className="handi-header-public-content">
@@ -73,7 +84,11 @@ export default function PublicLandingHeader({
           </nav>
         </div>
         <div className="header-right">
-          <Link href={loginHref} className="login-pill">
+          <Link
+            href={loginHref}
+            className="login-pill"
+            onClick={handleLoginClick}
+          >
             <span className="login-label">Iniciar sesión</span>
             <Image
               src="/icons/Vector_inicio.svg"
@@ -133,7 +148,7 @@ export default function PublicLandingHeader({
           <Link
             href={loginHref}
             className="mobile-menu-item"
-            onClick={closeMobileMenu}
+            onClick={handleLoginClick}
           >
             <span>Iniciar sesión</span>
             <Image

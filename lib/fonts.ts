@@ -2,7 +2,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { Concert_One, Inter, Nunito, Varela_Round } from "next/font/google";
+import {
+  Concert_One,
+  Inter,
+  Nunito,
+  Rubik,
+  Varela_Round,
+} from "next/font/google";
 
 let interData: ArrayBuffer | null = null;
 let stackSansData: ArrayBuffer | null = null;
@@ -117,4 +123,11 @@ export const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-inter",
+});
+
+export const rubik = Rubik({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
+  variable: "--font-rubik",
 });
