@@ -1,10 +1,9 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { Menu } from "lucide-react";
 
 import { openHomeSignInModal } from "@/lib/auth/home-sign-in-modal";
 
@@ -60,7 +59,7 @@ export default function PublicLandingLoginMenu({
         onClick={handleLoginClick}
         className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-slate-800"
       >
-        <span>Iniciar sesión</span>
+        <span>Iniciar sesiÃ³n</span>
         <Image
           src="/icons/Vector_inicio.svg"
           alt=""
@@ -76,12 +75,16 @@ export default function PublicLandingLoginMenu({
     <div ref={menuRef} className="public-login-menu relative md:hidden">
       <button
         type="button"
-        aria-label={open ? "Cerrar menú" : "Abrir menú de inicio de sesión"}
+        aria-label={open ? "Cerrar menÃº" : "Abrir menÃº de inicio de sesiÃ³n"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/20 px-3 py-2 text-white shadow-sm transition hover:bg-black/30 md:backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
       >
-        <Menu className="h-5 w-5" />
+        <span className="inline-flex flex-col gap-1.5" aria-hidden="true">
+          <span className="h-0.5 w-5 rounded-full bg-current" />
+          <span className="h-0.5 w-5 rounded-full bg-current" />
+          <span className="h-0.5 w-5 rounded-full bg-current" />
+        </span>
       </button>
       {open ? (
         <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl bg-white/95 text-slate-800 shadow-lg ring-1 ring-slate-200 md:backdrop-blur">
@@ -90,7 +93,7 @@ export default function PublicLandingLoginMenu({
             onClick={handleLoginClick}
             className="flex items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-slate-100"
           >
-            <span>Iniciar sesión</span>
+            <span>Iniciar sesiÃ³n</span>
             <Image
               src="/icons/Vector_inicio.svg"
               alt=""

@@ -1,6 +1,7 @@
 import type React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 import LandingHero from "./LandingHero.client";
 import LandingPageStyles from "./LandingPageStyles.client";
@@ -8,12 +9,25 @@ import LandingWarmup from "./LandingWarmup.client";
 import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { stackSansMedium } from "./landing-fonts";
 
-import HowToUseHandiSection from "@/app/_components/HowToUseHandiSection.client";
 import HomeSignInModalHost from "@/components/auth/HomeSignInModalHost.client";
+import OneTapMount from "@/components/OneTapMount";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
 import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 import HowItWorksSection from "@/components/shared/HowItWorksSection";
 import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
+
+const HowToUseHandiSection = dynamic(
+  () => import("@/app/_components/HowToUseHandiSection.client"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="mx-auto max-w-5xl px-4 py-10 md:py-12"
+        aria-hidden="true"
+      />
+    ),
+  },
+);
 
 type LandingPageProps = {
   variant: "guest" | "client" | "other";
@@ -273,7 +287,8 @@ export default function LandingPage({
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-      <HomeSignInModalHost />
+      {variant === "guest" ? <OneTapMount /> : null}
+      {variant === "guest" ? <HomeSignInModalHost /> : null}
       <LandingWarmup />
       <LandingHero
         variant={variant}

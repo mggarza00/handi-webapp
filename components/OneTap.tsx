@@ -30,36 +30,78 @@ declare global {
   }
 }
 
-const logOneTapError = (error: unknown) => {
-  if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.error("[OneTap]", error);
-  }
-};
-
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const DISMISS_KEY = "one_tap_dismissed_until";
 
+const isDebug = () => process.env.NODE_ENV !== "production";
+
+const devLog = (message: string, data?: unknown) => {
+  if (!isDebug()) return;
+  // eslint-disable-next-line no-console
+  console.debug(`[OneTap] ${message}`, data ?? "");
+};
+
+const normalizeAuthError = (
+  error: unknown,
+): {
+  message: string;
+  status?: number;
+  code?: string;
+  name?: string;
+} => {
+  const e = error as
+    | (Partial<AuthError> & { status?: number; code?: string })
+    | undefined;
+  return {
+    message: (e?.message || "").toString(),
+    status: typeof e?.status === "number" ? e.status : undefined,
+    code: typeof e?.code === "string" ? e.code : undefined,
+    name: typeof e?.name === "string" ? e.name : undefined,
+  };
+};
+
+const isLikelyNonceError = (error: unknown) => {
+  const n = normalizeAuthError(error);
+  const text = `${n.message} ${n.code ?? ""}`.toLowerCase();
+  return text.includes("nonce");
+};
+
+const shouldFallbackToOAuth = (error: unknown) => {
+  const n = normalizeAuthError(error);
+  const text = `${n.message} ${n.code ?? ""}`.toLowerCase();
+  if (n.status && [400, 401, 403, 422].includes(n.status)) return true;
+  if (text.includes("invalid_grant")) return true;
+  if (text.includes("provider")) return true;
+  if (text.includes("audience")) return true;
+  if (text.includes("jwt")) return true;
+  if (text.includes("token")) return true;
+  return false;
+};
+
 /**
- * Google One Tap (GIS) integration
- * - Loads GIS script on demand
- * - Prompts only when there is no Supabase session
- * - Exchanges Google ID token for a Supabase session via signInWithIdToken
- * - Positions the One Tap bubble top-right using a fixed container
+ * Google One Tap (GIS):
+ * - mounted only on "/"
+ * - initializes only when user has no active session
+ * - signs in with ID token in Supabase
  */
 export default function OneTap() {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const supabase = React.useMemo(() => createSupabaseBrowser<Database>(), []);
+  const nonceRef = React.useRef<string | null>(null);
+  const handlingCredentialRef = React.useRef(false);
+  const lastCredentialRef = React.useRef<string | null>(null);
+  const oauthFallbackTriggeredRef = React.useRef(false);
+  const toastShownRef = React.useRef(false);
 
   const dismissedStillActive = React.useCallback((): boolean => {
     if (typeof window === "undefined") return false;
     try {
-      const v = localStorage.getItem(DISMISS_KEY);
-      if (!v) return false;
-      return Date.now() < Number(v);
+      const value = localStorage.getItem(DISMISS_KEY);
+      if (!value) return false;
+      return Date.now() < Number(value);
     } catch (error) {
-      logOneTapError(error);
+      devLog("dismiss read failed", error);
       return false;
     }
   }, []);
@@ -69,235 +111,261 @@ export default function OneTap() {
     try {
       localStorage.setItem(DISMISS_KEY, String(Date.now() + ms));
     } catch (error) {
-      logOneTapError(error);
+      devLog("dismiss write failed", error);
     }
   }, []);
 
   React.useEffect(() => {
     let active = true;
+    let unsubscribe: (() => void) | undefined;
 
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
-    // TEMP: log clientId to verify it is set correctly
-    // eslint-disable-next-line no-console
-    console.log("[OneTap] clientId:", clientId);
     if (!clientId || typeof window === "undefined") return;
-    const debug = (process.env.NEXT_PUBLIC_ONE_TAP_DEBUG || "").trim() === "1";
+
+    if (
+      (navigator as Navigator & { connection?: { saveData?: boolean } })
+        .connection?.saveData
+    ) {
+      devLog("saveData enabled, skipping One Tap init");
+      return;
+    }
 
     const loadGsiScript = () =>
       new Promise<void>((resolve) => {
         if (document.getElementById("google-identity-script")) return resolve();
-        const s = document.createElement("script");
-        s.id = "google-identity-script";
-        s.src = "https://accounts.google.com/gsi/client";
-        s.async = true;
-        s.defer = true;
-        s.onload = () => resolve();
-        s.onerror = () => resolve(); // fail-soft: just resolve to avoid blocking
-        document.head.appendChild(s);
+        const script = document.createElement("script");
+        script.id = "google-identity-script";
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.onload = () => resolve();
+        script.onerror = () => resolve();
+        document.head.appendChild(script);
       });
 
     const randomString = (len = 32) => {
       try {
         const bytes = new Uint8Array(len);
         crypto.getRandomValues(bytes);
-        // Base64-url-ish without padding; keep alnum for safety
         return Array.from(bytes)
           .map((b) => (b % 36).toString(36))
           .join("")
           .slice(0, len);
-      } catch (error) {
-        logOneTapError(error);
+      } catch {
         return Math.random()
           .toString(36)
           .slice(2, 2 + len);
       }
     };
 
-    const initOneTap = async () => {
+    const cancelPrompt = () => {
+      try {
+        window.google?.accounts?.id?.cancel?.();
+        window.google?.accounts?.id?.disableAutoSelect?.();
+      } catch (error) {
+        devLog("cancel prompt failed", error);
+      }
+    };
+
+    const hasSession = async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        if (!active || data.session) return; // already logged in
+        return Boolean(data.session);
+      } catch (error) {
+        devLog("getSession failed", error);
+        return false;
+      }
+    };
 
-        if (!window.google?.accounts?.id) {
-          await loadGsiScript();
-        }
+    const handleCredential = async (response: CredentialResponse) => {
+      const token = response?.credential;
+      if (!active || !token) return;
+      if (handlingCredentialRef.current) {
+        devLog("credential callback skipped because sign-in is in progress");
+        return;
+      }
+      if (lastCredentialRef.current === token) {
+        devLog("duplicate credential callback skipped");
+        return;
+      }
 
-        if (!active || !window.google?.accounts?.id) return;
+      handlingCredentialRef.current = true;
+      lastCredentialRef.current = token;
 
-        const handleCredential = async (response: CredentialResponse) => {
-          const token = response?.credential;
-          if (!token) return;
-          const { error } = await supabase.auth.signInWithIdToken({
-            provider: "google",
-            token,
-            nonce,
-          });
-          if (!error) {
-            try {
-              window.google?.accounts?.id?.cancel?.();
-              window.google?.accounts?.id?.disableAutoSelect?.();
-              localStorage.removeItem(DISMISS_KEY);
-            } catch (error) {
-              logOneTapError(error);
-            }
-            try {
-              window.location.reload();
-            } catch (error) {
-              logOneTapError(error);
-            }
-          } else {
-            try {
-              // Log and back off re-prompting
-              // eslint-disable-next-line no-console
-              console.error("[One Tap Error]", error);
-              // eslint-disable-next-line no-console
-              console.error("[One Tap Details]", {
-                name: (error as Partial<AuthError>).name,
-                message: (error as Partial<AuthError>).message,
-                status: (error as Partial<AuthError & { status?: number }>)
-                  .status,
-              });
-              toast.error(
-                "No se pudo iniciar sesión con Google One Tap. Intentando con Google.",
-              );
-              setDismiss(60 * 60 * 1000);
-              // Fallback: intenta flujo OAuth clásico (redirige) si la config de One Tap falla
-              const base = window.location.origin.replace(/\/$/, "");
-              let nextPath = "/";
-              try {
-                const sp = new URLSearchParams(window.location.search);
-                const n = sp.get("next");
-                if (n && n.startsWith("/")) nextPath = n;
-                const rt = localStorage.getItem("returnTo");
-                if (rt && rt.startsWith("/")) nextPath = rt;
-              } catch (error) {
-                logOneTapError(error);
-              }
-              await supabase.auth.signInWithOAuth({
-                provider: "google",
-                options: {
-                  redirectTo: `${base}/auth/callback?next=${encodeURIComponent(nextPath)}`,
-                },
-              });
-            } catch (oauthError) {
-              logOneTapError(oauthError);
-            }
-          }
-        };
-
-        const parentId = containerRef.current?.id || "gsi-container";
-        const nonce = randomString(32);
-        // Decide FedCM usage: allow env override; avoid on preview hosts where it's often not authorized
-        const fedcmEnv = (
-          process.env.NEXT_PUBLIC_GSI_USE_FEDCM || "auto"
-        ).toLowerCase();
-        let useFedcmForPrompt: boolean | undefined;
-        if (fedcmEnv === "true" || fedcmEnv === "1") useFedcmForPrompt = true;
-        else if (fedcmEnv === "false" || fedcmEnv === "0")
-          useFedcmForPrompt = false;
-        else {
-          const host = window.location.hostname;
-          const isPreviewHost =
-            /\.vercel\.app$/i.test(host) ||
-            /\.netlify\.app$/i.test(host) ||
-            /\.onrender\.com$/i.test(host);
-          // Disable FedCM by default on common preview hosts to avoid generic "Can't continue" errors
-          useFedcmForPrompt = !isPreviewHost;
-        }
-
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleCredential,
-          auto_select: false,
-          cancel_on_tap_outside: false,
-          itp_support: true,
-          prompt_parent_id: parentId,
-          context: "signin",
+      try {
+        const nonce = nonceRef.current ?? undefined;
+        let { error } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token,
           nonce,
-          // Prefer FedCM if available when enabled; otherwise use classic One Tap
-          use_fedcm_for_prompt: useFedcmForPrompt,
         });
 
-        // Show the One Tap prompt unless user dismissed recently
-        if (!dismissedStillActive()) {
-          window.google.accounts.id.prompt(
-            (notification?: PromptMomentNotification) => {
-              try {
-                if (!notification) return;
-                if (debug) {
-                  const nd = notification.getNotDisplayedReason?.();
-                  const dd = notification.getDismissedReason?.();
-                  const sd = notification.getSkippedReason?.();
-                  // eslint-disable-next-line no-console
-                  console.debug("[OneTap] prompt notification", {
-                    isDisplayed: notification.isDisplayed?.(),
-                    isNotDisplayed: notification.isNotDisplayed?.(),
-                    notDisplayedReason: nd,
-                    isDismissed: notification.isDismissedMoment?.(),
-                    dismissedReason: dd,
-                    isSkipped: notification.isSkippedMoment?.(),
-                    skippedReason: sd,
-                    fedcm: useFedcmForPrompt,
-                    host:
-                      typeof window !== "undefined"
-                        ? window.location.host
-                        : undefined,
-                  });
-                }
-                if (notification.isDismissedMoment?.() === true) {
-                  setDismiss(DAY);
-                } else if (notification.isNotDisplayed?.() === true) {
-                  // Likely suppressed by user or blocked; back off a bit
-                  setDismiss(4 * HOUR);
-                } else if (notification.isSkippedMoment?.() === true) {
-                  setDismiss(12 * HOUR);
-                }
-              } catch (notificationError) {
-                logOneTapError(notificationError);
-              }
-            },
+        // If nonce validation fails in some browsers/flows, retry once without nonce.
+        if (error && nonce && isLikelyNonceError(error)) {
+          devLog(
+            "retrying signInWithIdToken without nonce",
+            normalizeAuthError(error),
           );
+          const retry = await supabase.auth.signInWithIdToken({
+            provider: "google",
+            token,
+          });
+          error = retry.error;
         }
 
-        // Hide the prompt as soon as we get a session (e.g., via other login UI)
-        const { data: listener } = supabase.auth.onAuthStateChange(
-          (_, session) => {
-            if (session) {
-              try {
-                window.google?.accounts?.id?.cancel?.();
-                window.google?.accounts?.id?.disableAutoSelect?.();
-              } catch (cancelError) {
-                logOneTapError(cancelError);
-              }
+        const sessionNow = await hasSession();
+        if (!error || sessionNow) {
+          cancelPrompt();
+          try {
+            localStorage.removeItem(DISMISS_KEY);
+          } catch {
+            // ignore
+          }
+          devLog("One Tap sign-in completed", {
+            fromErrorPath: Boolean(error),
+          });
+          return;
+        }
+
+        const normalized = normalizeAuthError(error);
+        devLog("signInWithIdToken failed", normalized);
+
+        if (shouldFallbackToOAuth(error)) {
+          if (oauthFallbackTriggeredRef.current) return;
+          oauthFallbackTriggeredRef.current = true;
+          setDismiss(HOUR);
+
+          const base = window.location.origin.replace(/\/$/, "");
+          let nextPath = "/";
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const next = params.get("next");
+            if (next && next.startsWith("/")) nextPath = next;
+            const returnTo = localStorage.getItem("returnTo");
+            if (returnTo && returnTo.startsWith("/")) nextPath = returnTo;
+          } catch (readError) {
+            devLog("could not read next path", readError);
+          }
+
+          toast.error(
+            "No se pudo iniciar sesion con Google One Tap. Redirigiendo a Google...",
+          );
+          await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: `${base}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+            },
+          });
+          return;
+        }
+
+        setDismiss(4 * HOUR);
+        if (!toastShownRef.current) {
+          toastShownRef.current = true;
+          toast.error("No se pudo iniciar sesion con Google One Tap.");
+          window.setTimeout(() => {
+            toastShownRef.current = false;
+          }, 3000);
+        }
+      } catch (error) {
+        devLog("unexpected credential handler error", error);
+      } finally {
+        handlingCredentialRef.current = false;
+      }
+    };
+
+    const initOneTap = async () => {
+      const sessionExists = await hasSession();
+      if (!active || sessionExists) {
+        cancelPrompt();
+        return;
+      }
+
+      if (!window.google?.accounts?.id) {
+        await loadGsiScript();
+      }
+      if (!active || !window.google?.accounts?.id) return;
+
+      const parentId = containerRef.current?.id || "gsi-container";
+      nonceRef.current = randomString(32);
+
+      const fedcmEnv = (
+        process.env.NEXT_PUBLIC_GSI_USE_FEDCM || "auto"
+      ).toLowerCase();
+      let useFedcmForPrompt: boolean | undefined;
+      if (fedcmEnv === "true" || fedcmEnv === "1") useFedcmForPrompt = true;
+      else if (fedcmEnv === "false" || fedcmEnv === "0")
+        useFedcmForPrompt = false;
+      else {
+        const host = window.location.hostname;
+        const isPreviewHost =
+          /\.vercel\.app$/i.test(host) ||
+          /\.netlify\.app$/i.test(host) ||
+          /\.onrender\.com$/i.test(host);
+        useFedcmForPrompt = !isPreviewHost;
+      }
+
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: false,
+        itp_support: true,
+        prompt_parent_id: parentId,
+        context: "signin",
+        nonce: nonceRef.current,
+        use_fedcm_for_prompt: useFedcmForPrompt,
+      });
+
+      if (!dismissedStillActive()) {
+        window.google.accounts.id.prompt(
+          (notification?: PromptMomentNotification) => {
+            if (!notification) return;
+            if (isDebug()) {
+              devLog("prompt notification", {
+                isDisplayed: notification.isDisplayed?.(),
+                isNotDisplayed: notification.isNotDisplayed?.(),
+                notDisplayedReason: notification.getNotDisplayedReason?.(),
+                isDismissed: notification.isDismissedMoment?.(),
+                dismissedReason: notification.getDismissedReason?.(),
+                isSkipped: notification.isSkippedMoment?.(),
+                skippedReason: notification.getSkippedReason?.(),
+                fedcm: useFedcmForPrompt,
+                host: window.location.host,
+              });
+            }
+            if (notification.isDismissedMoment?.() === true) {
+              setDismiss(DAY);
+            } else if (notification.isNotDisplayed?.() === true) {
+              setDismiss(4 * HOUR);
+            } else if (notification.isSkippedMoment?.() === true) {
+              setDismiss(12 * HOUR);
             }
           },
         );
-        // expose unsubscribe for effect cleanup
-        unsubscribe = () => listener.subscription.unsubscribe();
-      } catch (e) {
-        logOneTapError(e);
-        setDismiss(60 * 60 * 1000);
       }
+
+      const { data: listener } = supabase.auth.onAuthStateChange(
+        (_, session) => {
+          if (!session) return;
+          cancelPrompt();
+        },
+      );
+      unsubscribe = () => listener.subscription.unsubscribe();
     };
 
-    let unsubscribe: (() => void) | undefined;
     void initOneTap();
     return () => {
       active = false;
-      try {
-        window.google?.accounts?.id?.cancel?.();
-      } catch (error) {
-        logOneTapError(error);
-      }
+      cancelPrompt();
       try {
         unsubscribe?.();
       } catch (error) {
-        logOneTapError(error);
+        devLog("unsubscribe failed", error);
       }
     };
-  }, [supabase, dismissedStillActive, setDismiss]);
+  }, [dismissedStillActive, setDismiss, supabase]);
 
-  // Container that anchors the One Tap prompt in the top-right corner
   return (
     <div
       id="gsi-container"
