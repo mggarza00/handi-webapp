@@ -7,7 +7,8 @@ import formatPresence from "./presence";
 
 import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
-import { normalizeAvatarUrl } from "@/lib/avatar";
+import { CHAT_AVATAR_PLACEHOLDER } from "@/lib/chat/chat-identity";
+import { resolveChatAvatarSrc } from "@/lib/chat/chat-avatar";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 
 type Profile = {
@@ -189,10 +190,8 @@ export default function ChatWindow({
         <>
           <div className="border-b p-3 flex items-center gap-3 sticky top-0 bg-white z-10">
             <AvatarWithSkeleton
-              src={
-                normalizeAvatarUrl(other?.avatar_url) ||
-                "/images/Favicon-v1-jpeg.jpg"
-              }
+              src={resolveChatAvatarSrc(other?.avatar_url)}
+              fallbackSrc={CHAT_AVATAR_PLACEHOLDER}
               alt={other?.full_name || "Avatar"}
               sizeClass="size-10"
             />

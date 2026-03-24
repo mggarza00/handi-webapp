@@ -39,7 +39,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
-import { normalizeAvatarUrl } from "@/lib/avatar";
+import { CHAT_AVATAR_PLACEHOLDER } from "@/lib/chat/chat-identity";
+import { resolveChatAvatarSrc } from "@/lib/chat/chat-avatar";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
@@ -2304,10 +2305,8 @@ export default function ChatPanel({
           <span className="text-lg leading-none">←</span>
         </button>
         <AvatarWithSkeleton
-          src={
-            normalizeAvatarUrl(headerProfile?.avatar_url || undefined) ||
-            "/images/Favicon-v1-jpeg.jpg"
-          }
+          src={resolveChatAvatarSrc(headerProfile?.avatar_url || undefined)}
+          fallbackSrc={CHAT_AVATAR_PLACEHOLDER}
           alt={headerName}
           sizeClass="size-10"
         />

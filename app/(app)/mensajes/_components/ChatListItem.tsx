@@ -6,6 +6,11 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { cn } from "@/lib/utils";
+import { resolveChatAvatarSrc } from "@/lib/chat/chat-avatar";
+import {
+  CHAT_AVATAR_PLACEHOLDER,
+  hasUsableAvatar,
+} from "@/lib/chat/chat-identity";
 import type { ChatSummary } from "./types";
 import formatPresence from "./presence";
 
@@ -104,13 +109,13 @@ function ChatListItem({
   // Resolve avatar URL: sign Supabase storage paths; allow external URLs and proxy paths
   const supabase = React.useMemo(() => createSupabaseBrowser(), []);
   const [avatarSrc, setAvatarSrc] = React.useState<string | null>(() =>
-    normalizeAvatarUrl(avatarUrl),
+    resolveChatAvatarSrc(avatarUrl),
   );
   React.useEffect(() => {
-    const url = avatarUrl;
+    const url = typeof avatarUrl === "string" ? avatarUrl : "";
     const norm = normalizeAvatarUrl(url);
-    if (!url) {
-      setAvatarSrc(null);
+    if (!hasUsableAvatar(norm)) {
+      setAvatarSrc(CHAT_AVATAR_PLACEHOLDER);
       return;
     }
     // Pass through external URLs and API proxy
@@ -173,7 +178,8 @@ function ChatListItem({
               className={`relative shrink-0 ${isUnread ? "ring-2 ring-blue-500 rounded-full shadow-[0_0_0_3px_rgba(59,130,246,0.15)]" : ""}`}
             >
               <AvatarWithSkeleton
-                src={avatarSrc || "/images/Favicon-v1-jpeg.jpg"}
+                src={avatarSrc}
+                fallbackSrc={CHAT_AVATAR_PLACEHOLDER}
                 alt={displayTitle}
                 sizeClass="size-9"
                 className="shrink-0"
