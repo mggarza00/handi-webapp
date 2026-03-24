@@ -1,10 +1,9 @@
 import { resolveActiveView } from "@/lib/routing/active-view";
 
-export type HeaderRole = "client" | "pro" | "admin" | null;
+export type HeaderRole = "client" | "pro" | null;
 
 type ResolveHeaderRoleInput = {
   isAuth: boolean;
-  isAdmin: boolean;
   activeRoleCookie?: string | null;
   profileRole?: string | null;
   isClientPro?: boolean | null;
@@ -17,7 +16,6 @@ export function resolveHeaderRole(input: ResolveHeaderRoleInput): HeaderRole {
     .toString()
     .trim()
     .toLowerCase();
-  if (input.isAdmin || normalizedProfileRole === "admin") return "admin";
   return resolveActiveView({
     activeRoleCookie: input.activeRoleCookie,
     profileRole: normalizedProfileRole || null,

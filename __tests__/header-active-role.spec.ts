@@ -6,7 +6,6 @@ describe("resolveHeaderRole", () => {
   it("keeps client header when active_role cookie is client", () => {
     const role = resolveHeaderRole({
       isAuth: true,
-      isAdmin: false,
       activeRoleCookie: "client",
       profileRole: "pro",
       isClientPro: true,
@@ -18,7 +17,6 @@ describe("resolveHeaderRole", () => {
   it("switches back to pro header when active_role cookie is pro", () => {
     const role = resolveHeaderRole({
       isAuth: true,
-      isAdmin: false,
       activeRoleCookie: "pro",
       profileRole: "pro",
       isClientPro: true,
@@ -27,15 +25,25 @@ describe("resolveHeaderRole", () => {
     expect(role).toBe("pro");
   });
 
-  it("preserves admin header regardless of active_role cookie", () => {
+  it("admin profile collapses to client header when active_role is client", () => {
     const role = resolveHeaderRole({
       isAuth: true,
-      isAdmin: true,
       activeRoleCookie: "client",
-      profileRole: "pro",
+      profileRole: "admin",
+      isClientPro: false,
+      professionalIsActive: false,
+    });
+    expect(role).toBe("client");
+  });
+
+  it("admin profile can resolve to pro header when pro capability is active", () => {
+    const role = resolveHeaderRole({
+      isAuth: true,
+      activeRoleCookie: "pro",
+      profileRole: "admin",
       isClientPro: true,
       professionalIsActive: true,
     });
-    expect(role).toBe("admin");
+    expect(role).toBe("pro");
   });
 });

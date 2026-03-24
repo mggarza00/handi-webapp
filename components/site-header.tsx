@@ -239,7 +239,6 @@ export default async function SiteHeader() {
     userId,
     role,
     profile_role,
-    is_admin,
     is_client_pro,
     professional_is_active,
     avatar_url,
@@ -252,7 +251,6 @@ export default async function SiteHeader() {
     cookieStore.get("handee_pro_apply")?.value === "1";
   const effectiveRole = resolveHeaderRole({
     isAuth,
-    isAdmin: is_admin,
     activeRoleCookie,
     profileRole: profile_role ?? role ?? null,
     isClientPro: is_client_pro,
@@ -343,58 +341,15 @@ export default async function SiteHeader() {
         className: "h-[2.125rem] px-[1.275rem] hover:bg-neutral-200",
       },
     );
-  } else if (effectiveRole === "admin" || is_admin) {
-    rightLinks.push(
-      {
-        href: "/admin",
-        label: "Panel",
-        variant: "default",
-        size: "lg",
-        // Marcar nav de admin para E2E
-        testId: "nav-admin",
-      },
-      { href: "/admin/users", label: "Usuarios", variant: "ghost", size: "sm" },
-      {
-        href: "/admin/requests",
-        label: "Solicitudes",
-        variant: "ghost",
-        size: "sm",
-      },
-      {
-        href: "/admin/applications",
-        label: "Postulaciones",
-        variant: "ghost",
-        size: "sm",
-      },
-      {
-        href: "/admin/pro-applications",
-        label: "Altas Pro",
-        variant: "ghost",
-        size: "sm",
-      },
-      {
-        href: "/admin/professionals",
-        label: "Profesionales",
-        variant: "ghost",
-        size: "sm",
-      },
-    );
   }
 
   // Asegurar que "Mis solicitudes" estÃ© visible solo para clientes (o rol aÃºn no asignado) y administradores
-  if (
-    !proApply &&
-    isAuth &&
-    (effectiveRole === "client" || effectiveRole === "admin" || is_admin)
-  ) {
+  if (!proApply && isAuth && effectiveRole === "client") {
     const hasRequestsLink = rightLinks.some((l) =>
       l.href.startsWith("/requests"),
     );
     if (!hasRequestsLink) {
-      const href =
-        effectiveRole === "admin" || is_admin
-          ? "/requests"
-          : "/requests?mine=1";
+      const href = "/requests?mine=1";
       rightLinks.push({
         href,
         label: "Mis solicitudes",
