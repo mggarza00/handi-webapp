@@ -4,7 +4,7 @@ type TrustSignalChipsProps = {
 };
 
 export default function TrustSignalChips({
-  title = "Confianza para decidir rapido",
+  title = "Confianza para solicitar con claridad",
   items,
 }: TrustSignalChipsProps) {
   if (!items.length) return null;

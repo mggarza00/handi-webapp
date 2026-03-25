@@ -5,6 +5,11 @@ import {
   SEO_CITIES,
   SEO_SERVICES,
 } from "@/lib/seo/local-landings";
+import {
+  SEO_JOB_PAGES,
+  SEO_PRICE_PAGES,
+  SEO_PROBLEM_PAGES,
+} from "@/lib/seo/seo-pages";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
@@ -89,6 +94,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "weekly",
       priority: combo.priority >= 10 ? 0.95 : combo.priority >= 8 ? 0.9 : 0.8,
+    });
+  }
+
+  for (const problemPage of SEO_PROBLEM_PAGES) {
+    routes.push({
+      url: `${base}/problemas/${problemPage.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    });
+  }
+
+  for (const pricePage of SEO_PRICE_PAGES) {
+    routes.push({
+      url: `${base}/precios/${pricePage.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.78,
+    });
+  }
+
+  for (const jobPage of SEO_JOB_PAGES) {
+    routes.push({
+      url: `${base}/trabajos/${jobPage.slug}`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.72,
     });
   }
 
