@@ -3,11 +3,30 @@
 // Listens for push events and displays notifications.
 
 // ---- ConfiguraciÃ³n offline y utilidades ----
-const DEBUG = false;
+const DEBUG = (() => {
+  try {
+    const host = self.location?.hostname || "";
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local")
+    );
+  } catch (_) {
+    return false;
+  }
+})();
 function log(...args) {
   if (DEBUG) {
     try {
       console.log("SW", ...args);
+    } catch (_) {}
+  }
+}
+function logError(...args) {
+  if (DEBUG) {
+    try {
+      console.error("SW", ...args);
     } catch (_) {}
   }
 }
@@ -116,7 +135,9 @@ self.addEventListener("push", (event) => {
     try {
       // eslint-disable-next-line no-unused-expressions
       data = event.data?.json?.() ?? {};
-    } catch (_) {}
+    } catch (error) {
+      logError("push payload parse failed", error);
+    }
     const payloadData =
       data && typeof data.data === "object" && data.data ? data.data : {};
     const mergedData = {
@@ -142,9 +163,13 @@ self.addEventListener("push", (event) => {
     };
 
     // @ts-ignore
-    event.waitUntil(self.registration.showNotification(title, options));
+    event.waitUntil(
+      self.registration.showNotification(title, options).catch((error) => {
+        logError("showNotification failed", error);
+      }),
+    );
   } catch (err) {
-    // noop
+    logError("push event failed", err);
   }
 });
 
@@ -168,12 +193,16 @@ self.addEventListener("notificationclick", (event) => {
               // @ts-ignore
               return client.focus();
             }
-          } catch (_) {
-            /* ignore */
+          } catch (error) {
+            logError("notificationclick focus failed", error);
           }
         }
         // @ts-ignore
         if (self.clients.openWindow) return self.clients.openWindow(url);
+        return undefined;
+      })
+      .catch((error) => {
+        logError("notificationclick handler failed", error);
       }),
   );
 });

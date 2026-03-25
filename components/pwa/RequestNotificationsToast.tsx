@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 
-import ensurePushSubscription from "@/lib/push";
+import { syncPushSubscription } from "@/lib/push/sync-subscription";
 import {
   isStandalonePWA,
   notificationsSupported,
@@ -54,24 +54,7 @@ export default function RequestNotificationsToast() {
   const onGrant = useCallback(async () => {
     setUI("hidden");
     try {
-      const publicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY || "";
-      if (!publicKey) return;
-      const sub = await ensurePushSubscription(publicKey);
-      if (!sub) return;
-      const payload = typeof sub.toJSON === "function" ? sub.toJSON() : sub;
-      const userAgent = navigator.userAgent;
-      const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || undefined;
-      await fetch("/api/push/subscribe", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
-        body: JSON.stringify({ subscription: payload, userAgent, appVersion }),
-      });
-      try {
-        window.dispatchEvent(new Event("handi:push:subscribe"));
-      } catch (error) {
-        logToastError(error);
-      }
+      await syncPushSubscription();
     } catch (error) {
       logToastError(error);
     }
