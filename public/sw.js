@@ -31,13 +31,16 @@ function logError(...args) {
   }
 }
 const CACHE_VERSION = "handi-v1";
+const DEFAULT_NOTIFICATION_ICON = "/icons/icon-192.png";
+const DEFAULT_NOTIFICATION_BADGE = "/icons/badge-72.png";
 const PRECACHE = [
   "/", // start_url
   "/offline.html",
   "/manifest.webmanifest",
-  "/icons/icon-192.png",
+  DEFAULT_NOTIFICATION_ICON,
   "/icons/icon-512.png",
   "/icons/maskable_icon.png",
+  DEFAULT_NOTIFICATION_BADGE,
   "/images/handifav_fondo.png",
   "/images/handifav_sinfondo.png",
 ].filter(Boolean);
@@ -140,26 +143,56 @@ self.addEventListener("push", (event) => {
     }
     const payloadData =
       data && typeof data.data === "object" && data.data ? data.data : {};
+    const strOrNull = (value) =>
+      typeof value === "string" && value.trim() ? value.trim() : null;
     const mergedData = {
       ...payloadData,
       url: payloadData.url || data.url || "/",
     };
     const icon =
-      (data && data.icon) ||
-      (payloadData && payloadData.icon) ||
-      "/images/handifav_fondo.png";
+      strOrNull(data?.icon) ||
+      strOrNull(payloadData?.icon) ||
+      DEFAULT_NOTIFICATION_ICON;
     const badge =
-      (data && data.badge) ||
-      (payloadData && payloadData.badge) ||
-      "/images/handifav_fondo.png";
-    const title = data.title || "Handi";
-    // Minimal options per spec
+      strOrNull(data?.badge) ||
+      strOrNull(payloadData?.badge) ||
+      DEFAULT_NOTIFICATION_BADGE;
+    const image =
+      strOrNull(data?.image) || strOrNull(payloadData?.image) || undefined;
+    const title = strOrNull(data?.title) || "Handi";
     const options = {
-      body: data && data.body ? data.body : "",
+      body: strOrNull(data?.body) || "",
       icon,
       badge,
+      image,
       data: mergedData,
-      tag: data && data.tag ? data.tag : undefined,
+      tag: strOrNull(data?.tag) || strOrNull(payloadData?.tag) || "handi",
+      renotify:
+        typeof data?.renotify === "boolean"
+          ? data.renotify
+          : typeof payloadData?.renotify === "boolean"
+            ? payloadData.renotify
+            : false,
+      requireInteraction:
+        typeof data?.requireInteraction === "boolean"
+          ? data.requireInteraction
+          : typeof payloadData?.requireInteraction === "boolean"
+            ? payloadData.requireInteraction
+            : false,
+      vibrate:
+        Array.isArray(data?.vibrate) && data.vibrate.length > 0
+          ? data.vibrate
+          : Array.isArray(payloadData?.vibrate) &&
+              payloadData.vibrate.length > 0
+            ? payloadData.vibrate
+            : undefined,
+      actions:
+        Array.isArray(data?.actions) && data.actions.length > 0
+          ? data.actions
+          : Array.isArray(payloadData?.actions) &&
+              payloadData.actions.length > 0
+            ? payloadData.actions
+            : undefined,
     };
 
     // @ts-ignore
