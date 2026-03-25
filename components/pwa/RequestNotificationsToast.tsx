@@ -1,6 +1,12 @@
-"use client";
+﻿"use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import ensurePushSubscription from "@/lib/push";
 import safeIsSafariOniOS from "@/lib/pwa/install-detect";
@@ -28,7 +34,6 @@ export default function RequestNotificationsToast() {
   );
 
   useEffect(() => {
-    // Detect platform once (safe on SSR)
     try {
       setIsIOS(safeIsSafariOniOS());
     } catch (error) {
@@ -60,7 +65,6 @@ export default function RequestNotificationsToast() {
 
   useEffect(() => {
     if (!canUseNotifications) return;
-    // Solo en cliente
     let mounted = true;
     try {
       const seen = (() => {
@@ -78,7 +82,8 @@ export default function RequestNotificationsToast() {
       if (!mounted) return;
       if (status === "default" && !seen) setUI("ask");
       else if (status === "denied") {
-        const dismissed = localStorage.getItem(LS_KEYS.DISMISSED_DENIED_HELP) === "1";
+        const dismissed =
+          localStorage.getItem(LS_KEYS.DISMISSED_DENIED_HELP) === "1";
         if (!dismissed) setUI("denied");
       }
     } catch (error) {
@@ -114,8 +119,11 @@ export default function RequestNotificationsToast() {
         } catch (error) {
           logToastError(error);
         }
-      } else if (res === "denied") setUI("denied");
-      else setUI("hidden");
+      } else if (res === "denied") {
+        setUI("denied");
+      } else {
+        setUI("hidden");
+      }
     } catch (error) {
       logToastError(error);
       setUI("hidden");
@@ -130,6 +138,7 @@ export default function RequestNotificationsToast() {
     }
     setUI("hidden");
   }, [logToastError]);
+
   function dismissDeniedHelp() {
     try {
       localStorage.setItem(LS_KEYS.DISMISSED_DENIED_HELP, "1");
@@ -142,7 +151,7 @@ export default function RequestNotificationsToast() {
   if (!canUseNotifications || ui === "hidden") return null;
 
   const Card = ({ children }: { children: ReactNode }) => (
-    <div className="fixed inset-x-0 bottom-20 mx-auto w-95% max-w-md rounded-2xl shadow-lg border bg-white p-4 z-50">
+    <div className="fixed inset-x-0 top-[72px] md:top-[84px] mx-auto w-[95%] max-w-md rounded-2xl shadow-lg border border-white/15 bg-neutral-900/80 backdrop-blur-md p-4 z-[60] text-white">
       {children}
     </div>
   );
@@ -150,30 +159,20 @@ export default function RequestNotificationsToast() {
   if (ui === "ask") {
     return (
       <Card>
-        <div className="flex items-start gap-3">
-          <div className="flex-1">
-            <p className="text-sm font-medium">Permitir notificaciones</p>
-            <p className="mt-1 text-xs text-neutral-600">
-              Activa las notificaciones para recibir mensajes de trabajos, estatus y pagos en tiempo real.
-            </p>
-          </div>
-          <button
-            aria-label="Cerrar"
-            onClick={dismissAsk}
-            className="ml-2 text-neutral-500 hover:text-neutral-800"
-          >
-            ×
-          </button>
-        </div>
-        <div className="mt-3 flex justify-end gap-2">
-          <button
-            className="px-3 py-1.5 text-sm rounded-xl border"
-            onClick={dismissAsk}
-          >
-            Ahora no
-          </button>
+        <div className="text-sm font-semibold">Permitir notificaciones</div>
+        <p className="text-xs mt-1">
+          Activa las notificaciones para recibir mensajes de trabajos, estatus y
+          pagos en tiempo real.
+        </p>
+        <div className="mt-3 flex gap-2 justify-end">
           <button
             className="px-3 py-1.5 text-sm rounded-xl bg-black text-white"
+            onClick={dismissAsk}
+          >
+            Más tarde
+          </button>
+          <button
+            className="px-3 py-1.5 text-sm rounded-xl bg-white text-black"
             onClick={requestPerm}
           >
             Permitir
@@ -194,20 +193,27 @@ export default function RequestNotificationsToast() {
       <ul className="text-xs mt-2 list-disc pl-5 space-y-1">
         {isIOS ? (
           <>
-            <li>Asegúrate de haber instalado Handi en la pantalla de inicio (PWA).</li>
+            <li>
+              Asegúrate de haber instalado Handi en la pantalla de inicio (PWA).
+            </li>
             <li>Abre Ajustes &gt; Notificaciones &gt; Handi.</li>
             <li>Activa Permitir notificaciones.</li>
           </>
         ) : (
           <>
             <li>Busca Notificaciones o Apps en Ajustes.</li>
-            <li>Selecciona Handi (app instalada) o el navegador si usas la web.</li>
+            <li>
+              Selecciona Handi (app instalada) o el navegador si usas la web.
+            </li>
             <li>Activa Permitir notificaciones.</li>
           </>
         )}
       </ul>
       <div className="mt-3 flex gap-2 justify-end">
-        <button className="px-3 py-1.5 text-sm rounded-xl border" onClick={dismissDeniedHelp}>
+        <button
+          className="px-3 py-1.5 text-sm rounded-xl bg-white text-black"
+          onClick={dismissDeniedHelp}
+        >
           Listo
         </button>
       </div>
