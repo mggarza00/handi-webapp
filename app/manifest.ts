@@ -13,6 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#00124A",
     icons: [
       {
+        src: "/icons/icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
         src: "/manifest-icon-192.maskable.png",
         sizes: "192x192",
         type: "image/png",
@@ -23,6 +29,12 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: "512x512",
         type: "image/png",
         purpose: "any maskable",
+      },
+      {
+        src: "/icons/badge-72.png",
+        sizes: "72x72",
+        type: "image/png",
+        purpose: "monochrome",
       },
     ],
   };
