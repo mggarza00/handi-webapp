@@ -112,38 +112,27 @@ export default function RequestNotificationsToast() {
   if (!canUseNotifications || !isStandalone || ui === "hidden") return null;
 
   const Card = ({ children }: { children: ReactNode }) => (
-    <div className="fixed inset-x-0 bottom-20 mx-auto w-95% max-w-md rounded-2xl shadow-lg border bg-white p-4 z-50">
+    <div className="fixed inset-x-0 top-[72px] md:top-[84px] mx-auto w-[95%] max-w-md rounded-2xl shadow-lg border border-white/15 bg-neutral-900/80 backdrop-blur-md p-4 z-[60] text-white">
       {children}
     </div>
   );
 
   return (
     <Card>
-      <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <p className="text-sm font-medium">Permitir notificaciones</p>
-          <p className="mt-1 text-xs text-neutral-600">
-            Activa las notificaciones para recibir mensajes de trabajos, estatus
-            y pagos en tiempo real.
-          </p>
-        </div>
+      <div className="text-sm font-semibold">Permitir notificaciones</div>
+      <p className="text-xs mt-1">
+        Activa las notificaciones para recibir mensajes de trabajos, estatus y
+        pagos en tiempo real.
+      </p>
+      <div className="mt-3 flex gap-2 justify-end">
         <button
-          aria-label="Cerrar"
-          onClick={dismissAsk}
-          className="ml-2 text-neutral-500 hover:text-neutral-800"
-        >
-          ×
-        </button>
-      </div>
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          className="px-3 py-1.5 text-sm rounded-xl border"
+          className="px-3 py-1.5 text-sm rounded-xl bg-black text-white"
           onClick={dismissAsk}
         >
           Más tarde
         </button>
         <button
-          className="px-3 py-1.5 text-sm rounded-xl bg-black text-white"
+          className="px-3 py-1.5 text-sm rounded-xl bg-white text-black"
           onClick={requestPerm}
         >
           Permitir
