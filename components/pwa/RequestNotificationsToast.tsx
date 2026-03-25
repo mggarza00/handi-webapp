@@ -9,17 +9,17 @@ import {
 } from "react";
 
 import ensurePushSubscription from "@/lib/push";
-import safeIsSafariOniOS from "@/lib/pwa/install-detect";
+import {
+  isStandalonePWA,
+  notificationsSupported,
+} from "@/lib/pwa/install-detect";
 
-const LS_KEYS = {
-  SEEN_TOAST: "handi_notif_seen_toast_v1",
-  DISMISSED_DENIED_HELP: "handi_notif_dismissed_denied_help_v1",
-} as const;
+const SESSION_DISMISS_KEY = "handi_notif_dismissed_session_v1";
+
+type NotifState = "hidden" | "ask";
 
 export default function RequestNotificationsToast() {
-  type NotifState = "hidden" | "ask" | "denied";
   const [ui, setUI] = useState<NotifState>("hidden");
-  const [isIOS, setIsIOS] = useState(false);
 
   const logToastError = useCallback((error: unknown) => {
     if (process.env.NODE_ENV !== "production") {
@@ -28,19 +28,28 @@ export default function RequestNotificationsToast() {
     }
   }, []);
 
-  const canUseNotifications = useMemo(
-    () => typeof window !== "undefined" && "Notification" in window,
-    [],
-  );
+  const canUseNotifications = useMemo(() => notificationsSupported(), []);
+  const isStandalone = useMemo(() => isStandalonePWA(), []);
 
   useEffect(() => {
+    if (!canUseNotifications || !isStandalone) return;
+
     try {
-      setIsIOS(safeIsSafariOniOS());
+      const dismissedThisSession =
+        sessionStorage.getItem(SESSION_DISMISS_KEY) === "1";
+      const status =
+        typeof window !== "undefined" && "Notification" in window
+          ? window.Notification.permission
+          : "default";
+
+      if (dismissedThisSession) return;
+      if (status === "default") setUI("ask");
+      else setUI("hidden");
     } catch (error) {
       logToastError(error);
-      setIsIOS(false);
+      setUI("hidden");
     }
-  }, [logToastError]);
+  }, [canUseNotifications, isStandalone, logToastError]);
 
   const onGrant = useCallback(async () => {
     setUI("hidden");
@@ -58,69 +67,30 @@ export default function RequestNotificationsToast() {
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body: JSON.stringify({ subscription: payload, userAgent, appVersion }),
       });
+      try {
+        window.dispatchEvent(new Event("handi:push:subscribe"));
+      } catch (error) {
+        logToastError(error);
+      }
     } catch (error) {
       logToastError(error);
     }
   }, [logToastError]);
 
-  useEffect(() => {
-    if (!canUseNotifications) return;
-    let mounted = true;
-    try {
-      const seen = (() => {
-        try {
-          return localStorage.getItem(LS_KEYS.SEEN_TOAST) === "1";
-        } catch (error) {
-          logToastError(error);
-          return false;
-        }
-      })();
-      const status =
-        typeof window !== "undefined" && "Notification" in window
-          ? window.Notification.permission
-          : "default";
-      if (!mounted) return;
-      if (status === "default" && !seen) setUI("ask");
-      else if (status === "denied") {
-        const dismissed =
-          localStorage.getItem(LS_KEYS.DISMISSED_DENIED_HELP) === "1";
-        if (!dismissed) setUI("denied");
-      }
-    } catch (error) {
-      logToastError(error);
+  const requestPerm = useCallback(async () => {
+    if (!canUseNotifications || !isStandalone) {
+      setUI("hidden");
+      return;
     }
 
-    const onEvent = () => {
-      void onGrant();
-    };
-    window.addEventListener("handi:push:subscribe", onEvent);
-    return () => {
-      mounted = false;
-      window.removeEventListener("handi:push:subscribe", onEvent);
-    };
-  }, [canUseNotifications, logToastError, onGrant]);
-
-  const requestPerm = useCallback(async () => {
-    if (!canUseNotifications) return setUI("hidden");
     try {
       const res =
         typeof window !== "undefined" && "Notification" in window
           ? await window.Notification.requestPermission()
           : "default";
-      try {
-        localStorage.setItem(LS_KEYS.SEEN_TOAST, "1");
-      } catch (error) {
-        logToastError(error);
-      }
+
       if (res === "granted") {
-        setUI("hidden");
-        try {
-          window.dispatchEvent(new Event("handi:push:subscribe"));
-        } catch (error) {
-          logToastError(error);
-        }
-      } else if (res === "denied") {
-        setUI("denied");
+        await onGrant();
       } else {
         setUI("hidden");
       }
@@ -128,27 +98,18 @@ export default function RequestNotificationsToast() {
       logToastError(error);
       setUI("hidden");
     }
-  }, [canUseNotifications, logToastError]);
+  }, [canUseNotifications, isStandalone, logToastError, onGrant]);
 
   const dismissAsk = useCallback(() => {
     try {
-      localStorage.setItem(LS_KEYS.SEEN_TOAST, "1");
+      sessionStorage.setItem(SESSION_DISMISS_KEY, "1");
     } catch (error) {
       logToastError(error);
     }
     setUI("hidden");
   }, [logToastError]);
 
-  function dismissDeniedHelp() {
-    try {
-      localStorage.setItem(LS_KEYS.DISMISSED_DENIED_HELP, "1");
-    } catch (error) {
-      logToastError(error);
-    }
-    setUI("hidden");
-  }
-
-  if (!canUseNotifications || ui === "hidden") return null;
+  if (!canUseNotifications || !isStandalone || ui === "hidden") return null;
 
   const Card = ({ children }: { children: ReactNode }) => (
     <div className="fixed inset-x-0 top-[72px] md:top-[84px] mx-auto w-[95%] max-w-md rounded-2xl shadow-lg border border-white/15 bg-neutral-900/80 backdrop-blur-md p-4 z-[60] text-white">
@@ -156,65 +117,25 @@ export default function RequestNotificationsToast() {
     </div>
   );
 
-  if (ui === "ask") {
-    return (
-      <Card>
-        <div className="text-sm font-semibold">Permitir notificaciones</div>
-        <p className="text-xs mt-1">
-          Activa las notificaciones para recibir mensajes de trabajos, estatus y
-          pagos en tiempo real.
-        </p>
-        <div className="mt-3 flex gap-2 justify-end">
-          <button
-            className="px-3 py-1.5 text-sm rounded-xl bg-black text-white"
-            onClick={dismissAsk}
-          >
-            Más tarde
-          </button>
-          <button
-            className="px-3 py-1.5 text-sm rounded-xl bg-white text-black"
-            onClick={requestPerm}
-          >
-            Permitir
-          </button>
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <Card>
-      <div className="text-sm font-semibold">Activa las notificaciones</div>
+      <div className="text-sm font-semibold">Permitir notificaciones</div>
       <p className="text-xs mt-1">
-        {isIOS
-          ? "En iPhone/iPad ve a Ajustes > Notificaciones > Handi y activa 'Permitir notificaciones'."
-          : "En tu dispositivo, ve a Ajustes > Notificaciones > Handi y activa 'Permitir notificaciones'."}
+        Activa las notificaciones para recibir mensajes de trabajos, estatus y
+        pagos en tiempo real.
       </p>
-      <ul className="text-xs mt-2 list-disc pl-5 space-y-1">
-        {isIOS ? (
-          <>
-            <li>
-              Asegúrate de haber instalado Handi en la pantalla de inicio (PWA).
-            </li>
-            <li>Abre Ajustes &gt; Notificaciones &gt; Handi.</li>
-            <li>Activa Permitir notificaciones.</li>
-          </>
-        ) : (
-          <>
-            <li>Busca Notificaciones o Apps en Ajustes.</li>
-            <li>
-              Selecciona Handi (app instalada) o el navegador si usas la web.
-            </li>
-            <li>Activa Permitir notificaciones.</li>
-          </>
-        )}
-      </ul>
       <div className="mt-3 flex gap-2 justify-end">
         <button
-          className="px-3 py-1.5 text-sm rounded-xl bg-white text-black"
-          onClick={dismissDeniedHelp}
+          className="px-3 py-1.5 text-sm rounded-xl bg-black text-white"
+          onClick={dismissAsk}
         >
-          Listo
+          Más tarde
+        </button>
+        <button
+          className="px-3 py-1.5 text-sm rounded-xl bg-white text-black"
+          onClick={requestPerm}
+        >
+          Permitir
         </button>
       </div>
     </Card>
