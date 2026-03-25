@@ -17,25 +17,26 @@ import {
   getCitiesForService,
   getSeoCityBySlug,
 } from "@/lib/seo/local-landings";
+import { SEO_PRICE_PAGES, SEO_PROBLEM_PAGES } from "@/lib/seo/seo-pages";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const metadata: Metadata = {
-  title: "Servicios para el hogar en Monterrey y San Pedro | Cotiza hoy",
+  title: "Solicita servicios para tu hogar con Handi | Monterrey y San Pedro",
   description:
-    "Encuentra plomero, electricista, jardinero, carpintero, limpieza y mozo en Monterrey y San Pedro. Elige servicio y cotiza en minutos.",
+    "Cuéntanos qué necesitas en tu hogar y Handi te conecta con profesionales compatibles para conversar y acordar dentro de la plataforma.",
   alternates: { canonical: "/servicios" },
   openGraph: {
-    title: "Servicios para el hogar en Monterrey y San Pedro | Cotiza hoy",
+    title: "Solicita servicios para tu hogar con Handi | Monterrey y San Pedro",
     description:
-      "Indice local para contratar profesionales del hogar en Monterrey y San Pedro Garza Garcia.",
+      "Solicita trabajos del hogar en Handi y encuentra profesionales compatibles para resolver tu caso con seguimiento en plataforma.",
     url: "/servicios",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Servicios para el hogar en Monterrey y San Pedro | Cotiza hoy",
+    title: "Solicita servicios para tu hogar con Handi | Monterrey y San Pedro",
     description:
-      "Explora servicios locales y entra a rutas por ciudad para contratar mas rapido.",
+      "Desde plomería hasta limpieza, crea tu solicitud, habla con profesionales compatibles y cierra tu acuerdo en Handi.",
   },
 };
 
@@ -44,9 +45,9 @@ export default function ServicesSeoIndexPage() {
   const collectionJsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Servicios para el hogar en Handi",
+    name: "Tipos de servicios para el hogar en Handi",
     description:
-      "Indice de servicios para solicitudes y cotizaciones de mantenimiento del hogar.",
+      "Página de referencia para solicitar ayuda en trabajos del hogar y conectar con profesionales compatibles en Handi.",
     url: `${baseUrl}/servicios`,
   };
   const itemListJsonLd = {
@@ -59,7 +60,7 @@ export default function ServicesSeoIndexPage() {
       url: `${baseUrl}/servicios/${service.slug}`,
     })),
   };
-  const popularLocalSearches = ACTIVE_SERVICE_CITY_COMBINATIONS.slice(0, 8)
+  const commonServiceRequests = ACTIVE_SERVICE_CITY_COMBINATIONS.slice(0, 8)
     .map((combo) => {
       const service = SEO_SERVICES.find(
         (item) => item.slug === combo.serviceSlug,
@@ -72,6 +73,14 @@ export default function ServicesSeoIndexPage() {
       };
     })
     .filter((item): item is { href: string; label: string } => Boolean(item));
+  const featuredProblemLinks = SEO_PROBLEM_PAGES.slice(0, 5).map((item) => ({
+    href: `/problemas/${item.slug}`,
+    label: item.linkLabel,
+  }));
+  const featuredPriceLinks = SEO_PRICE_PAGES.slice(0, 5).map((item) => ({
+    href: `/precios/${item.slug}`,
+    label: item.linkLabel,
+  }));
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:space-y-10 md:py-8">
@@ -88,13 +97,13 @@ export default function ServicesSeoIndexPage() {
       />
 
       <LocalMarketplaceHero
-        eyebrow="Marketplace Handi"
-        title="Servicios para tu hogar"
-        subtitle="Explora categorias, compara cobertura local y elige rapido el servicio ideal para tu hogar."
+        eyebrow="Solicitudes para tu hogar"
+        title="¿Qué necesitas resolver en casa?"
+        subtitle="Elige el tipo de trabajo, cuéntanos tu caso y conecta con profesionales compatibles para acordar dentro de Handi."
         quickSignals={[
-          "Cobertura en Monterrey y San Pedro",
-          "Categorias verificadas",
-          "Solicitud directa",
+          "Solicitud guiada en minutos",
+          "Profesionales compatibles",
+          "Acuerdo y seguimiento en plataforma",
         ]}
         imageSrc={LANDING_IMAGES.platform}
         imageAlt="Plataforma Handi para servicios del hogar"
@@ -113,7 +122,7 @@ export default function ServicesSeoIndexPage() {
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">
-          Elige una categoria
+          Tipos de trabajo que puedes solicitar
         </h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {SEO_SERVICES.map((service) => {
@@ -124,13 +133,13 @@ export default function ServicesSeoIndexPage() {
                 title={service.name}
                 description={service.shortDescription}
                 href={`/servicios/${service.slug}`}
-                ctaLabel="Ver ciudades para este servicio"
+                ctaLabel="Solicitar este tipo de trabajo"
                 imageSrc={getServiceLandingImage(service.slug)}
                 imageAlt={service.name}
                 badges={[
-                  `${cityCount} ciudades prioritarias`,
+                  `${cityCount} zonas con operación activa`,
                   "Servicio residencial",
-                  "Comparacion de opciones",
+                  "Conexión con profesionales compatibles",
                 ]}
               />
             );
@@ -140,10 +149,10 @@ export default function ServicesSeoIndexPage() {
 
       <section className="space-y-2 rounded-2xl border border-slate-200 bg-[#f8faff] p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Busquedas locales populares
+          Solicitudes frecuentes
         </h2>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {popularLocalSearches.map((item) => (
+          {commonServiceRequests.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -153,6 +162,49 @@ export default function ServicesSeoIndexPage() {
             </Link>
           ))}
         </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <article className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Problemas comunes del hogar
+          </h2>
+          <p className="text-sm text-slate-600">
+            Guías prácticas para solicitar ayuda con contexto claro y recibir
+            opciones compatibles.
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {featuredProblemLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-[#082877] hover:underline"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </article>
+        <article className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Precios estimados
+          </h2>
+          <p className="text-sm text-slate-600">
+            Referencias orientativas para solicitar con mejor informacion y
+            acordar sin friccion.
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {featuredPriceLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-[#082877] hover:underline"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </article>
       </section>
 
       <ProtectedPaymentsCard className="bg-transparent" />

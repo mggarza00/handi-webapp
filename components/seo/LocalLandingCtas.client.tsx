@@ -114,7 +114,7 @@ export default function LocalLandingCtas({
           })
         }
       >
-        Ver profesionales
+        Conocer profesionales compatibles
       </Link>
     </div>
   );

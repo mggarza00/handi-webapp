@@ -13,25 +13,26 @@ import {
   getSeoServiceBySlug,
   getServicesForCity,
 } from "@/lib/seo/local-landings";
+import { SEO_PRICE_PAGES, SEO_PROBLEM_PAGES } from "@/lib/seo/seo-pages";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const metadata: Metadata = {
-  title: "Ciudades con servicios para el hogar | Monterrey y San Pedro",
+  title: "Cobertura local de Handi | Monterrey y San Pedro",
   description:
-    "Revisa cobertura por ciudad para contratar servicios del hogar. Entra a rutas locales de Monterrey y San Pedro Garza Garcia.",
+    "Conoce dónde opera Handi y cómo conectamos solicitudes del hogar con profesionales compatibles en tu zona.",
   alternates: { canonical: "/ciudades" },
   openGraph: {
-    title: "Ciudades con servicios para el hogar | Monterrey y San Pedro",
+    title: "Cobertura local de Handi | Monterrey y San Pedro",
     description:
-      "Indice local por ciudad para buscar servicios del hogar en Nuevo Leon.",
+      "Consulta la cobertura activa de Handi en Monterrey y San Pedro para solicitar servicios del hogar con atención local.",
     url: "/ciudades",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ciudades con servicios para el hogar | Monterrey y San Pedro",
+    title: "Cobertura local de Handi | Monterrey y San Pedro",
     description:
-      "Explora rutas locales por ciudad y entra directo al servicio que necesitas.",
+      "Revisa zonas de operación activa y solicita ayuda para tu hogar con profesionales compatibles en Handi.",
   },
 };
 
@@ -40,9 +41,9 @@ export default function CitiesSeoIndexPage() {
   const collectionJsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Ciudades con cobertura en Handi",
+    name: "Cobertura local de Handi",
     description:
-      "Indice de ciudades con cobertura de servicios para hogar y mantenimiento.",
+      "Información de cobertura local para solicitudes de servicios del hogar en Handi.",
     url: `${baseUrl}/ciudades`,
   };
   const itemListJsonLd = {
@@ -55,7 +56,7 @@ export default function CitiesSeoIndexPage() {
       url: `${baseUrl}/ciudades/${city.slug}`,
     })),
   };
-  const priorityCityRoutes = ACTIVE_SERVICE_CITY_COMBINATIONS.slice(0, 10)
+  const commonRequestsByZone = ACTIVE_SERVICE_CITY_COMBINATIONS.slice(0, 10)
     .map((combo) => {
       const service = getSeoServiceBySlug(combo.serviceSlug);
       const city = SEO_CITIES.find((item) => item.slug === combo.citySlug);
@@ -66,6 +67,14 @@ export default function CitiesSeoIndexPage() {
       };
     })
     .filter((item): item is { href: string; label: string } => Boolean(item));
+  const featuredProblemLinks = SEO_PROBLEM_PAGES.slice(0, 5).map((item) => ({
+    href: `/problemas/${item.slug}`,
+    label: item.linkLabel,
+  }));
+  const featuredPriceLinks = SEO_PRICE_PAGES.slice(0, 5).map((item) => ({
+    href: `/precios/${item.slug}`,
+    label: item.linkLabel,
+  }));
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:space-y-10 md:py-8">
@@ -82,13 +91,13 @@ export default function CitiesSeoIndexPage() {
       />
 
       <LocalMarketplaceHero
-        eyebrow="Cobertura local"
-        title="Ciudades con servicios activos"
-        subtitle="Explora cobertura por ciudad y entra a rutas locales para decidir rapido."
+        eyebrow="Operación local Handi"
+        title="¿En qué zonas opera Handi?"
+        subtitle="Trabajamos por cobertura local para conectar tu solicitud con profesionales compatibles y resolver dentro de la plataforma."
         quickSignals={[
-          "Monterrey y San Pedro",
-          "Rutas por categoria",
-          "Cobertura por zonas",
+          "Cobertura activa por zonas",
+          "Conexión según tu necesidad",
+          "Seguimiento local del servicio",
         ]}
         imageSrc={LANDING_IMAGES.city}
         imageAlt="Cobertura de servicios por ciudad"
@@ -113,14 +122,14 @@ export default function CitiesSeoIndexPage() {
             <MarketplaceCard
               key={city.slug}
               title={city.name}
-              description={`Explora categorias activas en ${city.name} y entra directo a las rutas de contratacion local.`}
+              description={`Conoce cómo solicitar ayuda para tu hogar en ${city.name} y recibir opciones compatibles en cobertura activa.`}
               href={`/ciudades/${city.slug}`}
-              ctaLabel="Ver servicios por ciudad"
+              ctaLabel="Ver cobertura y solicitudes locales"
               imageSrc={LANDING_IMAGES.city}
               imageAlt={city.name}
               badges={[
                 city.stateName,
-                `${serviceCount} servicios activos`,
+                `${serviceCount} tipos de servicio operando`,
                 `${city.zones.length} zonas destacadas`,
               ]}
             />
@@ -130,10 +139,10 @@ export default function CitiesSeoIndexPage() {
 
       <section className="space-y-2 rounded-2xl border border-slate-200 bg-[#f8faff] p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Rutas locales destacadas
+          Solicitudes comunes por zona
         </h2>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {priorityCityRoutes.map((item) => (
+          {commonRequestsByZone.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -143,6 +152,49 @@ export default function CitiesSeoIndexPage() {
             </Link>
           ))}
         </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <article className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Problemas comunes por zona
+          </h2>
+          <p className="text-sm text-slate-600">
+            Contenido enfocado en necesidades reales para solicitar mejor en
+            Handi.
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {featuredProblemLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-[#082877] hover:underline"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </article>
+        <article className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
+          <h2 className="text-lg font-semibold text-slate-900">
+            Precios estimados en contexto real
+          </h2>
+          <p className="text-sm text-slate-600">
+            Rangos orientativos para planear mejor tu solicitud antes de
+            acordar.
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {featuredPriceLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="text-sm font-medium text-[#082877] hover:underline"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </article>
       </section>
 
       <ProtectedPaymentsCard className="bg-transparent" />

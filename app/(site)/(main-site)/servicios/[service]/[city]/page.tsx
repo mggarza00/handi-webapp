@@ -61,20 +61,20 @@ export async function generateMetadata({
     return { title: "Landing no encontrada" };
   }
   const canonical = `/servicios/${service.slug}/${city.slug}`;
-  const description = `Solicita ${service.keyword} en ${city.name} y recibe opciones verificadas para tu hogar. Cotiza hoy en Handi.`;
+  const description = `Solicita ${service.keyword} en ${city.name} con Handi. Describe tu caso, conecta con profesionales compatibles y acuerda por chat dentro de la plataforma.`;
   return {
-    title: `${service.name} en ${city.name} | Cotiza hoy`,
+    title: `${service.name} en ${city.name} con Handi | Solicita y acuerda`,
     description,
     alternates: { canonical },
     openGraph: {
-      title: `${service.name} en ${city.name} | Cotiza hoy en Handi`,
+      title: `${service.name} en ${city.name} con Handi | Solicita y acuerda`,
       description,
       url: canonical,
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${service.name} en ${city.name} | Cotiza hoy en Handi`,
+      title: `${service.name} en ${city.name} con Handi | Solicita y acuerda`,
       description,
     },
   };
@@ -145,7 +145,7 @@ export default function LocalServiceCityLandingPage({
     "@context": "https://schema.org",
     "@type": "Service",
     name: `${service.name} en ${city.name}`,
-    description: service.shortDescription,
+    description: `Solicitud local de ${service.keyword} en ${city.name} para conectar con profesionales compatibles y cerrar acuerdos dentro de Handi.`,
     areaServed: {
       "@type": "City",
       name: city.name,
@@ -158,16 +158,16 @@ export default function LocalServiceCityLandingPage({
   };
   const faqItems = landingEditorial?.faq || [
     {
-      question: `Como contratar ${service.keyword} en ${city.name}?`,
-      answer: `Describe tu necesidad, agrega direccion en ${city.name} y horario estimado, y compara respuestas de profesionales disponibles en zonas como ${topZones.join(", ")}.`,
+      question: `Como solicitar ${service.keyword} en ${city.name} dentro de Handi?`,
+      answer: `Comparte lo que necesitas, agrega ubicacion en ${city.name} y horario estimado. Handi te conecta con profesionales compatibles para continuar por chat y definir el acuerdo.`,
     },
     {
-      question: `Que incluye el servicio de ${service.keyword} en ${city.name}?`,
-      answer: `Incluye atencion a tareas frecuentes como ${topIssue.toLowerCase()}, ademas de trabajos relacionados segun el alcance de tu solicitud y la zona donde se realizara el servicio.`,
+      question: `Que tipo de trabajos se pueden pedir de ${service.keyword} en ${city.name}?`,
+      answer: `Puedes solicitar tareas frecuentes como ${topIssue.toLowerCase()} y otros trabajos relacionados, siempre que describas bien el alcance para recibir opciones mas alineadas.`,
     },
     {
-      question: `Cuanto tarda recibir opciones de ${service.keyword} en ${city.name}?`,
-      answer: `Depende del horario y la zona, pero puedes mejorar tiempos indicando referencias de colonia y detalles claros del trabajo desde el inicio.`,
+      question: `Cuanto tarda en llegar respuesta para ${service.keyword} en ${city.name}?`,
+      answer: `El tiempo depende de horario y zona, pero suele mejorar cuando la solicitud incluye referencias claras, fotos y detalles concretos del trabajo.`,
     },
   ];
   const faqJsonLd = {
@@ -183,7 +183,11 @@ export default function LocalServiceCityLandingPage({
     })),
   };
 
-  const heroSignals = ["Verificados", "Respuesta rapida", "Cotizacion clara"];
+  const heroSignals = [
+    "Solicitud guiada",
+    "Profesionales compatibles",
+    "Acuerdo por chat",
+  ];
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:space-y-10 md:py-8">
@@ -215,9 +219,9 @@ export default function LocalServiceCityLandingPage({
       />
 
       <LocalMarketplaceHero
-        eyebrow={`${service.name} en ${city.name}`}
-        title={`${service.name} confiable para tu hogar en ${city.name}`}
-        subtitle={`${serviceCtaContext} ${localSummary}`}
+        eyebrow={`${service.name} para tu hogar en ${city.name}`}
+        title={`Solicita ${service.keyword} en ${city.name} con Handi`}
+        subtitle={`Comparte tu necesidad, recibe opciones compatibles y acuerda por chat sin salir de la plataforma. ${localSummary}`}
         quickSignals={heroSignals}
         stickyAside
         imageSrc={getServiceLandingImage(service.slug)}
@@ -233,15 +237,15 @@ export default function LocalServiceCityLandingPage({
               href={`/servicios/${service.slug}`}
               className="inline-flex text-xs font-semibold text-[#082877] hover:underline"
             >
-              Ver cobertura de {service.keyword} en otras ciudades
+              Ver zonas activas para {service.keyword}
             </Link>
           </div>
         }
-        secondaryNote="Compara opciones, define alcance y solicita en minutos."
+        secondaryNote={`${serviceCtaContext} Describe bien tu caso para recibir respuestas mas precisas.`}
         aside={
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Decision rapida
+              Resumen para decidir
             </p>
             <div className="rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3">
               <p className="text-xs text-slate-500">Respuesta estimada</p>
@@ -250,13 +254,13 @@ export default function LocalServiceCityLandingPage({
               </p>
             </div>
             <div className="rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3">
-              <p className="text-xs text-slate-500">Tipo de servicio</p>
+              <p className="text-xs text-slate-500">Modalidad</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
                 Servicio residencial
               </p>
             </div>
             <div className="rounded-xl border border-slate-300 bg-gradient-to-b from-white to-slate-50 p-3">
-              <p className="text-xs text-slate-500">Cobertura activa</p>
+              <p className="text-xs text-slate-500">Zona operativa</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
                 {topZones.join(", ")}
               </p>
@@ -268,26 +272,26 @@ export default function LocalServiceCityLandingPage({
       <HowItWorksSection className="rounded-3xl border border-slate-200 bg-gradient-to-b from-white via-white to-[#eef4ff]" />
 
       <TrustSignalChips
-        title="Senales de confianza"
+        title="Confianza para solicitar con claridad"
         items={[...trustSignals, ...service.benefits].slice(0, 6)}
       />
 
       <section className="grid gap-4 md:grid-cols-2">
         <LocalInfoBand
-          title={`Zonas atendidas en ${city.name}`}
-          description={`Estas colonias y zonas tienen cobertura activa para solicitudes de ${service.keyword}.`}
+          title={`Zonas con operacion activa en ${city.name}`}
+          description={`Estas colonias y zonas suelen tener disponibilidad para solicitudes de ${service.keyword}.`}
           chips={city.zones}
         />
         <LocalInfoBand
-          title={`Trabajos frecuentes de ${service.keyword}`}
-          description="Estos son los escenarios mas solicitados para este servicio en la ciudad."
+          title={`Solicitudes frecuentes de ${service.keyword}`}
+          description="Estos son ejemplos comunes de trabajos que se piden en esta zona."
           chips={service.commonIssues}
         />
       </section>
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">
-          Otras opciones en {city.name}
+          Otros tipos de solicitud disponibles en {city.name}
         </h2>
         {cityServices.length ? (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -297,25 +301,25 @@ export default function LocalServiceCityLandingPage({
                 title={`${item.name} en ${city.name}`}
                 description={item.shortDescription}
                 href={`/servicios/${item.slug}/${city.slug}`}
-                ctaLabel={`Explorar ${item.keyword} en ${city.name}`}
+                ctaLabel={`Solicitar ${item.keyword} en ${city.name}`}
                 badges={[
-                  "Cobertura activa",
+                  "Operacion local activa",
                   "Servicio residencial",
-                  "Cotizacion clara",
+                  "Acuerdo dentro de Handi",
                 ]}
               />
             ))}
           </div>
         ) : (
           <p className="text-sm text-slate-600">
-            Pronto agregaremos mas combinaciones para esta ciudad.
+            Pronto habilitaremos mas tipos de solicitud para esta ciudad.
           </p>
         )}
       </section>
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Preguntas frecuentes
+          Preguntas frecuentes sobre solicitudes en {city.name}
         </h2>
         <div className="space-y-2">
           {faqItems.map((item) => (
@@ -339,19 +343,19 @@ export default function LocalServiceCityLandingPage({
           href={`/servicios/${service.slug}`}
           className="text-sm font-semibold text-[#082877] hover:underline"
         >
-          Ver {service.name.toLowerCase()} por ciudad
+          Ver donde solicitar {service.name.toLowerCase()}
         </Link>
         <Link
           href={`/ciudades/${city.slug}`}
           className="text-sm font-semibold text-[#082877] hover:underline"
         >
-          Ver todos los servicios en {city.name}
+          Revisar cobertura activa en {city.name}
         </Link>
         <Link
           href="/servicios"
           className="text-sm font-semibold text-[#082877] hover:underline"
         >
-          Ir al indice de servicios
+          Ver tipos de solicitudes en Handi
         </Link>
       </section>
 

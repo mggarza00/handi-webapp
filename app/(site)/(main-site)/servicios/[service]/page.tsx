@@ -34,21 +34,21 @@ export async function generateMetadata({
   const service = getSeoServiceBySlug(params.service);
   if (!service) return { title: "Servicio no encontrado" };
   const canonical = `/servicios/${service.slug}`;
-  const description = `Compara opciones de ${service.keyword} para Monterrey y San Pedro Garza Garcia. Elige ciudad, revisa cobertura y cotiza con Handi.`;
+  const description = `Solicita ${service.keyword} para tu hogar con Handi. Describe tu necesidad, conecta con profesionales compatibles y acuerda el servicio dentro de la plataforma.`;
 
   return {
-    title: `${service.name} en Monterrey y San Pedro | Elige ciudad`,
+    title: `${service.name} para tu hogar con Handi | Monterrey y San Pedro`,
     description,
     alternates: { canonical },
     openGraph: {
-      title: `${service.name} en Monterrey y San Pedro | Elige ciudad`,
+      title: `${service.name} para tu hogar con Handi | Monterrey y San Pedro`,
       description,
       url: canonical,
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title: `${service.name} en Monterrey y San Pedro | Elige ciudad`,
+      title: `${service.name} para tu hogar con Handi | Monterrey y San Pedro`,
       description,
     },
   };
@@ -86,7 +86,7 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
     "@context": "https://schema.org",
     "@type": "Service",
     name: `${service.name} en Monterrey y San Pedro`,
-    description: service.shortDescription,
+    description: `Solicitud de ${service.keyword} para hogar en Handi con conexion a profesionales compatibles y seguimiento en plataforma.`,
     provider: {
       "@type": "Organization",
       name: "Handi",
@@ -120,12 +120,12 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
 
       <LocalMarketplaceHero
         eyebrow={service.name}
-        title={`${service.name} en Monterrey y San Pedro`}
-        subtitle={`Elige ciudad, compara cobertura local y solicita ${service.keyword} en minutos.`}
+        title={`Solicita ${service.name.toLowerCase()} para tu hogar`}
+        subtitle={`Cuéntanos lo que necesitas de ${service.keyword}, recibe opciones compatibles y avanza por chat hasta cerrar el acuerdo.`}
         quickSignals={[
-          "Cobertura por ciudad",
-          "Perfiles verificados",
-          "Solicitud simple",
+          "Solicitud guiada",
+          "Compatibilidad por necesidad",
+          "Acuerdo dentro de Handi",
         ]}
         imageSrc={getServiceLandingImage(service.slug)}
         imageAlt={`${service.name} para el hogar`}
@@ -139,15 +139,15 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
               href="/ciudades"
               className="inline-flex text-xs font-semibold text-[#082877] hover:underline"
             >
-              Ver ciudades con cobertura
+              Revisar zonas de operacion activa
             </Link>
           </div>
         }
-        secondaryNote="Elige ciudad, compara alcance y solicita cuando estes listo."
+        secondaryNote="Selecciona tu zona, comparte detalles y recibe respuestas para decidir con claridad."
         aside={
           <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-              Cobertura activa
+              Zonas con operacion activa
             </p>
             <ul className="space-y-2">
               {cities.map((city) => (
@@ -167,22 +167,22 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
 
       <section className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">
-          Ciudades prioritarias para {service.keyword}
+          Donde puedes solicitar {service.keyword}
         </h2>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {cities.map((city) => (
             <MarketplaceCard
               key={city.slug}
               title={city.name}
-              description={`${service.name} en ${city.name}. Revisa cobertura por zona y solicita segun tu horario.`}
+              description={`Solicita ${service.keyword} en ${city.name}, comparte alcance del trabajo y conversa con profesionales compatibles.`}
               href={`/servicios/${service.slug}/${city.slug}`}
-              ctaLabel={`Explorar ${service.keyword} en ${city.name}`}
+              ctaLabel={`Solicitar ${service.keyword} en ${city.name}`}
               imageSrc={LANDING_IMAGES.city}
               imageAlt={`${service.name} en ${city.name}`}
               badges={[
-                "Cobertura activa",
+                "Operacion local activa",
                 "Servicio residencial",
-                `${city.zones.length} zonas destacadas`,
+                `${city.zones.length} zonas disponibles`,
               ]}
             />
           ))}
@@ -191,8 +191,11 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 md:p-5">
         <h2 className="text-lg font-semibold text-slate-900">
-          Problemas comunes que atiende este servicio
+          Ejemplos de solicitudes frecuentes para este servicio
         </h2>
+        <p className="text-sm text-slate-600">
+          Estos son casos comunes que los clientes suelen pedir dentro de Handi.
+        </p>
         <ul className="grid gap-2 md:grid-cols-2">
           {service.commonIssues.map((issue) => (
             <li
@@ -206,7 +209,8 @@ export default function ServiceLandingPage({ params }: { params: Params }) {
       </section>
 
       <p className="rounded-2xl border border-slate-200 bg-[#f8faff] p-4 text-sm text-slate-600 md:p-5">
-        Tambien puedes revisar profesionales relacionados en{" "}
+        Si prefieres ver perfiles, tambien puedes consultar profesionales
+        relacionados en{" "}
         <Link
           href="/professionals"
           className="font-semibold text-[#082877] hover:underline"

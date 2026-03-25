@@ -4,7 +4,7 @@ type ProcessStepsCompactProps = {
 };
 
 export default function ProcessStepsCompact({
-  title = "Como funciona",
+  title = "Como solicitar en Handi",
   steps,
 }: ProcessStepsCompactProps) {
   if (!steps.length) return null;

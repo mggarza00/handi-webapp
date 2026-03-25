@@ -23,11 +23,13 @@ export const dynamic = "force-dynamic";
 
 const appBaseUrl = getAppBaseUrl();
 const defaultDescription =
-  "Handi es el marketplace de servicios para el hogar en Monterrey y San Pedro Garza Garcia. Encuentra plomero, electricista, jardinero, carpintero, limpieza y mozo.";
+  "Handi es la plataforma para solicitar servicios del hogar, conectar con profesionales compatibles, conversar por chat y cerrar acuerdos dentro de la app.";
 const organizationJsonLd = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: "Handi",
+  description:
+    "Plataforma para solicitar servicios del hogar y coordinar acuerdos entre clientes y profesionales.",
   url: appBaseUrl,
   logo: `${appBaseUrl}/images/LOGO_HANDI_DB.png`,
   sameAs: ["https://www.instagram.com/handi_mx/"],
@@ -37,6 +39,8 @@ const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
   name: "Handi",
+  description:
+    "Solicita servicios para tu hogar, conecta con profesionales compatibles y acuerda dentro de Handi.",
   url: appBaseUrl,
   inLanguage: "es-MX",
   potentialAction: {
@@ -50,7 +54,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(appBaseUrl),
   applicationName: "Handi",
   title: {
-    default: "Handi | Servicios para el hogar en Monterrey y San Pedro",
+    default: "Handi | Solicita servicios para tu hogar",
     template: "%s | Handi",
   },
   description: defaultDescription,
