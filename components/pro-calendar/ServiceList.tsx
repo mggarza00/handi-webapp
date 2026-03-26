@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { openAssistant } from "@/lib/assistant/events";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type NormalizedService = ScheduledService & {
   dateKey: string;
@@ -29,6 +30,16 @@ type ServiceGroup = {
   date: Date;
   isToday: boolean;
   items: NormalizedService[];
+};
+
+type ApiCalendarRow = {
+  request_id?: string | number | null;
+  title?: string | null;
+  scheduled_date?: string | null;
+  scheduled_time?: string | null;
+  status?: string | null;
+  client_name?: string | null;
+  city?: string | null;
 };
 
 function formatStatusLabel(status?: string | null): string {
@@ -48,6 +59,8 @@ export default function ServiceList({
   services: ScheduledService[];
 }) {
   const router = useRouter();
+  const [localServices, setLocalServices] =
+    React.useState<ScheduledService[]>(services);
   const todayKey = React.useMemo(
     () => new Date().toISOString().slice(0, 10),
     [],
@@ -62,8 +75,98 @@ export default function ServiceList({
   } | null>(null);
   const myIdRef = React.useRef<string | null>(null);
 
+  React.useEffect(() => {
+    setLocalServices(services);
+  }, [services]);
+
+  React.useEffect(() => {
+    const supabase = supabaseBrowser();
+    let alive = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const fetchCalendar = async () => {
+      try {
+        const res = await fetch("/api/pro/calendar", {
+          cache: "no-store",
+          credentials: "include",
+        });
+        const json = await res.json().catch(() => ({}));
+        const rows: ApiCalendarRow[] = Array.isArray(json?.items)
+          ? (json.items as ApiCalendarRow[])
+          : [];
+        if (!alive) return;
+        const mapped: ScheduledService[] = rows
+          .map((row, index: number) => {
+            const sd =
+              typeof row?.scheduled_date === "string"
+                ? row.scheduled_date
+                : null;
+            if (!sd) return null;
+            const st =
+              typeof row?.scheduled_time === "string"
+                ? row.scheduled_time
+                : null;
+            return {
+              id: String(row?.request_id ?? `request-temp-${index}`),
+              title:
+                typeof row?.title === "string" && row.title.trim().length
+                  ? row.title
+                  : "Servicio",
+              scheduled_at: `${sd}${st ? `T${st}` : "T09:00:00"}`,
+              scheduled_end_at: null,
+              client_name:
+                typeof row?.client_name === "string" ? row.client_name : null,
+              city: typeof row?.city === "string" ? row.city : null,
+              status: typeof row?.status === "string" ? row.status : null,
+            } as ScheduledService;
+          })
+          .filter(Boolean) as ScheduledService[];
+        setLocalServices(mapped);
+      } catch {
+        // ignore realtime refresh failures
+      }
+    };
+
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id ?? null;
+      if (!alive || !uid) return;
+      channel = supabase
+        .channel(`pro-calendar-live:${uid}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "pro_calendar_events",
+            filter: `pro_id=eq.${uid}`,
+          },
+          () => {
+            void fetchCalendar();
+          },
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "requests",
+            filter: `accepted_professional_id=eq.${uid}`,
+          },
+          () => {
+            void fetchCalendar();
+          },
+        )
+        .subscribe();
+    })();
+
+    return () => {
+      alive = false;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, []);
+
   const groups = React.useMemo<ServiceGroup[]>(() => {
-    const normalized: NormalizedService[] = services
+    const normalized: NormalizedService[] = localServices
       .filter((e) => typeof e.scheduled_at === "string" && e.scheduled_at)
       .map((service) => {
         const dateKey = service.scheduled_at!.slice(0, 10);
@@ -90,7 +193,7 @@ export default function ServiceList({
       byDate.get(item.dateKey)!.items.push(item);
     });
     return Array.from(byDate.values());
-  }, [services, todayKey]);
+  }, [localServices, todayKey]);
 
   const resolveMyId = React.useCallback(async (): Promise<string | null> => {
     if (myIdRef.current) return myIdRef.current;
@@ -239,13 +342,18 @@ export default function ServiceList({
                 const canFinish = ["scheduled", "in_process"].includes(
                   String(ev.status || "").toLowerCase(),
                 );
+                const isFinished = ["finished", "completed"].includes(
+                  String(ev.status || "").toLowerCase(),
+                );
                 return (
                   <li key={`${ev.id}-${i}`}>
                     <Card
                       className={
-                        ev.isPast
-                          ? "border-orange-200 bg-orange-50/60"
-                          : undefined
+                        isFinished
+                          ? "border-emerald-200 bg-emerald-50/70"
+                          : ev.isPast
+                            ? "border-orange-200 bg-orange-50/60"
+                            : undefined
                       }
                     >
                       <CardHeader className="pb-2">
@@ -258,9 +366,11 @@ export default function ServiceList({
                           <Badge
                             variant="secondary"
                             className={
-                              ev.isPast
-                                ? "bg-orange-100 text-orange-700 border-orange-200"
-                                : undefined
+                              isFinished
+                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                : ev.isPast
+                                  ? "bg-orange-100 text-orange-700 border-orange-200"
+                                  : undefined
                             }
                           >
                             {formatStatusLabel(ev.status)}
@@ -282,7 +392,11 @@ export default function ServiceList({
                             ) : null}
                           </div>
                           <div className="flex flex-col items-end gap-2">
-                            {ev.isPast ? (
+                            {isFinished ? (
+                              <span className="text-xs font-semibold uppercase text-emerald-600">
+                                Servicio finalizado
+                              </span>
+                            ) : ev.isPast ? (
                               <>
                                 <span className="text-xs font-semibold uppercase text-orange-500">
                                   Servicio atrasado

@@ -19,6 +19,7 @@ import { normalizeAvatarUrl } from "@/lib/avatar";
 import { mapConditionToLabel } from "@/lib/conditions";
 import { UI_STATUS_LABELS } from "@/lib/request-status";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
+import RequestStatusRefresher from "@/components/realtime/RequestStatusRefresher.client";
 import { Building2, MapPin } from "lucide-react";
 
 // Helpers para normalizar/mostrar fechas como dd-mm-aaaa
@@ -262,6 +263,7 @@ export default async function ProRequestDetailPage({ params }: Params) {
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
+      <RequestStatusRefresher requestId={String(d.id ?? params.id)} />
       <nav className="text-sm text-slate-600">
         <Link href="/" className="hover:underline">
           Inicio

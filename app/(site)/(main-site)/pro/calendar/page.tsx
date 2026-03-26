@@ -12,6 +12,7 @@ import { fmtDateKey } from "@/lib/calendar/date";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import createClient from "@/utils/supabase/server";
+import ProActivityRefresher from "@/components/realtime/ProActivityRefresher.client";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,7 @@ export default async function Page() {
 
   return (
     <div className="p-4 lg:p-6">
+      <ProActivityRefresher proId={user.id} />
       <div className="mb-4">
         <Breadcrumbs
           items={[{ label: "Inicio", href: "/" }, { label: "Calendario" }]}

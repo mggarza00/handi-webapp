@@ -31,6 +31,7 @@ import {
   getPotentialJobs,
   getEarningsSeries,
 } from "@/lib/pro/stats";
+import ProActivityRefresher from "@/components/realtime/ProActivityRefresher.client";
 import { buildGreetingText } from "@/lib/greeting";
 import {
   ensureGreetingPreferenceForProfile,
@@ -540,6 +541,7 @@ export default async function ProHomePage() {
 
   return (
     <div className="bg-[#F5F7FA]">
+      <ProActivityRefresher proId={uid} />
       <div className="mx-auto max-w-6xl space-y-10 px-6 pb-12 pt-16">
         <Suspense fallback={<SkeletonBar className="h-7 w-48" />}>
           <HeaderGreeting

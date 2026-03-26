@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import ConditionsChips from "@/components/requests/ConditionsChips";
+import RequestStatusRefresher from "@/components/realtime/RequestStatusRefresher.client";
 import { CITIES } from "@/lib/cities";
 import { UI_STATUS_LABELS } from "@/lib/request-status";
 import {
@@ -530,6 +531,7 @@ export default function RequestDetailClient({
 
   return (
     <div className="space-y-4">
+      <RequestStatusRefresher requestId={initial.id} />
       {!hideHeader && (
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold truncate">

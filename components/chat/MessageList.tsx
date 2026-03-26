@@ -20,6 +20,7 @@ import {
   isOwnerPro,
 } from "@/lib/offers/actors";
 import OfferPaymentDialog from "@/components/payments/OfferPaymentDialog";
+import OnsitePaymentDialog from "@/components/payments/OnsitePaymentDialog";
 import {
   Dialog,
   DialogContent,
@@ -378,9 +379,12 @@ export default function MessageList({
   }, [otherUserId, searchParams, serviceFinished]);
   // Pago integrado en modal (sin checkout externo)
   const [paymentOpen, setPaymentOpen] = React.useState(false);
-  const [onsiteCheckoutId, setOnsiteCheckoutId] = React.useState<string | null>(
-    null,
-  );
+  const [onsitePaymentOpen, setOnsitePaymentOpen] = React.useState(false);
+  const [onsitePaymentCtx, setOnsitePaymentCtx] = React.useState<{
+    onsiteRequestId: string;
+    amount: number;
+    isRemunerable: boolean;
+  } | null>(null);
   const [quoteLightbox, setQuoteLightbox] = React.useState<string | null>(null);
   const [quoteImgLoading, setQuoteImgLoading] = React.useState(false);
   const [quoteImgError, setQuoteImgError] = React.useState<
@@ -398,55 +402,19 @@ export default function MessageList({
   }>({ offerId: "", amount: null, currency: "MXN", title: null });
 
   const openOnsiteCheckout = React.useCallback(
-    async (onsiteRequestId: string) => {
-      if (!onsiteRequestId || onsiteCheckoutId) return;
-      setOnsiteCheckoutId(onsiteRequestId);
-      try {
-        const res = await fetch(
-          `/api/onsite-quote-requests/${encodeURIComponent(onsiteRequestId)}/checkout`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            credentials: "include",
-          },
-        );
-        const json = (await res.json().catch(() => null)) as {
-          checkoutUrl?: string | null;
-          error?: string;
-        } | null;
-        if (!res.ok) {
-          toast.error(json?.error || "No se pudo iniciar el checkout.");
-          return;
-        }
-        const checkoutUrlRaw =
-          typeof json?.checkoutUrl === "string" ? json.checkoutUrl.trim() : "";
-        if (!checkoutUrlRaw) {
-          toast.error("No hay un checkout disponible para esta solicitud.");
-          return;
-        }
-        let checkoutUrl: string | null = null;
-        try {
-          checkoutUrl = new URL(
-            checkoutUrlRaw,
-            window.location.origin,
-          ).toString();
-        } catch {
-          checkoutUrl = null;
-        }
-        if (!checkoutUrl) {
-          toast.error(
-            "No se pudo abrir el checkout. Intenta nuevamente en unos segundos.",
-          );
-          return;
-        }
-        window.location.assign(checkoutUrl);
-      } catch {
-        toast.error("No se pudo iniciar el checkout.");
-      } finally {
-        setOnsiteCheckoutId(null);
+    (onsiteRequestId: string, amount: number, isRemunerable: boolean) => {
+      if (!onsiteRequestId || !Number.isFinite(amount) || amount <= 0) {
+        toast.error("No se pudo abrir el pago de cotización en sitio.");
+        return;
       }
+      setOnsitePaymentCtx({
+        onsiteRequestId,
+        amount,
+        isRemunerable,
+      });
+      setOnsitePaymentOpen(true);
     },
-    [onsiteCheckoutId],
+    [],
   );
   const handlePaymentSuccess = React.useCallback(() => {
     setPaymentOpen(false);
@@ -1177,12 +1145,15 @@ export default function MessageList({
               <div className="pt-1">
                 <Button
                   size="sm"
-                  onClick={() => void openOnsiteCheckout(onsiteRequestId)}
-                  disabled={onsiteCheckoutId === onsiteRequestId}
+                  onClick={() =>
+                    openOnsiteCheckout(
+                      onsiteRequestId,
+                      Number.isFinite(amount) ? amount : 0,
+                      isRemunerable,
+                    )
+                  }
                 >
-                  {onsiteCheckoutId === onsiteRequestId
-                    ? "Abriendo checkout..."
-                    : "Aceptar y pagar"}
+                  Aceptar y pagar
                 </Button>
               </div>
             ) : null}
@@ -1713,6 +1684,20 @@ export default function MessageList({
           title={feeCtx.title || "Pago seguro"}
           onSuccess={handlePaymentSuccess}
         />
+        <OnsitePaymentDialog
+          open={onsitePaymentOpen}
+          onOpenChange={(next) => {
+            setOnsitePaymentOpen(next);
+            if (!next) setOnsitePaymentCtx(null);
+          }}
+          onsiteRequestId={onsitePaymentCtx?.onsiteRequestId ?? null}
+          amount={onsitePaymentCtx?.amount ?? 0}
+          isRemunerable={onsitePaymentCtx?.isRemunerable ?? false}
+          onSuccess={() => {
+            setOnsitePaymentOpen(false);
+            setOnsitePaymentCtx(null);
+          }}
+        />
       </div>
       {confirmTarget ? (
         <ReviewModal
@@ -1724,7 +1709,7 @@ export default function MessageList({
           onSubmitted={handleClientReviewSubmitted}
           title={`Califica a ${otherName ?? "el profesional"}`}
           description="Confirma el servicio y comparte tu experiencia."
-          showComment={false}
+          showComment={true}
         />
       ) : null}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>

@@ -10,6 +10,7 @@ import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { CHAT_AVATAR_PLACEHOLDER } from "@/lib/chat/chat-identity";
 import { resolveChatAvatarSrc } from "@/lib/chat/chat-avatar";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type Profile = {
   id: string;
@@ -146,6 +147,32 @@ export default function ChatWindow({
       cancelled = true;
     };
   }, [conversationId]);
+
+  React.useEffect(() => {
+    if (!requestId) return;
+    const supabase = supabaseBrowser();
+    const channel = supabase
+      .channel(`chat-request:${requestId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "requests",
+          filter: `id=eq.${requestId}`,
+        },
+        (payload) => {
+          const next = (payload.new as { status?: string | null } | null)
+            ?.status;
+          if (typeof next === "string") setRequestStatus(next);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [requestId]);
 
   const viewerRole: "client" | "pro" =
     meId && proId && meId === proId ? "pro" : "client";

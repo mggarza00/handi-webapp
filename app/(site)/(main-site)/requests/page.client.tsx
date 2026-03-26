@@ -582,6 +582,46 @@ export default function RequestsClientPage() {
 
   React.useEffect(() => {
     if (!isMy) return;
+    const supabase = supabaseBrowser();
+    let mounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        if (!mounted) return;
+        void fetchList();
+      }, 250);
+    };
+
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const uid = data.user?.id ?? null;
+      if (!mounted || !uid) return;
+      channel = supabase
+        .channel(`requests-mine:${uid}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "requests",
+            filter: `created_by=eq.${uid}`,
+          },
+          scheduleRefresh,
+        )
+        .subscribe();
+    })();
+
+    return () => {
+      mounted = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [fetchList, isMy]);
+
+  React.useEffect(() => {
+    if (!isMy) return;
     const hasStatus = typeof status === "string" && status.trim().length > 0;
     if (!hasStatus) {
       updateSearch({ status: "active,in_process", mine: "1" });
