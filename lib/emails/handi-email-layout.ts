@@ -10,6 +10,8 @@ type HandiEmailLayoutOpts = {
   year?: number;
 };
 
+const DEFAULT_EMAIL_ASSET_BASE_URL = "https://handi.mx";
+
 export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -23,14 +25,47 @@ export function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
-function getSiteBase(): string {
-  const rawBase =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "https://handi.mx");
-  return rawBase.replace(/\/$/, "");
+function sanitizeAbsoluteBaseUrl(raw?: string | null): string | null {
+  const candidate = (raw || "").trim().replace(/\/$/, "");
+  if (!candidate) return null;
+  if (!/^https?:\/\//i.test(candidate)) return null;
+  try {
+    const parsed = new URL(candidate);
+    if (!parsed.hostname) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function getEmailAssetBaseUrl(): string {
+  const configuredBase =
+    sanitizeAbsoluteBaseUrl(process.env.EMAIL_ASSET_BASE_URL) ||
+    sanitizeAbsoluteBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    sanitizeAbsoluteBaseUrl(process.env.NEXT_PUBLIC_SITE_URL);
+
+  if (configuredBase) return configuredBase;
+
+  const canUseVercelFallback =
+    process.env.NODE_ENV !== "production" ||
+    process.env.VERCEL_ENV === "preview";
+  if (canUseVercelFallback) {
+    const vercelBase = sanitizeAbsoluteBaseUrl(
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    );
+    if (vercelBase) return vercelBase;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return "http://localhost:3000";
+  }
+
+  return DEFAULT_EMAIL_ASSET_BASE_URL;
+}
+
+export function buildEmailAssetUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${getEmailAssetBaseUrl()}${normalizedPath}`;
 }
 
 export function renderHandiEmailLayoutHtml(opts: HandiEmailLayoutOpts): string {
@@ -42,8 +77,7 @@ export function renderHandiEmailLayoutHtml(opts: HandiEmailLayoutOpts): string {
   ).trim();
   const year =
     typeof opts.year === "number" ? opts.year : new Date().getFullYear();
-  const siteBase = getSiteBase();
-  const logoUrl = `${siteBase}/images/LOGO_HEADER_B.png`;
+  const logoUrl = buildEmailAssetUrl("/images/LOGO_HEADER_B.png");
   const cta = opts.cta?.url ? opts.cta : null;
   const fallbackUrl = (opts.fallbackLinkUrl || cta?.url || "").trim();
 

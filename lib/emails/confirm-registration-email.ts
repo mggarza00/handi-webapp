@@ -1,3 +1,5 @@
+import { buildEmailAssetUrl } from "@/lib/emails/handi-email-layout";
+
 type ConfirmRegistrationEmailArgs = {
   confirmUrl: string;
   name?: string | null;
@@ -36,16 +38,6 @@ function formatExpiry(minutes?: number | null): string | null {
   return `${hours} hora${hours === 1 ? "" : "s"}`;
 }
 
-function getSiteBase(): string {
-  const rawBase =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "https://handi.mx");
-  return rawBase.replace(/\/$/, "");
-}
-
 export function renderConfirmRegistrationEmailHtml(
   args: ConfirmRegistrationEmailArgs,
 ): string {
@@ -60,8 +52,7 @@ export function renderConfirmRegistrationEmailHtml(
     "soporte@handi.mx"
   ).trim();
   const expiryText = formatExpiry(args.expiresInMinutes);
-  const siteBase = getSiteBase();
-  const logoUrl = `${siteBase}/images/LOGO_HEADER_B.png`;
+  const logoUrl = buildEmailAssetUrl("/images/LOGO_HEADER_B.png");
   const preheader = "Confirma tu correo para empezar en Handi.";
   const year = new Date().getFullYear();
 
