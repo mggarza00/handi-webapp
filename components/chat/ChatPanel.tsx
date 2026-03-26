@@ -354,6 +354,13 @@ export default function ChatPanel({
   const [onsiteDetails, setOnsiteDetails] = React.useState<string>("");
   const [onsiteRemunerable, setOnsiteRemunerable] =
     React.useState<boolean>(false);
+  const [onsiteDate, setOnsiteDate] = React.useState<string>("");
+  const [onsiteFlexibleSchedule, setOnsiteFlexibleSchedule] =
+    React.useState(true);
+  const [onsiteScheduleRange, setOnsiteScheduleRange] = React.useState<
+    [number, number]
+  >([9, 12]);
+  const [onsiteHour, setOnsiteHour] = React.useState<string>("9");
   const [onsiteSubmitting, setOnsiteSubmitting] = React.useState(false);
   const [onsiteDbSummary, setOnsiteDbSummary] =
     React.useState<OnsiteCtaSummary | null>(null);
@@ -2286,7 +2293,13 @@ export default function ChatPanel({
             Cotizar
           </Button>
           {!hideOnsiteQuoteCta ? (
-            <Button variant="outline" onClick={() => setOnsiteOpen(true)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!onsiteDate) setOnsiteDate(resolveOfferServiceDate());
+                setOnsiteOpen(true);
+              }}
+            >
               Cotizar en sitio
             </Button>
           ) : null}
@@ -2643,6 +2656,26 @@ export default function ChatPanel({
         details: onsiteDetails.trim().length ? onsiteDetails.trim() : null,
         is_remunerable: onsiteRemunerable,
       };
+      if (onsiteDate) payload.schedule_date = onsiteDate;
+      if (onsiteFlexibleSchedule) {
+        const start = Math.max(
+          0,
+          Math.min(23, Math.floor(onsiteScheduleRange[0] ?? 9)),
+        );
+        const end = Math.max(
+          1,
+          Math.min(24, Math.floor(onsiteScheduleRange[1] ?? 12)),
+        );
+        payload.schedule_time_start = Math.min(start, end - 1);
+        payload.schedule_time_end = Math.max(end, start + 1);
+      } else {
+        const hour = Number(onsiteHour);
+        if (Number.isFinite(hour)) {
+          const start = Math.max(0, Math.min(23, Math.floor(hour)));
+          payload.schedule_time_start = start;
+          payload.schedule_time_end = Math.max(1, Math.min(24, start + 1));
+        }
+      }
       const res = await fetch(
         `/api/conversations/${encodeURIComponent(conversationId)}/onsite-quote-requests`,
         {
@@ -2665,6 +2698,10 @@ export default function ChatPanel({
       setOnsiteAmount("200");
       setOnsiteDetails("");
       setOnsiteRemunerable(false);
+      setOnsiteDate("");
+      setOnsiteFlexibleSchedule(true);
+      setOnsiteScheduleRange([9, 12]);
+      setOnsiteHour("9");
       await load(false, { silent: true });
       scheduleConversationResync("onsite-quote-request", {
         delayMs: 180,
@@ -2776,6 +2813,72 @@ export default function ChatPanel({
               value={onsiteDetails}
               onChange={(event) => setOnsiteDetails(event.target.value)}
             />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Fecha</label>
+            <input
+              type="date"
+              className="w-full border rounded px-3 py-2 text-sm"
+              value={onsiteDate}
+              onChange={(event) => setOnsiteDate(event.target.value)}
+            />
+          </div>
+          <div className="rounded-md border bg-slate-50 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <label className="text-sm font-medium text-slate-700">
+                Horario
+              </label>
+              <CompanyToggle
+                checked={onsiteFlexibleSchedule}
+                onChange={setOnsiteFlexibleSchedule}
+                label={
+                  onsiteFlexibleSchedule ? "Horario flexible" : "Hora definida"
+                }
+                className="mt-0"
+              />
+            </div>
+            {onsiteFlexibleSchedule ? (
+              <div>
+                <Slider
+                  value={onsiteScheduleRange}
+                  min={0}
+                  max={24}
+                  step={1}
+                  onValueChange={(vals) => {
+                    if (Array.isArray(vals) && vals.length >= 2) {
+                      const a = Math.max(
+                        0,
+                        Math.min(24, Math.floor(vals[0] ?? 0)),
+                      );
+                      const b = Math.max(
+                        0,
+                        Math.min(24, Math.floor(vals[1] ?? 0)),
+                      );
+                      setOnsiteScheduleRange(a <= b ? [a, b] : [b, a]);
+                    }
+                  }}
+                />
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {onsiteScheduleRange[0] === onsiteScheduleRange[1]
+                    ? formatHour(onsiteScheduleRange[0])
+                    : `${formatHour(onsiteScheduleRange[0])} — ${formatHour(onsiteScheduleRange[1])}`}
+                </div>
+              </div>
+            ) : (
+              <div className="max-w-[140px] space-y-1">
+                <label className="text-xs text-muted-foreground">
+                  Hora estimada
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  className="w-full border rounded px-2 py-1 text-sm bg-white"
+                  value={onsiteHour}
+                  onChange={(event) => setOnsiteHour(event.target.value)}
+                />
+              </div>
+            )}
           </div>
           <div className="flex items-start gap-2 rounded-md border bg-slate-50 px-3 py-2">
             <input
