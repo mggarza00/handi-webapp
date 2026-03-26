@@ -759,15 +759,49 @@ export async function POST(req: Request) {
           }
           if (metadataType === "onsite_deposit" && onsiteIdMeta) {
             // Depósito de cotización en sitio
+            const onsiteBaseCents = Number(
+              (session.metadata as any)?.deposit_base_cents ??
+                (session.metadata as any)?.base_cents ??
+                NaN,
+            );
+            const onsiteFeeCents = Number(
+              (session.metadata as any)?.deposit_fee_cents ??
+                (session.metadata as any)?.commission_cents ??
+                NaN,
+            );
+            const onsiteIvaCents = Number(
+              (session.metadata as any)?.deposit_iva_cents ??
+                (session.metadata as any)?.iva_cents ??
+                NaN,
+            );
+            const onsiteTotalCents = Number(
+              (session.metadata as any)?.deposit_total_cents ??
+                (session.metadata as any)?.total_cents ??
+                session.amount_total ??
+                NaN,
+            );
             try {
               await admin
                 .from("onsite_quote_requests")
                 .update({
                   status: "deposit_paid",
                   deposit_payment_intent_id: payment_intent_id,
+                  deposit_paid_at: nowIso,
+                  deposit_base_cents: Number.isFinite(onsiteBaseCents)
+                    ? onsiteBaseCents
+                    : null,
+                  deposit_fee_cents: Number.isFinite(onsiteFeeCents)
+                    ? onsiteFeeCents
+                    : null,
+                  deposit_iva_cents: Number.isFinite(onsiteIvaCents)
+                    ? onsiteIvaCents
+                    : null,
+                  deposit_total_cents: Number.isFinite(onsiteTotalCents)
+                    ? onsiteTotalCents
+                    : null,
                 })
                 .eq("id", onsiteIdMeta)
-                .in("status", ["deposit_pending", "requested"]);
+                .in("status", ["deposit_pending", "requested", "scheduled"]);
             } catch {
               /* ignore */
             }
@@ -775,13 +809,75 @@ export async function POST(req: Request) {
               // Best-effort to revalidate chat
               const { data: row } = await admin
                 .from("onsite_quote_requests")
-                .select("conversation_id")
+                .select("conversation_id, professional_id, client_id")
                 .eq("id", onsiteIdMeta)
                 .maybeSingle();
               const convId = (row as any)?.conversation_id as
                 | string
                 | undefined;
+              const proId = (row as any)?.professional_id as string | undefined;
+              const clientId = (row as any)?.client_id as string | undefined;
               if (convId) {
+                try {
+                  if (proId) {
+                    await admin.from("user_notifications").insert({
+                      user_id: proId,
+                      type: "onsite_quote",
+                      title: "Cotización en sitio pagada",
+                      body: "El cliente pagó la cotización en sitio.",
+                      link: `/mensajes/${encodeURIComponent(convId)}`,
+                    } as any);
+                  }
+                } catch {
+                  /* ignore */
+                }
+                try {
+                  if (clientId) {
+                    const { notifyChatMessageByConversation } = await import(
+                      "@/lib/chat-notifier"
+                    );
+                    await notifyChatMessageByConversation({
+                      conversationId: convId,
+                      senderId: clientId,
+                      text: "Depósito de cotización en sitio pagado",
+                    });
+                  }
+                } catch {
+                  /* ignore */
+                }
+                try {
+                  if (proId) {
+                    const fnUrlDirect = process.env.SUPABASE_FUNCTIONS_URL;
+                    const fnBase =
+                      fnUrlDirect ||
+                      (url ? `${url.replace(/\/$/, "")}/functions/v1` : null);
+                    if (fnBase && serviceRole) {
+                      await fetch(`${fnBase.replace(/\/$/, "")}/push-notify`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json; charset=utf-8",
+                          Authorization: `Bearer ${serviceRole}`,
+                        },
+                        body: JSON.stringify({
+                          toUserId: proId,
+                          payload: {
+                            title: "Cotización en sitio pagada",
+                            body: "El cliente aceptó y pagó la cotización en sitio.",
+                            url: `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || ""}/mensajes/${encodeURIComponent(convId)}`,
+                            tag: `onsite-paid:${onsiteIdMeta}`,
+                            data: {
+                              type: "onsite_deposit_paid",
+                              onsite_request_id: onsiteIdMeta,
+                              conversation_id: convId,
+                            },
+                          },
+                        }),
+                      }).catch(() => undefined);
+                    }
+                  }
+                } catch {
+                  /* ignore */
+                }
                 try {
                   revalidatePath(`/mensajes/${convId}`);
                 } catch {

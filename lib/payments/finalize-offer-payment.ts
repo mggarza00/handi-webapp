@@ -431,6 +431,7 @@ export async function finalizeOfferPayment(
     let receiptUrl: string | null = null;
     let receiptDownloadUrl: string | null = null;
     let receiptViewUrl: string | null = null;
+    let paymentIntentMetadata: Record<string, unknown> | null = null;
     try {
       if (offer.id) {
         const { data: recByOfferRaw } = await admin
@@ -477,6 +478,10 @@ export async function finalizeOfferPayment(
           const pi = await stripe.paymentIntents.retrieve(paymentIntentId, {
             expand: ["latest_charge"],
           });
+          paymentIntentMetadata =
+            pi?.metadata && typeof pi.metadata === "object"
+              ? (pi.metadata as Record<string, unknown>)
+              : null;
           const charge =
             (pi as { latest_charge?: unknown } | null)?.latest_charge ?? null;
           if (typeof charge === "string") {
@@ -504,6 +509,10 @@ export async function finalizeOfferPayment(
                   paymentIntentId,
                   { expand: ["latest_charge"] },
                 );
+                paymentIntentMetadata =
+                  pi?.metadata && typeof pi.metadata === "object"
+                    ? (pi.metadata as Record<string, unknown>)
+                    : paymentIntentMetadata;
                 const charge =
                   (pi as { latest_charge?: unknown } | null)?.latest_charge ??
                   null;
@@ -606,6 +615,67 @@ export async function finalizeOfferPayment(
         updated_at: nowIso,
       })
       .eq("id", offer.id);
+
+    // Consume remunerable onsite credit once the final service payment is confirmed.
+    try {
+      const onsiteRequestIdRaw =
+        paymentIntentMetadata?.onsite_request_id ??
+        paymentIntentMetadata?.onsite_quote_request_id ??
+        null;
+      const onsiteRequestId =
+        typeof onsiteRequestIdRaw === "string" &&
+        onsiteRequestIdRaw.trim().length
+          ? onsiteRequestIdRaw.trim()
+          : null;
+      if (onsiteRequestId) {
+        const { data: onsiteRow } = await admin
+          .from("onsite_quote_requests")
+          .select(
+            "id, conversation_id, request_id, status, is_remunerable, remuneration_applied_offer_id, remuneration_applied_at",
+          )
+          .eq("id", onsiteRequestId)
+          .maybeSingle();
+        const onsite = (onsiteRow ?? null) as {
+          id?: string | null;
+          conversation_id?: string | null;
+          request_id?: string | null;
+          status?: string | null;
+          is_remunerable?: boolean | null;
+          remuneration_applied_offer_id?: string | null;
+          remuneration_applied_at?: string | null;
+        } | null;
+        if (
+          onsite?.id &&
+          onsite.is_remunerable === true &&
+          String(onsite.status || "").toLowerCase() === "deposit_paid" &&
+          (!conversationId ||
+            !onsite.conversation_id ||
+            onsite.conversation_id === conversationId) &&
+          (!requestId || !onsite.request_id || onsite.request_id === requestId)
+        ) {
+          if (
+            onsite.remuneration_applied_offer_id === offer.id &&
+            onsite.remuneration_applied_at
+          ) {
+            // already consumed by this offer (idempotent)
+          } else if (!onsite.remuneration_applied_at) {
+            await admin
+              .from("onsite_quote_requests")
+              .update({
+                remuneration_applied_offer_id: offer.id,
+                remuneration_applied_at: nowIso,
+              })
+              .eq("id", onsite.id)
+              .is("remuneration_applied_at", null)
+              .is("remuneration_applied_offer_id", null)
+              .eq("status", "deposit_paid")
+              .eq("is_remunerable", true);
+          }
+        }
+      }
+    } catch {
+      /* ignore onsite credit consumption errors */
+    }
 
     if (requestId && proId) {
       try {

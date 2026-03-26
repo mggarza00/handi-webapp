@@ -1,6 +1,7 @@
 ﻿"use client";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,11 +93,18 @@ type QuotePayload = {
 
 type SystemMessagePayload = LocationPayload & {
   offer_id?: string | null;
+  onsite_request_id?: string | null;
   type?: string | null;
   request_id?: string | null;
   pro_id?: string | null;
   customer_id?: string | null;
   status?: string | null;
+  deposit_amount?: number | string | null;
+  details?: string | null;
+  notes?: string | null;
+  is_remunerable?: boolean | null;
+  remuneration_applied_at?: string | null;
+  remuneration_applied_offer_id?: string | null;
   reason?: string | null;
   city?: string | null;
   scheduled_date?: string | null;
@@ -164,6 +172,36 @@ function formatCurrency(
   } catch {
     return amount.toFixed(2);
   }
+}
+
+type OnsiteStatus =
+  | "requested"
+  | "scheduled"
+  | "accepted"
+  | "rejected"
+  | "deposit_pending"
+  | "deposit_paid"
+  | "no_show"
+  | "completed"
+  | "canceled"
+  | string;
+
+const PAYABLE_ONSITE_STATUSES = new Set<OnsiteStatus>(["deposit_pending"]);
+
+function onsiteStatusLabel(status: string): string {
+  const normalized = status.toLowerCase();
+  const map: Record<string, string> = {
+    requested: "Solicitud enviada",
+    scheduled: "Visita programada",
+    accepted: "Aceptada",
+    rejected: "Rechazada",
+    deposit_pending: "Pendiente de pago",
+    deposit_paid: "Aceptada y pagada",
+    no_show: "Cliente no localizado",
+    completed: "Finalizada",
+    canceled: "Cancelada",
+  };
+  return map[normalized] || normalized;
 }
 
 // Use shared helpers from lib/offers/actors
@@ -298,6 +336,9 @@ export default function MessageList({
   }, [otherUserId, searchParams, serviceFinished]);
   // Pago integrado en modal (sin checkout externo)
   const [paymentOpen, setPaymentOpen] = React.useState(false);
+  const [onsiteCheckoutId, setOnsiteCheckoutId] = React.useState<string | null>(
+    null,
+  );
   const [quoteLightbox, setQuoteLightbox] = React.useState<string | null>(null);
   const [quoteImgLoading, setQuoteImgLoading] = React.useState(false);
   const [quoteImgError, setQuoteImgError] = React.useState<
@@ -313,6 +354,43 @@ export default function MessageList({
     currency: string;
     title?: string | null;
   }>({ offerId: "", amount: null, currency: "MXN", title: null });
+
+  const openOnsiteCheckout = React.useCallback(
+    async (onsiteRequestId: string) => {
+      if (!onsiteRequestId || onsiteCheckoutId) return;
+      setOnsiteCheckoutId(onsiteRequestId);
+      try {
+        const res = await fetch(
+          `/api/onsite-quote-requests/${encodeURIComponent(onsiteRequestId)}/checkout`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json; charset=utf-8" },
+            credentials: "include",
+          },
+        );
+        const json = (await res.json().catch(() => null)) as {
+          checkoutUrl?: string | null;
+          error?: string;
+        } | null;
+        if (!res.ok) {
+          toast.error(json?.error || "No se pudo iniciar el checkout.");
+          return;
+        }
+        const checkoutUrl =
+          typeof json?.checkoutUrl === "string" ? json.checkoutUrl : null;
+        if (!checkoutUrl) {
+          toast.error("No hay un checkout disponible para esta solicitud.");
+          return;
+        }
+        window.location.assign(checkoutUrl);
+      } catch {
+        toast.error("No se pudo iniciar el checkout.");
+      } finally {
+        setOnsiteCheckoutId(null);
+      }
+    },
+    [onsiteCheckoutId],
+  );
   const handlePaymentSuccess = React.useCallback(() => {
     setPaymentOpen(false);
   }, []);
@@ -932,6 +1010,72 @@ export default function MessageList({
         setNextStepsOpen(true);
       };
       const payloadRecord = message.payload as SystemMessagePayload;
+      const onsiteRequestId = toTrimmedString(payloadRecord.onsite_request_id);
+      if (onsiteRequestId) {
+        const status = (
+          toTrimmedString(payloadRecord.status) || "deposit_pending"
+        ).toLowerCase();
+        const amountRaw = payloadRecord.deposit_amount;
+        const amount =
+          typeof amountRaw === "number" ? amountRaw : Number(amountRaw ?? NaN);
+        const formattedAmount = Number.isFinite(amount)
+          ? new Intl.NumberFormat("es-MX", {
+              style: "currency",
+              currency: "MXN",
+            }).format(amount)
+          : null;
+        const details =
+          toTrimmedString(payloadRecord.details) ||
+          toTrimmedString(payloadRecord.notes);
+        const isRemunerable = payloadRecord.is_remunerable === true;
+        const canCustomerPay =
+          isCustomerRole(viewerRole) && PAYABLE_ONSITE_STATUSES.has(status);
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-900">
+                Cotización en sitio
+              </div>
+              <Badge variant="outline" className="text-[11px]">
+                {onsiteStatusLabel(status)}
+              </Badge>
+            </div>
+            {formattedAmount ? (
+              <div className="text-sm text-slate-700">
+                Monto: <span className="font-semibold">{formattedAmount}</span>
+              </div>
+            ) : null}
+            {details ? (
+              <div className="whitespace-pre-wrap text-sm text-slate-700">
+                {details}
+              </div>
+            ) : null}
+            {isRemunerable ? (
+              <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200">
+                Remunerable al solicitar servicio
+              </Badge>
+            ) : null}
+            {canCustomerPay ? (
+              <div className="pt-1">
+                <Button
+                  size="sm"
+                  onClick={() => void openOnsiteCheckout(onsiteRequestId)}
+                  disabled={onsiteCheckoutId === onsiteRequestId}
+                >
+                  {onsiteCheckoutId === onsiteRequestId
+                    ? "Abriendo checkout..."
+                    : "Aceptar y pagar"}
+                </Button>
+              </div>
+            ) : null}
+            {isProfessionalRole(viewerRole) && status === "deposit_paid" ? (
+              <div className="text-xs text-emerald-700">
+                El cliente ya aceptó y pagó la cotización en sitio.
+              </div>
+            ) : null}
+          </div>
+        );
+      }
       // LocationCard: type 'system/location' o 'schedule_details'
       const payloadType =
         typeof payloadRecord.type === "string" ? payloadRecord.type : "";
