@@ -34,6 +34,9 @@ type PaymentIntentState = {
   paymentMode: "test" | "live" | null;
   breakdown: {
     service: number;
+    originalServiceBase?: number;
+    onsiteCredit?: number;
+    adjustedServiceBase?: number;
     fee: number;
     iva: number;
     total: number;
@@ -106,6 +109,9 @@ function usePaymentIntent(
         paymentMode?: "test" | "live" | null;
         breakdown?: {
           service?: number;
+          originalServiceBase?: number;
+          onsiteCredit?: number;
+          adjustedServiceBase?: number;
           fee?: number;
           iva?: number;
           total?: number;
@@ -155,12 +161,34 @@ function usePaymentIntent(
         }
         const breakdown =
           json?.breakdown && typeof json.breakdown === "object"
-            ? {
-                service: Number(json.breakdown.service ?? amount) || 0,
-                fee: Number(json.breakdown.fee ?? 0) || 0,
-                iva: Number(json.breakdown.iva ?? 0) || 0,
-                total: Number(json.breakdown.total ?? amount) || amount,
-              }
+            ? (() => {
+                const service = Number(json.breakdown.service ?? amount);
+                const originalServiceBase = Number(
+                  json.breakdown.originalServiceBase ?? NaN,
+                );
+                const onsiteCredit = Number(json.breakdown.onsiteCredit ?? NaN);
+                const adjustedServiceBase = Number(
+                  json.breakdown.adjustedServiceBase ?? NaN,
+                );
+                const fee = Number(json.breakdown.fee ?? 0);
+                const iva = Number(json.breakdown.iva ?? 0);
+                const total = Number(json.breakdown.total ?? amount);
+                return {
+                  service: Number.isFinite(service) ? service : 0,
+                  originalServiceBase: Number.isFinite(originalServiceBase)
+                    ? originalServiceBase
+                    : undefined,
+                  onsiteCredit: Number.isFinite(onsiteCredit)
+                    ? onsiteCredit
+                    : undefined,
+                  adjustedServiceBase: Number.isFinite(adjustedServiceBase)
+                    ? adjustedServiceBase
+                    : undefined,
+                  fee: Number.isFinite(fee) ? fee : 0,
+                  iva: Number.isFinite(iva) ? iva : 0,
+                  total: Number.isFinite(total) ? total : amount,
+                };
+              })()
             : mapTotals(amount);
         setState((prev) => ({
           ...prev,
@@ -245,6 +273,14 @@ function PaymentContent({
       }),
     [currency],
   );
+  const onsiteCredit = Number(breakdown.onsiteCredit ?? 0);
+  const originalServiceBase = Number(
+    breakdown.originalServiceBase ?? breakdown.service ?? amount,
+  );
+  const adjustedServiceBase = Number(
+    breakdown.adjustedServiceBase ?? breakdown.service ?? amount,
+  );
+  const hasOnsiteCredit = Number.isFinite(onsiteCredit) && onsiteCredit > 0;
 
   const confirmPayment = React.useCallback(async () => {
     if (selectedMethod === "paypal") {
@@ -318,11 +354,31 @@ function PaymentContent({
         <div className="grid gap-3 rounded-2xl border bg-white/70 p-4 shadow-sm sm:grid-cols-2">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>Monto del servicio</span>
+              <span>
+                {hasOnsiteCredit
+                  ? "Monto original del servicio"
+                  : "Monto del servicio"}
+              </span>
               <span className="font-semibold text-slate-900">
-                {fmt.format(amount)}
+                {fmt.format(hasOnsiteCredit ? originalServiceBase : amount)}
               </span>
             </div>
+            {hasOnsiteCredit ? (
+              <>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Crédito por cotización en sitio</span>
+                  <span className="font-semibold text-emerald-700">
+                    -{fmt.format(onsiteCredit)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <span>Subtotal ajustado</span>
+                  <span className="font-semibold text-slate-900">
+                    {fmt.format(adjustedServiceBase)}
+                  </span>
+                </div>
+              </>
+            ) : null}
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>Comisión</span>
               <span className="font-semibold text-slate-900">

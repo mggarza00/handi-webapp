@@ -11,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { X } from "lucide-react";
+import { CircleHelp, X } from "lucide-react";
 import MessageList from "@/components/chat/MessageList";
 import QuoteComposerDialog from "@/components/quotes/QuoteComposerDialog";
 import MessageInput from "@/components/chat/MessageInput";
@@ -38,6 +38,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { CHAT_AVATAR_PLACEHOLDER } from "@/lib/chat/chat-identity";
 import { resolveChatAvatarSrc } from "@/lib/chat/chat-avatar";
@@ -64,6 +70,13 @@ type Msg = {
   }>;
 };
 type Participants = { customer_id: string; pro_id: string };
+type OnsiteCtaSummary = {
+  id: string;
+  status: string;
+  remuneration_applied_at?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+};
 type HistoryResponse = {
   ok?: boolean;
   data?: unknown[];
@@ -337,11 +350,13 @@ export default function ChatPanel({
   ]);
   // Pro: Onsite quote request
   const [onsiteOpen, setOnsiteOpen] = React.useState(false);
-  const [onsiteDate, setOnsiteDate] = React.useState<string>("");
-  const [onsiteStart, setOnsiteStart] = React.useState<string>("9");
-  const [onsiteEnd, setOnsiteEnd] = React.useState<string>("12");
-  const [onsiteNotes, setOnsiteNotes] = React.useState<string>("");
+  const [onsiteAmount, setOnsiteAmount] = React.useState<string>("200");
+  const [onsiteDetails, setOnsiteDetails] = React.useState<string>("");
+  const [onsiteRemunerable, setOnsiteRemunerable] =
+    React.useState<boolean>(false);
   const [onsiteSubmitting, setOnsiteSubmitting] = React.useState(false);
+  const [onsiteDbSummary, setOnsiteDbSummary] =
+    React.useState<OnsiteCtaSummary | null>(null);
   const [acceptingOfferId, setAcceptingOfferId] = React.useState<string | null>(
     null,
   );
@@ -639,6 +654,31 @@ export default function ChatPanel({
       }
     })();
   }, [userId]);
+  const loadOnsiteSummary = React.useCallback(async () => {
+    if (!conversationId) return;
+    try {
+      const { data } = await supabaseBrowser
+        .from("onsite_quote_requests")
+        .select("id, status, remuneration_applied_at, updated_at, created_at")
+        .eq("conversation_id", conversationId)
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(20);
+      const rows = Array.isArray(data)
+        ? (data as Array<OnsiteCtaSummary | null>).filter(
+            (row): row is OnsiteCtaSummary =>
+              Boolean(row?.id) && typeof row?.status === "string",
+          )
+        : [];
+      if (!rows.length) {
+        setOnsiteDbSummary(null);
+        return;
+      }
+      setOnsiteDbSummary(rows[0] ?? null);
+    } catch {
+      // fallback to message-derived status when query fails
+    }
+  }, [conversationId]);
   const load = React.useCallback(
     async (withSpinner = true, options: { silent?: boolean } = {}) => {
       if (!conversationId) return;
@@ -674,6 +714,7 @@ export default function ChatPanel({
         mergeMessages(mapped, { replace: true, fromServer: true });
         if (data?.participants) setParticipants(data.participants);
         if (data?.request_id) setRequestId(data.request_id);
+        await loadOnsiteSummary();
       } catch (error) {
         if (!options.silent) {
           toast.error(getChatFriendlyError(error, "chat.history.load"));
@@ -682,7 +723,7 @@ export default function ChatPanel({
         if (withSpinner) setLoading(false);
       }
     },
-    [conversationId, getAuthHeaders, mergeMessages],
+    [conversationId, getAuthHeaders, loadOnsiteSummary, mergeMessages],
   );
   React.useEffect(() => {
     void load();
@@ -738,8 +779,9 @@ export default function ChatPanel({
   React.useEffect(() => {
     if (conversationId && meId) {
       void load(false, { silent: true });
+      void loadOnsiteSummary();
     }
-  }, [meId, conversationId, load]);
+  }, [meId, conversationId, load, loadOnsiteSummary]);
   React.useEffect(
     () => () => {
       if (resyncTimerRef.current) {
@@ -2117,36 +2159,46 @@ export default function ChatPanel({
     [offerStatus, requestStatus],
   );
 
-  // Detect onsite deposit pending (client-side deposit flow)
-  const onsiteDeposit = React.useMemo(() => {
+  const onsiteStatusSummary = React.useMemo(() => {
     let latest: {
       onsiteId: string;
-      amount: number;
-      checkoutUrl: string | null;
+      status: string;
     } | null = null;
     for (let i = messagesState.length - 1; i >= 0; i--) {
-      const m = messagesState[i];
-      if (!m.payload || typeof m.payload !== "object") continue;
-      const p = m.payload as Record<string, unknown>;
-      const oid =
-        typeof p.onsite_request_id === "string"
-          ? (p.onsite_request_id as string)
+      const message = messagesState[i];
+      if (!message.payload || typeof message.payload !== "object") continue;
+      const payload = message.payload as Record<string, unknown>;
+      const onsiteId =
+        typeof payload.onsite_request_id === "string"
+          ? payload.onsite_request_id
           : null;
-      const st = typeof p.status === "string" ? (p.status as string) : "";
-      if (!oid || (st || "").toLowerCase() !== "deposit_pending") continue;
-      const amtRaw = p.deposit_amount as unknown;
-      const amt = typeof amtRaw === "number" ? amtRaw : Number(amtRaw ?? NaN);
-      const checkoutUrl =
-        typeof p.checkout_url === "string" ? (p.checkout_url as string) : null;
-      latest = {
-        onsiteId: oid,
-        amount: Number.isFinite(amt) ? amt : 200,
-        checkoutUrl,
-      };
+      const status =
+        typeof payload.status === "string"
+          ? payload.status.toLowerCase()
+          : null;
+      if (!onsiteId || !status) continue;
+      latest = { onsiteId, status };
       break;
     }
     return latest;
   }, [messagesState]);
+
+  const hideOnsiteQuoteCta = React.useMemo(() => {
+    const status =
+      onsiteDbSummary?.status?.toLowerCase() ??
+      onsiteStatusSummary?.status ??
+      "";
+    // Hide while there is an onsite flow active or already paid/completed.
+    // Allow retry only for terminal non-useful states such as rejected/canceled/no_show.
+    return (
+      status === "requested" ||
+      status === "deposit_pending" ||
+      status === "deposit_paid" ||
+      status === "accepted" ||
+      status === "scheduled" ||
+      status === "completed"
+    );
+  }, [onsiteDbSummary, onsiteStatusSummary]);
 
   // When paid is detected, best-effort update request status to 'in_process'
   React.useEffect(() => {
@@ -2182,35 +2234,6 @@ export default function ChatPanel({
     void load(false, { silent: true });
   }, [load, scheduleConversationResync]);
 
-  async function handleClientDepositNow() {
-    const summary = onsiteDeposit;
-    if (!summary) return;
-    const onsiteId = summary.onsiteId;
-    const existingUrl = summary.checkoutUrl;
-    try {
-      let url = existingUrl && existingUrl.trim().length ? existingUrl : null;
-      if (!url) {
-        const res = await fetch(
-          `/api/onsite-quote-requests/${encodeURIComponent(onsiteId)}/checkout`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            credentials: "include",
-          },
-        );
-        const json = await res.json().catch(() => ({}));
-        if (res.ok) url = (json?.checkoutUrl as string | null) ?? null;
-        else
-          toast.error(
-            json?.error || "No se pudo iniciar el checkout de depósito",
-          );
-      }
-      if (url) window.location.assign(url);
-    } catch (e) {
-      toast.error(getChatFriendlyError(e, "chat.checkout.deposit"));
-    }
-  }
-
   const actionButtonsContent = (
     <>
       {(() => {
@@ -2232,17 +2255,7 @@ export default function ChatPanel({
       })() ? (
         <div className="p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {onsiteDeposit ? (
-              <Button
-                onClick={() => void handleClientDepositNow()}
-                variant="success"
-              >
-                Pagar depósito{" "}
-                {typeof onsiteDeposit.amount === "number"
-                  ? `(${new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(onsiteDeposit.amount)})`
-                  : ""}
-              </Button>
-            ) : acceptedForPay ? (
+            {acceptedForPay ? (
               <Button onClick={() => setPaymentOpen(true)} variant="success">
                 Continuar al pago
               </Button>
@@ -2272,6 +2285,11 @@ export default function ChatPanel({
           <Button variant="outline" onClick={() => setQuoteOpen(true)}>
             Cotizar
           </Button>
+          {!hideOnsiteQuoteCta ? (
+            <Button variant="outline" onClick={() => setOnsiteOpen(true)}>
+              Cotizar en sitio
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </>
@@ -2615,16 +2633,16 @@ export default function ChatPanel({
     setOnsiteSubmitting(true);
     try {
       const headers = await getAuthHeaders();
-      const payload: Record<string, unknown> = {};
-      if (onsiteDate) payload.schedule_date = onsiteDate;
-      const s = Number(onsiteStart);
-      const e = Number(onsiteEnd);
-      if (Number.isFinite(s))
-        payload.schedule_time_start = Math.max(0, Math.min(23, Math.floor(s)));
-      if (Number.isFinite(e))
-        payload.schedule_time_end = Math.max(1, Math.min(24, Math.floor(e)));
-      if (onsiteNotes.trim().length) payload.notes = onsiteNotes.trim();
-      payload.deposit_amount = 200;
+      const normalizedAmount = Number(onsiteAmount);
+      if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+        toast.error("Ingresa un monto válido para la cotización en sitio");
+        return;
+      }
+      const payload: Record<string, unknown> = {
+        deposit_amount: Number(normalizedAmount.toFixed(2)),
+        details: onsiteDetails.trim().length ? onsiteDetails.trim() : null,
+        is_remunerable: onsiteRemunerable,
+      };
       const res = await fetch(
         `/api/conversations/${encodeURIComponent(conversationId)}/onsite-quote-requests`,
         {
@@ -2644,10 +2662,9 @@ export default function ChatPanel({
       }
       toast.success("Solicitud de cotización en sitio enviada");
       setOnsiteOpen(false);
-      setOnsiteDate("");
-      setOnsiteStart("9");
-      setOnsiteEnd("12");
-      setOnsiteNotes("");
+      setOnsiteAmount("200");
+      setOnsiteDetails("");
+      setOnsiteRemunerable(false);
       await load(false, { silent: true });
       scheduleConversationResync("onsite-quote-request", {
         delayMs: 180,
@@ -2714,56 +2731,93 @@ export default function ChatPanel({
     <Dialog open={onsiteOpen} onOpenChange={setOnsiteOpen}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Solicitar cotización en sitio</DialogTitle>
+          <DialogTitle>Cotizar en sitio</DialogTitle>
           <DialogDescription>
-            Agenda fecha y rango de horario. Depósito de $200 MXN requerido del
-            cliente.
+            Envía una solicitud de cotización en sitio para que el cliente la
+            acepte y pague desde el chat.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-sm text-slate-600">Fecha</label>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">
+              Concepto
+            </label>
+            <input
+              type="text"
+              className="w-full border rounded px-3 py-2 text-sm bg-slate-50 text-slate-600"
+              value="Cotización en sitio"
+              readOnly
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Precio</label>
+            <div className="relative">
               <input
-                type="date"
-                className="w-full border rounded px-2 py-1 text-sm"
-                value={onsiteDate}
-                onChange={(e) => setOnsiteDate(e.target.value)}
+                type="number"
+                min={1}
+                step="1"
+                className="w-full border rounded px-3 py-2 pr-14 text-sm"
+                value={onsiteAmount}
+                onChange={(event) => setOnsiteAmount(event.target.value)}
+                placeholder="Monto"
               />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm text-slate-600">Horario</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  max={23}
-                  className="w-20 border rounded px-2 py-1 text-sm"
-                  value={onsiteStart}
-                  onChange={(e) => setOnsiteStart(e.target.value)}
-                />
-                <span>–</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={24}
-                  className="w-20 border rounded px-2 py-1 text-sm"
-                  value={onsiteEnd}
-                  onChange={(e) => setOnsiteEnd(e.target.value)}
-                />
-              </div>
+              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium text-slate-500">
+                MXN
+              </span>
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-sm text-slate-600">Notas</label>
+            <label className="text-sm font-medium text-slate-700">
+              Detalles y condiciones
+            </label>
             <textarea
-              className="w-full border rounded px-2 py-1 text-sm"
+              className="w-full border rounded px-3 py-2 text-sm"
               rows={3}
-              value={onsiteNotes}
-              onChange={(e) => setOnsiteNotes(e.target.value)}
+              value={onsiteDetails}
+              onChange={(event) => setOnsiteDetails(event.target.value)}
             />
           </div>
-          <div className="text-sm text-slate-700">Depósito: $200 MXN</div>
+          <div className="flex items-start gap-2 rounded-md border bg-slate-50 px-3 py-2">
+            <input
+              id="onsite-remunerable"
+              type="checkbox"
+              className="mt-1 size-4"
+              checked={onsiteRemunerable}
+              onChange={(event) => setOnsiteRemunerable(event.target.checked)}
+            />
+            <div className="flex min-w-0 items-center gap-1.5 text-sm text-slate-700">
+              <label
+                htmlFor="onsite-remunerable"
+                className="cursor-pointer select-none"
+              >
+                Remunerable al solicitar servicio
+              </label>
+              <TooltipProvider delayDuration={120}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex size-4 items-center justify-center text-slate-500 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-sm"
+                      aria-label="Información sobre remuneración"
+                    >
+                      <CircleHelp className="size-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    className="z-[80] max-w-xs leading-5"
+                  >
+                    Si activas esta opción, el monto pagado por la cotización en
+                    sitio se tomará en cuenta al contratar el servicio final a
+                    través de Handi. Es decir, ese monto se descontará del costo
+                    del servicio una vez cotizado. Si no se contrata el
+                    servicio, este pago no se reembolsa y cubre la visita de
+                    valoración en sitio.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button

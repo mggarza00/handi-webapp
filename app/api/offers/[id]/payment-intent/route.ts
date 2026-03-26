@@ -28,6 +28,20 @@ type ConversationRow = {
   pro_id: string | null;
 };
 
+type OnsiteEligibleRow = {
+  id: string;
+  conversation_id: string | null;
+  request_id: string | null;
+  status: string;
+  is_remunerable: boolean | null;
+  remuneration_applied_at: string | null;
+  remuneration_applied_offer_id: string | null;
+  deposit_amount: number | null;
+  deposit_base_cents: number | null;
+  deposit_paid_at: string | null;
+  created_at: string | null;
+};
+
 function supaAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -135,8 +149,59 @@ export async function POST(
       }
     }
 
+    const originalBaseCents = Math.round(amount * 100);
+    let onsiteCreditBaseCents = 0;
+    let onsiteEligibleId: string | null = null;
+    if (offer.conversation_id) {
+      try {
+        let onsiteQuery = supabase
+          .from("onsite_quote_requests")
+          .select(
+            "id, conversation_id, request_id, status, is_remunerable, remuneration_applied_at, remuneration_applied_offer_id, deposit_amount, deposit_base_cents, deposit_paid_at, created_at",
+          )
+          .eq("conversation_id", offer.conversation_id)
+          .eq("status", "deposit_paid")
+          .eq("is_remunerable", true)
+          .is("remuneration_applied_at", null)
+          .order("deposit_paid_at", { ascending: false, nullsFirst: false })
+          .order("created_at", { ascending: false })
+          .limit(5);
+        if (conversation?.request_id) {
+          onsiteQuery = onsiteQuery.eq("request_id", conversation.request_id);
+        }
+        const { data: onsiteRows } = await onsiteQuery;
+        const onsiteEligible = Array.isArray(onsiteRows)
+          ? ((onsiteRows[0] as OnsiteEligibleRow | undefined) ?? null)
+          : null;
+        if (onsiteEligible?.id) {
+          onsiteEligibleId = onsiteEligible.id;
+          const storedBaseCents = Number(
+            onsiteEligible.deposit_base_cents ?? NaN,
+          );
+          if (Number.isFinite(storedBaseCents) && storedBaseCents > 0) {
+            onsiteCreditBaseCents = Math.round(storedBaseCents);
+          } else {
+            const fallbackMx = Number(onsiteEligible.deposit_amount ?? NaN);
+            if (Number.isFinite(fallbackMx) && fallbackMx > 0) {
+              onsiteCreditBaseCents = Math.round(fallbackMx * 100);
+            }
+          }
+        }
+      } catch {
+        onsiteEligibleId = null;
+        onsiteCreditBaseCents = 0;
+      }
+    }
+    onsiteCreditBaseCents = Math.max(
+      0,
+      Math.min(originalBaseCents, onsiteCreditBaseCents),
+    );
+    const adjustedBaseCents = Math.max(
+      0,
+      originalBaseCents - onsiteCreditBaseCents,
+    );
     const { baseCents, feeCents, ivaCents, totalCents } =
-      computeClientTotalsCents(amount);
+      computeClientTotalsCents(adjustedBaseCents / 100);
     const currency = (offer.currency || "MXN").toLowerCase();
 
     const metadata: Record<string, string> = {
@@ -148,9 +213,13 @@ export async function POST(
       commission_cents: String(feeCents),
       iva_cents: String(ivaCents),
       total_cents: String(totalCents),
+      original_base_cents: String(originalBaseCents),
+      onsite_credit_base_cents: String(onsiteCreditBaseCents),
+      adjusted_base_cents: String(adjustedBaseCents),
     };
     if (conversation?.request_id) metadata.request_id = conversation.request_id;
     if (conversation?.pro_id) metadata.proId = conversation.pro_id;
+    if (onsiteEligibleId) metadata.onsite_request_id = onsiteEligibleId;
 
     let intentId: string | null = offer.payment_intent_id;
     let paymentIntent: Awaited<
@@ -227,11 +296,20 @@ export async function POST(
         amount: amount,
         currency: offer.currency || "MXN",
         breakdown: {
-          service: baseCents / 100,
+          service: adjustedBaseCents / 100,
+          originalServiceBase: originalBaseCents / 100,
+          onsiteCredit: onsiteCreditBaseCents / 100,
+          adjustedServiceBase: adjustedBaseCents / 100,
           fee: feeCents / 100,
           iva: ivaCents / 100,
           total: totalCents / 100,
         },
+        onsiteCredit: onsiteEligibleId
+          ? {
+              onsiteRequestId: onsiteEligibleId,
+              baseAmount: onsiteCreditBaseCents / 100,
+            }
+          : null,
         paymentIntentId: intentId,
         publishableKey,
         paymentMode: mode === "test" ? "test" : undefined,
