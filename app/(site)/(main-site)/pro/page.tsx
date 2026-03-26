@@ -387,7 +387,7 @@ async function InProgressSection({ userId }: { userId: string }) {
                 </div>
               </div>
               <Link
-                href={`/services/${j.id}`}
+                href={`/requests/explore/${j.request_id || j.id}`}
                 className="text-xs font-semibold text-[#082877] hover:underline"
               >
                 Ver
@@ -437,7 +437,7 @@ async function CompletedSection({ userId }: { userId: string }) {
                 </div>
               </div>
               <Link
-                href={`/services/${j.id}`}
+                href={`/requests/explore/${j.request_id || j.id}`}
                 className="text-xs font-semibold text-[#082877] hover:underline"
               >
                 Ver
