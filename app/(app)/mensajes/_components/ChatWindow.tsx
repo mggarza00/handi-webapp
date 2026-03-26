@@ -150,7 +150,7 @@ export default function ChatWindow({
 
   React.useEffect(() => {
     if (!requestId) return;
-    const supabase = supabaseBrowser();
+    const supabase = supabaseBrowser;
     const channel = supabase
       .channel(`chat-request:${requestId}`)
       .on(

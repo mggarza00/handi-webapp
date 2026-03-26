@@ -14,7 +14,7 @@ export default function RequestStatusRefresher({
 
   React.useEffect(() => {
     if (!requestId) return;
-    const supabase = supabaseBrowser();
+    const supabase = supabaseBrowser;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const scheduleRefresh = () => {
       if (timer) clearTimeout(timer);
