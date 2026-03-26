@@ -582,7 +582,7 @@ export default function RequestsClientPage() {
 
   React.useEffect(() => {
     if (!isMy) return;
-    const supabase = supabaseBrowser();
+    const supabase = supabaseBrowser;
     let mounted = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
