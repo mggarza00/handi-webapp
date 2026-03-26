@@ -16,6 +16,7 @@ import CertChip from "@/components/profiles/CertChip";
 import CompletedWorks from "@/components/profiles/CompletedWorks";
 import PhotoMasonry from "@/components/profiles/PhotoMasonry";
 import ReviewsListClient from "@/components/profiles/ReviewsList.client";
+import ProActivityRefresher from "@/components/realtime/ProActivityRefresher.client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -349,6 +350,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+      <ProActivityRefresher proId={proId} />
       <ProfessionalProfileViewTracker profileId={proId} />
       <script
         type="application/ld+json"

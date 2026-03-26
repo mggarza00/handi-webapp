@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import ExploreFilters from "@/app/(site)/(main-site)/requests/explore/ExploreFilters.client";
 import Pagination from "@/components/explore/Pagination";
 import RequestsList from "@/components/explore/RequestsList.client";
+import ProActivityRefresher from "@/components/realtime/ProActivityRefresher.client";
 import { fetchExploreRequests } from "@/lib/db/requests";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
@@ -426,6 +427,7 @@ export default async function ExploreRequestsPage({
         </div>
       ) : null}
 
+      <ProActivityRefresher proId={user.id} />
       <RequestsList
         proId={user.id}
         initialItems={enrichedItems}

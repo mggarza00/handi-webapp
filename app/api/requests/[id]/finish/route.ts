@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getUserOrThrow } from "@/lib/_supabase-server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email";
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -34,7 +35,11 @@ export async function POST(
     const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: "VALIDATION_FAILED", detail: parsed.error.flatten() },
+        {
+          ok: false,
+          error: "VALIDATION_FAILED",
+          detail: parsed.error.flatten(),
+        },
         { status: 422, headers: JSONH },
       );
     }
@@ -44,7 +49,9 @@ export async function POST(
 
     const { data: reqRow } = await admin
       .from("requests")
-      .select("id, created_by, title, status, professional_id, accepted_professional_id")
+      .select(
+        "id, created_by, title, status, professional_id, accepted_professional_id",
+      )
       .eq("id", requestId)
       .maybeSingle();
     if (!reqRow) {
@@ -54,7 +61,8 @@ export async function POST(
       );
     }
 
-    const clientId = parsed.data.clientId ?? (reqRow as any)?.created_by ?? null;
+    const clientId =
+      parsed.data.clientId ?? (reqRow as any)?.created_by ?? null;
     const assignedProId =
       (reqRow as any)?.accepted_professional_id ??
       (reqRow as any)?.professional_id ??
@@ -132,6 +140,15 @@ export async function POST(
         .from("conversations")
         .update({ last_message_at: new Date().toISOString() })
         .eq("id", conversationId);
+      try {
+        await notifyChatMessageByConversation({
+          conversationId,
+          senderId: user.id,
+          text: "El profesional ha finalizado el trabajo.",
+        });
+      } catch {
+        /* ignore notify failures */
+      }
     }
 
     if (clientId) {
@@ -171,6 +188,11 @@ export async function POST(
     try {
       revalidatePath(`/mensajes/${conversationId}`);
       revalidatePath(`/requests/${requestId}`);
+      revalidatePath(`/requests/explore/${requestId}`);
+      revalidatePath("/requests/explore");
+      revalidatePath("/requests");
+      revalidatePath("/pro/calendar");
+      revalidatePath("/pro");
     } catch {
       /* ignore */
     }

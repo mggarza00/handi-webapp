@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 
 import RequestCard from "@/components/explore/RequestCard";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 export type RequestsListItem = {
   id: string;
@@ -23,7 +25,7 @@ export type RequestsListItem = {
 type SortValue = "recent" | "budget_desc" | "category_asc";
 
 export default function RequestsList({
-  proId: _proId,
+  proId,
   initialItems,
   sort,
   subcategoryIconMap = {},
@@ -39,6 +41,7 @@ export default function RequestsList({
   subcategoryColorMap?: Record<string, string>;
   categoryColorMap?: Record<string, string>;
 }) {
+  const router = useRouter();
   const [items, setItems] = React.useState<RequestsListItem[]>(
     Array.isArray(initialItems) ? initialItems.slice() : [],
   );
@@ -47,6 +50,33 @@ export default function RequestsList({
   React.useEffect(() => {
     setItems(Array.isArray(initialItems) ? initialItems.slice() : []);
   }, [initialItems, sort]);
+
+  React.useEffect(() => {
+    if (!proId) return;
+    const supabase = supabaseBrowser();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => router.refresh(), 250);
+    };
+    const channel = supabase
+      .channel(`requests-explore:${proId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "requests",
+        },
+        scheduleRefresh,
+      )
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(channel);
+    };
+  }, [proId, router]);
 
   if (!items.length) {
     return (
