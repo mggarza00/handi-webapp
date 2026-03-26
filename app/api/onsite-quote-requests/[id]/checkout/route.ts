@@ -7,10 +7,45 @@ import { getStripe } from "@/lib/stripe";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "http://localhost:3000";
+
+function normalizeBaseUrl(raw?: string | null): string | null {
+  const candidate = (raw || "").trim();
+  if (!candidate) return null;
+  const withProtocol = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `https://${candidate}`;
+  try {
+    const parsed = new URL(withProtocol);
+    return `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCheckoutUrl(raw?: string | null): string | null {
+  const candidate = (raw || "").trim();
+  if (!candidate) return null;
+  const withProtocol = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `https://${candidate}`;
+  try {
+    return new URL(withProtocol).toString();
+  } catch {
+    return null;
+  }
+}
+
+function resolveAppBaseUrl(req: Request): string {
+  const fromEnv =
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  if (fromEnv) return fromEnv;
+  try {
+    return new URL(req.url).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+}
 
 type OnsiteRow = {
   id: string;
@@ -28,7 +63,7 @@ type OnsiteRow = {
 };
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } },
 ) {
   try {
@@ -85,11 +120,18 @@ export async function POST(
       );
     }
 
-    if (row.deposit_checkout_url) {
+    const validStoredCheckout = normalizeCheckoutUrl(row.deposit_checkout_url);
+    if (validStoredCheckout) {
       return NextResponse.json(
-        { ok: true, checkoutUrl: row.deposit_checkout_url },
+        { ok: true, checkoutUrl: validStoredCheckout },
         { status: 200, headers: JSONH },
       );
+    }
+    if (row.deposit_checkout_url) {
+      await supabase
+        .from("onsite_quote_requests")
+        .update({ deposit_checkout_url: null })
+        .eq("id", row.id);
     }
 
     if ((row.status || "").toLowerCase() !== "deposit_pending") {
@@ -114,10 +156,11 @@ export async function POST(
       computeClientTotalsCents(safeAmount);
     const unitAmount = Math.max(200, totalCents);
 
+    const appBaseUrl = resolveAppBaseUrl(req);
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      success_url: `${APP_URL}/mensajes/${encodeURIComponent(row.conversation_id || "")}?status=deposit_success`,
-      cancel_url: `${APP_URL}/mensajes/${encodeURIComponent(row.conversation_id || "")}?status=deposit_cancel`,
+      success_url: `${appBaseUrl}/mensajes/${encodeURIComponent(row.conversation_id || "")}?status=deposit_success`,
+      cancel_url: `${appBaseUrl}/mensajes/${encodeURIComponent(row.conversation_id || "")}?status=deposit_cancel`,
       line_items: [
         {
           quantity: 1,
@@ -146,7 +189,13 @@ export async function POST(
       },
     });
 
-    const checkoutUrl = session.url || null;
+    const checkoutUrl = normalizeCheckoutUrl(session.url || null);
+    if (!checkoutUrl) {
+      return NextResponse.json(
+        { error: "CHECKOUT_URL_INVALID" },
+        { status: 502, headers: JSONH },
+      );
+    }
     if (checkoutUrl) {
       await supabase
         .from("onsite_quote_requests")

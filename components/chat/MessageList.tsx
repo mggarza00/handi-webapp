@@ -94,6 +94,7 @@ type QuotePayload = {
 type SystemMessagePayload = LocationPayload & {
   offer_id?: string | null;
   onsite_request_id?: string | null;
+  onsite_quote_request_id?: string | null;
   type?: string | null;
   request_id?: string | null;
   pro_id?: string | null;
@@ -109,6 +110,9 @@ type SystemMessagePayload = LocationPayload & {
   city?: string | null;
   scheduled_date?: string | null;
   scheduled_time?: string | null;
+  schedule_date?: string | null;
+  schedule_time_start?: number | string | null;
+  schedule_time_end?: number | string | null;
   receipt_url?: string | null;
   receipt_view_url?: string | null;
   receipt_download_url?: string | null;
@@ -202,6 +206,44 @@ function onsiteStatusLabel(status: string): string {
     canceled: "Cancelada",
   };
   return map[normalized] || normalized;
+}
+
+function formatOnsiteHour(hour: number): string {
+  const normalized = Math.max(0, Math.min(24, Math.floor(hour)));
+  const base = normalized % 24;
+  const isAm = base < 12;
+  let display = base % 12;
+  if (display === 0) display = 12;
+  return `${display}:00 ${isAm ? "a.m." : "p.m."}`;
+}
+
+function formatOnsiteSchedule(payload: SystemMessagePayload): {
+  date: string | null;
+  time: string | null;
+} {
+  const rawDate =
+    toTrimmedString(payload.schedule_date) ??
+    toTrimmedString(payload.scheduled_date) ??
+    null;
+  const date =
+    rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+      ? `${rawDate.slice(8, 10)}-${rawDate.slice(5, 7)}-${rawDate.slice(0, 4)}`
+      : rawDate;
+  const startRaw = Number(payload.schedule_time_start ?? NaN);
+  const endRaw = Number(payload.schedule_time_end ?? NaN);
+  if (Number.isFinite(startRaw) && Number.isFinite(endRaw)) {
+    const start = Math.max(0, Math.min(23, Math.floor(startRaw)));
+    const end = Math.max(1, Math.min(24, Math.floor(endRaw)));
+    return {
+      date,
+      time:
+        start === end
+          ? formatOnsiteHour(start)
+          : `${formatOnsiteHour(start)} — ${formatOnsiteHour(end)}`,
+    };
+  }
+  const fallbackTime = toTrimmedString(payload.scheduled_time) ?? null;
+  return { date, time: fallbackTime };
 }
 
 // Use shared helpers from lib/offers/actors
@@ -376,10 +418,25 @@ export default function MessageList({
           toast.error(json?.error || "No se pudo iniciar el checkout.");
           return;
         }
-        const checkoutUrl =
-          typeof json?.checkoutUrl === "string" ? json.checkoutUrl : null;
-        if (!checkoutUrl) {
+        const checkoutUrlRaw =
+          typeof json?.checkoutUrl === "string" ? json.checkoutUrl.trim() : "";
+        if (!checkoutUrlRaw) {
           toast.error("No hay un checkout disponible para esta solicitud.");
+          return;
+        }
+        let checkoutUrl: string | null = null;
+        try {
+          checkoutUrl = new URL(
+            checkoutUrlRaw,
+            window.location.origin,
+          ).toString();
+        } catch {
+          checkoutUrl = null;
+        }
+        if (!checkoutUrl) {
+          toast.error(
+            "No se pudo abrir el checkout. Intenta nuevamente en unos segundos.",
+          );
           return;
         }
         window.location.assign(checkoutUrl);
@@ -394,6 +451,44 @@ export default function MessageList({
   const handlePaymentSuccess = React.useCallback(() => {
     setPaymentOpen(false);
   }, []);
+  const onsiteContextById = React.useMemo(() => {
+    const context = new Map<string, SystemMessagePayload>();
+    for (const message of items) {
+      if (message.messageType !== "system" || !isRecord(message.payload)) {
+        continue;
+      }
+      const payload = message.payload as SystemMessagePayload;
+      const onsiteId =
+        toTrimmedString(payload.onsite_request_id) ||
+        toTrimmedString(payload.onsite_quote_request_id);
+      if (!onsiteId) continue;
+      const prev = context.get(onsiteId) ?? {};
+      const merged: SystemMessagePayload = { ...prev };
+      const keys: Array<keyof SystemMessagePayload> = [
+        "schedule_date",
+        "schedule_time_start",
+        "schedule_time_end",
+        "scheduled_date",
+        "scheduled_time",
+        "details",
+        "notes",
+        "deposit_amount",
+        "is_remunerable",
+      ];
+      for (const key of keys) {
+        const value = payload[key];
+        if (
+          value !== null &&
+          value !== undefined &&
+          !(typeof value === "string" && value.trim().length === 0)
+        ) {
+          merged[key] = value;
+        }
+      }
+      context.set(onsiteId, merged);
+    }
+    return context;
+  }, [items]);
   const paidContextByOfferId = React.useMemo(() => {
     const context = new Map<string, SystemMessagePayload>();
     for (const message of items) {
@@ -1010,12 +1105,18 @@ export default function MessageList({
         setNextStepsOpen(true);
       };
       const payloadRecord = message.payload as SystemMessagePayload;
-      const onsiteRequestId = toTrimmedString(payloadRecord.onsite_request_id);
+      const onsiteRequestId =
+        toTrimmedString(payloadRecord.onsite_request_id) ||
+        toTrimmedString(payloadRecord.onsite_quote_request_id);
       if (onsiteRequestId) {
+        const onsitePayload: SystemMessagePayload = {
+          ...(onsiteContextById.get(onsiteRequestId) ?? {}),
+          ...payloadRecord,
+        };
         const status = (
-          toTrimmedString(payloadRecord.status) || "deposit_pending"
+          toTrimmedString(onsitePayload.status) || "deposit_pending"
         ).toLowerCase();
-        const amountRaw = payloadRecord.deposit_amount;
+        const amountRaw = onsitePayload.deposit_amount;
         const amount =
           typeof amountRaw === "number" ? amountRaw : Number(amountRaw ?? NaN);
         const formattedAmount = Number.isFinite(amount)
@@ -1025,9 +1126,10 @@ export default function MessageList({
             }).format(amount)
           : null;
         const details =
-          toTrimmedString(payloadRecord.details) ||
-          toTrimmedString(payloadRecord.notes);
-        const isRemunerable = payloadRecord.is_remunerable === true;
+          toTrimmedString(onsitePayload.details) ||
+          toTrimmedString(onsitePayload.notes);
+        const isRemunerable = onsitePayload.is_remunerable === true;
+        const onsiteSchedule = formatOnsiteSchedule(onsitePayload);
         const canCustomerPay =
           isCustomerRole(viewerRole) && PAYABLE_ONSITE_STATUSES.has(status);
         return (
@@ -1043,6 +1145,22 @@ export default function MessageList({
             {formattedAmount ? (
               <div className="text-sm text-slate-700">
                 Monto: <span className="font-semibold">{formattedAmount}</span>
+              </div>
+            ) : null}
+            {onsiteSchedule.date || onsiteSchedule.time ? (
+              <div className="text-sm text-slate-700">
+                {onsiteSchedule.date ? (
+                  <div>
+                    Fecha:{" "}
+                    <span className="font-medium">{onsiteSchedule.date}</span>
+                  </div>
+                ) : null}
+                {onsiteSchedule.time ? (
+                  <div>
+                    Horario:{" "}
+                    <span className="font-medium">{onsiteSchedule.time}</span>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {details ? (

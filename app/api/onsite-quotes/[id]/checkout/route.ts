@@ -4,13 +4,48 @@ import { createServerClient } from "@/lib/supabase";
 import { computeClientTotalsCents } from "@/lib/payments/fees";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
-const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  process.env.NEXT_PUBLIC_SITE_URL ||
-  "http://localhost:3000";
+
+function normalizeBaseUrl(raw?: string | null): string | null {
+  const candidate = (raw || "").trim();
+  if (!candidate) return null;
+  const withProtocol = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `https://${candidate}`;
+  try {
+    const parsed = new URL(withProtocol);
+    return `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCheckoutUrl(raw?: string | null): string | null {
+  const candidate = (raw || "").trim();
+  if (!candidate) return null;
+  const withProtocol = /^https?:\/\//i.test(candidate)
+    ? candidate
+    : `https://${candidate}`;
+  try {
+    return new URL(withProtocol).toString();
+  } catch {
+    return null;
+  }
+}
+
+function resolveAppBaseUrl(req: Request): string {
+  const fromEnv =
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL) ||
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_SITE_URL);
+  if (fromEnv) return fromEnv;
+  try {
+    return new URL(req.url).origin;
+  } catch {
+    return "http://localhost:3000";
+  }
+}
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } },
 ) {
   try {
@@ -39,11 +74,20 @@ export async function POST(
         { status: 404, headers: JSONH },
       );
 
-    if ((row as any).deposit_checkout_url) {
+    const validStoredCheckout = normalizeCheckoutUrl(
+      (row as any).deposit_checkout_url,
+    );
+    if (validStoredCheckout) {
       return NextResponse.json(
-        { ok: true, checkoutUrl: (row as any).deposit_checkout_url },
+        { ok: true, checkoutUrl: validStoredCheckout },
         { status: 200, headers: JSONH },
       );
+    }
+    if ((row as any).deposit_checkout_url) {
+      await (admin as any)
+        .from("onsite_quote_requests")
+        .update({ deposit_checkout_url: null })
+        .eq("id", id);
     }
 
     const amount = Number((row as any).deposit_amount ?? 200);
@@ -51,11 +95,12 @@ export async function POST(
     const { baseCents, feeCents, ivaCents, totalCents } =
       computeClientTotalsCents(safeAmount);
     const unit_amount = Math.max(200, totalCents);
+    const appBaseUrl = resolveAppBaseUrl(req);
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-      success_url: `${APP_URL}/mensajes/${encodeURIComponent((row as any).conversation_id || "")}?status=deposit_success`,
-      cancel_url: `${APP_URL}/mensajes/${encodeURIComponent((row as any).conversation_id || "")}?status=deposit_cancel`,
+      success_url: `${appBaseUrl}/mensajes/${encodeURIComponent((row as any).conversation_id || "")}?status=deposit_success`,
+      cancel_url: `${appBaseUrl}/mensajes/${encodeURIComponent((row as any).conversation_id || "")}?status=deposit_cancel`,
       line_items: [
         {
           price_data: {
@@ -81,7 +126,13 @@ export async function POST(
         total_cents: String(unit_amount),
       },
     });
-    const url = session.url || null;
+    const url = normalizeCheckoutUrl(session.url || null);
+    if (!url) {
+      return NextResponse.json(
+        { error: "CHECKOUT_URL_INVALID" },
+        { status: 502, headers: JSONH },
+      );
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (admin as any)
       .from("onsite_quote_requests")
