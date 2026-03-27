@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import Image from "next/image";
 
 import { openHomeSignInModal } from "@/lib/auth/home-sign-in-modal";
 
@@ -19,23 +19,28 @@ export default function PublicLandingLoginMenu({
   const hideOnPage = pathname === "/auth/sign-in";
   const [open, setOpen] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const menuId = "public-landing-login-menu";
 
   React.useEffect(() => {
     if (!isHome || !open) return;
-    const onClick = (event: MouseEvent) => {
+
+    const onPointerDown = (event: MouseEvent) => {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(event.target as Node)) {
         setOpen(false);
       }
     };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
     };
-    document.addEventListener("click", onClick);
-    document.addEventListener("keydown", onKey);
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener("click", onClick);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
     };
   }, [isHome, open]);
 
@@ -59,7 +64,7 @@ export default function PublicLandingLoginMenu({
         onClick={handleLoginClick}
         className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-slate-800"
       >
-        <span>Iniciar sesiÃ³n</span>
+        <span>Iniciar sesión</span>
         <Image
           src="/icons/Vector_inicio.svg"
           alt=""
@@ -75,10 +80,11 @@ export default function PublicLandingLoginMenu({
     <div ref={menuRef} className="public-login-menu relative md:hidden">
       <button
         type="button"
-        aria-label={open ? "Cerrar menÃº" : "Abrir menÃº de inicio de sesiÃ³n"}
+        aria-label={open ? "Cerrar menú" : "Abrir menú de inicio de sesión"}
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/20 px-3 py-2 text-white shadow-sm transition hover:bg-black/30 md:backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+        aria-controls={open ? menuId : undefined}
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/55 p-3 text-white shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur transition hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85"
       >
         <span className="inline-flex flex-col gap-1.5" aria-hidden="true">
           <span className="h-0.5 w-5 rounded-full bg-current" />
@@ -87,19 +93,22 @@ export default function PublicLandingLoginMenu({
         </span>
       </button>
       {open ? (
-        <div className="absolute right-0 mt-2 w-44 overflow-hidden rounded-xl bg-white/95 text-slate-800 shadow-lg ring-1 ring-slate-200 md:backdrop-blur">
+        <div
+          id={menuId}
+          className="absolute right-0 z-50 mt-3 w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#081735]/95 text-white shadow-[0_18px_42px_-18px_rgba(0,0,0,0.7)] ring-1 ring-black/10 backdrop-blur"
+        >
           <Link
             href={loginHref}
             onClick={handleLoginClick}
-            className="flex items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-slate-100"
+            className="flex min-h-[44px] items-center justify-between gap-3 px-4 py-3 text-sm font-medium hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80"
           >
-            <span>Iniciar sesiÃ³n</span>
+            <span>Iniciar sesión</span>
             <Image
               src="/icons/Vector_inicio.svg"
               alt=""
               width={16}
               height={16}
-              className="h-4 w-4 object-contain"
+              className="h-4 w-4 object-contain [filter:brightness(0)_saturate(100%)_invert(100%)]"
             />
           </Link>
         </div>

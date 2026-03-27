@@ -3,16 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
-import LandingHero from "./LandingHero.client";
+import LandingHero from "./LandingHero";
 import LandingPageStyles from "./LandingPageStyles.client";
-import LandingWarmup from "./LandingWarmup.client";
 import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { stackSansMedium } from "./landing-fonts";
 
-import HomeSignInModalHost from "@/components/auth/HomeSignInModalHost.client";
-import OneTapMount from "@/components/OneTapMount";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
-import NearbyCarousel from "@/components/professionals/NearbyCarousel.client";
 import HowItWorksSection from "@/components/shared/HowItWorksSection";
 import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
 
@@ -27,6 +23,20 @@ const HowToUseHandiSection = dynamic(
       />
     ),
   },
+);
+const HomeSignInModalHost = dynamic(
+  () => import("@/components/auth/HomeSignInModalHost.client"),
+  { ssr: false },
+);
+const OneTapMount = dynamic(() => import("@/components/OneTapMount"), {
+  ssr: false,
+});
+const LandingWarmup = dynamic(() => import("./LandingWarmup.client"), {
+  ssr: false,
+});
+const NearbyCarousel = dynamic(
+  () => import("@/components/professionals/NearbyCarousel.client"),
+  { ssr: false },
 );
 
 type LandingPageProps = {
@@ -110,7 +120,7 @@ export default function LandingPage({
               >
                 <div className="flex h-40 flex-col justify-between p-4 text-white">
                   <p
-                    className={`text-xs font-medium leading-snug ${stackSansMedium.className}`}
+                    className={`inline-flex self-start rounded-full bg-black/20 px-2.5 py-1 text-[13px] font-medium leading-snug text-white shadow-[0_6px_18px_rgba(0,0,0,0.18)] ${stackSansMedium.className}`}
                   >
                     {cat.name}
                   </p>
@@ -202,9 +212,8 @@ export default function LandingPage({
                         ? normalizeMediaUrl(s.iconUrl || null)
                         : null;
                       return (
-                        <Link
+                        <div
                           key={`subcat-b-${s.name}`}
-                          href={`/search?subcategory=${encodeURIComponent(s.name)}`}
                           className="inline-flex min-w-[150px] max-w-[180px] min-h-[180px] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-6 text-xs text-slate-800 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition"
                         >
                           <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50">
@@ -224,7 +233,7 @@ export default function LandingPage({
                           <span className="text-center text-sm font-medium leading-snug text-slate-800 break-words whitespace-normal">
                             {s.name}
                           </span>
-                        </Link>
+                        </div>
                       );
                     })}
                   </div>
@@ -289,7 +298,9 @@ export default function LandingPage({
     <main className="min-h-screen bg-slate-50 text-slate-900">
       {variant === "guest" ? <OneTapMount /> : null}
       {variant === "guest" ? <HomeSignInModalHost /> : null}
-      <LandingWarmup />
+      <DeferOnIdle delayMs={1600} timeoutMs={4200}>
+        <LandingWarmup />
+      </DeferOnIdle>
       <LandingHero
         variant={variant}
         greetingText={greetingText}

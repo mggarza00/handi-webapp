@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MouseEvent, useState } from "react";
+import { MouseEvent, useEffect, useRef, useState } from "react";
 
 import { openHomeSignInModal } from "@/lib/auth/home-sign-in-modal";
 
@@ -26,10 +26,14 @@ export default function PublicLandingHeader({
   loginHref,
 }: Props) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const mobileMenuId = "public-landing-header-mobile-menu";
+
   const toggleMobileMenu = () => setIsMobileMenuOpen((prev) => !prev);
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
   const handleLoginClick = (event: MouseEvent<HTMLAnchorElement>) => {
     if (!isHome) return;
     event.preventDefault();
@@ -37,8 +41,35 @@ export default function PublicLandingHeader({
     closeMobileMenu();
   };
 
+  useEffect(() => {
+    closeMobileMenu();
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+
+    const onMouseDown = (event: globalThis.MouseEvent) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        closeMobileMenu();
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMobileMenu();
+      }
+    };
+
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
   return (
-    <div className="handi-header-public-content">
+    <div ref={menuRef} className="handi-header-public-content">
       <div className="handi-header-row handi-header-row--desktop">
         <div className="header-left">
           <Link href={logoHref} className="header-logo" aria-label="Handi">
@@ -125,41 +156,48 @@ export default function PublicLandingHeader({
 
         <button
           type="button"
-          className="mobile-menu-toggle mobile-menu-toggle--login"
+          className="mobile-menu-toggle mobile-menu-toggle--login inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border border-white/20 bg-black/55 p-3 text-white shadow-[0_10px_30px_-18px_rgba(0,0,0,0.8)] backdrop-blur transition hover:bg-black/65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85"
           onClick={toggleMobileMenu}
           aria-label={
             isMobileMenuOpen ? "Cerrar menú" : "Abrir menú de inicio de sesión"
           }
           aria-expanded={isMobileMenuOpen}
+          aria-controls={isMobileMenuOpen ? mobileMenuId : undefined}
         >
-          <span className="mobile-menu-icon">
-            <span />
-            <span />
-            <span />
+          <span className="mobile-menu-icon" aria-hidden="true">
+            <span className="block h-0.5 w-5 rounded-full bg-current" />
+            <span className="mt-1.5 block h-0.5 w-5 rounded-full bg-current" />
+            <span className="mt-1.5 block h-0.5 w-5 rounded-full bg-current" />
           </span>
         </button>
       </div>
 
-      <div
-        className={`mobile-menu-dropdown ${isMobileMenuOpen ? "mobile-menu-dropdown--open" : ""}`.trim()}
-        aria-hidden={!isMobileMenuOpen}
-      >
-        <nav className="mobile-menu-nav" aria-label="Menú de inicio de sesión">
-          <Link
-            href={loginHref}
-            className="mobile-menu-item"
-            onClick={handleLoginClick}
+      {isMobileMenuOpen ? (
+        <div
+          id={mobileMenuId}
+          className="mobile-menu-dropdown absolute right-0 top-full z-50 mt-3 w-56 overflow-hidden rounded-2xl border border-white/12 bg-[#081735]/95 text-white shadow-[0_18px_42px_-18px_rgba(0,0,0,0.7)] ring-1 ring-black/10 backdrop-blur"
+        >
+          <nav
+            className="mobile-menu-nav"
+            aria-label="Menú de inicio de sesión"
           >
-            <span>Iniciar sesión</span>
-            <Image
-              src="/icons/Vector_inicio.svg"
-              alt=""
-              width={20}
-              height={20}
-            />
-          </Link>
-        </nav>
-      </div>
+            <Link
+              href={loginHref}
+              className="mobile-menu-item flex min-h-[44px] items-center justify-between gap-3 px-4 py-3 text-sm font-medium hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80"
+              onClick={handleLoginClick}
+            >
+              <span>Iniciar sesión</span>
+              <Image
+                src="/icons/Vector_inicio.svg"
+                alt=""
+                width={20}
+                height={20}
+                className="[filter:brightness(0)_saturate(100%)_invert(100%)]"
+              />
+            </Link>
+          </nav>
+        </div>
+      ) : null}
     </div>
   );
 }
