@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { z } from "zod";
-import createClient from "@/utils/supabase/server";
-import { getAdminSupabase } from "@/lib/supabase/admin";
-import type { Database } from "@/types/supabase";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { revalidatePath, revalidateTag } from "next/cache";
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+
 import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
+import { getAdminSupabase } from "@/lib/supabase/admin";
+import createClient from "@/utils/supabase/server";
 
 const Body = z.object({
   nextStatus: z.enum(["scheduled", "in_process", "completed"]),
@@ -20,42 +20,61 @@ export async function PATCH(
   try {
     const requestId = params.id;
     const parsed = Body.safeParse(await req.json().catch(() => ({})));
-    if (!parsed.success)
+    if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.flatten() },
         { status: 400, headers: JSONH },
       );
+    }
     const next = parsed.data.nextStatus;
 
     const userClient = createClient();
     const { data: auth } = await userClient.auth.getUser();
     const me = auth?.user?.id ?? null;
-    if (!me)
+    if (!me) {
       return NextResponse.json(
         { error: "UNAUTHORIZED" },
         { status: 401, headers: JSONH },
       );
+    }
 
     const admin = getAdminSupabase() as any;
     const { data: reqRow } = await admin
       .from("requests")
-      .select("id, created_by, status, title")
+      .select(
+        "id, created_by, status, title, professional_id, accepted_professional_id",
+      )
       .eq("id", requestId)
       .maybeSingle();
-    if (!reqRow)
+    if (!reqRow) {
       return NextResponse.json(
         { error: "NOT_FOUND" },
         { status: 404, headers: JSONH },
       );
+    }
+
     const current = String((reqRow as any).status ?? "").toLowerCase();
     const ownerId = String((reqRow as any).created_by ?? "");
+    const assignedProId =
+      ((reqRow as any)?.accepted_professional_id as string | undefined) ||
+      ((reqRow as any)?.professional_id as string | undefined) ||
+      null;
     const requestTitle =
       typeof (reqRow as any)?.title === "string"
         ? ((reqRow as any).title as string)
         : "Servicio";
 
-    // Permisos: dueño del request o pro participante con conversación
-    let allowed = me === ownerId;
+    let allowed = me === ownerId || assignedProId === me;
+    if (!allowed) {
+      const { data: agreements } = await admin
+        .from("agreements")
+        .select("id")
+        .eq("request_id", requestId)
+        .eq("professional_id", me)
+        .in("status", ["accepted", "paid", "in_progress", "completed"])
+        .limit(1);
+      allowed = Array.isArray(agreements) && agreements.length > 0;
+    }
     if (!allowed) {
       const { data: convs } = await admin
         .from("conversations")
@@ -65,43 +84,39 @@ export async function PATCH(
         .limit(1);
       allowed = Array.isArray(convs) && convs.length > 0;
     }
-    if (!allowed)
+    if (!allowed) {
       return NextResponse.json(
         { error: "FORBIDDEN" },
         { status: 403, headers: JSONH },
       );
+    }
 
-    // Mapa de transición simple
-    const mapCompletedTo = "finished";
-    const normalizedNext = next === "completed" ? mapCompletedTo : next;
-    // Validar transiciones básicas
+    const normalizedNext = next === "completed" ? "finished" : next;
     const ok =
       (current === "active" &&
         (normalizedNext === "scheduled" || normalizedNext === "in_process")) ||
       (current === "scheduled" &&
-        (normalizedNext === "in_process" ||
-          normalizedNext === mapCompletedTo)) ||
-      (current === "in_process" && normalizedNext === mapCompletedTo) ||
-      // permitir idempotencia
+        (normalizedNext === "in_process" || normalizedNext === "finished")) ||
+      (current === "in_process" && normalizedNext === "finished") ||
       current === normalizedNext;
-    if (!ok)
+    if (!ok) {
       return NextResponse.json(
         { error: `INVALID_TRANSITION ${current} -> ${normalizedNext}` },
         { status: 400, headers: JSONH },
       );
+    }
 
-    // Aplicar cambio en requests
     const { error: upErr } = await admin
       .from("requests")
       .update({ status: normalizedNext } as any)
       .eq("id", requestId);
-    if (upErr)
+    if (upErr) {
       return NextResponse.json(
         { error: upErr.message },
         { status: 400, headers: JSONH },
       );
+    }
 
-    // Espejo en calendario del pro (best-effort) + payout pending
     try {
       const { data: conv } = await admin
         .from("conversations")
@@ -109,7 +124,10 @@ export async function PATCH(
         .eq("request_id", requestId)
         .order("created_at", { ascending: false })
         .maybeSingle();
-      const proId = (conv as any)?.pro_id as string | undefined;
+      const proId =
+        ((conv as any)?.pro_id as string | undefined) ||
+        assignedProId ||
+        undefined;
       const convId = (conv as any)?.id as string | undefined;
       if (proId) {
         await admin.from("pro_calendar_events").upsert(
@@ -119,9 +137,7 @@ export async function PATCH(
             title: requestTitle || "Servicio",
             status: normalizedNext,
           } as any,
-          {
-            onConflict: "request_id",
-          },
+          { onConflict: "request_id" },
         );
       }
 
@@ -136,7 +152,8 @@ export async function PATCH(
           if (!existingPayout?.id) {
             let agreementId: string | null = null;
             let amount: number | null = null;
-            let currency: string = "MXN";
+            let currency = "MXN";
+
             try {
               const { data: agr } = await admin
                 .from("agreements")
@@ -150,6 +167,7 @@ export async function PATCH(
             } catch {
               /* ignore */
             }
+
             if ((amount ?? 0) <= 0 && convId) {
               try {
                 const { data: offs } = await admin
@@ -168,6 +186,7 @@ export async function PATCH(
                 /* ignore */
               }
             }
+
             if (amount && amount > 0) {
               try {
                 await admin.from("payouts").insert({
@@ -217,7 +236,6 @@ export async function PATCH(
         }
       }
 
-      // Revalidar calendario y chat
       try {
         revalidatePath("/pro/calendar");
         revalidateTag("pro-calendar");
@@ -229,7 +247,6 @@ export async function PATCH(
       /* ignore */
     }
 
-    // Revalidar vistas clave
     try {
       revalidatePath("/requests/explore");
       revalidatePath(`/requests/${requestId}`);
@@ -239,9 +256,8 @@ export async function PATCH(
       /* ignore */
     }
 
-    const ui = next; // devolver etiqueta conforme a UI solicitada
     return NextResponse.json(
-      { ok: true, data: { id: requestId, status: ui } },
+      { ok: true, data: { id: requestId, status: next } },
       { status: 200, headers: JSONH },
     );
   } catch (e) {

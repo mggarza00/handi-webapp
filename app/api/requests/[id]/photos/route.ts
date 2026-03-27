@@ -26,7 +26,11 @@ export async function POST(req: Request, { params }: Ctx) {
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { ok: false, error: "VALIDATION_FAILED", detail: parsed.error.flatten() },
+        {
+          ok: false,
+          error: "VALIDATION_FAILED",
+          detail: parsed.error.flatten(),
+        },
         { status: 422, headers: JSONH },
       );
     }
@@ -35,12 +39,18 @@ export async function POST(req: Request, { params }: Ctx) {
     const keys = parsed.data.keys ?? [];
     if (keys.length) {
       // Map keys to public URLs in service-photos bucket
-      const pub = (k: string) => supabase.storage.from("service-photos").getPublicUrl(k).data.publicUrl;
+      const pub = (k: string) =>
+        supabase.storage.from("service-photos").getPublicUrl(k).data.publicUrl;
       urls = urls.concat(keys.map(pub));
     }
 
     // Verificar que el usuario es el profesional asignado a la solicitud y estado válido
-    type AgreementLite = { id: string; request_id: string; professional_id: string; status: string | null };
+    type AgreementLite = {
+      id: string;
+      request_id: string;
+      professional_id: string;
+      status: string | null;
+    };
     const { data: ag, error: agErr } = await supabase
       .from("agreements")
       .select("id, request_id, professional_id, status")
@@ -62,24 +72,29 @@ export async function POST(req: Request, { params }: Ctx) {
     const status = reqRow?.status ?? null;
     if (
       !(
+        status === "finished" ||
         status === "completed" ||
-        status === "in_review" ||
-        status === "in_process" ||
-        status === "scheduled"
+        status === "in_process"
       )
     ) {
       return NextResponse.json(
-        { ok: false, error: "INVALID_STATUS" },
-        { status: 400, headers: JSONH },
+        {
+          ok: false,
+          error: "INVALID_STATUS",
+          detail:
+            "Las fotos de evidencia solo se pueden guardar cuando el trabajo esta en proceso o finalizado.",
+        },
+        { status: 409, headers: JSONH },
       );
     }
 
-    const rows: Database["public"]["Tables"]["service_photos"]["Insert"][] = urls.map((u) => ({
-      offer_id: ag!.id,
-      request_id: requestId,
-      professional_id: user.id,
-      image_url: u,
-    }));
+    const rows: Database["public"]["Tables"]["service_photos"]["Insert"][] =
+      urls.map((u) => ({
+        offer_id: ag!.id,
+        request_id: requestId,
+        professional_id: user.id,
+        image_url: u,
+      }));
     const { error: insErr } = await supabase
       .from("service_photos")
       .insert(rows as unknown as never);
@@ -90,8 +105,15 @@ export async function POST(req: Request, { params }: Ctx) {
       );
     }
 
-    try { revalidateTag(`profile:${user.id}`); } catch (_e) { void _e; }
-    return NextResponse.json({ ok: true, count: rows.length }, { status: 200, headers: JSONH });
+    try {
+      revalidateTag(`profile:${user.id}`);
+    } catch (_e) {
+      void _e;
+    }
+    return NextResponse.json(
+      { ok: true, count: rows.length },
+      { status: 200, headers: JSONH },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json(

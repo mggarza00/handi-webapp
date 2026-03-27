@@ -121,7 +121,7 @@ export default function SiteFooter() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label="Visitar Instagram de Handi"
-                  className="inline-flex items-center gap-2 font-light text-white hover:text-[#F4571F]"
+                  className="inline-flex min-h-10 items-center gap-2 py-1 font-light text-white hover:text-[#F4571F]"
                 >
                   <Instagram className="h-4 w-4" aria-hidden="true" />
                   <span>@handi_mx</span>

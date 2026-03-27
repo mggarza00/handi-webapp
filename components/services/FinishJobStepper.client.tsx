@@ -195,17 +195,30 @@ export default function FinishJobStepper({
   const ensureInProcess = React.useCallback(async () => {
     const status = normalizeStatus(context.requestStatus);
     if (status !== "scheduled") return;
-    try {
-      await fetch(`/api/requests/${encodeURIComponent(requestId)}/status`, {
+    const res = await fetch(
+      `/api/requests/${encodeURIComponent(requestId)}/status`,
+      {
         method: "PATCH",
         headers: JSONH,
         credentials: "include",
         body: JSON.stringify({ nextStatus: "in_process" }),
-      });
-      setContext((prev) => ({ ...prev, requestStatus: "in_process" }));
-    } catch {
-      /* ignore */
+      },
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.ok) {
+      throw new Error(
+        json?.detail ||
+          json?.error ||
+          "No se pudo marcar el trabajo como en proceso.",
+      );
     }
+    setContext((prev) => ({
+      ...prev,
+      requestStatus:
+        typeof json?.data?.status === "string"
+          ? json.data.status
+          : "in_process",
+    }));
   }, [context.requestStatus, requestId]);
 
   const uploadPhotos = React.useCallback(async () => {
