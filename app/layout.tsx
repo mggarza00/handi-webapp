@@ -1,25 +1,49 @@
 /* eslint-disable import/order */
 /* eslint-disable @next/next/no-page-custom-font */
 import "./globals.css";
+import "@/app/(app)/leaflet.css";
+import dynamicImport from "next/dynamic";
 import Script from "next/script";
 import type { Metadata } from "next";
 import ClientToaster from "@/components/ClientToaster";
-import AssistantPanel from "@/components/assistant/AssistantPanel";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
-import CreateRequestWizardRoot from "@/components/requests/CreateRequestWizardRoot";
 import { concertOne, inter, nunito, rubik, varelaRound } from "@/lib/fonts";
-import LeafletCSS from "@/components/LeafletCSS.client";
-import InstallAppBanner from "@/components/pwa/InstallAppBanner";
-import RequestNotificationsToast from "@/components/pwa/RequestNotificationsToast";
-import PushAutoSubscribeOnGrant from "@/components/pwa/PushAutoSubscribeOnGrant.client";
 import RegisterSW from "@/app/register-sw";
-import VercelLiveGuard from "@/components/VercelLiveGuard.client";
 import AttributionCapture from "@/components/analytics/AttributionCapture.client";
-import AndroidWebViewControls from "@/components/capacitor/AndroidWebViewControls.client";
+import DeferOnIdle from "@/components/DeferOnIdle.client";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const AssistantPanel = dynamicImport(
+  () => import("@/components/assistant/AssistantPanel"),
+  { ssr: false },
+);
+const InstallAppBanner = dynamicImport(
+  () => import("@/components/pwa/InstallAppBanner"),
+  { ssr: false },
+);
+const RequestNotificationsToast = dynamicImport(
+  () => import("@/components/pwa/RequestNotificationsToast"),
+  { ssr: false },
+);
+const PushAutoSubscribeOnGrant = dynamicImport(
+  () => import("@/components/pwa/PushAutoSubscribeOnGrant.client"),
+  { ssr: false },
+);
+const VercelLiveGuard = dynamicImport(
+  () => import("@/components/VercelLiveGuard.client"),
+  { ssr: false },
+);
+const AndroidWebViewControls = dynamicImport(
+  () => import("@/components/capacitor/AndroidWebViewControls.client"),
+  { ssr: false },
+);
+const CreateRequestWizardRoot = dynamicImport(
+  () => import("@/components/requests/CreateRequestWizardRoot"),
+  { ssr: false },
+);
 
 const appBaseUrl = getAppBaseUrl();
 const defaultDescription =
@@ -128,6 +152,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
           }}
         />
         <meta charSet="utf-8" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         {/* Apple splash screens */}
@@ -212,25 +237,31 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
           />
         </noscript>
         <AttributionCapture />
-        <AndroidWebViewControls />
-        <VercelLiveGuard />
+        <DeferOnIdle timeoutMs={1500}>
+          <AndroidWebViewControls />
+          <VercelLiveGuard />
+        </DeferOnIdle>
         {children}
         <ClientToaster />
-        {disableAssistant ? null : <AssistantPanel />}
+        {disableAssistant ? null : (
+          <DeferOnIdle delayMs={900} timeoutMs={2200}>
+            <AssistantPanel />
+          </DeferOnIdle>
+        )}
         {/* Mobile-only bottom tab bar for clients */}
         <MobileClientTabBar />
         <CreateRequestWizardRoot />
-        {/* Load Leaflet styles once on client */}
-        <LeafletCSS />
         {/* Ensure Service Worker is registered (place above install/notify banners) */}
         <RegisterSW />
         {/* Updater deshabilitado para no mostrar banner de nueva version */}
         {/* PWA install banner (Android native + iOS simulated) */}
-        <InstallAppBanner />
-        {/* First-use notifications permission toast/help */}
-        <RequestNotificationsToast />
-        {/* Auto-subscribe to Web Push when permission is granted */}
-        <PushAutoSubscribeOnGrant />
+        <DeferOnIdle delayMs={1200} timeoutMs={2400}>
+          <InstallAppBanner />
+          {/* First-use notifications permission toast/help */}
+          <RequestNotificationsToast />
+          {/* Auto-subscribe to Web Push when permission is granted */}
+          <PushAutoSubscribeOnGrant />
+        </DeferOnIdle>
       </body>
     </html>
   );
