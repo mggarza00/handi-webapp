@@ -76,15 +76,6 @@ export async function PATCH(
       allowed = Array.isArray(agreements) && agreements.length > 0;
     }
     if (!allowed) {
-      const { data: convs } = await admin
-        .from("conversations")
-        .select("id")
-        .eq("request_id", requestId)
-        .eq("pro_id", me)
-        .limit(1);
-      allowed = Array.isArray(convs) && convs.length > 0;
-    }
-    if (!allowed) {
       return NextResponse.json(
         { error: "FORBIDDEN" },
         { status: 403, headers: JSONH },
