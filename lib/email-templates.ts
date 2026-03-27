@@ -3,6 +3,10 @@ import {
   escapeHtml,
   renderHandiEmailLayoutHtml,
 } from "@/lib/emails/handi-email-layout";
+export {
+  renderServiceCompletedThankYouEmailHtml,
+  renderServiceCompletedThankYouEmailText,
+} from "@/lib/emails/service-completed-thank-you-email";
 
 type LayoutOpts = {
   headerLabel: string;

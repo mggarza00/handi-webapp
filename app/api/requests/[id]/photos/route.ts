@@ -51,16 +51,45 @@ export async function POST(req: Request, { params }: Ctx) {
       professional_id: string;
       status: string | null;
     };
+    const allowedAgreementStatuses = [
+      "accepted",
+      "paid",
+      "in_progress",
+      "completed",
+    ] as const;
     const { data: ag, error: agErr } = await supabase
       .from("agreements")
       .select("id, request_id, professional_id, status")
       .eq("request_id", requestId)
       .eq("professional_id", user.id)
+      .in("status", [...allowedAgreementStatuses])
+      .order("created_at", { ascending: false })
+      .limit(1)
       .maybeSingle<AgreementLite>();
-    if (agErr || !ag) {
+    if (agErr) {
       return NextResponse.json(
         { ok: false, error: "FORBIDDEN" },
         { status: 403, headers: JSONH },
+      );
+    }
+    if (!ag) {
+      const { data: latestAgreement } = await supabase
+        .from("agreements")
+        .select("id, status")
+        .eq("request_id", requestId)
+        .eq("professional_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string; status: string | null }>();
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "INVALID_AGREEMENT_STATUS",
+          detail: latestAgreement?.id
+            ? `El acuerdo ${latestAgreement.id} tiene estado ${latestAgreement.status ?? "null"} y no permite guardar fotos de evidencia.`
+            : "No existe un acuerdo valido para guardar fotos de evidencia.",
+        },
+        { status: 409, headers: JSONH },
       );
     }
     // Estado de la solicitud
@@ -70,13 +99,7 @@ export async function POST(req: Request, { params }: Ctx) {
       .eq("id", requestId)
       .maybeSingle<{ id: string; status: string | null }>();
     const status = reqRow?.status ?? null;
-    if (
-      !(
-        status === "finished" ||
-        status === "completed" ||
-        status === "in_process"
-      )
-    ) {
+    if (!(status === "finished" || status === "in_process")) {
       return NextResponse.json(
         {
           ok: false,
