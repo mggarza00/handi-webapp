@@ -122,7 +122,7 @@ export default function HeroClientActions({
             <button
               type="button"
               className={cn(
-                "group inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/60 bg-white/92 px-4 py-2 text-sm font-medium text-[#082877] shadow-sm backdrop-blur transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#082877]",
+                "group inline-flex max-w-full min-h-[44px] min-w-0 items-center gap-2 rounded-full border border-white/60 bg-white/92 px-4 py-2 text-sm font-medium text-[#082877] shadow-sm backdrop-blur transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#082877]",
                 addressPillClassName,
               )}
             >
@@ -133,7 +133,7 @@ export default function HeroClientActions({
                 height={18}
                 className="h-4 w-4 [filter:brightness(0)_saturate(100%)_invert(14%)_sepia(80%)_saturate(1928%)_hue-rotate(200deg)_brightness(93%)_contrast(92%)]"
               />
-              <span className="max-w-[12rem] truncate text-left sm:max-w-[16rem]">
+              <span className="min-w-0 max-w-[12rem] truncate text-left sm:max-w-[16rem]">
                 {pillLabel}
               </span>
               <ChevronDown className="h-4 w-4 text-[#082877]" />

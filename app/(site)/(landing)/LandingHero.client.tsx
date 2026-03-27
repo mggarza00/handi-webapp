@@ -396,7 +396,7 @@ export default function LandingHero({
                   )
                 }
                 showButton={false}
-                addressPillClassName="absolute bottom-6 right-6 z-20 -mt-20 md:mt-0 md:bottom-8 md:right-10"
+                addressPillClassName="absolute bottom-6 right-6 z-20 max-w-[calc(100%-3rem)] md:bottom-8 md:right-10 md:max-w-none"
               />
               <div className="hero-payment-badge absolute inset-0 pointer-events-none hidden md:block">
                 <PaymentProtectionBadge />
