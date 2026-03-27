@@ -56,19 +56,19 @@ export default function LandingHero({
           aria-hidden="true"
         />
         <div className="relative w-full">
-          <div className="guest-hero__visual relative w-full min-h-[620px] sm:min-h-[680px] md:aspect-[21/9] md:min-h-[560px] lg:h-[620px]">
+          <div className="guest-hero__visual relative w-full min-h-[560px] sm:min-h-[640px] md:aspect-[21/9] md:min-h-[560px] lg:h-[620px]">
             <Image
               src="/images/hero-guest-home.webp"
               alt="Profesional industrial trabajando con equipo de seguridad"
               fill
-              className="object-cover"
+              className="object-cover object-center"
               sizes="100vw"
               priority
               fetchPriority="high"
-              quality={72}
+              quality={68}
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/78 via-black/42 to-black/18 md:bg-gradient-to-r md:from-black/72 md:via-black/28 md:to-transparent" />
-            <div className="absolute inset-0 px-6 pb-8 pt-36 md:px-24 md:pb-12 md:pt-44">
+            <div className="absolute inset-0 px-6 pb-8 pt-32 md:px-24 md:pb-12 md:pt-44">
               <div className="max-w-[280px] md:max-w-[380px]">
                 <h1
                   className={`${stackSansMedium.className} text-[28px] font-semibold leading-[1.02] tracking-[-0.03em] text-white drop-shadow-[0_10px_26px_rgba(0,0,0,0.55)] md:text-[42px]`}
@@ -88,7 +88,7 @@ export default function LandingHero({
                   <span className="block">servicio en tu hogar</span>
                 </p>
               </div>
-              <div className="mt-10 md:mt-12">
+              <div className="mt-8 md:mt-12">
                 <LandingGuestHeroCta
                   triggerClassName={`btn-contratar min-h-11 min-w-36 ${stackSansMedium.className}`}
                 />

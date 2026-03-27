@@ -25,6 +25,8 @@ export default function ProtectedPaymentsCard({
                 fill
                 className="object-cover"
                 sizes="(min-width: 1024px) 40vw, (min-width: 768px) 50vw, 100vw"
+                loading="lazy"
+                fetchPriority="low"
               />
             </div>
             <div className="flex flex-col justify-between gap-10 sm:gap-8 bg-[#114430] p-6 text-white sm:p-8">
