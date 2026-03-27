@@ -172,22 +172,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ins = await (userClient as any)
-      .from("ratings")
-      .insert({
-        request_id: requestId,
-        from_user_id: me,
-        to_user_id: toUserId,
-        stars: rating,
-        comment: comment ?? null,
-      })
-      .select("id")
-      .single();
-    if (ins.error) {
-      const message = ins.error.message || "INSERT_FAILED";
+    const insertResult = await (userClient as any).from("ratings").insert({
+      request_id: requestId,
+      from_user_id: me,
+      to_user_id: toUserId,
+      stars: rating,
+      comment: comment ?? null,
+    });
+    if (insertResult.error) {
+      const message = insertResult.error.message || "INSERT_FAILED";
       const status = /row-level security|permission/i.test(message) ? 403 : 400;
       return NextResponse.json({ error: message }, { status, headers: JSONH });
     }
+
+    let insertedRatingId: string | null = null;
+    const { data: insertedRating } = await admin
+      .from("ratings")
+      .select("id")
+      .eq("request_id", requestId)
+      .eq("from_user_id", me)
+      .eq("to_user_id", toUserId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    insertedRatingId = insertedRating?.id ?? null;
 
     if (Array.isArray(photos) && photos.length) {
       const rows = photos.map((p) => ({
@@ -283,7 +291,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { ok: true, id: (ins.data as any)?.id ?? null },
+      { ok: true, id: insertedRatingId },
       { status: 200, headers: JSONH },
     );
   } catch (e) {
