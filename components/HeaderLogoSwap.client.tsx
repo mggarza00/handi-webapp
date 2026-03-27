@@ -57,6 +57,14 @@ export default function HeaderLogoSwap({
     enableSwap && overHero
       ? "/images/LOGO_HEADER_B.png"
       : "/images/LOGO_HEADER_DB.png";
+  const imagePriorityProps = enableSwap
+    ? {
+        loading: "eager" as const,
+        fetchPriority: "low" as const,
+      }
+    : ({
+        priority: true,
+      } as const);
 
   return (
     <Link href={href} className={className} aria-label="Handi inicio">
@@ -65,7 +73,7 @@ export default function HeaderLogoSwap({
         alt="Handi"
         width={width}
         height={height}
-        priority
+        {...imagePriorityProps}
         className="h-32 w-32 object-contain logo-white"
       />
     </Link>

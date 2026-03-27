@@ -1,5 +1,4 @@
 ﻿import type React from "react";
-import Image from "next/image";
 
 import {
   interLight,
@@ -148,13 +147,15 @@ function StepCard({
               className="relative h-56"
               style={{ width: "min(12rem, 44vw)" }}
             >
-              <Image
+              {/* Keep these mockups out of the initial preload set; they are below the hero LCP. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={rightImageSrc as string}
                 alt={title}
-                fill
-                className="object-contain object-bottom"
-                sizes="(max-width: 768px) 12rem, 12rem"
-                priority
+                className="h-full w-full object-contain object-bottom"
+                loading="lazy"
+                fetchPriority="low"
+                decoding="async"
               />
             </div>
           </div>
@@ -168,13 +169,14 @@ function StepCard({
               }}
             >
               <div className="relative h-full w-full">
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={rightImageSrc as string}
                   alt={title}
-                  fill
-                  className="object-contain object-bottom"
-                  sizes="(max-width: 1280px) 15rem, 18rem"
-                  priority
+                  className="h-full w-full object-contain object-bottom"
+                  loading="lazy"
+                  fetchPriority="low"
+                  decoding="async"
                 />
               </div>
             </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 
 import LandingHero from "./LandingHero";
-import LandingPageStyles from "./LandingPageStyles.client";
+import LandingPageStyles from "./LandingPageStyles";
 import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { stackSansMedium } from "./landing-fonts";
 
@@ -296,17 +296,17 @@ export default function LandingPage({
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
-      {variant === "guest" ? <OneTapMount /> : null}
-      {variant === "guest" ? <HomeSignInModalHost /> : null}
-      <DeferOnIdle delayMs={1600} timeoutMs={4200}>
-        <LandingWarmup />
-      </DeferOnIdle>
       <LandingHero
         variant={variant}
         greetingText={greetingText}
         fullName={fullName}
         savedAddresses={savedAddresses}
       />
+      {variant === "guest" ? <OneTapMount /> : null}
+      {variant === "guest" ? <HomeSignInModalHost /> : null}
+      <DeferOnIdle delayMs={1600} timeoutMs={4200}>
+        <LandingWarmup />
+      </DeferOnIdle>
       {isClientVariant ? (
         <>
           {servicesSection}
