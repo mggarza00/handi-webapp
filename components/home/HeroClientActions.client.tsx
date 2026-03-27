@@ -102,7 +102,7 @@ export default function HeroClientActions({
           <button
             type="button"
             className={cn(
-              "btn-contratar whitespace-nowrap px-7 sm:px-8 md:px-10 !w-auto min-w-[200px] sm:min-w-[220px]",
+              "btn-contratar min-h-11 whitespace-nowrap px-7 sm:px-8 md:px-10 !w-auto min-w-[200px] sm:min-w-[220px]",
               triggerClassName,
             )}
             onClick={() => {
@@ -122,7 +122,7 @@ export default function HeroClientActions({
             <button
               type="button"
               className={cn(
-                "group inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/70 px-4 py-2 text-sm font-medium text-[#0C2555] shadow-sm backdrop-blur transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0C2555]",
+                "group inline-flex min-h-[44px] items-center gap-2 rounded-full border border-white/60 bg-white/92 px-4 py-2 text-sm font-medium text-[#082877] shadow-sm backdrop-blur transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#082877]",
                 addressPillClassName,
               )}
             >
@@ -136,7 +136,7 @@ export default function HeroClientActions({
               <span className="max-w-[12rem] truncate text-left sm:max-w-[16rem]">
                 {pillLabel}
               </span>
-              <ChevronDown className="h-4 w-4 text-[#0C2555]" />
+              <ChevronDown className="h-4 w-4 text-[#082877]" />
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-2">

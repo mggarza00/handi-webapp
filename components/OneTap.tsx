@@ -121,6 +121,19 @@ export default function OneTap() {
 
     const clientId = (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "").trim();
     if (!clientId || typeof window === "undefined") return;
+    const host = window.location.hostname;
+    const isLocalHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "[::1]" ||
+      host.endsWith(".local");
+    const allowOnLocalhost =
+      (process.env.NEXT_PUBLIC_ENABLE_ONE_TAP_ON_LOCALHOST || "").trim() ===
+      "1";
+    if (isLocalHost && !allowOnLocalhost) {
+      devLog("localhost detected, skipping One Tap init");
+      return;
+    }
 
     if (
       (navigator as Navigator & { connection?: { saveData?: boolean } })
@@ -297,12 +310,15 @@ export default function OneTap() {
       else if (fedcmEnv === "false" || fedcmEnv === "0")
         useFedcmForPrompt = false;
       else {
-        const host = window.location.hostname;
         const isPreviewHost =
           /\.vercel\.app$/i.test(host) ||
           /\.netlify\.app$/i.test(host) ||
           /\.onrender\.com$/i.test(host);
-        useFedcmForPrompt = !isPreviewHost;
+        useFedcmForPrompt =
+          !isPreviewHost &&
+          !isLocalHost &&
+          window.location.protocol === "https:" &&
+          window.isSecureContext;
       }
 
       window.google.accounts.id.initialize({
@@ -371,7 +387,6 @@ export default function OneTap() {
       id="gsi-container"
       ref={containerRef}
       style={{ position: "fixed", top: 12, right: 12, zIndex: 60 }}
-      aria-hidden
     />
   );
 }
