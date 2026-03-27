@@ -166,6 +166,7 @@ test.describe("Full flow contratar - oferta - pago - finalizacion - resenas", ()
     await expect(finalizeBtn).toBeVisible({ timeout: 15000 });
     await finalizeBtn.click();
 
+    await expect(proPage.getByRole("dialog")).toHaveCount(0, { timeout: 15000 });
     await expect(proPage.getByText(/El profesional ha finalizado el trabajo/i)).toBeVisible({ timeout: 15000 });
 
     await page.goto(`/mensajes/${conversationId}`, { waitUntil: "networkidle" });

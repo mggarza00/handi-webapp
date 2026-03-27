@@ -1,13 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
 
+import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
+import { sendEmail } from "@/lib/email";
+import {
+  renderServiceCompletedThankYouEmailHtml,
+  renderServiceCompletedThankYouEmailText,
+} from "@/lib/email-templates";
 import { getUserOrThrow } from "@/lib/_supabase-server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
-import { sendEmail } from "@/lib/email";
-import { notifyChatMessageByConversation } from "@/lib/chat-notifier";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -25,6 +29,82 @@ function getBaseUrl() {
     process.env.NEXT_PUBLIC_BASE_URL ||
     (host ? `${proto}://${host}` : "http://localhost:3000")
   );
+}
+
+function getSupportEmail() {
+  return (
+    process.env.NEXT_PUBLIC_SUPPORT_EMAIL ||
+    process.env.SUPPORT_EMAIL ||
+    "soporte@handi.mx"
+  ).trim();
+}
+
+function formatServiceDateLabel(
+  row: Record<string, unknown> | null,
+): string | null {
+  const scheduledDate =
+    typeof row?.scheduled_date === "string" ? row.scheduled_date.trim() : null;
+  const scheduledTime =
+    typeof row?.scheduled_time === "string" ? row.scheduled_time.trim() : null;
+  if (!scheduledDate) return null;
+
+  const dateParts = scheduledDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!dateParts) return scheduledDate;
+
+  const date = new Date(
+    Number(dateParts[1]),
+    Number(dateParts[2]) - 1,
+    Number(dateParts[3]),
+  );
+  const dateLabel = new Intl.DateTimeFormat("es-MX", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(date);
+
+  if (!scheduledTime) return dateLabel;
+
+  const timeParts = scheduledTime.match(/^(\d{2}):(\d{2})/);
+  if (!timeParts) return `${dateLabel} | ${scheduledTime}`;
+
+  const timeDate = new Date(
+    2000,
+    0,
+    1,
+    Number(timeParts[1]),
+    Number(timeParts[2]),
+  );
+  const timeLabel = new Intl.DateTimeFormat("es-MX", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(timeDate);
+
+  return `${dateLabel} | ${timeLabel}`;
+}
+
+function getPhotoTimestamp(row: Record<string, unknown>): number {
+  const raw =
+    typeof row.uploaded_at === "string" && row.uploaded_at.trim()
+      ? row.uploaded_at
+      : typeof row.created_at === "string" && row.created_at.trim()
+        ? row.created_at
+        : "";
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function extractSortedPhotoUrls(rows: Record<string, unknown>[]): string[] {
+  return rows
+    .slice()
+    .sort((a, b) => getPhotoTimestamp(b) - getPhotoTimestamp(a))
+    .map((row) => {
+      const directUrl = typeof row.url === "string" ? row.url.trim() : "";
+      const imageUrl =
+        typeof row.image_url === "string" ? row.image_url.trim() : "";
+      return directUrl || imageUrl;
+    })
+    .filter(Boolean)
+    .slice(0, 4);
 }
 
 export async function POST(
@@ -51,7 +131,7 @@ export async function POST(
     const { data: reqRow } = await admin
       .from("requests")
       .select(
-        "id, created_by, title, status, professional_id, accepted_professional_id",
+        "id, created_by, title, status, professional_id, accepted_professional_id, scheduled_date, scheduled_time",
       )
       .eq("id", requestId)
       .maybeSingle();
@@ -62,8 +142,7 @@ export async function POST(
       );
     }
 
-    const clientId =
-      parsed.data.clientId ?? (reqRow as any)?.created_by ?? null;
+    const clientId = parsed.data.clientId ?? (reqRow as any)?.created_by ?? null;
     const assignedProId =
       (reqRow as any)?.accepted_professional_id ??
       (reqRow as any)?.professional_id ??
@@ -160,11 +239,28 @@ export async function POST(
 
     if (clientId) {
       try {
-        const { data: client } = await admin
-          .from("profiles")
-          .select("full_name, email")
-          .eq("id", clientId)
-          .maybeSingle();
+        const professionalIdForEmail = assignedProId || user.id;
+        const [{ data: client }, { data: professional }, { data: servicePhotos }] =
+          await Promise.all([
+            admin
+              .from("profiles")
+              .select("full_name, email")
+              .eq("id", clientId)
+              .maybeSingle(),
+            admin
+              .from("profiles")
+              .select("full_name")
+              .eq("id", professionalIdForEmail)
+              .maybeSingle(),
+            admin
+              .from("service_photos")
+              .select("*")
+              .eq("request_id", requestId)
+              .eq("professional_id", professionalIdForEmail)
+              .order("uploaded_at", { ascending: false, nullsFirst: false })
+              .limit(8),
+          ]);
+
         const email = (client as any)?.email as string | undefined;
         if (email) {
           const base = getBaseUrl();
@@ -172,6 +268,18 @@ export async function POST(
           const helpUrl = `${base}/mensajes/${conversationId}?help=1`;
           const name = (client as any)?.full_name || "Cliente";
           const title = (reqRow as any)?.title || "tu solicitud";
+          const professionalName =
+            (professional as any)?.full_name || "Profesional Handi";
+          const photoUrls = extractSortedPhotoUrls(
+            Array.isArray(servicePhotos)
+              ? (servicePhotos as Record<string, unknown>[])
+              : [],
+          );
+          const serviceDateLabel = formatServiceDateLabel(
+            reqRow as Record<string, unknown>,
+          );
+          const supportEmail = getSupportEmail();
+
           const subject = "Handi - El profesional ha finalizado el trabajo";
           const html = `
             <div style="font-family: Arial, sans-serif; color: #0f172a;">
@@ -186,6 +294,30 @@ export async function POST(
             </div>
           `;
           await sendEmail({ to: email, subject, html }).catch(() => null);
+
+          const thankYouSubject = "Gracias por confiar en Handi";
+          const thankYouHtml = renderServiceCompletedThankYouEmailHtml({
+            name,
+            requestTitle: title,
+            professionalName,
+            serviceDateLabel,
+            photoUrls,
+            supportEmail,
+          });
+          const thankYouText = renderServiceCompletedThankYouEmailText({
+            name,
+            requestTitle: title,
+            professionalName,
+            serviceDateLabel,
+            photoUrls,
+            supportEmail,
+          });
+          await sendEmail({
+            to: email,
+            subject: thankYouSubject,
+            html: thankYouHtml,
+            text: thankYouText,
+          }).catch(() => null);
         }
       } catch {
         /* ignore email failures */
