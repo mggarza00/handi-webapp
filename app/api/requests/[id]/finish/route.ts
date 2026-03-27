@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { headers } from "next/headers";
@@ -45,7 +46,7 @@ export async function POST(
     }
 
     const { user } = await getUserOrThrow();
-    const admin = getAdminSupabase();
+    const admin = getAdminSupabase() as any;
 
     const { data: reqRow } = await admin
       .from("requests")
@@ -84,6 +85,12 @@ export async function POST(
         { status: 403, headers: JSONH },
       );
     }
+
+    await admin
+      .from("requests")
+      .update({ finalized_by_pro_at: new Date().toISOString() } as any)
+      .eq("id", requestId)
+      .is("finalized_by_pro_at", null);
 
     let conversationId: string | null = null;
     const { data: conv } = await admin
