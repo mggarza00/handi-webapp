@@ -80,7 +80,7 @@ export default function ServiceList({
   }, [services]);
 
   React.useEffect(() => {
-    const supabase = supabaseBrowser();
+    const supabase = supabaseBrowser;
     let alive = true;
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const fetchCalendar = async () => {
