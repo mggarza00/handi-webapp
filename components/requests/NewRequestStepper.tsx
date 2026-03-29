@@ -557,11 +557,11 @@ export default function NewRequestStepper({
           </div>
         </Step>
 
-        <Step label="Datos adicionales">
+        <Step label="Datos opcionales">
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Paso 3 - Datos adicionales
+                Paso 3 - Datos opcionales
               </h2>
               <p className="text-sm text-slate-600">
                 Completa presupuesto, fecha, condiciones y adjunta imágenes del
