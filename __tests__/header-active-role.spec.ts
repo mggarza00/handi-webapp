@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveHeaderRole } from "@/lib/routing/header-active-role";
+import {
+  resolveHeaderRole,
+  shouldHideClientNavigationForProApply,
+  shouldShowClientNavigation,
+} from "@/lib/routing/header-active-role";
 
 describe("resolveHeaderRole", () => {
   it("keeps client header when active_role cookie is client", () => {
@@ -45,5 +49,48 @@ describe("resolveHeaderRole", () => {
       professionalIsActive: true,
     });
     expect(role).toBe("pro");
+  });
+});
+
+describe("shouldShowClientNavigation", () => {
+  it("shows client nav for dual-role users on active_role=client even with stale pro_apply cookie", () => {
+    expect(
+      shouldShowClientNavigation({
+        isAuth: true,
+        activeRoleCookie: "client",
+        profileRole: "pro",
+        isClientPro: true,
+        professionalIsActive: true,
+        proApply: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("hides client nav when pro_apply is active and the user is not yet dual-role capable", () => {
+    expect(
+      shouldShowClientNavigation({
+        isAuth: true,
+        activeRoleCookie: "client",
+        profileRole: "client",
+        isClientPro: false,
+        professionalIsActive: false,
+        proApply: true,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldHideClientNavigationForProApply", () => {
+  it("treats pro_apply as stale once the user has active professional capability", () => {
+    expect(
+      shouldHideClientNavigationForProApply({
+        isAuth: true,
+        activeRoleCookie: "client",
+        profileRole: "pro",
+        isClientPro: true,
+        professionalIsActive: true,
+        proApply: true,
+      }),
+    ).toBe(false);
   });
 });

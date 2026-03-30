@@ -19,7 +19,11 @@ import PublicLandingHeader from "@/components/PublicLandingHeader.client";
 import HeaderLogoSwap from "@/components/HeaderLogoSwap.client";
 import CreateRequestButton from "@/components/requests/CreateRequestButton";
 import PublicLandingLoginMenu from "@/components/PublicLandingLoginMenu.client";
-import { resolveHeaderRole } from "@/lib/routing/header-active-role";
+import {
+  resolveHeaderRole,
+  shouldHideClientNavigationForProApply,
+  shouldShowClientNavigation,
+} from "@/lib/routing/header-active-role";
 
 type Role = "client" | "pro" | "admin";
 
@@ -256,6 +260,24 @@ export default async function SiteHeader() {
     isClientPro: is_client_pro,
     professionalIsActive: professional_is_active,
   });
+  const hideClientNavigationForProApply = shouldHideClientNavigationForProApply(
+    {
+      isAuth,
+      activeRoleCookie,
+      profileRole: profile_role ?? role ?? null,
+      isClientPro: is_client_pro,
+      professionalIsActive: professional_is_active,
+      proApply,
+    },
+  );
+  const showClientNavigation = shouldShowClientNavigation({
+    isAuth,
+    activeRoleCookie,
+    profileRole: profile_role ?? role ?? null,
+    isClientPro: is_client_pro,
+    professionalIsActive: professional_is_active,
+    proApply,
+  });
 
   // El logo siempre debe redirigir a la pÃ¡gina de inicio
   const leftHref = effectiveRole === "pro" ? "/pro" : "/";
@@ -344,7 +366,7 @@ export default async function SiteHeader() {
   }
 
   // Asegurar que "Mis solicitudes" estÃ© visible solo para clientes (o rol aÃºn no asignado) y administradores
-  if (!proApply && isAuth && effectiveRole === "client") {
+  if (showClientNavigation) {
     const hasRequestsLink = rightLinks.some((l) =>
       l.href.startsWith("/requests"),
     );
@@ -360,7 +382,7 @@ export default async function SiteHeader() {
   }
 
   // Si estamos en flujo de pro-apply, eliminar cualquier enlace a "Mis solicitudes".
-  if (proApply) {
+  if (hideClientNavigationForProApply) {
     rightLinks = rightLinks.filter(
       (l) =>
         l.label !== "Mis solicitudes" && !/\/requests\?mine=1/.test(l.href),
