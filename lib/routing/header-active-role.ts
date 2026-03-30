@@ -2,12 +2,16 @@ import { resolveActiveView } from "@/lib/routing/active-view";
 
 export type HeaderRole = "client" | "pro" | null;
 
-type ResolveHeaderRoleInput = {
+export type ResolveHeaderRoleInput = {
   isAuth: boolean;
   activeRoleCookie?: string | null;
   profileRole?: string | null;
   isClientPro?: boolean | null;
   professionalIsActive: boolean;
+};
+
+export type ResolveClientNavigationInput = ResolveHeaderRoleInput & {
+  proApply?: boolean | null;
 };
 
 export function resolveHeaderRole(input: ResolveHeaderRoleInput): HeaderRole {
@@ -22,4 +26,11 @@ export function resolveHeaderRole(input: ResolveHeaderRoleInput): HeaderRole {
     isClientPro: input.isClientPro ?? false,
     professionalIsActive: input.professionalIsActive,
   });
+}
+
+export function shouldShowClientNavigation(
+  input: ResolveClientNavigationInput,
+): boolean {
+  if (!input.isAuth || input.proApply === true) return false;
+  return resolveHeaderRole(input) === "client";
 }
