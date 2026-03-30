@@ -183,6 +183,10 @@ export default function LandingHero({
                   </div>
                 </div>
               </div>
+              <div
+                id="landing-client-hero-address-pill-slot"
+                className="absolute bottom-6 right-6 z-20 md:bottom-8 md:right-10"
+              />
               <div className="hero-payment-badge pointer-events-none absolute inset-0 hidden md:block">
                 <PaymentProtectionBadge />
               </div>

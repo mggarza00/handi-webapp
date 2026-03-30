@@ -49,6 +49,5 @@ export function shouldShowClientNavigation(
   if (!input.isAuth || shouldHideClientNavigationForProApply(input)) {
     return false;
   }
-
   return resolveHeaderRole(input) === "client";
 }

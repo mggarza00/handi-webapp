@@ -44,7 +44,6 @@ async function getSessionInfoSafe() {
       .select("active")
       .eq("id", user.id)
       .maybeSingle<ProfessionalRow>();
-
     return {
       isAuth: true as const,
       profileRole: profileRaw?.role ?? null,
