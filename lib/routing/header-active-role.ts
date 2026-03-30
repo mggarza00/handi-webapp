@@ -28,9 +28,26 @@ export function resolveHeaderRole(input: ResolveHeaderRoleInput): HeaderRole {
   });
 }
 
+export function shouldHideClientNavigationForProApply(
+  input: ResolveClientNavigationInput,
+): boolean {
+  if (input.proApply !== true) return false;
+
+  // Legacy pro-apply cookies can linger after approval. Once the user has
+  // dual-role capability or an active professional profile, client nav should
+  // follow the effective active_role instead of the stale cookie.
+  if (input.isClientPro === true || input.professionalIsActive === true) {
+    return false;
+  }
+
+  return true;
+}
+
 export function shouldShowClientNavigation(
   input: ResolveClientNavigationInput,
 ): boolean {
-  if (!input.isAuth || input.proApply === true) return false;
+  if (!input.isAuth || shouldHideClientNavigationForProApply(input)) {
+    return false;
+  }
   return resolveHeaderRole(input) === "client";
 }

@@ -21,6 +21,7 @@ import CreateRequestButton from "@/components/requests/CreateRequestButton";
 import PublicLandingLoginMenu from "@/components/PublicLandingLoginMenu.client";
 import {
   resolveHeaderRole,
+  shouldHideClientNavigationForProApply,
   shouldShowClientNavigation,
 } from "@/lib/routing/header-active-role";
 
@@ -259,6 +260,16 @@ export default async function SiteHeader() {
     isClientPro: is_client_pro,
     professionalIsActive: professional_is_active,
   });
+  const hideClientNavigationForProApply = shouldHideClientNavigationForProApply(
+    {
+      isAuth,
+      activeRoleCookie,
+      profileRole: profile_role ?? role ?? null,
+      isClientPro: is_client_pro,
+      professionalIsActive: professional_is_active,
+      proApply,
+    },
+  );
   const showClientNavigation = shouldShowClientNavigation({
     isAuth,
     activeRoleCookie,
@@ -371,7 +382,7 @@ export default async function SiteHeader() {
   }
 
   // Si estamos en flujo de pro-apply, eliminar cualquier enlace a "Mis solicitudes".
-  if (proApply) {
+  if (hideClientNavigationForProApply) {
     rightLinks = rightLinks.filter(
       (l) =>
         l.label !== "Mis solicitudes" && !/\/requests\?mine=1/.test(l.href),
