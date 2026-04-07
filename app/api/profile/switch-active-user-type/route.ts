@@ -5,23 +5,6 @@ const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
 export const dynamic = "force-dynamic";
 
-function clearLegacyProApplyCookies(res: NextResponse) {
-  for (const name of ["handi_pro_apply", "handee_pro_apply"]) {
-    try {
-      res.cookies.set(name, "", {
-        path: "/",
-        sameSite: "lax",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 0,
-        expires: new Date(0),
-      });
-    } catch {
-      /* ignore cookie cleanup errors */
-    }
-  }
-}
-
 export async function POST(req: Request) {
   try {
     const ct = (req.headers.get("content-type") || "").toLowerCase();
@@ -101,7 +84,6 @@ export async function POST(req: Request) {
     } catch {
       /* ignore cookie set errors */
     }
-    clearLegacyProApplyCookies(res);
     return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "UNKNOWN";

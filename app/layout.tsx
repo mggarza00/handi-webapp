@@ -5,6 +5,7 @@ import "@/app/(app)/leaflet.css";
 import dynamicImport from "next/dynamic";
 import Script from "next/script";
 import type { Metadata } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import ClientToaster from "@/components/ClientToaster";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import { concertOne, inter, nunito, rubik, varelaRound } from "@/lib/fonts";
@@ -262,6 +263,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
           {/* Auto-subscribe to Web Push when permission is granted */}
           <PushAutoSubscribeOnGrant />
         </DeferOnIdle>
+        <SpeedInsights />
       </body>
     </html>
   );
