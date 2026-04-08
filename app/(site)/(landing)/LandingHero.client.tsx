@@ -372,32 +372,12 @@ export default function LandingHero({
                           )
                         }
                         triggerClassName={`btn-contratar ${stackSansMedium.className}`}
-                        showPill={false}
+                        addressPillClassName="absolute bottom-6 right-6 z-20 md:bottom-8 md:right-10"
                       />
                     </div>
                   </div>
                 </div>
               </div>
-              <HeroClientActions
-                ctaLabel="Solicitar un servicio"
-                addresses={savedAddresses}
-                selectedAddress={selectedAddress}
-                onAddressChange={(addr) =>
-                  setSelectedAddress(
-                    addr
-                      ? {
-                          ...addr,
-                          label: addr.label ?? null,
-                          address_place_id: addr.address_place_id ?? null,
-                          lat: addr.lat ?? null,
-                          lng: addr.lng ?? null,
-                        }
-                      : null,
-                  )
-                }
-                showButton={false}
-                addressPillClassName="absolute bottom-6 right-6 z-20 -mt-20 md:mt-0 md:bottom-8 md:right-10"
-              />
               <div className="hero-payment-badge absolute inset-0 pointer-events-none hidden md:block">
                 <PaymentProtectionBadge />
               </div>
