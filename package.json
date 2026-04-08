@@ -136,7 +136,6 @@
     "@supabase/supabase-js": "^2.80.0",
     "@tailwindcss/oxide": "^4.1.12",
     "@tanstack/react-table": "^8.21.3",
-    "@vercel/speed-insights": "^2.0.0",
     "browser-image-compression": "^2.0.2",
     "caniuse-lite": "^1.0.30001759",
     "canvas-confetti": "^1.9.4",
