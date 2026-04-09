@@ -9,8 +9,10 @@ import {
   toNames,
 } from "@/lib/professionals/filter";
 import {
-  buildRatingsAggregateMap,
-  resolveProfessionalRating,
+  fetchProfessionalRatingTargetMap,
+  fetchRatingsAggregateMap,
+  normalizeProfessionalRating,
+  resolveProfessionalRatingData,
 } from "@/lib/professionals/ratings";
 import {
   clearRequestProAlert,
@@ -202,13 +204,7 @@ export async function GET(req: Request) {
         (x.rating as unknown) ??
         (x as any)?.profiles?.rating ??
         (x as any)?.profile?.rating;
-      let rating: number | null = null;
-      if (typeof rawRating === "number") {
-        rating = rawRating;
-      } else if (typeof rawRating === "string") {
-        const n = Number(rawRating);
-        rating = Number.isFinite(n) ? n : null;
-      }
+      const rating = normalizeProfessionalRating(rawRating);
       return {
         id: String(x.id ?? ""),
         full_name: (x.full_name as string | null) ?? null,
@@ -257,7 +253,7 @@ export async function GET(req: Request) {
         }),
         city: (x.city as string | null) ?? null,
         jobsDone: null as number | null,
-        reviewsCount: null as number | null,
+        reviewsCount: 0,
       } as const;
     });
 
@@ -277,8 +273,8 @@ export async function GET(req: Request) {
           if (!pr.error && Array.isArray(pr.data)) {
             for (const row of pr.data as any[]) {
               const id = String((row as any).id ?? "");
-              const rt = Number((row as any).rating);
-              if (id && Number.isFinite(rt)) profileRatings.set(id, rt);
+              const rating = normalizeProfessionalRating((row as any).rating);
+              if (id && rating !== null) profileRatings.set(id, rating);
             }
           }
         } catch {
@@ -301,50 +297,55 @@ export async function GET(req: Request) {
     try {
       const ids = mapped.map((m) => m.id).filter(Boolean);
       if (ids.length) {
-        let agg: Array<Record<string, unknown>> | null = null;
+        let ratingTargetMap = new Map<string, string>(
+          ids.map((id) => [id, id] as const),
+        );
+        let aggregateMap = new Map<
+          string,
+          { ratingAvg: number; reviewsCount: number }
+        >();
         try {
-          const pub = createClient() as any;
-          const r = await withGroup(
-            pub
-              .from("ratings")
-              .select("to_user_id, avg:avg(stars), count:count(*)")
-              .in("to_user_id", ids),
-            "to_user_id",
+          ratingTargetMap = await fetchProfessionalRatingTargetMap(
+            createServiceClient(),
+            ids,
           );
-          if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
+        } catch {
+          // keep id => id fallback
+        }
+        const ratingTargetIds = Array.from(
+          new Set(ids.map((id) => ratingTargetMap.get(id) ?? id)),
+        );
+        try {
+          aggregateMap = await fetchRatingsAggregateMap(
+            createClient() as any,
+            ratingTargetIds,
+          );
         } catch {
           // fall back to service role below
         }
-        if (!agg) {
+        if (!aggregateMap.size) {
           try {
-            const admin = createServiceClient() as any;
-            const r = await withGroup(
-              admin
-                .from("ratings")
-                .select("to_user_id, avg:avg(stars), count:count(*)")
-                .in("to_user_id", ids),
-              "to_user_id",
+            aggregateMap = await fetchRatingsAggregateMap(
+              createServiceClient() as any,
+              ratingTargetIds,
             );
-            if (!r.error && Array.isArray(r.data)) agg = r.data as any[];
           } catch {
             // ignore
           }
         }
-        if (agg && agg.length) {
-          const aggregateMap = buildRatingsAggregateMap(agg);
-          mapped = mapped.map((m) => {
-            const aggregate = aggregateMap.get(m.id) ?? null;
-            const rating = resolveProfessionalRating({
-              aggregate,
-              legacyRating: m.rating,
-            });
-            return {
-              ...m,
-              rating,
-              reviewsCount: aggregate?.reviewsCount ?? null,
-            };
+        mapped = mapped.map((m) => {
+          const resolved = resolveProfessionalRatingData({
+            aggregateMap,
+            entityId: m.id,
+            ratingTargetId: ratingTargetMap.get(m.id) ?? m.id,
+            legacyRating: m.rating,
           });
-        }
+          return {
+            ...m,
+            rating: resolved.rating,
+            reviewsCount: resolved.reviewsCount,
+          };
+        });
       }
     } catch {
       // ignore fallback errors; keep mapped as-is
