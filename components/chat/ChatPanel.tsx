@@ -47,8 +47,16 @@ import {
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
 import { CHAT_AVATAR_PLACEHOLDER } from "@/lib/chat/chat-identity";
 import { resolveChatAvatarSrc } from "@/lib/chat/chat-avatar";
+import {
+  getOnsiteQuoteRequestErrorDetails,
+  getOnsiteQuoteRequestUserMessage,
+} from "@/lib/chat/onsite-quote-errors";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
+import {
+  findOnsiteRequestBlocker,
+  type OnsiteBlockingRow,
+} from "@/lib/onsite/request-blockers";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
 type Msg = {
   id: string;
@@ -70,10 +78,20 @@ type Msg = {
   }>;
 };
 type Participants = { customer_id: string; pro_id: string };
-type OnsiteCtaSummary = {
+type OnsiteSummaryRow = OnsiteBlockingRow & {
   id: string;
+  conversation_id?: string | null;
+  request_id?: string | null;
   status: string;
+  deposit_amount?: number | null;
+  details?: string | null;
+  notes?: string | null;
+  is_remunerable?: boolean | null;
+  schedule_date?: string | null;
+  schedule_time_start?: number | null;
+  schedule_time_end?: number | null;
   remuneration_applied_at?: string | null;
+  deposit_paid_at?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
 };
@@ -115,6 +133,24 @@ function getChatFriendlyError(error: unknown, source: string): string {
     blocking: false,
   });
   return normalized.userMessage;
+}
+function getChatOnsiteFriendlyError(error: unknown, source: string): string {
+  const details = getOnsiteQuoteRequestErrorDetails(error);
+  const normalized = normalizeAppError(error, {
+    source,
+    status: details.status,
+    code: details.code,
+    detail: details.detail,
+  });
+  reportError({
+    error,
+    normalized,
+    area: "messages",
+    feature: source,
+    route: "chat-panel",
+    blocking: false,
+  });
+  return getOnsiteQuoteRequestUserMessage(error, source);
 }
 function normalizeStatus(value?: string | null): string {
   if (!value) return "pending";
@@ -362,8 +398,13 @@ export default function ChatPanel({
   >([9, 12]);
   const [onsiteHour, setOnsiteHour] = React.useState<string>("9");
   const [onsiteSubmitting, setOnsiteSubmitting] = React.useState(false);
-  const [onsiteDbSummary, setOnsiteDbSummary] =
-    React.useState<OnsiteCtaSummary | null>(null);
+  const [onsiteBlockerCode, setOnsiteBlockerCode] = React.useState<
+    "ONSITE_ACTIVE_REQUEST_EXISTS" | "ONSITE_ELIGIBLE_CREDIT_EXISTS" | null
+  >(null);
+  const [onsiteBlockerRow, setOnsiteBlockerRow] =
+    React.useState<OnsiteSummaryRow | null>(null);
+  const [onsiteBlockerResolved, setOnsiteBlockerResolved] =
+    React.useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = React.useState<string | null>(
     null,
   );
@@ -661,28 +702,75 @@ export default function ChatPanel({
       }
     })();
   }, [userId]);
+  React.useEffect(() => {
+    setOnsiteBlockerCode(null);
+    setOnsiteBlockerRow(null);
+    setOnsiteBlockerResolved(false);
+  }, [conversationId]);
   const loadOnsiteSummary = React.useCallback(async () => {
     if (!conversationId) return;
     try {
       const { data } = await supabaseBrowser
         .from("onsite_quote_requests")
-        .select("id, status, remuneration_applied_at, updated_at, created_at")
+        .select(
+          "id, conversation_id, request_id, status, deposit_amount, details, notes, is_remunerable, schedule_date, schedule_time_start, schedule_time_end, remuneration_applied_at, deposit_paid_at, updated_at, created_at",
+        )
         .eq("conversation_id", conversationId)
+        .in("status", [
+          "requested",
+          "scheduled",
+          "accepted",
+          "deposit_pending",
+          "deposit_paid",
+        ])
         .order("updated_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(20);
       const rows = Array.isArray(data)
-        ? (data as Array<OnsiteCtaSummary | null>).filter(
-            (row): row is OnsiteCtaSummary =>
+        ? (data as Array<OnsiteSummaryRow | null>).filter(
+            (row): row is OnsiteSummaryRow =>
               Boolean(row?.id) && typeof row?.status === "string",
           )
         : [];
-      if (!rows.length) {
-        setOnsiteDbSummary(null);
+      const blocker = findOnsiteRequestBlocker(rows);
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[chat.onsite-cta.blocker]", {
+          conversationId,
+          rows: rows.map((row) => ({
+            id: row.id ?? null,
+            status: row.status ?? null,
+            is_remunerable: row.is_remunerable ?? null,
+            remuneration_applied_at: row.remuneration_applied_at ?? null,
+            deposit_paid_at: row.deposit_paid_at ?? null,
+            request_id: row.request_id ?? null,
+            conversation_id: row.conversation_id ?? null,
+            created_at: row.created_at ?? null,
+            updated_at: row.updated_at ?? null,
+          })),
+          blocker,
+        });
+      }
+      if (!blocker) {
+        setOnsiteBlockerCode(null);
+        setOnsiteBlockerRow(null);
+        setOnsiteBlockerResolved(true);
         return;
       }
-      setOnsiteDbSummary(rows[0] ?? null);
-    } catch {
+      setOnsiteBlockerCode(blocker.code);
+      const blockerRow =
+        rows.find((row) => row.id === blocker.blocker.id) ?? null;
+      setOnsiteBlockerRow(blockerRow);
+      setOnsiteBlockerResolved(true);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[chat.onsite-cta.blocker.error]", {
+          conversationId,
+          error,
+        });
+      }
+      setOnsiteBlockerResolved(false);
       // fallback to message-derived status when query fails
     }
   }, [conversationId]);
@@ -2166,46 +2254,56 @@ export default function ChatPanel({
     [offerStatus, requestStatus],
   );
 
-  const onsiteStatusSummary = React.useMemo(() => {
-    let latest: {
-      onsiteId: string;
-      status: string;
-    } | null = null;
-    for (let i = messagesState.length - 1; i >= 0; i--) {
-      const message = messagesState[i];
-      if (!message.payload || typeof message.payload !== "object") continue;
-      const payload = message.payload as Record<string, unknown>;
-      const onsiteId =
-        typeof payload.onsite_request_id === "string"
-          ? payload.onsite_request_id
-          : null;
-      const status =
-        typeof payload.status === "string"
-          ? payload.status.toLowerCase()
-          : null;
-      if (!onsiteId || !status) continue;
-      latest = { onsiteId, status };
-      break;
-    }
-    return latest;
-  }, [messagesState]);
-
   const hideOnsiteQuoteCta = React.useMemo(() => {
-    const status =
-      onsiteDbSummary?.status?.toLowerCase() ??
-      onsiteStatusSummary?.status ??
-      "";
-    // Hide while there is an onsite flow active or already paid/completed.
-    // Allow retry only for terminal non-useful states such as rejected/canceled/no_show.
-    return (
-      status === "requested" ||
-      status === "deposit_pending" ||
-      status === "deposit_paid" ||
-      status === "accepted" ||
-      status === "scheduled" ||
-      status === "completed"
+    if (!onsiteBlockerResolved) return false;
+    return Boolean(onsiteBlockerCode);
+  }, [onsiteBlockerCode, onsiteBlockerResolved]);
+
+  const syntheticOnsiteMessage = React.useMemo<Msg | null>(() => {
+    if (!onsiteBlockerRow?.id) return null;
+    const alreadyInMessages = messagesState.some((message) => {
+      if (!message.payload || typeof message.payload !== "object") return false;
+      const payload = message.payload as Record<string, unknown>;
+      return (
+        payload.onsite_request_id === onsiteBlockerRow.id ||
+        payload.onsite_quote_request_id === onsiteBlockerRow.id
+      );
+    });
+    if (alreadyInMessages) return null;
+    return {
+      id: `synthetic_onsite_${onsiteBlockerRow.id}`,
+      senderId: participants?.pro_id ?? meId ?? "",
+      body: "Cotización en sitio",
+      createdAt:
+        onsiteBlockerRow.created_at ||
+        onsiteBlockerRow.updated_at ||
+        new Date().toISOString(),
+      messageType: "system",
+      payload: {
+        onsite_request_id: onsiteBlockerRow.id,
+        onsite_quote_request_id: onsiteBlockerRow.id,
+        type: "onsite_quote_request",
+        request_id: onsiteBlockerRow.request_id ?? requestId ?? null,
+        status: onsiteBlockerRow.status,
+        deposit_amount: onsiteBlockerRow.deposit_amount ?? null,
+        details: onsiteBlockerRow.details ?? null,
+        notes: onsiteBlockerRow.notes ?? null,
+        is_remunerable: onsiteBlockerRow.is_remunerable ?? false,
+        remuneration_applied_at:
+          onsiteBlockerRow.remuneration_applied_at ?? null,
+        schedule_date: onsiteBlockerRow.schedule_date ?? null,
+        schedule_time_start: onsiteBlockerRow.schedule_time_start ?? null,
+        schedule_time_end: onsiteBlockerRow.schedule_time_end ?? null,
+      },
+    };
+  }, [meId, messagesState, onsiteBlockerRow, participants?.pro_id, requestId]);
+
+  const visibleMessages = React.useMemo(() => {
+    if (!syntheticOnsiteMessage) return messagesState;
+    return [...messagesState, syntheticOnsiteMessage].sort((a, b) =>
+      a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
     );
-  }, [onsiteDbSummary, onsiteStatusSummary]);
+  }, [messagesState, syntheticOnsiteMessage]);
 
   // When paid is detected, best-effort update request status to 'in_process'
   React.useEffect(() => {
@@ -2288,13 +2386,18 @@ export default function ChatPanel({
       ) : null}{" "}
       {/* pro CTAs now rendered via actionButtons to keep consistency across views */}
       {participants && meId === participants?.pro_id && !isPaidOrScheduled ? (
-        <div className="p-3 flex items-center gap-2 border-t">
-          <Button variant="outline" onClick={() => setQuoteOpen(true)}>
+        <div className="p-3 flex flex-wrap items-center gap-2 border-t">
+          <Button
+            variant="outline"
+            onClick={() => setQuoteOpen(true)}
+            className="flex-1 sm:flex-none"
+          >
             Cotizar
           </Button>
           {!hideOnsiteQuoteCta ? (
             <Button
               variant="outline"
+              className="flex-1 sm:flex-none"
               onClick={() => {
                 if (!onsiteDate) setOnsiteDate(resolveOfferServiceDate());
                 setOnsiteOpen(true);
@@ -2362,7 +2465,6 @@ export default function ChatPanel({
       </div>
     );
   })();
-
   async function patchRequestStatus(nextStatus: "in_process" | "completed") {
     if (!requestId) return;
     try {
@@ -2401,7 +2503,7 @@ export default function ChatPanel({
   }
   const messageList = (
     <MessageList
-      items={messagesState}
+      items={visibleMessages}
       conversationId={conversationId}
       currentUserId={meId ?? undefined}
       otherUserId={otherUserId}
@@ -2653,9 +2755,9 @@ export default function ChatPanel({
       }
       const payload: Record<string, unknown> = {
         deposit_amount: Number(normalizedAmount.toFixed(2)),
-        details: onsiteDetails.trim().length ? onsiteDetails.trim() : null,
         is_remunerable: onsiteRemunerable,
       };
+      if (onsiteDetails.trim().length) payload.details = onsiteDetails.trim();
       if (onsiteDate) payload.schedule_date = onsiteDate;
       if (onsiteFlexibleSchedule) {
         const start = Math.max(
@@ -2676,6 +2778,13 @@ export default function ChatPanel({
           payload.schedule_time_end = Math.max(1, Math.min(24, start + 1));
         }
       }
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[chat.onsite-quote.create] payload", {
+          conversationId,
+          payload,
+        });
+      }
       const res = await fetch(
         `/api/conversations/${encodeURIComponent(conversationId)}/onsite-quote-requests`,
         {
@@ -2686,10 +2795,43 @@ export default function ChatPanel({
         },
       );
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.ok === false) {
-        throw {
-          message: json?.error || "ONSITE_QUOTE_REQUEST_FAILED",
+      if (!res.ok && process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.debug("[chat.onsite-quote.create] non-ok response", {
+          conversationId,
+          status: res.status,
+          error: json?.error || null,
           detail: json?.detail || null,
+          code: json?.code || null,
+          body: json,
+        });
+      }
+      if (!res.ok || json?.ok === false) {
+        const code =
+          typeof json?.error === "string" && json.error.trim().length
+            ? json.error
+            : "ONSITE_QUOTE_REQUEST_FAILED";
+        if (
+          code === "ONSITE_ACTIVE_REQUEST_EXISTS" ||
+          code === "ONSITE_ELIGIBLE_CREDIT_EXISTS"
+        ) {
+          toast.error(
+            getChatOnsiteFriendlyError(
+              {
+                message: code,
+                detail: json?.detail || null,
+                status: res.status,
+                debug: json?.debug || null,
+              },
+              "chat.onsite-quote.create",
+            ),
+          );
+          return;
+        }
+        throw {
+          message: code,
+          detail: json?.detail || null,
+          code: json?.code || null,
           status: res.status,
         };
       }
@@ -2709,7 +2851,7 @@ export default function ChatPanel({
         pollIntervalMs: 1000,
       });
     } catch (e) {
-      toast.error(getChatFriendlyError(e, "chat.onsite-quote.create"));
+      toast.error(getChatOnsiteFriendlyError(e, "chat.onsite-quote.create"));
     } finally {
       setOnsiteSubmitting(false);
     }
