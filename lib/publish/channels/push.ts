@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import webpush from "web-push";
 
 import { createPushTrackingToken } from "@/lib/campaigns/push-tracking";
+import { buildCreativeBundlePayload } from "@/lib/creative/bundles";
 import type { PublishConnectorDefinition } from "@/lib/publish/types";
 
 type PushSubscriptionRow = {
@@ -51,6 +52,7 @@ export const pushPublishConnector: PublishConnectorDefinition = {
           url: "/",
         },
       },
+      creative: buildCreativeBundlePayload(input.creativeBundle),
     };
 
     if (input.mode !== "live") {

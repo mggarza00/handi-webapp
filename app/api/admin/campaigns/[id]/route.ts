@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
 import { getCampaignDetail } from "@/lib/campaigns/repository";
+import { listCampaignCreativeBundles } from "@/lib/creative/bundles";
 import { getAdminSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,10 @@ export async function GET(
 
   try {
     const admin = getAdminSupabase();
-    const detail = await getCampaignDetail(admin, params.id);
+    const [detail, creativeBundles] = await Promise.all([
+      getCampaignDetail(admin, params.id),
+      listCampaignCreativeBundles(admin, params.id),
+    ]);
 
     if (!detail) {
       return NextResponse.json(
@@ -25,7 +29,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ ok: true, ...detail }, { headers: JSONH });
+    return NextResponse.json(
+      { ok: true, ...detail, creativeBundles },
+      { headers: JSONH },
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "failed to load campaign detail";

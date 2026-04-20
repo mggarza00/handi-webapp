@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { trackEvent } from "@/lib/analytics/track";
 import { normalizeAppError } from "@/lib/errors/app-error";
 import { reportError } from "@/lib/errors/report-error";
 import { computeClientTotals } from "@/lib/payments/fees";
@@ -293,6 +294,15 @@ function PaymentContent({
     }
     setSubmitting(true);
     setError(null);
+    trackEvent("fee_checkout_started", {
+      flow: "offer_payment",
+      source_page:
+        typeof window !== "undefined" ? window.location.pathname : undefined,
+      payment_method: selectedMethod,
+      payment_mode: paymentMode,
+      amount_total: breakdown.total,
+      currency,
+    });
     const result = await stripe.confirmPayment({
       elements,
       redirect: "if_required",
@@ -319,6 +329,17 @@ function PaymentContent({
       status === "processing" ||
       status === "requires_capture"
     ) {
+      trackEvent("fee_paid", {
+        flow: "offer_payment",
+        source_page:
+          typeof window !== "undefined" ? window.location.pathname : undefined,
+        payment_method: selectedMethod,
+        payment_mode: paymentMode,
+        payment_intent_id: result.paymentIntent?.id ?? null,
+        payment_status: status,
+        amount_total: breakdown.total,
+        currency,
+      });
       toast.success("Pago confirmado");
       await onPaymentSuccess(result.paymentIntent?.id ?? null);
       onClose();
@@ -326,7 +347,16 @@ function PaymentContent({
       setError("No pudimos confirmar el pago. Intenta nuevamente.");
     }
     setSubmitting(false);
-  }, [elements, onClose, onPaymentSuccess, selectedMethod, stripe]);
+  }, [
+    breakdown.total,
+    currency,
+    elements,
+    onClose,
+    onPaymentSuccess,
+    paymentMode,
+    selectedMethod,
+    stripe,
+  ]);
 
   return (
     <div className="flex flex-col gap-6">

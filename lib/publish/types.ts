@@ -8,6 +8,7 @@ import type {
   CampaignPublishStatus,
   PublishChannel,
 } from "@/lib/campaigns/workflow";
+import type { CampaignCreativeBundleView } from "@/lib/creative/workflow";
 import type {
   CampaignPerformanceEventInput,
   CampaignPerformanceMetricInput,
@@ -29,6 +30,7 @@ export type PublishConnectorInput = {
   channel: PublishChannel;
   mode: CampaignPublishMode;
   targeting: PublishTargeting;
+  creativeBundle: CampaignCreativeBundleView | null;
 };
 
 export type PublishConnectorAnalyticsSnapshot = {

@@ -27,6 +27,10 @@ import {
   coercePublishStatus,
   labelGoal,
 } from "@/lib/campaigns/workflow";
+import {
+  labelVisualReadinessState,
+  listCampaignVisualReadinessSummaries,
+} from "@/lib/creative/readiness";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
 type Search = {
@@ -69,6 +73,13 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
     owner: owner === "unassigned" ? "unassigned" : owner,
     sort,
   });
+  const visualReadinessByCampaign = await listCampaignVisualReadinessSummaries({
+    admin,
+    campaigns: result.items.map((item) => ({
+      id: item.id,
+      channels: item.channels,
+    })),
+  });
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
   const currentQuery = qs({
     q,
@@ -100,6 +111,12 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
             <Link href="/admin/campaigns/analytics">Analytics</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/creative-assets">Creative assets</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/campaigns/queue">Queue</Link>
           </Button>
           <Button asChild>
             <Link href="/admin/campaigns/new">New brief</Link>
@@ -297,156 +314,194 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
               </TableHeader>
               <TableBody>
                 {result.items.length ? (
-                  result.items.map((draft) => (
-                    <TableRow key={draft.id}>
-                      <TableCell>
-                        <input
-                          type="checkbox"
-                          name="campaignIds"
-                          value={draft.id}
-                          aria-label={`Select ${draft.title}`}
-                        />
-                      </TableCell>
-                      <TableCell className="space-y-1">
-                        <Link
-                          href={`/admin/campaigns/${draft.id}`}
-                          className="font-medium underline underline-offset-2"
-                        >
-                          {draft.title}
-                        </Link>
-                        <div className="text-sm text-muted-foreground">
-                          {draft.service_category}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {draft.source_campaign_title ? (
-                            <Badge variant="outline">
-                              From {draft.source_campaign_title}
-                            </Badge>
-                          ) : null}
-                          {draft.has_manual_edits ? (
-                            <Badge variant="outline">Manual edit</Badge>
-                          ) : null}
-                          {draft.has_regenerated_variants ? (
-                            <Badge variant="secondary">Regenerated</Badge>
-                          ) : null}
-                          {draft.change_request_count > 0 ? (
-                            <Badge variant="outline">
-                              {draft.change_request_count} change request
-                              {draft.change_request_count > 1 ? "s" : ""}
-                            </Badge>
-                          ) : null}
-                          <Badge
-                            variant={
-                              draft.qa_report.qa_status === "ready_for_review"
-                                ? "secondary"
-                                : draft.qa_report.qa_status === "high_risk"
-                                  ? "destructive"
-                                  : "outline"
-                            }
+                  result.items.map((draft) => {
+                    const visual = visualReadinessByCampaign.get(draft.id);
+
+                    return (
+                      <TableRow key={draft.id}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            name="campaignIds"
+                            value={draft.id}
+                            aria-label={`Select ${draft.title}`}
+                          />
+                        </TableCell>
+                        <TableCell className="space-y-1">
+                          <Link
+                            href={`/admin/campaigns/${draft.id}`}
+                            className="font-medium underline underline-offset-2"
                           >
-                            QA {draft.qa_report.overall_score}
-                          </Badge>
-                          <StateBadge value={draft.publish_status} />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">{draft.audience}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {labelGoal(draft.goal)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {draft.channels.map((item) => (
-                            <Badge key={item} variant="secondary">
-                              {item}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <StateBadge value={draft.status} />
+                            {draft.title}
+                          </Link>
+                          <div className="text-sm text-muted-foreground">
+                            {draft.service_category}
+                          </div>
                           <div className="flex flex-wrap gap-1">
-                            <Badge variant="outline">
-                              {draft.provider_metadata.generationMode === "live"
-                                ? "Live"
-                                : draft.provider_metadata.generationMode ===
-                                    "fallback"
-                                  ? "Fallback"
-                                  : "Mock"}
-                            </Badge>
-                            <Badge variant="outline">
-                              {draft.generation_provider}
-                            </Badge>
-                            {draft.provider_metadata.model ? (
-                              <Badge variant="secondary">
-                                {draft.provider_metadata.model}
-                              </Badge>
-                            ) : null}
-                          </div>
-                          {draft.generation_provider_status ? (
-                            <div className="text-xs text-muted-foreground">
-                              {draft.generation_provider_status}
-                            </div>
-                          ) : null}
-                          {draft.provider_metadata.fallbackReason ? (
-                            <div className="text-xs text-amber-700">
-                              {draft.provider_metadata.fallbackReason}
-                            </div>
-                          ) : null}
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            <StateBadge value={draft.publish_status} />
-                            <StateBadge value={draft.qa_report.qa_status} />
-                            <StateBadge
-                              value={draft.qa_report.reviewer_priority}
-                            />
-                            {draft.qa_report.warnings.length ? (
+                            {draft.source_campaign_title ? (
                               <Badge variant="outline">
-                                {draft.qa_report.warnings.length} warning
-                                {draft.qa_report.warnings.length === 1
-                                  ? ""
-                                  : "s"}
+                                From {draft.source_campaign_title}
                               </Badge>
                             ) : null}
+                            {draft.has_manual_edits ? (
+                              <Badge variant="outline">Manual edit</Badge>
+                            ) : null}
+                            {draft.has_regenerated_variants ? (
+                              <Badge variant="secondary">Regenerated</Badge>
+                            ) : null}
+                            {draft.change_request_count > 0 ? (
+                              <Badge variant="outline">
+                                {draft.change_request_count} change request
+                                {draft.change_request_count > 1 ? "s" : ""}
+                              </Badge>
+                            ) : null}
+                            <Badge
+                              variant={
+                                draft.qa_report.qa_status === "ready_for_review"
+                                  ? "secondary"
+                                  : draft.qa_report.qa_status === "high_risk"
+                                    ? "destructive"
+                                    : "outline"
+                              }
+                            >
+                              QA {draft.qa_report.overall_score}
+                            </Badge>
+                            <StateBadge value={draft.publish_status} />
                           </div>
-                          {draft.last_publish_error ? (
-                            <div className="text-xs text-amber-700">
-                              {draft.last_publish_error}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{draft.audience}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {labelGoal(draft.goal)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {draft.channels.map((item) => (
+                              <Badge key={item} variant="secondary">
+                                {item}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <StateBadge value={draft.status} />
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant="outline">
+                                {draft.provider_metadata.generationMode ===
+                                "live"
+                                  ? "Live"
+                                  : draft.provider_metadata.generationMode ===
+                                      "fallback"
+                                    ? "Fallback"
+                                    : "Mock"}
+                              </Badge>
+                              <Badge variant="outline">
+                                {draft.generation_provider}
+                              </Badge>
+                              {draft.provider_metadata.model ? (
+                                <Badge variant="secondary">
+                                  {draft.provider_metadata.model}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {draft.generation_provider_status ? (
+                              <div className="text-xs text-muted-foreground">
+                                {draft.generation_provider_status}
+                              </div>
+                            ) : null}
+                            {draft.provider_metadata.fallbackReason ? (
+                              <div className="text-xs text-amber-700">
+                                {draft.provider_metadata.fallbackReason}
+                              </div>
+                            ) : null}
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              <StateBadge value={draft.publish_status} />
+                              <StateBadge value={draft.qa_report.qa_status} />
+                              <StateBadge
+                                value={draft.qa_report.reviewer_priority}
+                              />
+                              <StateBadge value={draft.queue_health_status} />
+                              {visual ? (
+                                <Badge
+                                  variant={
+                                    visual.overallState === "blocked"
+                                      ? "destructive"
+                                      : visual.overallState === "ready_exact"
+                                        ? "secondary"
+                                        : "outline"
+                                  }
+                                >
+                                  Visual{" "}
+                                  {labelVisualReadinessState(
+                                    visual.overallState,
+                                  )}
+                                </Badge>
+                              ) : null}
+                              {draft.qa_report.warnings.length ? (
+                                <Badge variant="outline">
+                                  {draft.qa_report.warnings.length} warning
+                                  {draft.qa_report.warnings.length === 1
+                                    ? ""
+                                    : "s"}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {draft.last_publish_error ? (
+                              <div className="text-xs text-amber-700">
+                                {draft.last_publish_error}
+                              </div>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">
+                            {draft.variant_count} variant
+                            {draft.variant_count === 1 ? "" : "s"}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {draft.offer}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {draft.publish_job_count} publish job
+                            {draft.publish_job_count === 1 ? "" : "s"}
+                            {draft.last_publish_at
+                              ? ` | last ${new Date(draft.last_publish_at).toLocaleString()}`
+                              : ""}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Queue pending {draft.queue_pending_count} | running{" "}
+                            {draft.queue_running_count} | failed{" "}
+                            {draft.queue_failed_count} | retries{" "}
+                            {draft.queue_retry_pending_count}
+                          </div>
+                          {visual ? (
+                            <div className="text-xs text-muted-foreground">
+                              Visual ready {visual.readyCount}/
+                              {visual.channels.length} | blocked{" "}
+                              {visual.blockedCount}
+                              {visual.missingCount
+                                ? ` | missing ${visual.missingCount}`
+                                : ""}
                             </div>
                           ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">
-                          {draft.variant_count} variant
-                          {draft.variant_count === 1 ? "" : "s"}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {draft.offer}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {draft.publish_job_count} publish job
-                          {draft.publish_job_count === 1 ? "" : "s"}
-                          {draft.last_publish_at
-                            ? ` | last ${new Date(draft.last_publish_at).toLocaleString()}`
-                            : ""}
-                        </div>
-                      </TableCell>
-                      <TableCell className="space-y-1 text-sm">
-                        <div>
-                          <span className="font-medium">Owner:</span>{" "}
-                          {draft.owner_label || "Unassigned"}
-                        </div>
-                        <div className="text-muted-foreground">
-                          Created by {draft.created_by_label || "system"}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(draft.last_activity_at).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        </TableCell>
+                        <TableCell className="space-y-1 text-sm">
+                          <div>
+                            <span className="font-medium">Owner:</span>{" "}
+                            {draft.owner_label || "Unassigned"}
+                          </div>
+                          <div className="text-muted-foreground">
+                            Created by {draft.created_by_label || "system"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(draft.last_activity_at).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell

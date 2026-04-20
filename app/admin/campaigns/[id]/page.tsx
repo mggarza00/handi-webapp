@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import EventTracker from "@/components/analytics/EventTracker.client";
+import TrackedButtonLink from "@/components/analytics/TrackedButtonLink.client";
 import StateBadge from "@/components/admin/state-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,29 @@ import { getCampaignAnalyticsDetail } from "@/lib/campaigns/analytics";
 import { getCampaignDetail } from "@/lib/campaigns/repository";
 import { buildCampaignRecommendations } from "@/lib/campaigns/recommendations";
 import {
+  getDefaultCreativeFormatForChannel,
+  listCreativeFormatPresets,
+} from "@/lib/creative/formats";
+import { listCampaignCreativeBundles } from "@/lib/creative/bundles";
+import {
+  evaluateCampaignVisualReadiness,
+  evaluateChannelVisualReadiness,
+  isVisualReadinessBlocked,
+  labelVisualReadinessState,
+} from "@/lib/creative/readiness";
+import {
+  buildCampaignPlacementCoverage,
+  labelPlacementReadinessState,
+} from "@/lib/creative/placements";
+import { listCreativeAssetJobsByCampaign } from "@/lib/creative/repository";
+import {
+  labelCreativeBundleSelectionSource,
+  labelCreativeAssetRole,
+  labelCreativeAdaptationMethod,
+  labelCreativeFormat,
+  labelCreativeJobType,
+} from "@/lib/creative/workflow";
+import {
   CAMPAIGN_VARIANT_DECISION_STATUSES,
   REVIEW_CHECKLIST_FIELDS,
   labelChannel,
@@ -18,12 +43,15 @@ import {
   labelDecisionStatus,
   labelChecklistField,
   labelGoal,
+  labelQueueDeferredReason,
+  labelQueueErrorType,
   labelPublishStatus,
 } from "@/lib/campaigns/workflow";
 import {
   getPublishableChannels,
   labelPublishChannel,
 } from "@/lib/publish/index";
+import { selectPublishMessage } from "@/lib/campaigns/publish";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import createClient from "@/utils/supabase/server";
 import { buildCampaignDecisionSummaries } from "@/lib/campaigns/winners";
@@ -45,9 +73,11 @@ export default async function AdminCampaignDetailPage({
   const admin = getAdminSupabase();
   const from = (searchParams.from || "").toString();
   const to = (searchParams.to || "").toString();
-  const [detail, analytics] = await Promise.all([
+  const [detail, analytics, creativeJobs, creativeBundles] = await Promise.all([
     getCampaignDetail(admin, params.id),
     getCampaignAnalyticsDetail(admin, params.id, { from, to }),
+    listCreativeAssetJobsByCampaign(admin, params.id),
+    listCampaignCreativeBundles(admin, params.id),
   ]);
 
   if (!detail) return notFound();
@@ -109,10 +139,96 @@ export default async function AdminCampaignDetailPage({
   const publishPerformanceByJobId = new Map(
     analytics.publish_job_breakdown.map((row) => [row.job_id, row]),
   );
+  const creativeMasterJobs = creativeJobs.filter(
+    (job) => job.job_type === "generation",
+  );
+  const creativeDerivativeJobs = creativeJobs.filter(
+    (job) => job.job_type === "adaptation",
+  );
+  const approvedCreativeOptions = creativeJobs.filter(
+    (job) => job.generation_status === "approved" && job.current_asset_id,
+  );
+  const approvedMasterAssets = creativeJobs.filter(
+    (job) =>
+      job.job_type === "generation" &&
+      job.generation_status === "approved" &&
+      job.current_asset_id,
+  );
+  const availableCreativeFormats = new Set(
+    creativeJobs
+      .filter((job) => job.generation_status === "approved")
+      .map((job) => job.current_asset_format)
+      .filter((value): value is NonNullable<typeof value> => Boolean(value)),
+  );
+  const requiredCreativeFormats = Array.from(
+    new Set(detail.draft.channels.map(getDefaultCreativeFormatForChannel)),
+  );
+  const missingCreativeFormats = requiredCreativeFormats.filter(
+    (format) => !availableCreativeFormats.has(format),
+  );
+  const creativeBundleByChannel = new Map(
+    creativeBundles.map((bundle) => [bundle.channel, bundle]),
+  );
+  const visualReadinessSummary = evaluateCampaignVisualReadiness({
+    campaignId: detail.draft.id,
+    channels: detail.draft.channels,
+    bundles: creativeBundles,
+  });
+  const placementCoverageSummary = await buildCampaignPlacementCoverage({
+    admin,
+    campaignId: detail.draft.id,
+    channels: publishableChannels.map((connector) => connector.channel),
+    bundles: creativeBundles,
+  });
+  const placementCoverageByChannel = new Map(
+    placementCoverageSummary.channels.map((coverage) => [
+      coverage.channel,
+      coverage,
+    ]),
+  );
+  const creativeMissingChannels = creativeBundles.filter(
+    (bundle) => bundle.suitability_status === "missing",
+  );
+  const creativePartialChannels = creativeBundles.filter(
+    (bundle) => bundle.suitability_status === "partial",
+  );
+  const creativeManualChannels = creativeBundles.filter(
+    (bundle) => bundle.suitability_status === "manual_override",
+  );
+  const publishPayloadPreview = publishableChannels.map((connector) => ({
+    connector,
+    message: selectPublishMessage({
+      channel: connector.channel,
+      messages: detail.messages,
+      decisions: detail.variantDecisions,
+    }),
+    creativeBundle: creativeBundleByChannel.get(connector.channel) || null,
+    visualReadiness: evaluateChannelVisualReadiness({
+      channel: connector.channel,
+      bundle: creativeBundleByChannel.get(connector.channel) || null,
+    }),
+    placementCoverage:
+      placementCoverageByChannel.get(connector.channel) || null,
+  }));
+  const formatPresets = listCreativeFormatPresets();
+  const queuedJobs = detail.publishJobs.filter((job) =>
+    ["queued", "scheduled", "ready", "running", "failed", "paused"].includes(
+      job.queue_status,
+    ),
+  );
+  const campaignBundleTrackingContext = {
+    campaign_id: detail.draft.id,
+    bundle_status: visualReadinessSummary.overallState,
+    readiness_status: visualReadinessSummary.overallState,
+  };
   const exportBase = `/api/admin/campaigns/analytics/export?campaignId=${detail.draft.id}${from ? `&from=${encodeURIComponent(from)}` : ""}${to ? `&to=${encodeURIComponent(to)}` : ""}`;
 
   return (
     <main className="space-y-6">
+      <EventTracker
+        eventName="creative_bundle_viewed"
+        eventParams={campaignBundleTrackingContext}
+      />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <Link
@@ -142,6 +258,14 @@ export default async function AdminCampaignDetailPage({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href={`/admin/creative-assets?campaignId=${detail.draft.id}`}>
+              Creative assets
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/admin/campaigns/queue">Queue</Link>
+          </Button>
           <Button asChild variant="outline">
             <Link href={`/admin/campaigns/new?from=${detail.draft.id}`}>
               Duplicate campaign
@@ -411,6 +535,876 @@ export default async function AdminCampaignDetailPage({
         </Card>
       </div>
 
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+          <div>
+            <CardTitle>Creative bundle coverage</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Each publishable channel resolves one approved visual asset
+              bundle. Exact approved derivatives are preferred, approved masters
+              can act as a fallback, and manual overrides stay traceable.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <TrackedButtonLink
+              href={`/api/admin/campaigns/${detail.draft.id}/export-package`}
+              target="_blank"
+              variant="outline"
+              eventName="campaign_bundle_viewed"
+              eventParams={campaignBundleTrackingContext}
+            >
+              View campaign package
+            </TrackedButtonLink>
+            <TrackedButtonLink
+              href={`/api/admin/campaigns/${detail.draft.id}/export-package?download=1`}
+              target="_blank"
+              variant="outline"
+              eventName="export_package_downloaded"
+              eventParams={campaignBundleTrackingContext}
+            >
+              Download package JSON
+            </TrackedButtonLink>
+            <TrackedButtonLink
+              href={`/api/admin/campaigns/${detail.draft.id}/download-bundle`}
+              target="_blank"
+              variant="outline"
+              eventName="download_bundle_downloaded"
+              eventParams={campaignBundleTrackingContext}
+            >
+              Download bundle ZIP
+            </TrackedButtonLink>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <Badge
+              variant={
+                visualReadinessSummary.overallState === "blocked"
+                  ? "destructive"
+                  : visualReadinessSummary.overallState === "ready_exact"
+                    ? "secondary"
+                    : "outline"
+              }
+            >
+              Visual{" "}
+              {labelVisualReadinessState(visualReadinessSummary.overallState)}
+            </Badge>
+            <Badge variant="outline">
+              {visualReadinessSummary.readyCount}/
+              {visualReadinessSummary.channels.length} channel ready
+            </Badge>
+            <Badge variant="outline">
+              {
+                creativeBundles.filter(
+                  (bundle) => bundle.suitability_status === "ready",
+                ).length
+              }{" "}
+              ready
+            </Badge>
+            <Badge variant="outline">
+              {creativeManualChannels.length} manual override
+              {creativeManualChannels.length === 1 ? "" : "s"}
+            </Badge>
+            <Badge variant="outline">
+              {creativePartialChannels.length} partial
+            </Badge>
+            <Badge variant="outline">
+              {creativeMissingChannels.length} missing
+            </Badge>
+            <Badge variant="outline">
+              {placementCoverageSummary.exactCount} placement exact
+            </Badge>
+            <Badge variant="outline">
+              {placementCoverageSummary.fallbackCount} placement fallback
+            </Badge>
+            <Badge variant="outline">
+              {placementCoverageSummary.blockedCount} placement blocked
+            </Badge>
+            <Badge variant="outline">
+              {placementCoverageSummary.missingCount} placement missing
+            </Badge>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {visualReadinessSummary.summary}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {placementCoverageSummary.summary}
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 xl:grid-cols-2">
+          {publishPayloadPreview.map(
+            ({
+              connector,
+              message,
+              creativeBundle,
+              visualReadiness,
+              placementCoverage,
+            }) => {
+              const channel = connector.channel;
+              const selectedAsset = creativeBundle?.selected_asset || null;
+              const requiredPreset = creativeBundle
+                ? formatPresets.find(
+                    (preset) =>
+                      preset.format === creativeBundle.required_format,
+                  ) || null
+                : null;
+
+              return (
+                <div key={channel} className="rounded-lg border p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">
+                        {labelPublishChannel(channel)}
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                        {creativeBundle ? (
+                          <>
+                            <Badge
+                              variant={
+                                isVisualReadinessBlocked(visualReadiness)
+                                  ? "destructive"
+                                  : visualReadiness.state === "ready_exact"
+                                    ? "secondary"
+                                    : visualReadiness.state ===
+                                        "manual_override"
+                                      ? "secondary"
+                                      : visualReadiness.state ===
+                                          "ready_fallback"
+                                        ? "outline"
+                                        : creativeBundle.suitability_status ===
+                                            "partial"
+                                          ? "outline"
+                                          : "secondary"
+                              }
+                            >
+                              {labelVisualReadinessState(visualReadiness.state)}
+                            </Badge>
+                            <Badge variant="outline">
+                              Required{" "}
+                              {labelCreativeFormat(
+                                creativeBundle.required_format,
+                              )}
+                            </Badge>
+                            <Badge variant="outline">
+                              {labelCreativeBundleSelectionSource(
+                                creativeBundle.selection_source,
+                              )}
+                            </Badge>
+                          </>
+                        ) : (
+                          <Badge variant="destructive">Missing</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      {requiredPreset ? (
+                        <div>
+                          {requiredPreset.width}x{requiredPreset.height}
+                        </div>
+                      ) : null}
+                      <div>{connector.capability} connector</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                    <div className="space-y-3">
+                      {selectedAsset?.preview_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={selectedAsset.preview_url}
+                          alt={`${labelPublishChannel(channel)} selected creative`}
+                          className="aspect-[4/3] w-full rounded-lg border object-cover"
+                        />
+                      ) : (
+                        <div className="flex aspect-[4/3] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
+                          No approved visual selected yet
+                        </div>
+                      )}
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <div>
+                          {creativeBundle?.summary ||
+                            "No creative bundle has been resolved for this channel yet."}
+                        </div>
+                        <div>{visualReadiness.summary}</div>
+                        {selectedAsset ? (
+                          <>
+                            <div>Asset: {selectedAsset.variant_label}</div>
+                            <div>
+                              {labelCreativeAssetRole(selectedAsset.asset_role)}{" "}
+                              | {labelCreativeFormat(selectedAsset.format)}
+                              {selectedAsset.target_width &&
+                              selectedAsset.target_height
+                                ? ` | ${selectedAsset.target_width}x${selectedAsset.target_height}`
+                                : ""}
+                            </div>
+                            {selectedAsset.adaptation_method ? (
+                              <div>
+                                Method:{" "}
+                                {labelCreativeAdaptationMethod(
+                                  selectedAsset.adaptation_method,
+                                )}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                        <div className="font-medium">Selected copy</div>
+                        {message ? (
+                          <div className="mt-2 space-y-2 text-muted-foreground">
+                            <div>
+                              <span className="font-medium text-foreground">
+                                {message.variant_name}
+                              </span>{" "}
+                              via {labelChannel(message.channel)}
+                            </div>
+                            <div className="line-clamp-2">
+                              {message.content.headline}
+                            </div>
+                            <div className="line-clamp-3 text-xs">
+                              {message.content.body}
+                            </div>
+                            <div className="text-xs font-medium text-foreground">
+                              CTA: {message.content.cta}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-muted-foreground">
+                            No copy variant selected yet.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border p-3 text-sm">
+                        <div className="font-medium">Export package</div>
+                        <p className="mt-2 text-muted-foreground">
+                          Download JSON for inspection or a ZIP bundle with
+                          `manifest.json`, `copy.json`, and the selected visual
+                          asset for handoff.
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <TrackedButtonLink
+                            href={`/api/admin/campaigns/${detail.draft.id}/export-package/${channel}`}
+                            target="_blank"
+                            variant="outline"
+                            eventName="campaign_bundle_viewed"
+                            eventParams={{
+                              ...campaignBundleTrackingContext,
+                              channel,
+                              bundle_status:
+                                creativeBundle?.suitability_status ||
+                                visualReadiness.state,
+                              readiness_status: visualReadiness.state,
+                            }}
+                          >
+                            View package JSON
+                          </TrackedButtonLink>
+                          <TrackedButtonLink
+                            href={`/api/admin/campaigns/${detail.draft.id}/export-package/${channel}?download=1`}
+                            target="_blank"
+                            variant="outline"
+                            eventName="export_package_downloaded"
+                            eventParams={{
+                              ...campaignBundleTrackingContext,
+                              channel,
+                              bundle_status:
+                                creativeBundle?.suitability_status ||
+                                visualReadiness.state,
+                              readiness_status: visualReadiness.state,
+                            }}
+                          >
+                            Download JSON
+                          </TrackedButtonLink>
+                          <TrackedButtonLink
+                            href={`/api/admin/campaigns/${detail.draft.id}/download-bundle/${channel}`}
+                            target="_blank"
+                            variant="outline"
+                            eventName="download_bundle_downloaded"
+                            eventParams={{
+                              ...campaignBundleTrackingContext,
+                              channel,
+                              bundle_status:
+                                creativeBundle?.suitability_status ||
+                                visualReadiness.state,
+                              readiness_status: visualReadiness.state,
+                            }}
+                          >
+                            Download ZIP bundle
+                          </TrackedButtonLink>
+                        </div>
+                        {visualReadiness.state === "ready_fallback" ||
+                        visualReadiness.state === "partial" ||
+                        visualReadiness.state === "manual_override" ? (
+                          <p className="mt-3 text-xs text-amber-700">
+                            This bundle can be downloaded for manual handoff,
+                            but it includes visual readiness warnings in the
+                            manifest.
+                          </p>
+                        ) : null}
+                        {isVisualReadinessBlocked(visualReadiness) ? (
+                          <p className="mt-3 text-xs text-amber-700">
+                            This channel is blocked for publish assisted. ZIP
+                            download is still allowed only when there is a
+                            selected fallback asset to hand off manually.
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {placementCoverage ? (
+                        <div className="rounded-lg border p-3 text-sm">
+                          <div className="font-medium">Placement coverage</div>
+                          <p className="mt-2 text-muted-foreground">
+                            {placementCoverage.summary}
+                          </p>
+                          <div className="mt-3 space-y-3">
+                            {placementCoverage.placements.map((placement) => (
+                              <div
+                                key={placement.placementId}
+                                className="rounded-lg border border-dashed p-3"
+                              >
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <div className="font-medium">
+                                      {placement.placementLabel}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                                      <Badge
+                                        variant={
+                                          placement.state === "blocked"
+                                            ? "destructive"
+                                            : placement.state === "ready_exact"
+                                              ? "secondary"
+                                              : placement.state ===
+                                                    "manual_override" ||
+                                                  placement.state ===
+                                                    "ready_fallback"
+                                                ? "outline"
+                                                : "outline"
+                                        }
+                                      >
+                                        {labelPlacementReadinessState(
+                                          placement.state,
+                                        )}
+                                      </Badge>
+                                      <Badge variant="outline">
+                                        {placement.requiredFormat}
+                                      </Badge>
+                                      <Badge variant="outline">
+                                        {placement.preferredDimensions.width}x
+                                        {placement.preferredDimensions.height}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                  <div className="text-right text-xs text-muted-foreground">
+                                    <div>{placement.handoffName}</div>
+                                    <div>
+                                      {placement.selectedAsset
+                                        ? placement.selectedAsset.variantLabel
+                                        : "No asset selected"}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {placement.selectedAsset ? (
+                                  <div className="mt-2 text-xs text-muted-foreground">
+                                    {placement.selectedAsset.format}
+                                    {placement.selectedAsset.width &&
+                                    placement.selectedAsset.height
+                                      ? ` | ${placement.selectedAsset.width}x${placement.selectedAsset.height}`
+                                      : ""}
+                                    {placement.selectedAsset.role
+                                      ? ` | ${placement.selectedAsset.role}`
+                                      : ""}
+                                  </div>
+                                ) : null}
+
+                                {placement.warnings.length ? (
+                                  <p className="mt-2 text-xs text-amber-700">
+                                    {placement.warnings.join(" ")}
+                                  </p>
+                                ) : null}
+                                {placement.missing.length ? (
+                                  <p className="mt-2 text-xs text-amber-700">
+                                    {placement.missing.join(" ")}
+                                  </p>
+                                ) : null}
+
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <TrackedButtonLink
+                                    href={`/api/admin/campaigns/${detail.draft.id}/export-package/${channel}?placement=${placement.placementId}`}
+                                    target="_blank"
+                                    size="sm"
+                                    variant="outline"
+                                    eventName="campaign_bundle_viewed"
+                                    eventParams={{
+                                      ...campaignBundleTrackingContext,
+                                      channel,
+                                      placement_id: placement.placementId,
+                                      bundle_status:
+                                        placement.selectedAsset?.role ||
+                                        placement.state,
+                                      readiness_status: placement.state,
+                                      creative_asset_id:
+                                        placement.selectedAsset?.id || null,
+                                      derivative_asset_id:
+                                        placement.selectedAsset?.role ===
+                                        "derivative"
+                                          ? placement.selectedAsset.id
+                                          : null,
+                                    }}
+                                  >
+                                    Placement JSON
+                                  </TrackedButtonLink>
+                                  <TrackedButtonLink
+                                    href={`/api/admin/campaigns/${detail.draft.id}/export-package/${channel}?placement=${placement.placementId}&download=1`}
+                                    target="_blank"
+                                    size="sm"
+                                    variant="outline"
+                                    eventName="export_package_downloaded"
+                                    eventParams={{
+                                      ...campaignBundleTrackingContext,
+                                      channel,
+                                      placement_id: placement.placementId,
+                                      bundle_status:
+                                        placement.selectedAsset?.role ||
+                                        placement.state,
+                                      readiness_status: placement.state,
+                                      creative_asset_id:
+                                        placement.selectedAsset?.id || null,
+                                      derivative_asset_id:
+                                        placement.selectedAsset?.role ===
+                                        "derivative"
+                                          ? placement.selectedAsset.id
+                                          : null,
+                                    }}
+                                  >
+                                    Download JSON
+                                  </TrackedButtonLink>
+                                  <TrackedButtonLink
+                                    href={`/api/admin/campaigns/${detail.draft.id}/download-bundle/${channel}?placement=${placement.placementId}`}
+                                    target="_blank"
+                                    size="sm"
+                                    variant="outline"
+                                    eventName="download_bundle_downloaded"
+                                    eventParams={{
+                                      ...campaignBundleTrackingContext,
+                                      channel,
+                                      placement_id: placement.placementId,
+                                      bundle_status:
+                                        placement.selectedAsset?.role ||
+                                        placement.state,
+                                      readiness_status: placement.state,
+                                      creative_asset_id:
+                                        placement.selectedAsset?.id || null,
+                                      derivative_asset_id:
+                                        placement.selectedAsset?.role ===
+                                        "derivative"
+                                          ? placement.selectedAsset.id
+                                          : null,
+                                    }}
+                                  >
+                                    Download ZIP
+                                  </TrackedButtonLink>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="rounded-lg border p-3 text-sm">
+                        <div className="font-medium">Bundle override</div>
+                        <form
+                          action={`/api/admin/campaigns/${detail.draft.id}/creative-bundles/select`}
+                          method="post"
+                          className="mt-3 space-y-3"
+                        >
+                          <input
+                            type="hidden"
+                            name="redirectTo"
+                            value={`/admin/campaigns/${detail.draft.id}`}
+                          />
+                          <input type="hidden" name="channel" value={channel} />
+                          <select
+                            name="creativeAssetId"
+                            defaultValue={selectedAsset?.id || ""}
+                            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                          >
+                            <option value="">Select approved creative</option>
+                            {approvedCreativeOptions.map((job) => (
+                              <option
+                                key={job.current_asset_id}
+                                value={job.current_asset_id || ""}
+                              >
+                                {labelChannel(job.channel)} |{" "}
+                                {job.current_asset_role
+                                  ? labelCreativeAssetRole(
+                                      job.current_asset_role,
+                                    )
+                                  : "Asset"}{" "}
+                                |{" "}
+                                {job.current_asset_format
+                                  ? labelCreativeFormat(
+                                      job.current_asset_format,
+                                    )
+                                  : "Unknown"}{" "}
+                                | {job.brief_summary}
+                              </option>
+                            ))}
+                          </select>
+                          <Textarea
+                            name="notes"
+                            rows={2}
+                            placeholder="Why should this channel use a specific visual?"
+                            defaultValue={
+                              creativeBundle?.selection_source === "manual"
+                                ? creativeBundle.notes || ""
+                                : ""
+                            }
+                          />
+                          <div className="flex flex-wrap gap-2">
+                            <Button type="submit" variant="outline">
+                              Save manual asset
+                            </Button>
+                          </div>
+                        </form>
+                        {creativeBundle?.selection_source === "manual" ? (
+                          <form
+                            action={`/api/admin/campaigns/${detail.draft.id}/creative-bundles/clear`}
+                            method="post"
+                            className="mt-2"
+                          >
+                            <input
+                              type="hidden"
+                              name="redirectTo"
+                              value={`/admin/campaigns/${detail.draft.id}`}
+                            />
+                            <input
+                              type="hidden"
+                              name="channel"
+                              value={channel}
+                            />
+                            <Button type="submit" variant="ghost">
+                              Clear override
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            },
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>Creative assets</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Keep image briefs, generated assets, review status, and version
+              history inside the same admin workflow.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline">
+                {creativeMasterJobs.length} master job
+                {creativeMasterJobs.length === 1 ? "" : "s"}
+              </Badge>
+              <Badge variant="outline">
+                {creativeDerivativeJobs.length} derivative job
+                {creativeDerivativeJobs.length === 1 ? "" : "s"}
+              </Badge>
+              <Badge variant="outline">
+                {approvedMasterAssets.length} approved master
+                {approvedMasterAssets.length === 1 ? "" : "s"}
+              </Badge>
+              <Badge variant="outline">
+                Missing formats:{" "}
+                {missingCreativeFormats.length
+                  ? missingCreativeFormats.map(labelCreativeFormat).join(", ")
+                  : "none"}
+              </Badge>
+            </div>
+          </div>
+          <Button asChild variant="outline">
+            <Link href={`/admin/creative-assets?campaignId=${detail.draft.id}`}>
+              Open creative queue
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form
+            action="/api/creative/generate-image"
+            method="post"
+            className="grid gap-3 rounded-lg border p-4 lg:grid-cols-5"
+          >
+            <input
+              type="hidden"
+              name="campaignDraftId"
+              value={detail.draft.id}
+            />
+            <input
+              type="hidden"
+              name="redirectTo"
+              value={`/admin/campaigns/${detail.draft.id}`}
+            />
+            <div>
+              <label className="text-sm font-medium">Channel</label>
+              <select
+                name="channel"
+                defaultValue={detail.draft.channels[0] || "meta"}
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                {detail.draft.channels.map((channel) => (
+                  <option key={channel} value={channel}>
+                    {labelChannel(channel)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Linked copy variant</label>
+              <select
+                name="campaignMessageId"
+                defaultValue=""
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                <option value="">Campaign-level visual</option>
+                {detail.messages.map((message) => (
+                  <option key={message.id} value={message.id}>
+                    {labelChannel(message.channel)} | {message.variant_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Format</label>
+              <select
+                name="format"
+                defaultValue=""
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                <option value="">Default by channel</option>
+                <option value="square">Square</option>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+                <option value="story">Story</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Variant count</label>
+              <Input
+                type="number"
+                name="variantCount"
+                min={1}
+                max={4}
+                defaultValue={3}
+                className="mt-2"
+              />
+            </div>
+            <div className="lg:col-span-5">
+              <label className="text-sm font-medium">Notes</label>
+              <Textarea
+                name="notes"
+                rows={3}
+                className="mt-2"
+                placeholder="Example: show a practical home-service context, keep overlay text restrained, and prioritize calm trust-first composition."
+              />
+            </div>
+            <div className="lg:col-span-5">
+              <Button type="submit" variant="outline">
+                Generate image assets
+              </Button>
+            </div>
+          </form>
+
+          <form
+            action="/api/creative/adapt"
+            method="post"
+            className="grid gap-3 rounded-lg border p-4 lg:grid-cols-6"
+          >
+            <input
+              type="hidden"
+              name="redirectTo"
+              value={`/admin/campaigns/${detail.draft.id}`}
+            />
+            <div>
+              <label className="text-sm font-medium">Approved master</label>
+              <select
+                name="sourceCreativeAssetId"
+                defaultValue={approvedMasterAssets[0]?.current_asset_id || ""}
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                <option value="">Select an approved master</option>
+                {approvedMasterAssets.map((job) => (
+                  <option
+                    key={job.current_asset_id}
+                    value={job.current_asset_id || ""}
+                  >
+                    {job.brief_summary}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Format</label>
+              <select
+                name="format"
+                defaultValue={missingCreativeFormats[0] || "story"}
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                {formatPresets.map((preset) => (
+                  <option key={preset.format} value={preset.format}>
+                    {preset.label} ({preset.width}x{preset.height})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Target channel</label>
+              <select
+                name="targetChannel"
+                defaultValue={detail.draft.channels[0] || "meta"}
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                {detail.draft.channels.map((channel) => (
+                  <option key={channel} value={channel}>
+                    {labelChannel(channel)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Method</label>
+              <select
+                name="adaptationMethod"
+                defaultValue=""
+                className="mt-2 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+              >
+                <option value="">Auto method</option>
+                <option value="crop">Crop</option>
+                <option value="pad">Pad</option>
+                <option value="resize">Resize</option>
+                <option value="ai_extend">AI extend later</option>
+                <option value="provider_regenerate">
+                  Provider regenerate later
+                </option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-sm font-medium">Width</label>
+                <Input
+                  type="number"
+                  name="width"
+                  min={1}
+                  className="mt-2"
+                  placeholder="auto"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Height</label>
+                <Input
+                  type="number"
+                  name="height"
+                  min={1}
+                  className="mt-2"
+                  placeholder="auto"
+                />
+              </div>
+            </div>
+            <div className="lg:col-span-6">
+              <label className="text-sm font-medium">Adaptation note</label>
+              <Textarea
+                name="feedbackNote"
+                rows={3}
+                className="mt-2"
+                placeholder="Example: create a story-safe derivative with more negative space above the CTA and keep the technician fully visible."
+              />
+            </div>
+            <div className="lg:col-span-6">
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={!approvedMasterAssets.length}
+              >
+                Create derivative format
+              </Button>
+            </div>
+          </form>
+
+          {creativeJobs.length ? (
+            <div className="grid gap-3">
+              {creativeJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 text-sm"
+                >
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StateBadge value={job.generation_status} />
+                      <Badge variant="outline">
+                        {labelChannel(job.channel)}
+                      </Badge>
+                      <Badge variant="outline">
+                        {labelCreativeJobType(job.job_type)}
+                      </Badge>
+                      {job.current_asset_role ? (
+                        <Badge variant="outline">
+                          {labelCreativeAssetRole(job.current_asset_role)}
+                        </Badge>
+                      ) : null}
+                      {job.current_asset_format ? (
+                        <Badge variant="outline">
+                          {labelCreativeFormat(job.current_asset_format)}
+                        </Badge>
+                      ) : null}
+                      <Badge variant="outline">{job.provider_name}</Badge>
+                      <Badge variant="outline">
+                        {job.asset_count} variant
+                        {job.asset_count === 1 ? "" : "s"}
+                      </Badge>
+                    </div>
+                    <div className="font-medium">{job.brief_summary}</div>
+                    <p className="text-muted-foreground">
+                      {job.message_variant_name
+                        ? `Linked to ${job.message_variant_name}`
+                        : "Campaign-level creative brief"}
+                    </p>
+                    {job.target_width && job.target_height ? (
+                      <p className="text-muted-foreground">
+                        Target: {job.target_width}x{job.target_height}
+                        {job.target_channel
+                          ? ` for ${labelChannel(job.target_channel)}`
+                          : ""}
+                      </p>
+                    ) : null}
+                    {job.last_feedback_note ? (
+                      <p className="text-muted-foreground">
+                        Last feedback: {job.last_feedback_note}
+                      </p>
+                    ) : null}
+                  </div>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/admin/creative-assets/${job.id}`}>
+                      Review
+                    </Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+              No visual asset jobs are linked to this campaign yet.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
         <Card>
           <CardHeader>
@@ -578,6 +1572,9 @@ export default async function AdminCampaignDetailPage({
                 Editorial status {detail.draft.status.replace(/_/g, " ")}
               </Badge>
               <StateBadge value={analytics.signal_summary.signal_quality} />
+              <Badge variant="outline">
+                {queuedJobs.length} queued / scheduled jobs
+              </Badge>
             </div>
             <div className="space-y-2 text-muted-foreground">
               <p>
@@ -605,6 +1602,29 @@ export default async function AdminCampaignDetailPage({
             {detail.draft.last_publish_error ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
                 {detail.draft.last_publish_error}
+              </div>
+            ) : null}
+            {queuedJobs.length ? (
+              <div className="rounded-lg border p-3">
+                <div className="font-medium">Upcoming queue</div>
+                <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                  {queuedJobs.slice(0, 3).map((job) => (
+                    <div
+                      key={job.id}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <Badge variant="outline">
+                        {labelPublishChannel(job.channel)}
+                      </Badge>
+                      <StateBadge value={job.queue_status} />
+                      <span>
+                        {job.scheduled_for
+                          ? new Date(job.scheduled_for).toLocaleString()
+                          : "Next queue run"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
             <div className="rounded-lg border p-3">
@@ -661,6 +1681,23 @@ export default async function AdminCampaignDetailPage({
                   Pause
                 </Button>
               </form>
+              <form
+                action={`/api/admin/campaigns/${detail.draft.id}/unschedule`}
+                method="post"
+              >
+                <input
+                  type="hidden"
+                  name="redirectTo"
+                  value={`/admin/campaigns/${detail.draft.id}`}
+                />
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  disabled={!queuedJobs.length}
+                >
+                  Clear queue
+                </Button>
+              </form>
             </div>
           </CardContent>
         </Card>
@@ -674,7 +1711,7 @@ export default async function AdminCampaignDetailPage({
               Email can go live when explicit recipients are provided. Push can
               go live only with explicit user IDs and configured VAPID keys.
               WhatsApp, landing, Meta, and Google stay in draft/export mode in
-              this phase.
+              this phase. Scheduling never skips approval or publish readiness.
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               {publishableChannels.map((connector) => (
@@ -747,10 +1784,125 @@ export default async function AdminCampaignDetailPage({
                   type="submit"
                   disabled={detail.draft.status !== "approved"}
                 >
-                  Start publish job
+                  Publish now
                 </Button>
               </div>
             </form>
+
+            <div className="rounded-lg border p-4">
+              <div className="mb-3 text-sm font-medium">Schedule or queue</div>
+              <form
+                action={`/api/admin/campaigns/${detail.draft.id}/schedule`}
+                method="post"
+                className="grid gap-3 md:grid-cols-2"
+              >
+                <input
+                  type="hidden"
+                  name="redirectTo"
+                  value={`/admin/campaigns/${detail.draft.id}`}
+                />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Channel</label>
+                  <select
+                    name="channel"
+                    defaultValue={publishableChannels[0]?.channel || ""}
+                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  >
+                    {publishableChannels.map((connector) => (
+                      <option key={connector.channel} value={connector.channel}>
+                        {connector.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Mode</label>
+                  <select
+                    name="publishMode"
+                    defaultValue="draft"
+                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  >
+                    <option value="live">Live</option>
+                    <option value="draft">Draft</option>
+                    <option value="export">Export</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Scheduled for</label>
+                  <Input name="scheduledFor" type="datetime-local" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Max retries</label>
+                  <Input
+                    name="maxRetries"
+                    type="number"
+                    min="0"
+                    max="5"
+                    defaultValue="2"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Window start</label>
+                  <Input name="executionWindowStart" type="datetime-local" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Window end</label>
+                  <Input name="executionWindowEnd" type="datetime-local" />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium">Target emails</label>
+                  <Textarea
+                    name="targetEmails"
+                    rows={2}
+                    placeholder="Required for live email. Leave blank for draft/export."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Target user IDs</label>
+                  <Textarea
+                    name="targetUserIds"
+                    rows={2}
+                    placeholder="Required for live push."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Target phone</label>
+                  <Input
+                    name="targetPhone"
+                    placeholder="Optional phone for WhatsApp draft/export."
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    disabled={detail.draft.status !== "approved"}
+                  >
+                    Schedule publish job
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            <div className="rounded-lg border p-4">
+              <div className="mb-3 text-sm font-medium">Queue controls</div>
+              <div className="flex flex-wrap gap-2">
+                <form action="/api/admin/publish-jobs/run-due" method="post">
+                  <input
+                    type="hidden"
+                    name="redirectTo"
+                    value={`/admin/campaigns/${detail.draft.id}`}
+                  />
+                  <input type="hidden" name="limit" value="10" />
+                  <Button type="submit" variant="outline">
+                    Run due jobs
+                  </Button>
+                </form>
+                <Button asChild variant="ghost">
+                  <Link href="/admin/campaigns/queue">Open queue view</Link>
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -769,7 +1921,11 @@ export default async function AdminCampaignDetailPage({
                     <Badge variant="outline">
                       {labelPublishChannel(job.channel)}
                     </Badge>
+                    <StateBadge value={job.queue_status} />
                     <StateBadge value={job.publish_status} />
+                    {job.error_type ? (
+                      <StateBadge value={job.error_type} />
+                    ) : null}
                     <Badge variant="secondary">{job.publish_mode}</Badge>
                     <Badge variant="outline">{job.provider_name}</Badge>
                     <span className="text-xs text-muted-foreground">
@@ -811,6 +1967,46 @@ export default async function AdminCampaignDetailPage({
                       {job.error_message}
                     </p>
                   ) : null}
+                  {job.deferred_reason ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Deferred: {labelQueueDeferredReason(job.deferred_reason)}
+                    </p>
+                  ) : null}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Retries {job.retry_count} / {job.max_retries}
+                    </span>
+                    {job.error_type ? (
+                      <span>{labelQueueErrorType(job.error_type)}</span>
+                    ) : null}
+                    <span>
+                      Scheduled{" "}
+                      {job.scheduled_for
+                        ? new Date(job.scheduled_for).toLocaleString()
+                        : "ASAP"}
+                    </span>
+                    {job.next_retry_at ? (
+                      <span>
+                        Next retry{" "}
+                        {new Date(job.next_retry_at).toLocaleString()}
+                      </span>
+                    ) : null}
+                    {job.triggered_manually ? (
+                      <span>Manual trigger</span>
+                    ) : null}
+                  </div>
+                  {job.execution_window_start || job.execution_window_end ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Window{" "}
+                      {job.execution_window_start
+                        ? new Date(job.execution_window_start).toLocaleString()
+                        : "open"}{" "}
+                      to{" "}
+                      {job.execution_window_end
+                        ? new Date(job.execution_window_end).toLocaleString()
+                        : "open"}
+                    </p>
+                  ) : null}
                   {job.external_reference_id ? (
                     <p className="mt-2 text-xs text-muted-foreground">
                       External reference: {job.external_reference_id}
@@ -821,22 +2017,99 @@ export default async function AdminCampaignDetailPage({
                       Completed {new Date(job.completed_at).toLocaleString()}
                     </p>
                   ) : null}
-                  {job.publish_status === "publish_failed" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
                     <form
-                      action={`/api/admin/publish-jobs/${job.id}/retry`}
+                      action={`/api/admin/publish-jobs/${job.id}/run-now`}
                       method="post"
-                      className="mt-3"
                     >
                       <input
                         type="hidden"
                         name="redirectTo"
                         value={`/admin/campaigns/${detail.draft.id}`}
                       />
-                      <Button type="submit" variant="outline">
-                        Retry job
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          job.queue_status === "completed" ||
+                          job.queue_status === "cancelled" ||
+                          job.queue_status === "running"
+                        }
+                      >
+                        Run now
                       </Button>
                     </form>
-                  ) : null}
+                    <form
+                      action={`/api/admin/publish-jobs/${job.id}/cancel`}
+                      method="post"
+                    >
+                      <input
+                        type="hidden"
+                        name="redirectTo"
+                        value={`/admin/campaigns/${detail.draft.id}`}
+                      />
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="sm"
+                        disabled={
+                          job.queue_status === "completed" ||
+                          job.queue_status === "cancelled" ||
+                          job.queue_status === "running"
+                        }
+                      >
+                        Cancel
+                      </Button>
+                    </form>
+                    <details className="rounded-md border px-3 py-2">
+                      <summary className="cursor-pointer text-xs font-medium">
+                        Reschedule
+                      </summary>
+                      <form
+                        action={`/api/admin/publish-jobs/${job.id}/reschedule`}
+                        method="post"
+                        className="mt-3 grid gap-2 md:grid-cols-2"
+                      >
+                        <input
+                          type="hidden"
+                          name="redirectTo"
+                          value={`/admin/campaigns/${detail.draft.id}`}
+                        />
+                        <Input
+                          name="scheduledFor"
+                          type="datetime-local"
+                          defaultValue={toDateTimeLocal(job.scheduled_for)}
+                        />
+                        <Input
+                          name="maxRetries"
+                          type="number"
+                          min="0"
+                          max="5"
+                          defaultValue={String(job.max_retries)}
+                        />
+                        <Input
+                          name="executionWindowStart"
+                          type="datetime-local"
+                          defaultValue={toDateTimeLocal(
+                            job.execution_window_start,
+                          )}
+                        />
+                        <Input
+                          name="executionWindowEnd"
+                          type="datetime-local"
+                          defaultValue={toDateTimeLocal(
+                            job.execution_window_end,
+                          )}
+                        />
+                        <div className="md:col-span-2">
+                          <Button type="submit" variant="outline" size="sm">
+                            Save schedule
+                          </Button>
+                        </div>
+                      </form>
+                    </details>
+                  </div>
                   <details className="mt-3">
                     <summary className="cursor-pointer text-sm font-medium">
                       View payload
@@ -1975,6 +3248,15 @@ function TrendSummaryCard(args: {
       )}
     </div>
   );
+}
+
+function toDateTimeLocal(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 16);
 }
 
 function formatInteger(value: number) {

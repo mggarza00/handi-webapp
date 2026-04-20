@@ -11,6 +11,11 @@ import {
   type CampaignPublishMode,
   type PublishChannel,
 } from "@/lib/campaigns/workflow";
+import { listCampaignCreativeBundles } from "@/lib/creative/bundles";
+import {
+  evaluateChannelVisualReadiness,
+  isVisualReadinessBlocked,
+} from "@/lib/creative/readiness";
 import {
   parsePublishTargeting,
   publishCampaign,
@@ -72,6 +77,48 @@ export async function POST(
     }
 
     const admin = getAdminSupabase();
+    const creativeBundles = await listCampaignCreativeBundles(admin, params.id);
+    const visualReadiness = evaluateChannelVisualReadiness({
+      channel: normalizedChannel as PublishChannel,
+      bundle:
+        creativeBundles.find(
+          (bundle) => bundle.channel === normalizedChannel,
+        ) || null,
+    });
+    await logAudit({
+      actorId: gate.userId,
+      action: "VISUAL_READINESS_EVALUATED",
+      entity: "campaign_drafts",
+      entityId: params.id,
+      meta: {
+        channel: normalizedChannel,
+        note: visualReadiness.summary,
+        state: visualReadiness.state,
+      },
+    });
+    if (isVisualReadinessBlocked(visualReadiness)) {
+      await logAudit({
+        actorId: gate.userId,
+        action: "VISUAL_READINESS_BLOCKED",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          channel: normalizedChannel,
+          note: visualReadiness.summary,
+          state: visualReadiness.state,
+        },
+      });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "visual_readiness_blocked",
+          detail: visualReadiness.summary,
+          visualReadiness,
+        },
+        { status: 409, headers: JSONH },
+      );
+    }
+
     const result = await publishCampaign({
       admin,
       campaignId: params.id,

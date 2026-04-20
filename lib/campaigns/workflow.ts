@@ -52,9 +52,50 @@ export const CAMPAIGN_PUBLISH_STATUSES = [
 ] as const;
 
 export const CAMPAIGN_PUBLISH_MODES = ["live", "draft", "export"] as const;
+export const CAMPAIGN_PUBLISH_QUEUE_STATUSES = [
+  "queued",
+  "scheduled",
+  "ready",
+  "running",
+  "completed",
+  "failed",
+  "paused",
+  "cancelled",
+] as const;
+export const CAMPAIGN_PUBLISH_QUEUE_ERROR_TYPES = [
+  "recoverable_transient",
+  "recoverable_rate_limited",
+  "configuration_error",
+  "readiness_error",
+  "approval_error",
+  "unsupported_channel",
+  "targeting_error",
+  "expired_window",
+  "lock_conflict",
+  "unknown_error",
+] as const;
+export const CAMPAIGN_PUBLISH_QUEUE_HEALTH_STATUSES = [
+  "healthy",
+  "attention",
+  "degraded",
+] as const;
+export const CAMPAIGN_PUBLISH_QUEUE_DEFERRED_REASONS = [
+  "channel_throttled",
+  "concurrency_blocked",
+  "retry_deferred",
+  "lock_conflict",
+] as const;
 
 export type CampaignPublishStatus = (typeof CAMPAIGN_PUBLISH_STATUSES)[number];
 export type CampaignPublishMode = (typeof CAMPAIGN_PUBLISH_MODES)[number];
+export type CampaignPublishQueueStatus =
+  (typeof CAMPAIGN_PUBLISH_QUEUE_STATUSES)[number];
+export type CampaignPublishQueueErrorType =
+  (typeof CAMPAIGN_PUBLISH_QUEUE_ERROR_TYPES)[number];
+export type CampaignPublishQueueHealthStatus =
+  (typeof CAMPAIGN_PUBLISH_QUEUE_HEALTH_STATUSES)[number];
+export type CampaignPublishQueueDeferredReason =
+  (typeof CAMPAIGN_PUBLISH_QUEUE_DEFERRED_REASONS)[number];
 export type PublishChannel = ChannelType | "google";
 
 export const CAMPAIGN_QA_STATUSES = [
@@ -231,11 +272,24 @@ export type CampaignPublishJobRow = {
   message_id: string | null;
   publish_status: CampaignPublishStatus;
   publish_mode: CampaignPublishMode;
+  queue_status: CampaignPublishQueueStatus;
   provider_name: string;
   provider_response_summary: string;
   payload: Record<string, unknown>;
   external_reference_id: string | null;
   error_message: string | null;
+  error_type: CampaignPublishQueueErrorType | null;
+  deferred_reason: CampaignPublishQueueDeferredReason | null;
+  scheduled_for: string | null;
+  execution_window_start: string | null;
+  execution_window_end: string | null;
+  retry_count: number;
+  max_retries: number;
+  next_retry_at: string | null;
+  last_error: string | null;
+  locked_at: string | null;
+  locked_by: string | null;
+  triggered_manually: boolean;
   triggered_by: string | null;
   triggered_at: string;
   completed_at: string | null;
@@ -293,6 +347,11 @@ export type CampaignListItem = CampaignDraftRow & {
   source_campaign_title: string | null;
   publish_job_count: number;
   last_publish_at: string | null;
+  queue_pending_count: number;
+  queue_running_count: number;
+  queue_failed_count: number;
+  queue_retry_pending_count: number;
+  queue_health_status: CampaignPublishQueueHealthStatus;
 };
 
 export type CampaignActivityType =
@@ -301,6 +360,39 @@ export type CampaignActivityType =
   | "approved"
   | "rejected"
   | "changes_requested"
+  | "creative_asset_job_created"
+  | "creative_asset_generated"
+  | "creative_asset_regenerated"
+  | "creative_asset_approved"
+  | "creative_asset_rejected"
+  | "creative_asset_changes_requested"
+  | "creative_asset_version_created"
+  | "creative_asset_adaptation_created"
+  | "creative_asset_adaptation_regenerated"
+  | "creative_asset_adaptation_approved"
+  | "creative_asset_adaptation_rejected"
+  | "creative_asset_adaptation_changes_requested"
+  | "creative_bundle_resolved"
+  | "creative_bundle_manual_override"
+  | "creative_bundle_cleared"
+  | "creative_bundle_missing_detected"
+  | "creative_bundle_ready"
+  | "visual_readiness_evaluated"
+  | "visual_readiness_blocked"
+  | "creative_export_package_generated"
+  | "creative_export_package_downloaded"
+  | "creative_bundle_download_generated"
+  | "creative_bundle_downloaded"
+  | "creative_bundle_download_blocked"
+  | "creative_bundle_download_warning_emitted"
+  | "creative_bundle_channel_ready"
+  | "creative_bundle_channel_missing"
+  | "placement_readiness_evaluated"
+  | "placement_missing_detected"
+  | "placement_export_generated"
+  | "placement_bundle_downloaded"
+  | "analytics_contracts_updated"
+  | "attribution_mapping_prepared"
   | "message_edited"
   | "message_regenerated"
   | "archived"
@@ -314,6 +406,23 @@ export type CampaignActivityType =
   | "paused"
   | "retry_requested"
   | "export_generated"
+  | "publish_scheduled"
+  | "publish_unscheduled"
+  | "queue_job_ready"
+  | "queue_job_started"
+  | "queue_job_completed"
+  | "queue_job_failed"
+  | "retry_scheduled"
+  | "retry_exhausted"
+  | "queue_job_cancelled"
+  | "queue_job_run_manually"
+  | "queue_run_triggered"
+  | "queue_run_completed"
+  | "channel_throttled"
+  | "concurrency_blocked"
+  | "retry_deferred"
+  | "error_classified"
+  | "cron_run_due_called"
   | "metrics_ingested"
   | "analytics_compared"
   | "trends_recalculated"
@@ -403,6 +512,54 @@ export function normalizePublishStatus(value: unknown): CampaignPublishStatus {
   return typeof value === "string" && isPublishStatus(value)
     ? value
     : "not_ready";
+}
+
+export function isPublishQueueStatus(
+  value: string,
+): value is CampaignPublishQueueStatus {
+  return CAMPAIGN_PUBLISH_QUEUE_STATUSES.includes(
+    value as CampaignPublishQueueStatus,
+  );
+}
+
+export function normalizePublishQueueStatus(
+  value: unknown,
+): CampaignPublishQueueStatus {
+  return typeof value === "string" && isPublishQueueStatus(value)
+    ? value
+    : "completed";
+}
+
+export function isPublishQueueErrorType(
+  value: string,
+): value is CampaignPublishQueueErrorType {
+  return CAMPAIGN_PUBLISH_QUEUE_ERROR_TYPES.includes(
+    value as CampaignPublishQueueErrorType,
+  );
+}
+
+export function normalizePublishQueueErrorType(
+  value: unknown,
+): CampaignPublishQueueErrorType | null {
+  return typeof value === "string" && isPublishQueueErrorType(value)
+    ? value
+    : null;
+}
+
+export function isPublishQueueDeferredReason(
+  value: string,
+): value is CampaignPublishQueueDeferredReason {
+  return CAMPAIGN_PUBLISH_QUEUE_DEFERRED_REASONS.includes(
+    value as CampaignPublishQueueDeferredReason,
+  );
+}
+
+export function normalizePublishQueueDeferredReason(
+  value: unknown,
+): CampaignPublishQueueDeferredReason | null {
+  return typeof value === "string" && isPublishQueueDeferredReason(value)
+    ? value
+    : null;
 }
 
 export function normalizeCampaignQaReport(value: unknown): CampaignQaReport {
@@ -572,6 +729,28 @@ export function labelWorkflowStatus(status: CampaignWorkflowStatus): string {
 
 export function labelPublishStatus(status: CampaignPublishStatus): string {
   return status.replace(/_/g, " ");
+}
+
+export function labelQueueStatus(status: CampaignPublishQueueStatus): string {
+  return status.replace(/_/g, " ");
+}
+
+export function labelQueueErrorType(
+  value: CampaignPublishQueueErrorType,
+): string {
+  return value.replace(/_/g, " ");
+}
+
+export function labelQueueHealthStatus(
+  value: CampaignPublishQueueHealthStatus,
+): string {
+  return value.replace(/_/g, " ");
+}
+
+export function labelQueueDeferredReason(
+  value: CampaignPublishQueueDeferredReason,
+): string {
+  return value.replace(/_/g, " ");
 }
 
 export function labelQaStatus(status: CampaignQaStatus): string {

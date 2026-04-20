@@ -1,4 +1,5 @@
 import { sendEmail } from "@/lib/email";
+import { buildCreativeBundlePayload } from "@/lib/creative/bundles";
 import type { PublishConnectorDefinition } from "@/lib/publish/types";
 
 function buildEmailHtml(args: {
@@ -71,6 +72,7 @@ export const emailPublishConnector: PublishConnectorDefinition = {
       ]
         .filter(Boolean)
         .join("\n\n"),
+      creative: buildCreativeBundlePayload(input.creativeBundle),
     };
 
     if (input.mode !== "live") {

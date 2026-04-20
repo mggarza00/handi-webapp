@@ -33,11 +33,24 @@ export type CampaignGoal = (typeof campaignGoals)[number];
 export type ChannelType = (typeof channelTypes)[number];
 export type ContentFormat = (typeof contentFormats)[number];
 
-export const providerNames = ["mock", "openai"] as const;
+export const providerNames = [
+  "mock",
+  "openai",
+  "image-provider",
+  "local-adapter",
+] as const;
 export const providerGenerationModes = ["mock", "live", "fallback"] as const;
+export const providerErrorTypes = [
+  "configuration_error",
+  "provider_error",
+  "response_error",
+  "storage_error",
+  "unknown_error",
+] as const;
 
 export type ProviderName = (typeof providerNames)[number];
 export type ProviderGenerationMode = (typeof providerGenerationModes)[number];
+export type ProviderErrorType = (typeof providerErrorTypes)[number];
 
 export const audienceTypeSchema = z.enum(audienceTypes);
 export const campaignGoalSchema = z.enum(campaignGoals);
@@ -45,6 +58,7 @@ export const channelTypeSchema = z.enum(channelTypes);
 export const contentFormatSchema = z.enum(contentFormats);
 export const providerNameSchema = z.enum(providerNames);
 export const providerGenerationModeSchema = z.enum(providerGenerationModes);
+export const providerErrorTypeSchema = z.enum(providerErrorTypes);
 
 export const DEFAULT_FORMAT_BY_CHANNEL: Record<ChannelType, ContentFormat> = {
   meta: "meta-ad",
@@ -124,6 +138,15 @@ export const providerMetadataSchema = z.object({
   fallbackReason: z.string().trim().min(1).nullable(),
   requestId: z.string().trim().min(1).nullable(),
   note: z.string().trim().min(1).nullable(),
+  errorType: providerErrorTypeSchema.nullable().optional(),
+  promptSummary: z.string().trim().min(1).nullable().optional(),
+  providerReferenceId: z.string().trim().min(1).nullable().optional(),
+  assetWidth: z.number().int().positive().nullable().optional(),
+  assetHeight: z.number().int().positive().nullable().optional(),
+  outputFormat: z.string().trim().min(1).nullable().optional(),
+  quality: z.string().trim().min(1).nullable().optional(),
+  seed: z.string().trim().min(1).nullable().optional(),
+  responseSummary: z.string().trim().min(1).nullable().optional(),
 });
 
 export type ProviderMetadata = z.infer<typeof providerMetadataSchema>;

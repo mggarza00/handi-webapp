@@ -148,6 +148,7 @@
     "framer-motion": "^11.11.1",
     "googleapis": "^131.0.0",
     "gsap": "^3.13.0",
+    "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "lenis": "^1.1.14",
     "lucide-react": "^0.539.0",

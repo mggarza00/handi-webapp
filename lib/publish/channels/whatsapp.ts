@@ -1,3 +1,4 @@
+import { buildCreativeBundlePayload } from "@/lib/creative/bundles";
 import type { PublishConnectorDefinition } from "@/lib/publish/types";
 
 export const whatsappPublishConnector: PublishConnectorDefinition = {
@@ -19,6 +20,7 @@ export const whatsappPublishConnector: PublishConnectorDefinition = {
         body: input.message?.content.body || input.campaign.rationale_summary,
         cta: input.message?.content.cta || input.campaign.cta,
       },
+      creative: buildCreativeBundlePayload(input.creativeBundle),
     };
 
     if (input.mode === "live") {

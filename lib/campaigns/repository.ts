@@ -20,6 +20,9 @@ import {
   buildDefaultReviewChecklist,
   buildVariantName,
   labelChannel,
+  normalizePublishQueueDeferredReason,
+  normalizePublishQueueErrorType,
+  normalizePublishQueueStatus,
   normalizePublishStatus,
   normalizeCampaignQaReport,
   normalizeMessageQaReport,
@@ -36,6 +39,8 @@ import {
   type CampaignMessageRow,
   type CampaignVariantDecisionRow,
   type CampaignPublishJobRow,
+  type CampaignPublishQueueErrorType,
+  type CampaignPublishQueueHealthStatus,
   type CampaignPublishStatus,
   type CampaignMessageVersionRow,
   type CampaignMessageView,
@@ -44,6 +49,7 @@ import {
   type CampaignSortOrder,
   type CampaignVersionAction,
   type CampaignWorkflowStatus,
+  type PublishChannel,
   normalizeDecisionEligibility,
   normalizeDecisionSource,
   normalizeDecisionStatus,
@@ -75,6 +81,16 @@ type ListCampaignDraftFilters = {
   pageSize?: number;
 };
 
+type ListPublishQueueFilters = {
+  queueStatus?: CampaignPublishJobRow["queue_status"] | "";
+  errorType?: CampaignPublishQueueErrorType | "";
+  channel?: PublishChannel | "";
+  campaignId?: string | "";
+  q?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 type CampaignDetail = {
   draft: CampaignDraftRow;
   messages: CampaignMessageView[];
@@ -87,6 +103,14 @@ type CampaignDetail = {
   actorNames: Record<string, string>;
   reviewerOptions: ReviewerOption[];
   sourceCampaign: Pick<CampaignDraftRow, "id" | "title"> | null;
+};
+
+type PublishQueueListItem = CampaignPublishJobRow & {
+  campaign_title: string;
+  campaign_status: CampaignWorkflowStatus;
+  campaign_publish_status: CampaignPublishStatus;
+  owner_label: string | null;
+  selected_variant_name: string | null;
 };
 
 type PersistCampaignDraftParams = {
@@ -303,15 +327,41 @@ function mapPublishJobRow(
     publish_mode: readString(
       value.publish_mode,
     ) as CampaignPublishJobRow["publish_mode"],
+    queue_status: normalizePublishQueueStatus(value.queue_status),
     provider_name: readString(value.provider_name),
     provider_response_summary: readString(value.provider_response_summary),
     payload: readRecord(value.payload),
     external_reference_id: readNullableString(value.external_reference_id),
     error_message: readNullableString(value.error_message),
+    error_type: normalizePublishQueueErrorType(value.error_type),
+    deferred_reason: normalizePublishQueueDeferredReason(value.deferred_reason),
+    scheduled_for: readNullableString(value.scheduled_for),
+    execution_window_start: readNullableString(value.execution_window_start),
+    execution_window_end: readNullableString(value.execution_window_end),
+    retry_count: typeof value.retry_count === "number" ? value.retry_count : 0,
+    max_retries: typeof value.max_retries === "number" ? value.max_retries : 2,
+    next_retry_at: readNullableString(value.next_retry_at),
+    last_error: readNullableString(value.last_error),
+    locked_at: readNullableString(value.locked_at),
+    locked_by: readNullableString(value.locked_by),
+    triggered_manually: value.triggered_manually === true,
     triggered_by: readNullableString(value.triggered_by),
     triggered_at: readString(value.triggered_at),
     completed_at: readNullableString(value.completed_at),
   };
+}
+
+function summarizeCampaignQueueHealth(args: {
+  pending: number;
+  running: number;
+  failed: number;
+  retries: number;
+}): CampaignPublishQueueHealthStatus {
+  if (args.failed > 0) return "degraded";
+  if (args.running > 0 || args.pending > 0 || args.retries > 0) {
+    return "attention";
+  }
+  return "healthy";
 }
 
 function mapVariantDecisionRow(
@@ -610,6 +660,30 @@ async function setCampaignStatus(
       messagesError.message || "failed to update message statuses",
     );
   }
+
+  if (status !== "approved") {
+    const note =
+      status === "archived"
+        ? "Queued publish jobs were cancelled because the campaign was archived."
+        : "Queued publish jobs were cancelled because the campaign changed and must be revalidated before publishing.";
+    const { error: queueError } = await admin
+      .from("campaign_publish_jobs")
+      .update({
+        queue_status: "cancelled",
+        locked_at: null,
+        locked_by: null,
+        last_error: note,
+        error_message: note,
+      } as never)
+      .eq("campaign_draft_id", campaignId)
+      .in("queue_status", ["queued", "scheduled", "ready", "failed", "paused"]);
+
+    if (queueError) {
+      throw new Error(
+        queueError.message || "failed to invalidate queued publish jobs",
+      );
+    }
+  }
 }
 
 async function getActorNames(
@@ -801,6 +875,194 @@ function buildActivityFeed(args: {
         title: "Changes requested",
         description: note || "Admin requested another pass.",
         message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_JOB_CREATED") {
+      const channel = readNullableString(audit.meta.channel);
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_job_created",
+        title: "Creative brief created",
+        description:
+          note ||
+          (channel
+            ? `A visual asset job was created for ${channel}.`
+            : "A visual asset job was created for this campaign."),
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_GENERATED") {
+      const assetCount =
+        typeof audit.meta.assetCount === "number"
+          ? audit.meta.assetCount
+          : null;
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_generated",
+        title: "Creative assets generated",
+        description:
+          note ||
+          (assetCount
+            ? `${assetCount} visual variants were generated for review.`
+            : "Visual variants were generated for review."),
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_ADAPTATION_CREATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_adaptation_created",
+        title: "Creative adaptation created",
+        description:
+          note ||
+          "A derivative format was created from an approved master asset.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_REGENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_regenerated",
+        title: "Creative asset regenerated",
+        description:
+          note || "A visual variant was regenerated from admin feedback.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_ADAPTATION_REGENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_adaptation_regenerated",
+        title: "Creative adaptation regenerated",
+        description:
+          note ||
+          "A derivative format was regenerated from the approved master.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_APPROVED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_approved",
+        title: "Creative assets approved",
+        description: note || "The visual asset set was approved.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_ADAPTATION_APPROVED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_adaptation_approved",
+        title: "Creative adaptation approved",
+        description: note || "The derivative asset was approved.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_REJECTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_rejected",
+        title: "Creative assets rejected",
+        description: note || "The visual asset set was rejected.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_ADAPTATION_REJECTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_adaptation_rejected",
+        title: "Creative adaptation rejected",
+        description: note || "The derivative asset was rejected.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_CHANGES_REQUESTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_changes_requested",
+        title: "Creative changes requested",
+        description: note || "Admin requested another visual pass.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_ADAPTATION_CHANGES_REQUESTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_adaptation_changes_requested",
+        title: "Creative adaptation changes requested",
+        description: note || "Admin requested another derivative pass.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_ASSET_VERSION_CREATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_asset_version_created",
+        title: "Creative asset version created",
+        description:
+          note ||
+          "A new visual asset version was stored in the review history.",
+        message_id: readNullableString(audit.meta.messageId),
       });
       return;
     }
@@ -1023,6 +1285,330 @@ function buildActivityFeed(args: {
       return;
     }
 
+    if (audit.action === "CREATIVE_BUNDLE_RESOLVED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_resolved",
+        title: "Creative bundle resolved",
+        description:
+          note ||
+          "The system refreshed visual coverage for a campaign channel.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_MANUAL_OVERRIDE") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_manual_override",
+        title: "Creative bundle overridden",
+        description:
+          note || "A manual visual asset selection was saved for a channel.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_CLEARED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_cleared",
+        title: "Creative bundle override cleared",
+        description:
+          note || "The channel returned to inferred creative asset selection.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_MISSING_DETECTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_missing_detected",
+        title: "Creative coverage missing",
+        description:
+          note || "A campaign channel is missing the required visual format.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_READY") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_ready",
+        title: "Creative bundle ready",
+        description:
+          note ||
+          "A channel now has an approved visual bundle ready for export.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "VISUAL_READINESS_EVALUATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "visual_readiness_evaluated",
+        title: "Visual readiness evaluated",
+        description:
+          note || "Visual readiness was recalculated for campaign channels.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "VISUAL_READINESS_BLOCKED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "visual_readiness_blocked",
+        title: "Visual readiness blocked",
+        description:
+          note ||
+          "A channel remains blocked because visual coverage is still insufficient.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_EXPORT_PACKAGE_GENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_export_package_generated",
+        title: "Creative export package generated",
+        description:
+          note || "A channel handoff package was generated for review.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_EXPORT_PACKAGE_DOWNLOADED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_export_package_downloaded",
+        title: "Creative export package downloaded",
+        description:
+          note || "A channel handoff package was downloaded from admin.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_DOWNLOAD_GENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_download_generated",
+        title: "Creative bundle download generated",
+        description:
+          note || "A downloadable creative handoff bundle was generated.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_DOWNLOADED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_downloaded",
+        title: "Creative bundle downloaded",
+        description:
+          note || "A downloadable creative handoff bundle was downloaded.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_DOWNLOAD_BLOCKED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_download_blocked",
+        title: "Creative bundle download blocked",
+        description:
+          note ||
+          "Bundle download was blocked because the campaign does not yet have enough approved visual coverage.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_DOWNLOAD_WARNING_EMITTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_download_warning_emitted",
+        title: "Creative bundle warning",
+        description:
+          note ||
+          "A downloadable bundle was generated with operational warnings.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_CHANNEL_READY") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_channel_ready",
+        title: "Channel visual ready",
+        description:
+          note || "A campaign channel has enough approved visual coverage.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CREATIVE_BUNDLE_CHANNEL_MISSING") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "creative_bundle_channel_missing",
+        title: "Channel visual missing",
+        description:
+          note || "A campaign channel is missing required visual coverage.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_READINESS_EVALUATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_readiness_evaluated",
+        title: "Placement readiness evaluated",
+        description:
+          note ||
+          "Placement-level creative readiness was recalculated for paid/export handoff.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_MISSING_DETECTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_missing_detected",
+        title: "Placement coverage missing",
+        description:
+          note ||
+          "One or more placements still need exact or fallback-approved coverage before handoff.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_EXPORT_GENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_export_generated",
+        title: "Placement export generated",
+        description:
+          note || "A placement-specific paid handoff manifest was generated.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_BUNDLE_DOWNLOADED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_bundle_downloaded",
+        title: "Placement bundle downloaded",
+        description:
+          note || "A placement-specific creative ZIP bundle was downloaded.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "ANALYTICS_CONTRACTS_UPDATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "analytics_contracts_updated",
+        title: "Analytics contracts prepared",
+        description:
+          note ||
+          "GA4 and Clarity-compatible tracking contracts were prepared for export and handoff.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "ATTRIBUTION_MAPPING_PREPARED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "attribution_mapping_prepared",
+        title: "Attribution mapping prepared",
+        description:
+          note ||
+          "UTM and campaign attribution identifiers were prepared for future instrumentation.",
+        message_id: null,
+      });
+      return;
+    }
+
     if (audit.action === "CAMPAIGN_PUBLISH_STARTED") {
       const channel = readNullableString(audit.meta.channel);
       items.push({
@@ -1103,6 +1689,251 @@ function buildActivityFeed(args: {
         title: "Publish retry requested",
         description: note || "A failed publish job was retried.",
         message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_SCHEDULED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "publish_scheduled",
+        title: "Publish scheduled",
+        description: note || "A publish job was scheduled from admin.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_UNSCHEDULED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "publish_unscheduled",
+        title: "Schedule removed",
+        description: note || "Pending publish jobs were removed.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_JOB_READY") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_job_ready",
+        title: "Queue job ready",
+        description: note || "A queued publish job is ready to run.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_JOB_STARTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_job_started",
+        title: "Queue job started",
+        description: note || "A queued publish job started running.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_JOB_COMPLETED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_job_completed",
+        title: "Queue job completed",
+        description: note || "A queued publish job completed successfully.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_JOB_FAILED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_job_failed",
+        title: "Queue job failed",
+        description: note || "A queued publish job failed.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_RETRY_SCHEDULED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "retry_scheduled",
+        title: "Retry scheduled",
+        description: note || "A recoverable publish failure was queued again.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_RETRY_EXHAUSTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "retry_exhausted",
+        title: "Retry exhausted",
+        description:
+          note || "The publish job stopped retrying after reaching the limit.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_JOB_CANCELLED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_job_cancelled",
+        title: "Queue job cancelled",
+        description: note || "A queued publish job was cancelled.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_JOB_RUN_MANUALLY") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_job_run_manually",
+        title: "Queue job run manually",
+        description: note || "A queued job was run manually from admin.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_RUN_TRIGGERED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_run_triggered",
+        title: "Queue run triggered",
+        description: note || "A manual queue run was triggered.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_QUEUE_RUN_COMPLETED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "queue_run_completed",
+        title: "Queue run completed",
+        description: note || "The queue runner finished a batch.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_CHANNEL_THROTTLED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "channel_throttled",
+        title: "Channel throttled",
+        description:
+          note ||
+          "A publish job was deferred because the channel hit its limit.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_CONCURRENCY_BLOCKED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "concurrency_blocked",
+        title: "Concurrency blocked",
+        description:
+          note ||
+          "A publish job was deferred because another job for the same channel was still running.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_RETRY_DEFERRED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "retry_deferred",
+        title: "Retry deferred",
+        description: note || "A retry was scheduled for a later queue run.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_ERROR_CLASSIFIED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "error_classified",
+        title: "Publish error classified",
+        description:
+          note || "A queue failure was classified to decide retry behavior.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "CAMPAIGN_PUBLISH_CRON_RUN_DUE_CALLED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "cron_run_due_called",
+        title: "Cron queue trigger called",
+        description:
+          note || "A cron-compatible trigger called the queue runner.",
+        message_id: null,
       });
       return;
     }
@@ -1532,6 +2363,10 @@ export async function listCampaignDrafts(
 
   const publishJobCountByDraft = new Map<string, number>();
   const lastPublishByDraft = new Map<string, string>();
+  const queuePendingByDraft = new Map<string, number>();
+  const queueRunningByDraft = new Map<string, number>();
+  const queueFailedByDraft = new Map<string, number>();
+  const queueRetryPendingByDraft = new Map<string, number>();
   (Array.isArray(publishJobRows) ? publishJobRows : []).forEach((row) => {
     const value = readRecord(row);
     const draftId = readString(value.campaign_draft_id);
@@ -1547,6 +2382,32 @@ export async function listCampaignDrafts(
         readString(value.triggered_at),
       ),
     );
+
+    const queueStatus = normalizePublishQueueStatus(value.queue_status);
+    if (["queued", "scheduled", "ready", "paused"].includes(queueStatus)) {
+      queuePendingByDraft.set(
+        draftId,
+        (queuePendingByDraft.get(draftId) || 0) + 1,
+      );
+    }
+    if (queueStatus === "running") {
+      queueRunningByDraft.set(
+        draftId,
+        (queueRunningByDraft.get(draftId) || 0) + 1,
+      );
+    }
+    if (queueStatus === "failed") {
+      queueFailedByDraft.set(
+        draftId,
+        (queueFailedByDraft.get(draftId) || 0) + 1,
+      );
+    }
+    if (readNullableString(value.next_retry_at)) {
+      queueRetryPendingByDraft.set(
+        draftId,
+        (queueRetryPendingByDraft.get(draftId) || 0) + 1,
+      );
+    }
   });
 
   return {
@@ -1574,7 +2435,169 @@ export async function listCampaignDrafts(
         : null,
       publish_job_count: publishJobCountByDraft.get(draft.id) || 0,
       last_publish_at: lastPublishByDraft.get(draft.id) || null,
+      queue_pending_count: queuePendingByDraft.get(draft.id) || 0,
+      queue_running_count: queueRunningByDraft.get(draft.id) || 0,
+      queue_failed_count: queueFailedByDraft.get(draft.id) || 0,
+      queue_retry_pending_count: queueRetryPendingByDraft.get(draft.id) || 0,
+      queue_health_status: summarizeCampaignQueueHealth({
+        pending: queuePendingByDraft.get(draft.id) || 0,
+        running: queueRunningByDraft.get(draft.id) || 0,
+        failed: queueFailedByDraft.get(draft.id) || 0,
+        retries: queueRetryPendingByDraft.get(draft.id) || 0,
+      }),
     })),
+    total: count || 0,
+    page,
+    pageSize,
+  };
+}
+
+export async function listPublishQueueJobs(
+  admin: AdminSupabase,
+  filters: ListPublishQueueFilters = {},
+): Promise<{
+  items: PublishQueueListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
+  const page = Math.max(1, filters.page || 1);
+  const pageSize = Math.min(100, Math.max(1, filters.pageSize || 20));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = admin
+    .from("campaign_publish_jobs")
+    .select("*", { count: "exact" })
+    .order("scheduled_for", { ascending: true })
+    .order("next_retry_at", { ascending: true })
+    .order("triggered_at", { ascending: false })
+    .range(from, to);
+
+  if (filters.queueStatus) {
+    query = query.eq("queue_status", filters.queueStatus);
+  }
+  if (filters.errorType) {
+    query = query.eq("error_type", filters.errorType);
+  }
+  if (filters.channel) {
+    query = query.eq("channel", filters.channel);
+  }
+  if (filters.campaignId) {
+    query = query.eq("campaign_draft_id", filters.campaignId);
+  }
+
+  const { data, error, count } = await query;
+  if (error) {
+    throw new Error(error.message || "failed to list publish queue jobs");
+  }
+
+  const publishJobs = (Array.isArray(data) ? data : []).map((row) =>
+    mapPublishJobRow(row as Record<string, unknown>),
+  );
+  if (!publishJobs.length) {
+    return { items: [], total: count || 0, page, pageSize };
+  }
+
+  const campaignIds = Array.from(
+    new Set(publishJobs.map((job) => job.campaign_draft_id).filter(Boolean)),
+  );
+  const messageIds = Array.from(
+    new Set(
+      publishJobs
+        .map((job) => job.message_id)
+        .filter(
+          (value): value is string =>
+            typeof value === "string" && value.length > 0,
+        ),
+    ),
+  );
+
+  const { data: campaignRows, error: campaignError } = await admin
+    .from("campaign_drafts")
+    .select("id, title, status, publish_status, owner_user_id")
+    .in("id", campaignIds);
+
+  if (campaignError) {
+    throw new Error(campaignError.message || "failed to load queue campaigns");
+  }
+
+  const { data: messageRows, error: messageError } = messageIds.length
+    ? await admin
+        .from("campaign_messages")
+        .select("id, variant_name")
+        .in("id", messageIds)
+    : { data: [], error: null };
+
+  if (messageError) {
+    throw new Error(messageError.message || "failed to load queue messages");
+  }
+
+  const campaignById = new Map<
+    string,
+    Pick<
+      PublishQueueListItem,
+      "campaign_title" | "campaign_status" | "campaign_publish_status"
+    > & { owner_user_id: string | null }
+  >();
+  (Array.isArray(campaignRows) ? campaignRows : []).forEach((row) => {
+    const value = readRecord(row);
+    const id = readString(value.id);
+    if (!id) return;
+    campaignById.set(id, {
+      campaign_title: readString(value.title),
+      campaign_status: readString(value.status) as CampaignWorkflowStatus,
+      campaign_publish_status: normalizePublishStatus(value.publish_status),
+      owner_user_id: readNullableString(value.owner_user_id),
+    });
+  });
+
+  const messageNameById = new Map<string, string>();
+  (Array.isArray(messageRows) ? messageRows : []).forEach((row) => {
+    const value = readRecord(row);
+    const id = readString(value.id);
+    if (!id) return;
+    messageNameById.set(id, readString(value.variant_name));
+  });
+
+  const actorNames = await getActorNames(admin, [
+    ...Array.from(campaignById.values()).map(
+      (value) => value.owner_user_id || "",
+    ),
+  ]);
+
+  const items = publishJobs.filter((job) => {
+    if (!filters.q) return true;
+    const safe = filters.q.toLowerCase().trim();
+    if (!safe) return true;
+    const campaign = campaignById.get(job.campaign_draft_id);
+    return (
+      campaign?.campaign_title.toLowerCase().includes(safe) ||
+      messageNameById
+        .get(job.message_id || "")
+        ?.toLowerCase()
+        .includes(safe)
+    );
+  });
+
+  return {
+    items: items.map((job) => {
+      const campaign = campaignById.get(job.campaign_draft_id);
+      const ownerId = campaign?.owner_user_id || null;
+      return {
+        ...job,
+        campaign_title: campaign?.campaign_title || "Unknown campaign",
+        campaign_status: campaign?.campaign_status || "draft",
+        campaign_publish_status:
+          campaign?.campaign_publish_status || "not_ready",
+        owner_label: ownerId
+          ? actorNames[ownerId] || ownerId.slice(0, 8)
+          : null,
+        selected_variant_name: job.message_id
+          ? messageNameById.get(job.message_id) || null
+          : null,
+      };
+    }),
     total: count || 0,
     page,
     pageSize,

@@ -24,6 +24,7 @@ The workflow now covers:
 7. Track versions, QA state, publish state, activity, duplication origin, and workflow history.
 8. Ingest performance snapshots and funnel events, review analytics in admin, and export reports.
 9. Use sufficient-data flags and conservative winner selection where reliable internal signal exists.
+10. Create, review, version, and approve static campaign image assets from the same admin workflow.
 
 ## Admin Brief Flow
 
@@ -173,6 +174,13 @@ Stores activity events used by the admin feed, including:
 - campaign duplicated
 - owner assigned or cleared
 - checklist updated
+- creative asset job created
+- creative assets generated
+- creative asset regenerated
+- creative asset approved
+- creative asset rejected
+- creative asset changes requested
+- creative asset version created
 - approved
 - rejected
 - changes requested
