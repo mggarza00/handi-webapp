@@ -13,6 +13,19 @@ export type AcquisitionParams = Partial<{
   ttclid: string;
 }>;
 
+export type CampaignContextParams = Partial<{
+  campaign_id: string;
+  channel: string;
+  placement_id: string;
+  message_id: string;
+  variant_id: string;
+  variant_name: string;
+  creative_asset_id: string;
+  derivative_asset_id: string;
+  bundle_status: string;
+  readiness_status: string;
+}>;
+
 export type AttributionTouch = AcquisitionParams & {
   captured_at: string;
   landing_path: string;
@@ -21,6 +34,7 @@ export type AttributionTouch = AcquisitionParams & {
 export type AttributionState = {
   first_touch: AttributionTouch | null;
   last_touch: AttributionTouch | null;
+  campaign_context: CampaignContextParams | null;
 };
 
 const STORAGE_KEY = "handi_attribution_v1";
@@ -42,6 +56,19 @@ const TRACKED_PARAMS: Array<keyof AcquisitionParams> = [
   "ttclid",
 ];
 
+const TRACKED_CAMPAIGN_PARAMS: Array<keyof CampaignContextParams> = [
+  "campaign_id",
+  "channel",
+  "placement_id",
+  "message_id",
+  "variant_id",
+  "variant_name",
+  "creative_asset_id",
+  "derivative_asset_id",
+  "bundle_status",
+  "readiness_status",
+];
+
 function sanitize(value: string | null): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
@@ -59,12 +86,27 @@ export function readAcquisitionParamsFromUrl(
   return result;
 }
 
+function readCampaignContextFromUrl(
+  searchParams: URLSearchParams,
+): CampaignContextParams {
+  const result: CampaignContextParams = {};
+  for (const key of TRACKED_CAMPAIGN_PARAMS) {
+    const value = sanitize(searchParams.get(key));
+    if (value) result[key] = value;
+  }
+  return result;
+}
+
 function hasAttributionParams(params: AcquisitionParams): boolean {
   return TRACKED_PARAMS.some((key) => Boolean(params[key]));
 }
 
+function hasCampaignContextParams(params: CampaignContextParams): boolean {
+  return TRACKED_CAMPAIGN_PARAMS.some((key) => Boolean(params[key]));
+}
+
 function createEmptyState(): AttributionState {
-  return { first_touch: null, last_touch: null };
+  return { first_touch: null, last_touch: null, campaign_context: null };
 }
 
 function isTouchExpired(touch: AttributionTouch | null): boolean {
@@ -83,6 +125,7 @@ function readStorageState(): AttributionState {
     const state: AttributionState = {
       first_touch: parsed?.first_touch ?? null,
       last_touch: parsed?.last_touch ?? null,
+      campaign_context: parsed?.campaign_context ?? null,
     };
     if (isTouchExpired(state.last_touch)) {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -120,11 +163,14 @@ function persistState(state: AttributionState): void {
 
 export function captureAttributionFromCurrentUrl(): AttributionState {
   if (typeof window === "undefined") return createEmptyState();
-  const params = readAcquisitionParamsFromUrl(
-    new URLSearchParams(window.location.search),
-  );
+  const searchParams = new URLSearchParams(window.location.search);
+  const params = readAcquisitionParamsFromUrl(searchParams);
+  const campaignContext = readCampaignContextFromUrl(searchParams);
   const existing = readStorageState();
-  if (!hasAttributionParams(params)) {
+  if (
+    !hasAttributionParams(params) &&
+    !hasCampaignContextParams(campaignContext)
+  ) {
     return existing;
   }
 
@@ -136,7 +182,10 @@ export function captureAttributionFromCurrentUrl(): AttributionState {
 
   const nextState: AttributionState = {
     first_touch: existing.first_touch ?? touch,
-    last_touch: touch,
+    last_touch: hasAttributionParams(params) ? touch : existing.last_touch,
+    campaign_context: hasCampaignContextParams(campaignContext)
+      ? campaignContext
+      : existing.campaign_context,
   };
   persistState(nextState);
   return nextState;
@@ -165,5 +214,15 @@ export function getAttributionEventPayload(): Record<string, string> {
 
   addTouch("first", state.first_touch);
   addTouch("last", state.last_touch);
+  return payload;
+}
+
+export function getCampaignContextPayload(): Record<string, string> {
+  const state = getAttributionState();
+  const payload: Record<string, string> = {};
+  for (const key of TRACKED_CAMPAIGN_PARAMS) {
+    const value = state.campaign_context?.[key];
+    if (value) payload[key] = value;
+  }
   return payload;
 }

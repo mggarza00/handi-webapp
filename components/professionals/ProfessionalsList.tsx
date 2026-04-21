@@ -6,13 +6,17 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import RatingStars from "@/components/ui/RatingStars";
 import { toast } from "sonner";
+import { trackContactIntent } from "@/lib/analytics/track";
+import {
+  formatCompletedServicesLabel,
+  formatProfessionalRatingWithStar,
+  normalizeCompletedJobsDone,
+  normalizeProfessionalRating,
+} from "@/lib/professionals/card-display";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
-import { trackContactIntent } from "@/lib/analytics/track";
-import { normalizeProfessionalRating } from "@/lib/professionals/ratings";
 
 const REQUEST_DETAIL_CHAT_HELPER_SEEN_KEY = "request_detail_chat_helper_seen";
 
@@ -22,7 +26,8 @@ type Professional = {
   avatar_url?: string | null;
   headline?: string | null;
   bio?: string | null;
-  rating?: number | string | null;
+  rating?: number | null;
+  jobsDone: number;
 };
 
 export type ProfessionalsListProps = {
@@ -161,6 +166,7 @@ export default function ProfessionalsList({
             headline: (r.headline as string | null) ?? null,
             bio: (r.bio as string | null) ?? null,
             rating: normalizeProfessionalRating(r.rating),
+            jobsDone: normalizeCompletedJobsDone(r.jobsDone),
           }))
           .filter((p) => p.id);
         if (onlyProfessionalId) {
@@ -244,147 +250,146 @@ export default function ProfessionalsList({
           </div>
         </div>
       ) : null}
-      {items.map((p, index) => {
-        const normalizedRating = normalizeProfessionalRating(p.rating);
-        return (
-          <Card
-            key={p.id}
-            className="p-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/60 transition-shadow"
-            onClick={(event) => {
-              if (event.defaultPrevented) return;
+      {items.map((p, index) => (
+        <Card
+          key={p.id}
+          className="p-3 flex items-start gap-3 cursor-pointer hover:bg-slate-50/60 transition-shadow"
+          onClick={(event) => {
+            if (event.defaultPrevented) return;
+            router.push(`/profiles/${p.id}`);
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.defaultPrevented) return;
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
               router.push(`/profiles/${p.id}`);
-            }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.defaultPrevented) return;
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                router.push(`/profiles/${p.id}`);
-              }
-            }}
-          >
-            <AvatarWithSkeleton
-              src={p.avatar_url || "/avatar.png"}
-              alt={p.full_name || "Profesional"}
-              sizeClass="size-12"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">
-                    {p.full_name ?? "Profesional"}
-                  </div>
-                  <div className="text-xs text-slate-600 truncate">
-                    {p.headline ?? ""}
-                  </div>
+            }
+          }}
+        >
+          <AvatarWithSkeleton
+            src={p.avatar_url || "/avatar.png"}
+            alt={p.full_name || "Profesional"}
+            sizeClass="size-12"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-medium truncate">
+                  {p.full_name ?? "Profesional"}
                 </div>
-                {normalizedRating !== null ? (
-                  <RatingStars value={normalizedRating} />
-                ) : null}
+                <div className="text-xs text-slate-600 truncate">
+                  {p.headline ?? ""}
+                </div>
               </div>
-              {p.bio ? (
-                <p className="mt-1 text-xs text-slate-700 line-clamp-2">
-                  {p.bio}
-                </p>
+              {formatProfessionalRatingWithStar(p.rating) ? (
+                <div className="shrink-0 text-sm font-medium text-slate-700">
+                  {formatProfessionalRatingWithStar(p.rating)}
+                </div>
               ) : null}
-              <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  size="sm"
-                  data-testid="open-request-chat"
-                  onClick={async (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (showChatCoachmark && isDesktop && index === 0) {
-                      dismissChatCoachmark();
-                    }
-                    try {
-                      setStartingFor(p.id);
-                      // Ensure we know current user id so ChatPanel can pass x-user-id to API
-                      if (!meId) {
-                        try {
-                          const rMe = await fetch(`/api/me`, {
-                            cache: "no-store",
-                            credentials: "include",
-                          });
-                          const jMe = await rMe.json().catch(() => ({}));
-                          if (rMe.ok && jMe?.user?.id)
-                            setMeId(jMe.user.id as string);
-                        } catch {
-                          /* ignore */
-                        }
-                      }
-                      const {
-                        data: { session },
-                      } = await supabase.auth.getSession();
-                      const res = await fetch(`/api/chat/start`, {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json; charset=utf-8",
-                          ...(session?.access_token
-                            ? {
-                                Authorization: `Bearer ${session.access_token}`,
-                              }
-                            : {}),
-                          ...(session?.access_token
-                            ? { "x-access-token": session.access_token }
-                            : {}),
-                          ...(meId ? { "x-user-id": meId } : {}),
-                        },
-                        credentials: "include",
-                        body: JSON.stringify({ requestId, proId: p.id }),
-                      });
-                      const j = await res.json().catch(() => ({}));
-                      if (res.status === 401) {
-                        const here =
-                          typeof window !== "undefined"
-                            ? window.location.pathname + window.location.search
-                            : "/";
-                        router.push(
-                          `/auth/sign-in?next=${encodeURIComponent(here)}`,
-                        );
-                        return;
-                      }
-                      if (!res.ok) throw new Error(j?.error || "start_failed");
-                      const convId: string | undefined =
-                        j?.data?.id ?? j?.conversation?.id;
-                      const conversionEventId =
-                        typeof j?.meta?.conversion_event_id === "string"
-                          ? j.meta.conversion_event_id
-                          : undefined;
-                      if (convId) {
-                        trackContactIntent({
-                          event_id: conversionEventId,
-                          source_page: `/requests/${requestId}`,
-                          user_type: "client",
-                          request_id: requestId,
-                          profile_id: p.id,
-                          conversation_id: convId,
-                          placement:
-                            "request_professionals_list_message_button",
-                        });
-                        setConversationId(convId);
-                        setChatOpen(true);
-                      }
-                    } catch (e) {
-                      const msg =
-                        e instanceof Error
-                          ? e.message
-                          : "No se pudo iniciar el chat";
-                      toast.error(msg);
-                    } finally {
-                      setStartingFor(null);
-                    }
-                  }}
-                  disabled={startingFor === p.id}
-                >
-                  {startingFor === p.id ? "Abriendo…" : "Enviar mensaje"}
-                </Button>
-              </div>
             </div>
-          </Card>
-        );
-      })}
+            {p.bio ? (
+              <p className="mt-1 text-xs text-slate-700 line-clamp-2">
+                {p.bio}
+              </p>
+            ) : null}
+            <div className="mt-2 text-xs text-slate-600">
+              {formatCompletedServicesLabel(p.jobsDone)}
+            </div>
+            <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+              <Button
+                size="sm"
+                data-testid="open-request-chat"
+                onClick={async (event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (showChatCoachmark && isDesktop && index === 0) {
+                    dismissChatCoachmark();
+                  }
+                  try {
+                    setStartingFor(p.id);
+                    // Ensure we know current user id so ChatPanel can pass x-user-id to API
+                    if (!meId) {
+                      try {
+                        const rMe = await fetch(`/api/me`, {
+                          cache: "no-store",
+                          credentials: "include",
+                        });
+                        const jMe = await rMe.json().catch(() => ({}));
+                        if (rMe.ok && jMe?.user?.id)
+                          setMeId(jMe.user.id as string);
+                      } catch {
+                        /* ignore */
+                      }
+                    }
+                    const {
+                      data: { session },
+                    } = await supabase.auth.getSession();
+                    const res = await fetch(`/api/chat/start`, {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json; charset=utf-8",
+                        ...(session?.access_token
+                          ? { Authorization: `Bearer ${session.access_token}` }
+                          : {}),
+                        ...(session?.access_token
+                          ? { "x-access-token": session.access_token }
+                          : {}),
+                        ...(meId ? { "x-user-id": meId } : {}),
+                      },
+                      credentials: "include",
+                      body: JSON.stringify({ requestId, proId: p.id }),
+                    });
+                    const j = await res.json().catch(() => ({}));
+                    if (res.status === 401) {
+                      const here =
+                        typeof window !== "undefined"
+                          ? window.location.pathname + window.location.search
+                          : "/";
+                      router.push(
+                        `/auth/sign-in?next=${encodeURIComponent(here)}`,
+                      );
+                      return;
+                    }
+                    if (!res.ok) throw new Error(j?.error || "start_failed");
+                    const convId: string | undefined =
+                      j?.data?.id ?? j?.conversation?.id;
+                    const conversionEventId =
+                      typeof j?.meta?.conversion_event_id === "string"
+                        ? j.meta.conversion_event_id
+                        : undefined;
+                    if (convId) {
+                      trackContactIntent({
+                        event_id: conversionEventId,
+                        source_page: `/requests/${requestId}`,
+                        user_type: "client",
+                        request_id: requestId,
+                        profile_id: p.id,
+                        conversation_id: convId,
+                        placement: "request_professionals_list_message_button",
+                      });
+                      setConversationId(convId);
+                      setChatOpen(true);
+                    }
+                  } catch (e) {
+                    const msg =
+                      e instanceof Error
+                        ? e.message
+                        : "No se pudo iniciar el chat";
+                    toast.error(msg);
+                  } finally {
+                    setStartingFor(null);
+                  }
+                }}
+                disabled={startingFor === p.id}
+              >
+                {startingFor === p.id ? "Abriendo…" : "Enviar mensaje"}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      ))}
       {chatOpen && conversationId ? (
         <ChatPanel
           key={`${conversationId}:${meId ?? ""}`}

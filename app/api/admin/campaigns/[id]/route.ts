@@ -1,0 +1,44 @@
+import { NextResponse } from "next/server";
+
+import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
+import { getCampaignDetail } from "@/lib/campaigns/repository";
+import { listCampaignCreativeBundles } from "@/lib/creative/bundles";
+import { getAdminSupabase } from "@/lib/supabase/server";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function GET(
+  _req: Request,
+  { params }: { params: { id: string } },
+) {
+  const gate = await assertAdminOrJson();
+  if (!gate.ok) return gate.res;
+
+  try {
+    const admin = getAdminSupabase();
+    const [detail, creativeBundles] = await Promise.all([
+      getCampaignDetail(admin, params.id),
+      listCampaignCreativeBundles(admin, params.id),
+    ]);
+
+    if (!detail) {
+      return NextResponse.json(
+        { ok: false, error: "not_found" },
+        { status: 404, headers: JSONH },
+      );
+    }
+
+    return NextResponse.json(
+      { ok: true, ...detail, creativeBundles },
+      { headers: JSONH },
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "failed to load campaign detail";
+    return NextResponse.json(
+      { ok: false, error: "internal_error", detail: message },
+      { status: 500, headers: JSONH },
+    );
+  }
+}

@@ -1,30 +1,20 @@
 "use client";
 
-import { getAttributionEventPayload } from "@/lib/analytics/attribution";
 import { buildConversionPayload } from "@/lib/analytics/conversions";
+import type { AnalyticsEventName } from "@/lib/analytics/schemas";
+import {
+  trackAnalyticsEvent,
+  type AnalyticsEventParams,
+} from "@/lib/analytics/tracking";
 
-type EventParams = Record<string, string | number | boolean | null | undefined>;
+type EventParams = AnalyticsEventParams;
 
-type DataLayerPayload = {
-  event: string;
-} & EventParams;
-
-declare global {
-  interface Window {
-    dataLayer?: DataLayerPayload[];
-  }
-}
-
-export function trackEvent(name: string, params: EventParams = {}): void {
-  if (typeof window === "undefined") return;
+export function trackEvent(
+  name: AnalyticsEventName,
+  params: EventParams = {},
+): void {
   try {
-    window.dataLayer = window.dataLayer || [];
-    const attributionParams = getAttributionEventPayload();
-    window.dataLayer.push({
-      event: name,
-      ...attributionParams,
-      ...params,
-    });
+    trackAnalyticsEvent(name, params);
   } catch {
     // No-op: tracking must never break UI.
   }
@@ -58,7 +48,7 @@ export function trackRequestCreateStarted(params: {
   source_page?: string;
   user_type?: "client" | "pro" | "admin" | "unknown";
 }): void {
-  trackEvent("request_create_started", params);
+  trackEvent("request_started", params);
 }
 
 export function trackRequestCreated(params: {
@@ -97,7 +87,7 @@ export function trackProApplySubmitted(params: {
   city?: string;
 }): void {
   trackEvent(
-    "pro_apply_submitted",
+    "pro_apply_completed",
     buildConversionPayload("pro_apply_submitted", params),
   );
 }
@@ -137,7 +127,7 @@ export function trackLocalLandingViewed(params: {
   city_slug?: string;
   source_page?: string;
 }): void {
-  trackEvent("local_landing_viewed", params);
+  trackEvent("landing_viewed", params);
 }
 
 export function trackLocalLandingCtaClicked(params: {
@@ -151,7 +141,7 @@ export function trackLocalLandingCtaClicked(params: {
     | "service_city_link";
   source_page?: string;
 }): void {
-  trackEvent("local_landing_cta_clicked", params);
+  trackEvent("cta_clicked", params);
 }
 
 type CampaignEventParams = {
@@ -175,7 +165,7 @@ export function trackSecondaryCtaClicked(params: CampaignEventParams): void {
 }
 
 export function trackHeroCtaClicked(params: CampaignEventParams): void {
-  trackEvent("hero_cta_clicked", params);
+  trackEvent("cta_clicked", params);
 }
 
 export function trackTrustSectionViewed(params: {

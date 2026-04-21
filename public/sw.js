@@ -30,6 +30,48 @@ function logError(...args) {
     } catch (_) {}
   }
 }
+
+function shouldTrackPush(data) {
+  return Boolean(
+    data &&
+    typeof data === "object" &&
+    data.publishJobId &&
+    data.campaignId &&
+    data.subscriptionId &&
+    data.dispatchId &&
+    data.trackingToken,
+  );
+}
+
+async function sendPushEvent(eventType, data, metadata = {}) {
+  if (!shouldTrackPush(data)) return;
+
+  try {
+    await fetch("/api/push/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        providerEventId: `${data.dispatchId}:${eventType}`,
+        eventType,
+        campaignId: data.campaignId,
+        messageId: data.messageId || null,
+        publishJobId: data.publishJobId,
+        channel: "push",
+        subscriptionId: data.subscriptionId,
+        targetUserId: data.targetUserId || null,
+        trackingToken: data.trackingToken,
+        occurredAt: new Date().toISOString(),
+        metadata: {
+          dispatchId: data.dispatchId,
+          source: "service_worker",
+          ...metadata,
+        },
+      }),
+    });
+  } catch (error) {
+    logError("push event callback failed", error);
+  }
+}
 const CACHE_VERSION = "handi-v1";
 const DEFAULT_NOTIFICATION_ICON = "/icons/icon-192.png";
 const DEFAULT_NOTIFICATION_BADGE = "/icons/badge-72.png";
@@ -197,9 +239,17 @@ self.addEventListener("push", (event) => {
 
     // @ts-ignore
     event.waitUntil(
-      self.registration.showNotification(title, options).catch((error) => {
-        logError("showNotification failed", error);
-      }),
+      (async () => {
+        try {
+          await self.registration.showNotification(title, options);
+          await sendPushEvent("delivered", mergedData, {
+            title,
+            tag: options.tag,
+          });
+        } catch (error) {
+          logError("showNotification failed", error);
+        }
+      })(),
     );
   } catch (err) {
     logError("push event failed", err);
@@ -214,10 +264,17 @@ self.addEventListener("notificationclick", (event) => {
       ? event.notification.data.url
       : "/";
   event.waitUntil(
-    // @ts-ignore
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clients) => {
+    (async () => {
+      try {
+        await sendPushEvent("clicked", event.notification.data || {}, {
+          action: event.action || "open",
+          url,
+        });
+        // @ts-ignore
+        const clients = await self.clients.matchAll({
+          type: "window",
+          includeUncontrolled: true,
+        });
         for (const client of clients) {
           try {
             const cUrl = client && client.url ? client.url : "";
@@ -233,10 +290,11 @@ self.addEventListener("notificationclick", (event) => {
         // @ts-ignore
         if (self.clients.openWindow) return self.clients.openWindow(url);
         return undefined;
-      })
-      .catch((error) => {
+      } catch (error) {
         logError("notificationclick handler failed", error);
-      }),
+        return undefined;
+      }
+    })(),
   );
 });
 

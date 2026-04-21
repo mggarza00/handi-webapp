@@ -3,7 +3,11 @@
 
 import { resendSendEmail, type SendEmailInput } from "@/lib/email/resend";
 
-type EmailAttachment = { filename: string; content: string | Uint8Array; mime?: string };
+type EmailAttachment = {
+  filename: string;
+  content: string | Uint8Array;
+  mime?: string;
+};
 
 type EmailPayload = {
   to: string | string[];
@@ -13,6 +17,8 @@ type EmailPayload = {
   replyTo?: string | string[];
   text?: string;
   attachments?: EmailAttachment[];
+  headers?: Record<string, string>;
+  tags?: Array<{ name: string; value: string }>;
 };
 
 function htmlToText(html: string): string {
@@ -34,7 +40,15 @@ function htmlToText(html: string): string {
   }
 }
 
-export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; id?: string; error?: string; hint?: string; details?: unknown }> {
+export async function sendEmail(
+  payload: EmailPayload,
+): Promise<{
+  ok: boolean;
+  id?: string;
+  error?: string;
+  hint?: string;
+  details?: unknown;
+}> {
   const { to, subject, html, from, text, replyTo, attachments } = payload;
   const plain = text && text.length > 0 ? text : htmlToText(html);
   const mappedAtt: SendEmailInput["attachments"] = attachments?.map((a) => ({
@@ -49,6 +63,8 @@ export async function sendEmail(payload: EmailPayload): Promise<{ ok: boolean; i
     from: from ?? null,
     replyTo: replyTo ?? null,
     attachments: mappedAtt,
+    headers: payload.headers,
+    tags: payload.tags,
   };
   return resendSendEmail(payloadToSend);
 }

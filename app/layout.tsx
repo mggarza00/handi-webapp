@@ -3,13 +3,12 @@
 import "./globals.css";
 import "@/app/(app)/leaflet.css";
 import dynamicImport from "next/dynamic";
-import Script from "next/script";
 import type { Metadata } from "next";
 import ClientToaster from "@/components/ClientToaster";
+import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
 import { concertOne, inter, nunito, rubik, varelaRound } from "@/lib/fonts";
 import RegisterSW from "@/app/register-sw";
-import AttributionCapture from "@/components/analytics/AttributionCapture.client";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
@@ -128,17 +127,6 @@ export default function RootLayout({
       className={`${inter.variable} ${nunito.variable} ${varelaRound.variable} ${concertOne.variable} ${rubik.variable}`}
     >
       <head>
-        <Script
-          id="gtm-init"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
-='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-PFWQ4LRF');`,
-          }}
-        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -228,15 +216,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src
         />
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
-        <noscript>
-          <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-PFWQ4LRF"
-            height="0"
-            width="0"
-            style={{ display: "none", visibility: "hidden" }}
-          />
-        </noscript>
-        <AttributionCapture />
+        <AnalyticsProvider />
         <DeferOnIdle timeoutMs={1500}>
           <AndroidWebViewControls />
           <VercelLiveGuard />

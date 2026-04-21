@@ -8,6 +8,7 @@ import {
   CreditCard,
   FileWarning,
   LayoutDashboard,
+  Megaphone,
   Settings,
   ShieldCheck,
   FileText,
@@ -128,6 +129,12 @@ export default async function AdminLayout({
       label: "Dashboard",
       icon: LayoutDashboard,
       testId: "admin-nav-dashboard",
+    },
+    {
+      href: "/admin/campaigns",
+      label: "Campaigns",
+      icon: Megaphone,
+      testId: "admin-nav-campaigns",
     },
     {
       href: "/admin/offers",
