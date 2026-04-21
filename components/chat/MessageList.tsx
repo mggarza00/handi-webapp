@@ -1,6 +1,5 @@
 ﻿"use client";
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -273,8 +272,11 @@ export default function MessageList({
     }),
     [],
   );
-  const searchParams = useSearchParams();
-  const debugActions = searchParams?.get("debugActions") === "1";
+  const [debugActions, setDebugActions] = React.useState(false);
+  const [queryFlags, setQueryFlags] = React.useState({
+    confirm: false,
+    help: false,
+  });
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [confirmTarget, setConfirmTarget] = React.useState<{
     requestId: string;
@@ -347,6 +349,16 @@ export default function MessageList({
   }, [viewerRole]);
 
   React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    setDebugActions(searchParams.get("debugActions") === "1");
+    setQueryFlags({
+      confirm: searchParams.get("confirm") === "1",
+      help: searchParams.get("help") === "1",
+    });
+  }, []);
+
+  React.useEffect(() => {
     if (!otherUserId) return;
     let cancelled = false;
     (async () => {
@@ -366,8 +378,8 @@ export default function MessageList({
   }, [otherUserId]);
 
   React.useEffect(() => {
-    if (!serviceFinished || !searchParams) return;
-    if (searchParams.get("confirm") === "1") {
+    if (!serviceFinished) return;
+    if (queryFlags.confirm) {
       const proId = serviceFinished.proId ?? otherUserId ?? null;
       const requestId = serviceFinished.requestId ?? null;
       if (proId && requestId) {
@@ -375,8 +387,8 @@ export default function MessageList({
         setConfirmOpen(true);
       }
     }
-    if (searchParams.get("help") === "1") setHelpOpen(true);
-  }, [otherUserId, searchParams, serviceFinished]);
+    if (queryFlags.help) setHelpOpen(true);
+  }, [otherUserId, queryFlags.confirm, queryFlags.help, serviceFinished]);
   // Pago integrado en modal (sin checkout externo)
   const [paymentOpen, setPaymentOpen] = React.useState(false);
   const [onsitePaymentOpen, setOnsitePaymentOpen] = React.useState(false);

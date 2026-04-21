@@ -1,6 +1,12 @@
 // app/requests/_lib/getAvailableProsForRequest.ts
 import { createClient } from "@supabase/supabase-js";
 
+import {
+  fetchProfessionalRatingTargetMap,
+  fetchRatingsAggregateMap,
+  normalizeProfessionalRating,
+  resolveProfessionalRatingData,
+} from "@/lib/professionals/ratings";
 import type { Database } from "@/types/supabase";
 
 type DB = Database;
@@ -20,6 +26,7 @@ export type ProLite = {
   avatar_url: string | null;
   headline: string | null;
   rating: number | null;
+  reviewsCount: number;
 };
 
 /**
@@ -49,7 +56,9 @@ export async function getAvailableProsForRequest(
   const toArray = (v: unknown): string[] => {
     if (Array.isArray(v)) {
       return v
-        .map((x) => (typeof x === "string" ? x : (x as { name?: string })?.name))
+        .map((x) =>
+          typeof x === "string" ? x : (x as { name?: string })?.name,
+        )
         .filter((s): s is string => typeof s === "string" && s.length > 0);
     }
     if (typeof v === "string") {
@@ -57,11 +66,20 @@ export async function getAvailableProsForRequest(
         const parsed = JSON.parse(v);
         return Array.isArray(parsed)
           ? parsed
-              .map((x) => (typeof x === "string" ? x : (x as { name?: string })?.name))
+              .map((x) =>
+                typeof x === "string" ? x : (x as { name?: string })?.name,
+              )
               .filter((s): s is string => typeof s === "string" && s.length > 0)
           : [];
       } catch {
-        return v.includes(",") ? v.split(",").map((s) => s.trim()).filter(Boolean) : v ? [v] : [];
+        return v.includes(",")
+          ? v
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : v
+            ? [v]
+            : [];
       }
     }
     return [];
@@ -73,7 +91,7 @@ export async function getAvailableProsForRequest(
   let q = admin
     .from("professionals_with_profile")
     .select(
-      "id, full_name, avatar_url, headline, rating, active, city, categories, subcategories",
+      "id, full_name, avatar_url, headline, rating, active, city, categories, subcategories, is_featured, last_active_at",
     )
     .or("active.is.true,active.is.null")
     .order("is_featured", { ascending: false })
@@ -89,16 +107,60 @@ export async function getAvailableProsForRequest(
   const { data, error } = await q;
   if (error || !data) return [];
 
+  const professionalIds = (data as Array<Record<string, unknown>>).map((row) =>
+    String(row.id ?? ""),
+  );
+  const ratingTargetMap = await fetchProfessionalRatingTargetMap(
+    admin,
+    professionalIds,
+  );
+  const aggregateMap = await fetchRatingsAggregateMap(
+    admin,
+    Array.from(
+      new Set(professionalIds.map((id) => ratingTargetMap.get(id) ?? id)),
+    ),
+  );
+
   const mapped = (data as unknown[])
     .map((r) => r as Record<string, unknown>)
-    .map((x) => ({
-      id: String(x.id ?? ""),
-      full_name: (x.full_name as string | null) ?? null,
-      avatar_url: (x.avatar_url as string | null) ?? null,
-      headline: (x.headline as string | null) ?? null,
-      rating: typeof x.rating === "number" ? (x.rating as number) : null,
-    }))
+    .map((x) => {
+      const id = String(x.id ?? "");
+      const legacyRating = normalizeProfessionalRating(x.rating);
+      const resolved = resolveProfessionalRatingData({
+        aggregateMap,
+        entityId: id,
+        ratingTargetId: ratingTargetMap.get(id) ?? id,
+        legacyRating,
+      });
+      return {
+        id,
+        full_name: (x.full_name as string | null) ?? null,
+        avatar_url: (x.avatar_url as string | null) ?? null,
+        headline: (x.headline as string | null) ?? null,
+        rating: resolved.rating,
+        reviewsCount: resolved.reviewsCount,
+        is_featured: x.is_featured === true,
+        last_active_at:
+          typeof x.last_active_at === "string" ? x.last_active_at : null,
+      };
+    })
     .filter((p) => p.id)
+    .sort((a, b) => {
+      if (a.is_featured !== b.is_featured) return a.is_featured ? -1 : 1;
+      const ratingA = a.rating ?? Number.NEGATIVE_INFINITY;
+      const ratingB = b.rating ?? Number.NEGATIVE_INFINITY;
+      if (ratingA !== ratingB) return ratingB - ratingA;
+      const lastActiveA = Date.parse(a.last_active_at ?? "");
+      const lastActiveB = Date.parse(b.last_active_at ?? "");
+      return lastActiveB - lastActiveA;
+    })
+    .map(
+      ({
+        is_featured: _is_featured,
+        last_active_at: _last_active_at,
+        ...pro
+      }) => pro,
+    )
     .slice(0, limit);
 
   return mapped;
