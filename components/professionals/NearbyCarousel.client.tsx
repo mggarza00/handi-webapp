@@ -3,6 +3,11 @@ import * as React from "react";
 import Link from "next/link";
 import localFont from "next/font/local";
 
+import {
+  formatProfessionalRatingWithStar,
+  normalizeCompletedJobsDone,
+} from "@/lib/professionals/card-display";
+
 const stackSansMedium = localFont({
   src: "../../public/fonts/Stack_Sans_Text/static/StackSansText-Medium.ttf",
   weight: "500",
@@ -236,19 +241,13 @@ const normalizeProItem = (item: ProItem): NormalizedPro => {
     Number.isFinite(item.years_experience)
       ? item.years_experience
       : null;
-  const jobsDone =
-    typeof item.jobsDone === "number" &&
-    Number.isFinite(item.jobsDone) &&
-    item.jobsDone >= 0
-      ? item.jobsDone
-      : null;
   return {
     ...item,
     categories,
     subcategories,
     primaryCategory: categories[0] ?? null,
     years_experience: years,
-    jobsDone,
+    jobsDone: normalizeCompletedJobsDone(item.jobsDone),
   };
 };
 
@@ -473,16 +472,12 @@ export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
       .filter(Boolean) as Subcategory[];
   }, [pro.subcategories, colorMap]);
 
-  const ratingDisplay =
-    typeof pro.rating === "number" && Number.isFinite(pro.rating)
-      ? Number.isInteger(pro.rating)
-        ? pro.rating.toString()
-        : Number(pro.rating).toFixed(1)
-      : "—";
   const servicesDisplay =
     typeof pro.jobsDone === "number" && pro.jobsDone >= 0
       ? pro.jobsDone.toString()
       : "—";
+  const ratingDisplayLabel =
+    formatProfessionalRatingWithStar(pro.rating) ?? "—";
   const years =
     typeof pro.years_experience === "number" && pro.years_experience > 0
       ? pro.years_experience
@@ -534,7 +529,7 @@ export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
         >
           <div className="flex-1">
             <div className="text-xs font-semibold text-slate-900 leading-tight">
-              {ratingDisplay}
+              {ratingDisplayLabel}
             </div>
             <div className="tracking-tight lowercase">calificación</div>
           </div>
@@ -543,7 +538,7 @@ export function ProfessionalCard({ pro }: { pro: NormalizedPro }) {
             <div className="text-xs font-semibold text-slate-900 leading-tight">
               {servicesDisplay}
             </div>
-            <div className="tracking-tight lowercase">servicios</div>
+            <div className="tracking-tight lowercase">servicios realizados</div>
           </div>
           <div className="h-9 w-px bg-slate-200" />
           <div className="flex-1">
