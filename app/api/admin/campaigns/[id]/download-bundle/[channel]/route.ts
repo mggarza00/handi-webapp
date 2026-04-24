@@ -73,6 +73,88 @@ export async function GET(
           warnings: bundle.warnings,
         },
       });
+      await logAudit({
+        actorId: gate.userId,
+        action:
+          bundle.manifest.copy &&
+          typeof bundle.manifest.copy === "object" &&
+          "inheritedFromChannel" in
+            (bundle.manifest.copy as Record<string, unknown>) &&
+          (bundle.manifest.copy as Record<string, unknown>)
+            .inheritedFromChannel === true
+            ? "PLACEMENT_COPY_INHERITED"
+            : "PLACEMENT_COPY_USED_IN_EXPORT",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note: `Placement download bundle prepared for ${placement.id}.`,
+          scope: "placement",
+          channel: params.channel,
+          placementId: placement.id,
+        },
+      });
+      if (
+        bundle.manifest.paid_handoff &&
+        typeof bundle.manifest.paid_handoff === "object"
+      ) {
+        const paidHandoff = bundle.manifest.paid_handoff as Record<
+          string,
+          unknown
+        >;
+        const warnings = Array.isArray(paidHandoff.warnings)
+          ? paidHandoff.warnings.filter(
+              (item): item is string => typeof item === "string",
+            )
+          : [];
+        const readiness = paidHandoff.readiness as
+          | Record<string, unknown>
+          | undefined;
+        const isReadyForPaidHandoff =
+          readiness &&
+          typeof readiness.isReadyForPaidHandoff === "boolean" &&
+          readiness.isReadyForPaidHandoff;
+
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_HANDOFF_EXPORTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: `${placement.label} paid handoff ZIP exported.`,
+            scope: "placement",
+            channel: params.channel,
+            placementId: placement.id,
+          },
+        });
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_DRAFT_INCLUDED_IN_BUNDLE",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: `${placement.label} bundle includes a paid draft payload.`,
+            scope: "placement",
+            channel: params.channel,
+            placementId: placement.id,
+          },
+        });
+        await logAudit({
+          actorId: gate.userId,
+          action: isReadyForPaidHandoff
+            ? "PAID_PLACEMENT_READY"
+            : "PAID_PLACEMENT_WARNING_EMITTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note:
+              warnings.join(" | ") ||
+              `${placement.label} paid handoff ZIP generated with current placement state.`,
+            scope: "placement",
+            channel: params.channel,
+            placementId: placement.id,
+          },
+        });
+      }
 
       return new NextResponse(bundle.buffer, {
         status: 200,
@@ -126,6 +208,45 @@ export async function GET(
         warnings: bundle.warnings,
       },
     });
+    if (bundle.channel === "meta" || bundle.channel === "google") {
+      await logAudit({
+        actorId: gate.userId,
+        action: "PAID_HANDOFF_EXPORTED",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note: `${bundle.channel} paid handoff ZIP exported.`,
+          scope: "channel",
+          channel: bundle.channel,
+        },
+      });
+      await logAudit({
+        actorId: gate.userId,
+        action: "PAID_DRAFT_INCLUDED_IN_BUNDLE",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note: `${bundle.channel} bundle includes a paid draft payload.`,
+          scope: "channel",
+          channel: bundle.channel,
+        },
+      });
+      await logAudit({
+        actorId: gate.userId,
+        action: bundle.warnings.length
+          ? "PAID_PLACEMENT_WARNING_EMITTED"
+          : "PAID_PLACEMENT_READY",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note:
+            bundle.warnings.join(" | ") ||
+            `${bundle.channel} paid bundle is ready for manual handoff.`,
+          scope: "channel",
+          channel: bundle.channel,
+        },
+      });
+    }
 
     return new NextResponse(bundle.buffer, {
       status: 200,

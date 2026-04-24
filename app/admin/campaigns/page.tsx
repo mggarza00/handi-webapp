@@ -18,6 +18,7 @@ import {
   listCampaignDrafts,
   listReviewerOptions,
 } from "@/lib/campaigns/repository";
+import { resolveCampaignAdminMode } from "@/lib/campaigns/admin-config";
 import {
   coerceAudienceFilter,
   coerceCampaignSortOrder,
@@ -25,6 +26,7 @@ import {
   coerceChannelFilter,
   coerceGoalFilter,
   coercePublishStatus,
+  labelChannel,
   labelGoal,
 } from "@/lib/campaigns/workflow";
 import {
@@ -44,6 +46,7 @@ type Search = {
     publishStatus?: string;
     owner?: string;
     sort?: string;
+    mode?: string;
   };
 };
 
@@ -59,6 +62,7 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
   const publishStatus = coercePublishStatus(searchParams.publishStatus);
   const owner = (searchParams.owner || "").toString();
   const sort = coerceCampaignSortOrder(searchParams.sort);
+  const adminMode = resolveCampaignAdminMode(searchParams.mode);
   const admin = getAdminSupabase();
   const reviewerOptions = await listReviewerOptions(admin);
   const result = await listCampaignDrafts(admin, {
@@ -90,6 +94,7 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
     publishStatus,
     owner,
     sort,
+    mode: adminMode,
   });
   const redirectTarget = currentQuery
     ? `/admin/campaigns?${currentQuery}`
@@ -97,6 +102,25 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
   const showDevSeed =
     process.env.NODE_ENV !== "production" ||
     process.env.ENABLE_DEV_SEED === "1";
+  const campaignsNeedingAttention = result.items.filter((draft) => {
+    const visual = visualReadinessByCampaign.get(draft.id);
+    return (
+      draft.qa_report.qa_status === "high_risk" ||
+      draft.queue_failed_count > 0 ||
+      draft.last_publish_error ||
+      visual?.overallState === "blocked"
+    );
+  }).length;
+  const campaignsReadyForReview = result.items.filter(
+    (draft) => draft.qa_report.ready_for_review,
+  ).length;
+  const campaignsReadyToPublish = result.items.filter(
+    (draft) => draft.publish_status === "ready_to_publish",
+  ).length;
+  const visuallyReadyCampaigns = result.items.filter((draft) => {
+    const visual = visualReadinessByCampaign.get(draft.id);
+    return visual?.overallState === "ready_exact";
+  }).length;
 
   return (
     <main className="space-y-6">
@@ -104,25 +128,64 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
         <div>
           <h1 className="text-2xl font-semibold">Campaigns</h1>
           <p className="text-sm text-muted-foreground">
-            Review AI proposals, compare versions, and move campaigns through
-            internal approval without publishing externally.
+            Run the MVP workflow: review proposals, refine copy, and prepare
+            clear handoff packages for the team.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/admin/campaigns/analytics">Analytics</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/creative-assets">Creative assets</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/admin/campaigns/queue">Queue</Link>
-          </Button>
+          {adminMode === "advanced" ? (
+            <>
+              <Button asChild variant="outline">
+                <Link href="/admin/campaigns/analytics">Analytics</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/admin/creative-assets">Creative assets</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/admin/campaigns/queue">Queue</Link>
+              </Button>
+            </>
+          ) : (
+            <Button asChild variant="outline">
+              <Link href="/admin/campaigns?mode=advanced">
+                Open advanced mode
+              </Link>
+            </Button>
+          )}
           <Button asChild>
-            <Link href="/admin/campaigns/new">New brief</Link>
+            <Link
+              href={`/admin/campaigns/new${adminMode === "advanced" ? "?mode=advanced" : ""}`}
+            >
+              New brief
+            </Link>
           </Button>
         </div>
       </div>
+
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+          <div>
+            <span className="font-medium">Admin mode:</span>{" "}
+            <span className="text-muted-foreground">
+              {adminMode === "advanced"
+                ? "advanced surfaces visible"
+                : "basic editorial, creative, and handoff view"}
+            </span>
+          </div>
+          <Link
+            href={
+              adminMode === "advanced"
+                ? "/admin/campaigns"
+                : "/admin/campaigns?mode=advanced"
+            }
+            className="text-muted-foreground underline underline-offset-2"
+          >
+            {adminMode === "advanced"
+              ? "Switch to basic mode"
+              : "Switch to advanced mode"}
+          </Link>
+        </CardContent>
+      </Card>
 
       {showDevSeed ? (
         <Card>
@@ -162,10 +225,11 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Campaign queue</CardTitle>
+          <CardTitle>Campaign list</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <form className="grid gap-3 md:grid-cols-8">
+            <input type="hidden" name="mode" value={adminMode} />
             <Input
               name="q"
               defaultValue={q}
@@ -272,6 +336,29 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
             <span>Sorted by updated_at</span>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-4">
+            <CompactListMetric
+              label="Needs attention"
+              value={String(campaignsNeedingAttention)}
+              hint="High-risk QA, blocked visuals, or publish issues."
+            />
+            <CompactListMetric
+              label="Ready for review"
+              value={String(campaignsReadyForReview)}
+              hint="Campaigns with acceptable QA and fewer blockers."
+            />
+            <CompactListMetric
+              label="Ready to publish"
+              value={String(campaignsReadyToPublish)}
+              hint="Editorially approved and marked for assisted publish."
+            />
+            <CompactListMetric
+              label="Visual exact"
+              value={String(visuallyReadyCampaigns)}
+              hint="Campaigns with exact visual coverage across current channels."
+            />
+          </div>
+
           <form
             action="/api/admin/campaigns/batch"
             method="post"
@@ -304,11 +391,9 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                 <TableRow>
                   <TableHead className="w-10">Pick</TableHead>
                   <TableHead>Campaign</TableHead>
-                  <TableHead>Audience / Goal</TableHead>
-                  <TableHead>Channels</TableHead>
-                  <TableHead>Workflow</TableHead>
-                  <TableHead>Variants</TableHead>
-                  <TableHead>People</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Readiness</TableHead>
+                  <TableHead>Owner</TableHead>
                   <TableHead>Last activity</TableHead>
                 </TableRow>
               </TableHeader>
@@ -329,13 +414,21 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                         </TableCell>
                         <TableCell className="space-y-1">
                           <Link
-                            href={`/admin/campaigns/${draft.id}`}
+                            href={`/admin/campaigns/${draft.id}?mode=${adminMode}`}
                             className="font-medium underline underline-offset-2"
                           >
                             {draft.title}
                           </Link>
                           <div className="text-sm text-muted-foreground">
-                            {draft.service_category}
+                            {draft.service_category} · {draft.audience} ·{" "}
+                            {labelGoal(draft.goal)}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {draft.channels.map((item) => (
+                              <Badge key={item} variant="secondary">
+                                {labelChannel(item)}
+                              </Badge>
+                            ))}
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {draft.source_campaign_title ? (
@@ -355,74 +448,42 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                                 {draft.change_request_count > 1 ? "s" : ""}
                               </Badge>
                             ) : null}
-                            <Badge
-                              variant={
-                                draft.qa_report.qa_status === "ready_for_review"
-                                  ? "secondary"
-                                  : draft.qa_report.qa_status === "high_risk"
-                                    ? "destructive"
-                                    : "outline"
-                              }
-                            >
-                              QA {draft.qa_report.overall_score}
-                            </Badge>
-                            <StateBadge value={draft.publish_status} />
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{draft.audience}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {labelGoal(draft.goal)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1">
-                            {draft.channels.map((item) => (
-                              <Badge key={item} variant="secondary">
-                                {item}
-                              </Badge>
-                            ))}
+                            {adminMode === "advanced" ? (
+                              <>
+                                <Badge
+                                  variant={
+                                    draft.qa_report.qa_status ===
+                                    "ready_for_review"
+                                      ? "secondary"
+                                      : draft.qa_report.qa_status ===
+                                          "high_risk"
+                                        ? "destructive"
+                                        : "outline"
+                                  }
+                                >
+                                  QA {draft.qa_report.overall_score}
+                                </Badge>
+                                <StateBadge value={draft.publish_status} />
+                              </>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
                             <StateBadge value={draft.status} />
-                            <div className="flex flex-wrap gap-1">
-                              <Badge variant="outline">
-                                {draft.provider_metadata.generationMode ===
-                                "live"
-                                  ? "Live"
-                                  : draft.provider_metadata.generationMode ===
-                                      "fallback"
-                                    ? "Fallback"
-                                    : "Mock"}
-                              </Badge>
-                              <Badge variant="outline">
-                                {draft.generation_provider}
-                              </Badge>
-                              {draft.provider_metadata.model ? (
-                                <Badge variant="secondary">
-                                  {draft.provider_metadata.model}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            {draft.generation_provider_status ? (
-                              <div className="text-xs text-muted-foreground">
-                                {draft.generation_provider_status}
-                              </div>
-                            ) : null}
-                            {draft.provider_metadata.fallbackReason ? (
-                              <div className="text-xs text-amber-700">
-                                {draft.provider_metadata.fallbackReason}
-                              </div>
-                            ) : null}
+                            <StateBadge value={draft.publish_status} />
                             <div className="flex flex-wrap gap-1 pt-1">
-                              <StateBadge value={draft.publish_status} />
                               <StateBadge value={draft.qa_report.qa_status} />
-                              <StateBadge
-                                value={draft.qa_report.reviewer_priority}
-                              />
-                              <StateBadge value={draft.queue_health_status} />
+                              {adminMode === "advanced" ? (
+                                <>
+                                  <StateBadge
+                                    value={draft.qa_report.reviewer_priority}
+                                  />
+                                  <StateBadge
+                                    value={draft.queue_health_status}
+                                  />
+                                </>
+                              ) : null}
                               {visual ? (
                                 <Badge
                                   variant={
@@ -439,7 +500,8 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                                   )}
                                 </Badge>
                               ) : null}
-                              {draft.qa_report.warnings.length ? (
+                              {adminMode === "advanced" &&
+                              draft.qa_report.warnings.length ? (
                                 <Badge variant="outline">
                                   {draft.qa_report.warnings.length} warning
                                   {draft.qa_report.warnings.length === 1
@@ -448,56 +510,132 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                                 </Badge>
                               ) : null}
                             </div>
-                            {draft.last_publish_error ? (
-                              <div className="text-xs text-amber-700">
-                                {draft.last_publish_error}
+                            {adminMode === "advanced" ? (
+                              <>
+                                <div className="flex flex-wrap gap-1">
+                                  <Badge variant="outline">
+                                    {draft.provider_metadata.generationMode ===
+                                    "live"
+                                      ? "Live"
+                                      : draft.provider_metadata
+                                            .generationMode === "fallback"
+                                        ? "Fallback"
+                                        : "Mock"}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {draft.generation_provider}
+                                  </Badge>
+                                  {draft.provider_metadata.model ? (
+                                    <Badge variant="secondary">
+                                      {draft.provider_metadata.model}
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                {draft.generation_provider_status ? (
+                                  <div className="text-xs text-muted-foreground">
+                                    {draft.generation_provider_status}
+                                  </div>
+                                ) : null}
+                                {draft.provider_metadata.fallbackReason ? (
+                                  <div className="text-xs text-amber-700">
+                                    {draft.provider_metadata.fallbackReason}
+                                  </div>
+                                ) : null}
+                                {draft.last_publish_error ? (
+                                  <div className="text-xs text-amber-700">
+                                    {draft.last_publish_error}
+                                  </div>
+                                ) : null}
+                              </>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">
+                                {draft.qa_report.ready_for_review
+                                  ? "Ready for editor review."
+                                  : draft.qa_report.qa_status === "high_risk"
+                                    ? "Needs editorial attention."
+                                    : "Still gathering review signals."}
                               </div>
-                            ) : null}
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium">
-                            {draft.variant_count} variant
-                            {draft.variant_count === 1 ? "" : "s"}
+                          <div className="space-y-1">
+                            <div className="font-medium">
+                              QA {draft.qa_report.overall_score}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {draft.variant_count} variant
+                              {draft.variant_count === 1 ? "" : "s"} ·{" "}
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {adminMode === "advanced" ? (
+                                <StateBadge value={draft.queue_health_status} />
+                              ) : null}
+                              {visual ? (
+                                <Badge
+                                  variant={
+                                    visual.overallState === "blocked"
+                                      ? "destructive"
+                                      : visual.overallState === "ready_exact"
+                                        ? "secondary"
+                                        : "outline"
+                                  }
+                                >
+                                  {labelVisualReadinessState(
+                                    visual.overallState,
+                                  )}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {adminMode === "advanced" ? (
+                              <div className="text-xs text-muted-foreground">
+                                Queue {draft.queue_pending_count} pending ·{" "}
+                                {draft.queue_running_count} running ·{" "}
+                                {draft.queue_failed_count} failed
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground">
+                                {draft.offer}
+                              </div>
+                            )}
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {draft.offer}
+                        </TableCell>
+                        <TableCell className="space-y-1 text-sm">
+                          <div>
+                            <span className="font-medium">
+                              {draft.owner_label || "Unassigned"}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground">
+                            Created by {draft.created_by_label || "system"}
+                          </div>
+                          {draft.owner_assigned_at ? (
+                            <div className="text-xs text-muted-foreground">
+                              Assigned{" "}
+                              {new Date(
+                                draft.owner_assigned_at,
+                              ).toLocaleDateString()}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell className="space-y-1">
+                          <div className="font-medium">
+                            {new Date(draft.last_activity_at).toLocaleString()}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {draft.publish_job_count} publish job
                             {draft.publish_job_count === 1 ? "" : "s"}
                             {draft.last_publish_at
-                              ? ` | last ${new Date(draft.last_publish_at).toLocaleString()}`
+                              ? ` · last ${new Date(draft.last_publish_at).toLocaleDateString()}`
                               : ""}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            Queue pending {draft.queue_pending_count} | running{" "}
-                            {draft.queue_running_count} | failed{" "}
-                            {draft.queue_failed_count} | retries{" "}
-                            {draft.queue_retry_pending_count}
-                          </div>
-                          {visual ? (
-                            <div className="text-xs text-muted-foreground">
-                              Visual ready {visual.readyCount}/
-                              {visual.channels.length} | blocked{" "}
-                              {visual.blockedCount}
-                              {visual.missingCount
-                                ? ` | missing ${visual.missingCount}`
-                                : ""}
-                            </div>
-                          ) : null}
-                        </TableCell>
-                        <TableCell className="space-y-1 text-sm">
-                          <div>
-                            <span className="font-medium">Owner:</span>{" "}
-                            {draft.owner_label || "Unassigned"}
-                          </div>
-                          <div className="text-muted-foreground">
-                            Created by {draft.created_by_label || "system"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(draft.last_activity_at).toLocaleString()}
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={`/admin/campaigns/${draft.id}?mode=${adminMode}`}
+                            >
+                              Open
+                            </Link>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );
@@ -505,7 +643,7 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                 ) : (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={6}
                       className="text-sm text-muted-foreground"
                     >
                       No campaigns match these filters.
@@ -532,6 +670,7 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                     publishStatus,
                     owner,
                     sort,
+                    mode: adminMode,
                     page: String(page - 1),
                   })}`}
                   className="rounded-md border border-input px-3 py-1"
@@ -550,6 +689,7 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
                     publishStatus,
                     owner,
                     sort,
+                    mode: adminMode,
                     page: String(page + 1),
                   })}`}
                   className="rounded-md border border-input px-3 py-1"
@@ -562,6 +702,22 @@ export default async function AdminCampaignsPage({ searchParams }: Search) {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+function CompactListMetric(args: {
+  label: string;
+  value: string;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/20 p-4">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {args.label}
+      </div>
+      <div className="mt-1 text-2xl font-semibold">{args.value}</div>
+      <p className="mt-1 text-xs text-muted-foreground">{args.hint}</p>
+    </div>
   );
 }
 

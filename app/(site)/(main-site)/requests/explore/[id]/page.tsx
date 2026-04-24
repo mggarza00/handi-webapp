@@ -13,6 +13,7 @@ import ChatStartPro from "./chat-start-pro.client";
 import { getConversationIdForRequest } from "@/app/(app)/mensajes/_lib/getConversationForRequest";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { buildTrackedAuthHrefFromCookieHeader } from "@/lib/analytics/cta-builders";
 import RatingStars from "@/components/ui/RatingStars";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import { normalizeAvatarUrl } from "@/lib/avatar";
@@ -70,7 +71,17 @@ export default async function ProRequestDetailPage({ params }: Params) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/login?next=/requests/explore/${params.id}`);
+    const cookieHeader = cookies()
+      .getAll()
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join("; ");
+    redirect(
+      buildTrackedAuthHrefFromCookieHeader({
+        cookieHeader,
+        authPath: "/login",
+        nextPath: `/requests/explore/${params.id}`,
+      }),
+    );
   }
 
   // Require professional role

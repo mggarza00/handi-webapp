@@ -84,6 +84,21 @@ export default async function AdminCreativeAssetsPage({
       </div>
 
       <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+          <div>
+            <span className="font-medium">Advanced surface:</span>{" "}
+            <span className="text-muted-foreground">
+              The MVP flow lives in campaigns. Use this queue when you need
+              deeper creative review or asset troubleshooting.
+            </span>
+          </div>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/admin/campaigns">Return to MVP flow</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle>Creative queue</CardTitle>
         </CardHeader>

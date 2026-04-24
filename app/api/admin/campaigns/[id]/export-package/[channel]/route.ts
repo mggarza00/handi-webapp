@@ -115,6 +115,75 @@ export async function GET(
           },
         });
       }
+      await logAudit({
+        actorId: gate.userId,
+        action: pkg.copy.inheritedFromChannel
+          ? "PLACEMENT_COPY_INHERITED"
+          : "PLACEMENT_COPY_USED_IN_EXPORT",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note: pkg.copy.inheritedFromChannel
+            ? `${pkg.placementLabel} is still inheriting channel-level copy in export output.`
+            : `${pkg.placementLabel} is using approved placement-specific copy in export output.`,
+          scope: "placement",
+          channel: pkg.channel,
+          placementId: pkg.placementId,
+          messageId: pkg.copy.baseMessageId,
+          placementMessageId: pkg.copy.placementMessageId,
+          placementCopySource: pkg.copy.source,
+        },
+      });
+      if (pkg.paidHandoff.isPaidPlacement) {
+        await logAudit({
+          actorId: gate.userId,
+          action: download ? "PAID_HANDOFF_EXPORTED" : "PAID_HANDOFF_GENERATED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: `${pkg.paidHandoff.operationalName} paid handoff ${download ? "exported" : "generated"}.`,
+            scope: "placement",
+            channel: pkg.channel,
+            placementId: pkg.placementId,
+          },
+        });
+        await logAudit({
+          actorId: gate.userId,
+          action: pkg.paidHandoff.readiness.isReadyForPaidHandoff
+            ? "PAID_PLACEMENT_READY"
+            : "PAID_PLACEMENT_WARNING_EMITTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: pkg.paidHandoff.readiness.isReadyForPaidHandoff
+              ? `${pkg.paidHandoff.operationalName} is ready for manual paid handoff.`
+              : pkg.paidHandoff.warnings.join(" | ") ||
+                `${pkg.paidHandoff.operationalName} requires manual review before paid handoff.`,
+            scope: "placement",
+            channel: pkg.channel,
+            placementId: pkg.placementId,
+          },
+        });
+        if (
+          pkg.placementReadiness.state === "missing" ||
+          pkg.placementReadiness.state === "blocked"
+        ) {
+          await logAudit({
+            actorId: gate.userId,
+            action: "PAID_PLACEMENT_MISSING_DETECTED",
+            entity: "campaign_drafts",
+            entityId: params.id,
+            meta: {
+              note:
+                pkg.paidHandoff.warnings.join(" | ") ||
+                pkg.placementReadiness.summary,
+              scope: "placement",
+              channel: pkg.channel,
+              placementId: pkg.placementId,
+            },
+          });
+        }
+      }
 
       const body = JSON.stringify({ ok: true, package: pkg }, null, 2);
       return new NextResponse(body, {
@@ -206,6 +275,68 @@ export async function GET(
           channel: pkg.channel,
         },
       });
+    }
+    if (pkg.channel === "meta" || pkg.channel === "google") {
+      await logAudit({
+        actorId: gate.userId,
+        action: download ? "PAID_HANDOFF_EXPORTED" : "PAID_HANDOFF_GENERATED",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note: `${pkg.channel} paid handoff ${download ? "exported" : "generated"} at channel level.`,
+          scope: "channel",
+          channel: pkg.channel,
+        },
+      });
+      if (
+        pkg.placementCoverage.blockedCount ||
+        pkg.placementCoverage.missingCount
+      ) {
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_PLACEMENT_MISSING_DETECTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: pkg.placementCoverage.summary,
+            scope: "channel",
+            channel: pkg.channel,
+          },
+        });
+      } else if (
+        pkg.placementCoverage.fallbackCount ||
+        pkg.placements.some(
+          (placement) => placement.paidHandoff.warnings.length,
+        )
+      ) {
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_PLACEMENT_WARNING_EMITTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note:
+              pkg.placements
+                .flatMap((placement) => placement.paidHandoff.warnings)
+                .slice(0, 4)
+                .join(" | ") || pkg.placementCoverage.summary,
+            scope: "channel",
+            channel: pkg.channel,
+          },
+        });
+      } else {
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_PLACEMENT_READY",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: `${pkg.channel} paid placements are ready for manual handoff.`,
+            scope: "channel",
+            channel: pkg.channel,
+          },
+        });
+      }
     }
 
     const body = JSON.stringify({ ok: true, package: pkg }, null, 2);

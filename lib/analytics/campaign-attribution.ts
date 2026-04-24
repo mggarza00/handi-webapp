@@ -14,6 +14,8 @@ export function buildCampaignAttributionMapping(args: {
   channel: PublishChannel;
   placementId?: string | null;
   messageId?: string | null;
+  placementMessageId?: string | null;
+  placementCopySource?: string | null;
   variantId?: string | null;
   variantName?: string | null;
   creativeAssetId?: string | null;

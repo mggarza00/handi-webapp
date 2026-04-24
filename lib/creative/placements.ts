@@ -17,8 +17,12 @@ export const CREATIVE_PLACEMENT_IDS = [
   "meta_feed_square",
   "meta_feed_portrait",
   "meta_story_vertical",
+  "meta_reel_vertical",
+  "meta_right_column_landscape",
   "google_display_landscape",
   "google_display_square",
+  "google_responsive_display_landscape",
+  "google_responsive_display_square",
   "landing_hero",
   "landing_secondary_banner",
 ] as const;
@@ -30,6 +34,19 @@ export type CreativePlacementDefinition = {
   channel: PublishChannel;
   label: string;
   handoffName: string;
+  placementFamily: "paid" | "owned";
+  placementGroup:
+    | "feed"
+    | "story"
+    | "reel"
+    | "right_column"
+    | "display"
+    | "responsive_display"
+    | "hero"
+    | "secondary_banner"
+    | "primary";
+  platformLabel: string;
+  operationalName: string;
   requiredFormat: CreativeAssetFormat;
   preferredDimensions: {
     width: number;
@@ -39,6 +56,9 @@ export type CreativePlacementDefinition = {
   allowFallback: boolean;
   blockOnMissing: boolean;
   blockOnFallback: boolean;
+  copyStyle: "standard" | "tight" | "direct" | "compact" | "hero";
+  copyGuidance: string;
+  namingHint: string;
   notes: string[];
 };
 
@@ -145,12 +165,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "email",
     label: "Email primary",
     handoffName: "email-primary",
+    placementFamily: "owned",
+    placementGroup: "primary",
+    platformLabel: "Email",
+    operationalName: "Email primary module",
     requiredFormat: "landscape",
     preferredDimensions: { width: 1200, height: 628 },
     acceptableFormats: ["landscape", "custom"],
     allowFallback: true,
     blockOnMissing: true,
     blockOnFallback: false,
+    copyStyle: "standard",
+    copyGuidance:
+      "Email placement copy can carry more context, but it should still stay tighter than the base channel version.",
+    namingHint: "email-primary",
     notes: [
       "Email can ship with a wide approved fallback if hierarchy remains clear.",
     ],
@@ -160,12 +188,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "push",
     label: "Push primary",
     handoffName: "push-primary",
+    placementFamily: "owned",
+    placementGroup: "primary",
+    platformLabel: "Push",
+    operationalName: "Push primary slot",
     requiredFormat: "square",
     preferredDimensions: { width: 1080, height: 1080 },
     acceptableFormats: ["square", "portrait"],
     allowFallback: true,
     blockOnMissing: true,
     blockOnFallback: false,
+    copyStyle: "compact",
+    copyGuidance:
+      "Push placement copy must stay compact, low-friction, and CTA-led.",
+    namingHint: "push-primary",
     notes: [
       "Push can use a compact portrait fallback when composition stays legible.",
     ],
@@ -175,12 +211,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "whatsapp",
     label: "WhatsApp primary",
     handoffName: "whatsapp-primary",
+    placementFamily: "owned",
+    placementGroup: "primary",
+    platformLabel: "WhatsApp",
+    operationalName: "WhatsApp primary media slot",
     requiredFormat: "portrait",
     preferredDimensions: { width: 1080, height: 1350 },
     acceptableFormats: ["portrait", "story", "square"],
     allowFallback: true,
     blockOnMissing: true,
     blockOnFallback: false,
+    copyStyle: "standard",
+    copyGuidance:
+      "WhatsApp placement copy should sound direct, useful, and easy to reply to.",
+    namingHint: "whatsapp-primary",
     notes: ["WhatsApp can accept portrait-adjacent fallback coverage."],
   },
   meta_feed_square: {
@@ -188,12 +232,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "meta",
     label: "Meta feed square",
     handoffName: "meta-feed-square",
+    placementFamily: "paid",
+    placementGroup: "feed",
+    platformLabel: "Meta",
+    operationalName: "Meta feed 1:1",
     requiredFormat: "square",
     preferredDimensions: { width: 1080, height: 1080 },
     acceptableFormats: ["square"],
     allowFallback: false,
     blockOnMissing: true,
     blockOnFallback: true,
+    copyStyle: "tight",
+    copyGuidance:
+      "Keep the hook tight for a feed square placement. Prioritize one benefit, one trust cue, and short body copy.",
+    namingHint: "meta-feed-square",
     notes: ["Meta feed square should ship with exact square creative."],
   },
   meta_feed_portrait: {
@@ -201,12 +253,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "meta",
     label: "Meta feed portrait",
     handoffName: "meta-feed-portrait",
+    placementFamily: "paid",
+    placementGroup: "feed",
+    platformLabel: "Meta",
+    operationalName: "Meta feed 4:5",
     requiredFormat: "portrait",
     preferredDimensions: { width: 1080, height: 1350 },
     acceptableFormats: ["portrait"],
     allowFallback: false,
     blockOnMissing: true,
     blockOnFallback: true,
+    copyStyle: "tight",
+    copyGuidance:
+      "Use a faster 4:5 feed rhythm. Keep the opening line compact and the CTA direct without sounding pushy.",
+    namingHint: "meta-feed-portrait",
     notes: ["Meta portrait feed should have exact 4:5-friendly coverage."],
   },
   meta_story_vertical: {
@@ -214,14 +274,68 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "meta",
     label: "Meta story vertical",
     handoffName: "meta-story-vertical",
+    placementFamily: "paid",
+    placementGroup: "story",
+    platformLabel: "Meta",
+    operationalName: "Meta story 9:16",
     requiredFormat: "story",
     preferredDimensions: { width: 1080, height: 1920 },
     acceptableFormats: ["story", "portrait"],
     allowFallback: true,
     blockOnMissing: true,
     blockOnFallback: false,
+    copyStyle: "direct",
+    copyGuidance:
+      "Stories need a quicker hook, shorter copy, and CTA language that lands in one glance.",
+    namingHint: "meta-story-vertical",
     notes: [
       "Story vertical can use a portrait fallback, but exact 9:16 is preferred.",
+    ],
+  },
+  meta_reel_vertical: {
+    id: "meta_reel_vertical",
+    channel: "meta",
+    label: "Meta reel vertical",
+    handoffName: "meta-reel-vertical",
+    placementFamily: "paid",
+    placementGroup: "reel",
+    platformLabel: "Meta",
+    operationalName: "Meta reel 9:16",
+    requiredFormat: "story",
+    preferredDimensions: { width: 1080, height: 1920 },
+    acceptableFormats: ["story", "portrait"],
+    allowFallback: true,
+    blockOnMissing: true,
+    blockOnFallback: false,
+    copyStyle: "direct",
+    copyGuidance:
+      "Reels need a fast hook and very short support copy. Prioritize punchy, trust-first lines that survive low attention.",
+    namingHint: "meta-reel-vertical",
+    notes: [
+      "Reels can reuse 9:16 story assets when composition remains centered and legible.",
+    ],
+  },
+  meta_right_column_landscape: {
+    id: "meta_right_column_landscape",
+    channel: "meta",
+    label: "Meta right column landscape",
+    handoffName: "meta-right-column-landscape",
+    placementFamily: "paid",
+    placementGroup: "right_column",
+    platformLabel: "Meta",
+    operationalName: "Meta right column wide",
+    requiredFormat: "landscape",
+    preferredDimensions: { width: 1200, height: 628 },
+    acceptableFormats: ["landscape", "custom"],
+    allowFallback: false,
+    blockOnMissing: true,
+    blockOnFallback: true,
+    copyStyle: "compact",
+    copyGuidance:
+      "Right column copy must be concise and utility-first because the format is visually smaller and lower-attention.",
+    namingHint: "meta-right-column",
+    notes: [
+      "Right column requires a wide asset and concise copy that still lands without motion.",
     ],
   },
   google_display_landscape: {
@@ -229,12 +343,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "google",
     label: "Google display landscape",
     handoffName: "google-display-landscape",
+    placementFamily: "paid",
+    placementGroup: "display",
+    platformLabel: "Google",
+    operationalName: "Google display wide",
     requiredFormat: "landscape",
     preferredDimensions: { width: 1200, height: 628 },
     acceptableFormats: ["landscape", "custom"],
     allowFallback: false,
     blockOnMissing: true,
     blockOnFallback: true,
+    copyStyle: "compact",
+    copyGuidance:
+      "Compress the copy for a display-style wide placement. Keep headline and body highly scannable.",
+    namingHint: "google-display-landscape",
     notes: ["Google display landscape should use a wide approved creative."],
   },
   google_display_square: {
@@ -242,25 +364,86 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "google",
     label: "Google display square",
     handoffName: "google-display-square",
+    placementFamily: "paid",
+    placementGroup: "display",
+    platformLabel: "Google",
+    operationalName: "Google display square",
     requiredFormat: "square",
     preferredDimensions: { width: 1080, height: 1080 },
     acceptableFormats: ["square"],
     allowFallback: false,
     blockOnMissing: true,
     blockOnFallback: true,
+    copyStyle: "compact",
+    copyGuidance: "Square display copy should stay concise and utility-first.",
+    namingHint: "google-display-square",
     notes: ["Google square display should use exact square coverage."],
+  },
+  google_responsive_display_landscape: {
+    id: "google_responsive_display_landscape",
+    channel: "google",
+    label: "Google responsive display landscape",
+    handoffName: "google-responsive-display-landscape",
+    placementFamily: "paid",
+    placementGroup: "responsive_display",
+    platformLabel: "Google",
+    operationalName: "Google responsive display wide",
+    requiredFormat: "landscape",
+    preferredDimensions: { width: 1200, height: 628 },
+    acceptableFormats: ["landscape", "custom"],
+    allowFallback: true,
+    blockOnMissing: true,
+    blockOnFallback: false,
+    copyStyle: "compact",
+    copyGuidance:
+      "Responsive display landscape still needs concise copy, but it can tolerate slightly broader message coverage than static display placements.",
+    namingHint: "google-rda-landscape",
+    notes: [
+      "Responsive display landscape can accept approved wide fallback coverage when exact creative is not available.",
+    ],
+  },
+  google_responsive_display_square: {
+    id: "google_responsive_display_square",
+    channel: "google",
+    label: "Google responsive display square",
+    handoffName: "google-responsive-display-square",
+    placementFamily: "paid",
+    placementGroup: "responsive_display",
+    platformLabel: "Google",
+    operationalName: "Google responsive display square",
+    requiredFormat: "square",
+    preferredDimensions: { width: 1200, height: 1200 },
+    acceptableFormats: ["square"],
+    allowFallback: true,
+    blockOnMissing: true,
+    blockOnFallback: false,
+    copyStyle: "compact",
+    copyGuidance:
+      "Responsive display square should stay concise while keeping one clear value prop and one CTA cue.",
+    namingHint: "google-rda-square",
+    notes: [
+      "Responsive display square can be packed with approved square fallback assets for manual media setup.",
+    ],
   },
   landing_hero: {
     id: "landing_hero",
     channel: "landing",
     label: "Landing hero",
     handoffName: "landing-hero",
+    placementFamily: "owned",
+    placementGroup: "hero",
+    platformLabel: "Landing",
+    operationalName: "Landing hero",
     requiredFormat: "landscape",
     preferredDimensions: { width: 1440, height: 720 },
     acceptableFormats: ["landscape", "custom"],
     allowFallback: false,
     blockOnMissing: true,
     blockOnFallback: true,
+    copyStyle: "hero",
+    copyGuidance:
+      "Landing hero copy should make the main promise crystal clear in the first read and support a strong headline/subheadline structure.",
+    namingHint: "landing-hero",
     notes: ["Landing hero should have a wide approved visual."],
   },
   landing_secondary_banner: {
@@ -268,12 +451,20 @@ const PLACEMENTS: Record<CreativePlacementId, CreativePlacementDefinition> = {
     channel: "landing",
     label: "Landing secondary banner",
     handoffName: "landing-secondary-banner",
+    placementFamily: "owned",
+    placementGroup: "secondary_banner",
+    platformLabel: "Landing",
+    operationalName: "Landing secondary banner",
     requiredFormat: "custom",
     preferredDimensions: { width: 1200, height: 450 },
     acceptableFormats: ["custom", "landscape"],
     allowFallback: true,
     blockOnMissing: true,
     blockOnFallback: false,
+    copyStyle: "standard",
+    copyGuidance:
+      "Secondary landing banner copy should reinforce the offer with a narrower, supporting message.",
+    namingHint: "landing-secondary-banner",
     notes: [
       "Secondary banner can use a landscape fallback if a custom strip is not available.",
     ],

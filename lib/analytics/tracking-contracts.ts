@@ -122,6 +122,8 @@ export function buildTrackingContract(args: {
   channel: PublishChannel;
   placementId?: string | null;
   messageId?: string | null;
+  placementMessageId?: string | null;
+  placementCopySource?: string | null;
   variantId?: string | null;
   variantName?: string | null;
   creativeAssetId?: string | null;
@@ -139,6 +141,8 @@ export function buildTrackingContract(args: {
     channel: args.channel,
     placementId: args.placementId || null,
     messageId: args.messageId || null,
+    placementMessageId: args.placementMessageId || null,
+    placementCopySource: args.placementCopySource || null,
     variantId: args.variantId || null,
     variantName: args.variantName || null,
     creativeAssetId: args.creativeAssetId || null,
@@ -173,6 +177,8 @@ export function buildTrackingContract(args: {
         channel: args.channel,
         placement_id: args.placementId || null,
         message_id: args.messageId || null,
+        placement_copy_id: args.placementMessageId || null,
+        placement_copy_source: args.placementCopySource || null,
         variant_id: args.variantId || args.variantName || null,
         variant_name: args.variantName || null,
         creative_asset_id: args.creativeAssetId || null,
@@ -189,6 +195,8 @@ export function buildTrackingContract(args: {
         handi_channel: args.channel,
         handi_placement_id: args.placementId || "channel",
         handi_message_id: args.messageId || "none",
+        handi_placement_copy_id: args.placementMessageId || "none",
+        handi_placement_copy_source: args.placementCopySource || "inherited",
         handi_creative_asset_id: args.creativeAssetId || "none",
       },
       notes: [

@@ -1,126 +1,35 @@
 "use client";
 
-export type AcquisitionParams = Partial<{
-  utm_source: string;
-  utm_medium: string;
-  utm_campaign: string;
-  utm_term: string;
-  utm_content: string;
-  utm_id: string;
-  gclid: string;
-  fbclid: string;
-  msclkid: string;
-  ttclid: string;
-}>;
-
-export type CampaignContextParams = Partial<{
-  campaign_id: string;
-  channel: string;
-  placement_id: string;
-  message_id: string;
-  variant_id: string;
-  variant_name: string;
-  creative_asset_id: string;
-  derivative_asset_id: string;
-  bundle_status: string;
-  readiness_status: string;
-}>;
-
-export type AttributionTouch = AcquisitionParams & {
-  captured_at: string;
-  landing_path: string;
-};
-
-export type AttributionState = {
-  first_touch: AttributionTouch | null;
-  last_touch: AttributionTouch | null;
-  campaign_context: CampaignContextParams | null;
-};
-
-const STORAGE_KEY = "handi_attribution_v1";
-const COOKIE_FIRST_KEY = "handi_attr_ft";
-const COOKIE_LAST_KEY = "handi_attr_lt";
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 90; // 90 days
-const STORAGE_MAX_AGE_MS = COOKIE_MAX_AGE_SECONDS * 1000;
-
-const TRACKED_PARAMS: Array<keyof AcquisitionParams> = [
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_term",
-  "utm_content",
-  "utm_id",
-  "gclid",
-  "fbclid",
-  "msclkid",
-  "ttclid",
-];
-
-const TRACKED_CAMPAIGN_PARAMS: Array<keyof CampaignContextParams> = [
-  "campaign_id",
-  "channel",
-  "placement_id",
-  "message_id",
-  "variant_id",
-  "variant_name",
-  "creative_asset_id",
-  "derivative_asset_id",
-  "bundle_status",
-  "readiness_status",
-];
-
-function sanitize(value: string | null): string | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-export function readAcquisitionParamsFromUrl(
-  searchParams: URLSearchParams,
-): AcquisitionParams {
-  const result: AcquisitionParams = {};
-  for (const key of TRACKED_PARAMS) {
-    const value = sanitize(searchParams.get(key));
-    if (value) result[key] = value;
-  }
-  return result;
-}
-
-function readCampaignContextFromUrl(
-  searchParams: URLSearchParams,
-): CampaignContextParams {
-  const result: CampaignContextParams = {};
-  for (const key of TRACKED_CAMPAIGN_PARAMS) {
-    const value = sanitize(searchParams.get(key));
-    if (value) result[key] = value;
-  }
-  return result;
-}
-
-function hasAttributionParams(params: AcquisitionParams): boolean {
-  return TRACKED_PARAMS.some((key) => Boolean(params[key]));
-}
-
-function hasCampaignContextParams(params: CampaignContextParams): boolean {
-  return TRACKED_CAMPAIGN_PARAMS.some((key) => Boolean(params[key]));
-}
-
-function createEmptyState(): AttributionState {
-  return { first_touch: null, last_touch: null, campaign_context: null };
-}
+import {
+  ATTRIBUTION_COOKIE_CAMPAIGN_CONTEXT_KEY,
+  ATTRIBUTION_COOKIE_FIRST_KEY,
+  ATTRIBUTION_COOKIE_LAST_KEY,
+  ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
+  ATTRIBUTION_STORAGE_KEY,
+  ATTRIBUTION_STORAGE_MAX_AGE_MS,
+  TRACKED_ACQUISITION_PARAMS,
+  TRACKED_CAMPAIGN_PARAMS,
+  createEmptyAttributionState,
+  hasAttributionParams,
+  hasCampaignContextParams,
+  readAcquisitionParamsFromSearchParams,
+  readCampaignContextFromSearchParams,
+  type AttributionState,
+  type AttributionTouch,
+} from "@/lib/analytics/attribution-shared";
 
 function isTouchExpired(touch: AttributionTouch | null): boolean {
   if (!touch?.captured_at) return true;
   const capturedAt = Date.parse(touch.captured_at);
   if (Number.isNaN(capturedAt)) return true;
-  return Date.now() - capturedAt > STORAGE_MAX_AGE_MS;
+  return Date.now() - capturedAt > ATTRIBUTION_STORAGE_MAX_AGE_MS;
 }
 
 function readStorageState(): AttributionState {
-  if (typeof window === "undefined") return createEmptyState();
+  if (typeof window === "undefined") return createEmptyAttributionState();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createEmptyState();
+    const raw = window.localStorage.getItem(ATTRIBUTION_STORAGE_KEY);
+    if (!raw) return createEmptyAttributionState();
     const parsed = JSON.parse(raw) as AttributionState;
     const state: AttributionState = {
       first_touch: parsed?.first_touch ?? null,
@@ -128,33 +37,38 @@ function readStorageState(): AttributionState {
       campaign_context: parsed?.campaign_context ?? null,
     };
     if (isTouchExpired(state.last_touch)) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return createEmptyState();
+      window.localStorage.removeItem(ATTRIBUTION_STORAGE_KEY);
+      return createEmptyAttributionState();
     }
     return state;
   } catch {
-    return createEmptyState();
+    return createEmptyAttributionState();
   }
 }
 
 function persistState(state: AttributionState): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(state));
   } catch {
     // Ignore storage failures.
   }
 
   try {
     if (state.first_touch) {
-      document.cookie = `${COOKIE_FIRST_KEY}=${encodeURIComponent(
+      document.cookie = `${ATTRIBUTION_COOKIE_FIRST_KEY}=${encodeURIComponent(
         JSON.stringify(state.first_touch),
-      )}; Max-Age=${COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+      )}; Max-Age=${ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
     }
     if (state.last_touch) {
-      document.cookie = `${COOKIE_LAST_KEY}=${encodeURIComponent(
+      document.cookie = `${ATTRIBUTION_COOKIE_LAST_KEY}=${encodeURIComponent(
         JSON.stringify(state.last_touch),
-      )}; Max-Age=${COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+      )}; Max-Age=${ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+    }
+    if (state.campaign_context) {
+      document.cookie = `${ATTRIBUTION_COOKIE_CAMPAIGN_CONTEXT_KEY}=${encodeURIComponent(
+        JSON.stringify(state.campaign_context),
+      )}; Max-Age=${ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
     }
   } catch {
     // Ignore cookie failures.
@@ -162,10 +76,10 @@ function persistState(state: AttributionState): void {
 }
 
 export function captureAttributionFromCurrentUrl(): AttributionState {
-  if (typeof window === "undefined") return createEmptyState();
+  if (typeof window === "undefined") return createEmptyAttributionState();
   const searchParams = new URLSearchParams(window.location.search);
-  const params = readAcquisitionParamsFromUrl(searchParams);
-  const campaignContext = readCampaignContextFromUrl(searchParams);
+  const params = readAcquisitionParamsFromSearchParams(searchParams);
+  const campaignContext = readCampaignContextFromSearchParams(searchParams);
   const existing = readStorageState();
   if (
     !hasAttributionParams(params) &&
@@ -203,7 +117,7 @@ export function getAttributionEventPayload(): Record<string, string> {
     touch: AttributionTouch | null,
   ) => {
     if (!touch) return;
-    for (const key of TRACKED_PARAMS) {
+    for (const key of TRACKED_ACQUISITION_PARAMS) {
       const value = touch[key];
       if (!value) continue;
       payload[`attribution_${prefix}_${key}`] = value;

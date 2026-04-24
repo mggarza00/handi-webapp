@@ -8,6 +8,10 @@ import type {
 import type { Database } from "@/types/supabase";
 import { buildCampaignAttributionMapping } from "@/lib/analytics/campaign-attribution";
 import type { TrackingContract } from "@/lib/analytics/schemas";
+import {
+  buildPlacementCopyExportSummary,
+  resolvePlacementCopy,
+} from "@/lib/campaigns/placement-copy";
 import { getCampaignDetail } from "@/lib/campaigns/repository";
 import { selectPublishMessage } from "@/lib/campaigns/publish";
 import { labelChannel, type PublishChannel } from "@/lib/campaigns/workflow";
@@ -24,6 +28,10 @@ import {
   type CreativePlacementId,
   type PlacementReadinessReport,
 } from "@/lib/creative/placements";
+import {
+  buildPaidPlacementHandoff,
+  type PaidPlacementHandoff,
+} from "@/lib/creative/paid-handoff";
 import {
   evaluateCampaignVisualReadiness,
   evaluateChannelVisualReadiness,
@@ -50,6 +58,7 @@ export type PlacementCreativeExportPackage = {
     json: string;
     asset: string | null;
   };
+  paidHandoff: PaidPlacementHandoff;
   campaign: {
     audience: string;
     goal: string;
@@ -60,13 +69,16 @@ export type PlacementCreativeExportPackage = {
     rationaleSummary: string;
   };
   copy: {
-    messageId: string | null;
+    baseMessageId: string | null;
+    placementMessageId: string | null;
     variantName: string | null;
     headline: string | null;
     body: string | null;
     cta: string | null;
     rationaleSummary: string | null;
     qaScore: number | null;
+    source: "inherited" | "ai_generated" | "manual_override";
+    placementStatus: string;
     inheritedFromChannel: boolean;
   };
   placementReadiness: PlacementReadinessReport;
@@ -169,7 +181,21 @@ export function buildCreativePackageFileNames(args: {
   assetVariantLabel?: string | null;
   assetExtension?: string | null;
   placementName?: string | null;
+  fileStem?: string | null;
 }) {
+  if (args.fileStem?.trim()) {
+    const stem = sanitizeCreativeExportFilePart(args.fileStem);
+    const visualSlug = sanitizeCreativeExportFilePart(
+      args.assetVariantLabel || "creative",
+    );
+    return {
+      json: `${stem}.json`,
+      asset: args.assetExtension
+        ? `${stem}-${visualSlug}.${args.assetExtension}`
+        : null,
+    };
+  }
+
   const campaignSlug = sanitizeCreativeExportFilePart(args.title || "campaign");
   const channelSlug = sanitizeCreativeExportFilePart(args.channel);
   const visualSlug = sanitizeCreativeExportFilePart(
@@ -243,6 +269,8 @@ function buildBaseTracking(args: {
   channel: PublishChannel;
   placementId?: string | null;
   messageId?: string | null;
+  placementMessageId?: string | null;
+  placementCopySource?: string | null;
   variantName?: string | null;
   creativeAssetId?: string | null;
   derivativeAssetId?: string | null;
@@ -259,6 +287,8 @@ function buildBaseTracking(args: {
     channel: args.channel,
     placementId: args.placementId,
     messageId: args.messageId,
+    placementMessageId: args.placementMessageId,
+    placementCopySource: args.placementCopySource,
     variantName: args.variantName,
     creativeAssetId: args.creativeAssetId,
     derivativeAssetId: args.derivativeAssetId,
@@ -303,16 +333,68 @@ function buildPlacementCreativeExportPackageFromContext(args: {
 }): PlacementCreativeExportPackage {
   const { context, channel, bundle, placement } = args;
   const message = getMessageForChannel(context, channel);
+  const placementCopy = resolvePlacementCopy({
+    channel,
+    placementId: placement.placementId,
+    messages: context.detail.messages,
+    decisions: context.detail.variantDecisions,
+    placementCopies: context.detail.placementCopies,
+    preferredMessageId: message?.id || null,
+  });
+  const placementDefinition = getCreativePlacementDefinition(
+    placement.placementId,
+  );
+  const paidHandoff = buildPaidPlacementHandoff({
+    campaignTitle: context.detail.draft.title,
+    placement: placementDefinition,
+    readiness: placement,
+    copy: placementCopy,
+    tracking: buildBaseTracking({
+      campaignId: context.detail.draft.id,
+      campaignTitle: context.detail.draft.title,
+      goal: context.detail.draft.goal,
+      channel,
+      placementId: placement.placementId,
+      messageId: placementCopy.baseMessageId,
+      placementMessageId: placementCopy.placementMessageId,
+      placementCopySource: placementCopy.source,
+      variantName: placementCopy.baseVariantName,
+      creativeAssetId: placement.selectedAsset?.id || null,
+      derivativeAssetId:
+        placement.selectedAsset?.role === "derivative"
+          ? placement.selectedAsset.id
+          : null,
+      bundleStatus: bundle?.suitability_status || null,
+      readinessStatus: placement.state,
+      providerName:
+        (placement.selectedAsset?.providerMetadata
+          ?.providerName as ProviderName | null) ||
+        (placementCopy.providerMetadata?.providerName as ProviderName | null) ||
+        (message?.provider_metadata.providerName as ProviderName | null) ||
+        null,
+      providerMode:
+        (placement.selectedAsset?.providerMetadata
+          ?.generationMode as ProviderGenerationMode | null) ||
+        (placementCopy.providerMetadata
+          ?.generationMode as ProviderGenerationMode | null) ||
+        (message?.provider_metadata
+          .generationMode as ProviderGenerationMode | null) ||
+        null,
+      serviceCategory: context.detail.draft.service_category,
+    }),
+  });
   const creativePayload = buildCreativeBundlePayload(bundle);
   const fileNames = buildCreativePackageFileNames({
     title: context.detail.draft.title,
     channel,
+    fileStem: paidHandoff.recommendedFileStem,
     placementName: placement.handoffName,
     assetVariantLabel: placement.selectedAsset?.variantLabel || null,
     assetExtension: extensionFromCreativeStoragePath(
       placement.selectedAsset?.storagePath,
     ),
   });
+  const tracking = paidHandoff.tracking;
 
   return {
     type: "placement_export_package",
@@ -324,6 +406,7 @@ function buildPlacementCreativeExportPackageFromContext(args: {
     placementLabel: placement.placementLabel,
     handoffName: placement.handoffName,
     suggestedFilenames: fileNames,
+    paidHandoff,
     campaign: {
       audience: context.detail.draft.audience,
       goal: context.detail.draft.goal,
@@ -334,19 +417,25 @@ function buildPlacementCreativeExportPackageFromContext(args: {
       rationaleSummary: context.detail.draft.rationale_summary,
     },
     copy: {
-      messageId: message?.id || null,
-      variantName: message?.variant_name || null,
-      headline: message?.content.headline || null,
-      body: message?.content.body || null,
-      cta: message?.content.cta || null,
-      rationaleSummary: message?.rationale_parts.summary || null,
-      qaScore: message?.qa_report.overall_score || null,
-      inheritedFromChannel: true,
+      baseMessageId: placementCopy.baseMessageId,
+      placementMessageId: placementCopy.placementMessageId,
+      variantName: placementCopy.baseVariantName,
+      headline: placementCopy.content?.headline || null,
+      body: placementCopy.content?.body || null,
+      cta: placementCopy.content?.cta || null,
+      rationaleSummary: placementCopy.rationaleParts?.summary || null,
+      qaScore: placementCopy.qaReport?.overall_score || null,
+      source: placementCopy.source,
+      placementStatus: placementCopy.status,
+      inheritedFromChannel: placementCopy.inheritedFromChannel,
     },
     placementReadiness: placement,
     creativeBundle: creativePayload,
     provider: {
-      copyProvider: message?.provider_metadata.providerName || null,
+      copyProvider:
+        placementCopy.providerMetadata?.providerName ||
+        message?.provider_metadata.providerName ||
+        null,
       visualProvider:
         (placement.selectedAsset?.providerMetadata?.providerName as
           | string
@@ -358,41 +447,12 @@ function buildPlacementCreativeExportPackageFromContext(args: {
         bundle?.selected_asset?.provider_metadata?.model ||
         null,
     },
-    tracking: buildBaseTracking({
-      campaignId: context.detail.draft.id,
-      campaignTitle: context.detail.draft.title,
-      goal: context.detail.draft.goal,
-      channel,
-      placementId: placement.placementId,
-      messageId: message?.id || null,
-      variantName: message?.variant_name || null,
-      creativeAssetId: placement.selectedAsset?.id || null,
-      derivativeAssetId:
-        placement.selectedAsset?.role === "derivative"
-          ? placement.selectedAsset.id
-          : null,
-      bundleStatus: bundle?.suitability_status || null,
-      readinessStatus: placement.state,
-      providerName:
-        (placement.selectedAsset?.providerMetadata
-          ?.providerName as ProviderName | null) ||
-        (message?.provider_metadata.providerName as ProviderName | null) ||
-        null,
-      providerMode:
-        (placement.selectedAsset?.providerMetadata
-          ?.generationMode as ProviderGenerationMode | null) ||
-        (message?.provider_metadata
-          .generationMode as ProviderGenerationMode | null) ||
-        null,
-      serviceCategory: context.detail.draft.service_category,
-    }),
+    tracking,
     notes: [
-      ...placement.notes,
-      ...placement.warnings,
-      ...placement.missing,
-      placement.summary,
-      `Placement handoff: ${getCreativePlacementDefinition(placement.placementId).handoffName}`,
-      "Copy inherits the channel-level selected variant until per-placement copy divergence exists.",
+      ...paidHandoff.notes,
+      ...paidHandoff.warnings,
+      buildPlacementCopyExportSummary(placementCopy),
+      `Placement handoff: ${placementDefinition.handoffName}`,
     ],
   };
 }

@@ -21,12 +21,19 @@ Provider-specific helpers:
 - `lib/analytics/ga4.ts`
 - `lib/analytics/clarity.ts`
 - `lib/analytics/tracking.ts`
+- `lib/analytics/measurement-protocol.ts`
+- `lib/analytics/server-events.ts`
+- `lib/analytics/runtime-health.ts`
+- `lib/analytics/url-context.ts`
+- `lib/analytics/cta-builders.ts`
+- `lib/analytics/event-catalog.ts`
 
 The provider is mounted once in `app/layout.tsx`.
 
 ## Required Environment Variables
 
 - `NEXT_PUBLIC_GA4_MEASUREMENT_ID`
+- `GA4_API_SECRET`
 - `NEXT_PUBLIC_CLARITY_PROJECT_ID`
 
 If an env is missing:
@@ -54,6 +61,11 @@ Current business-priority events:
 - `creative_bundle_viewed`
 - `export_package_downloaded`
 - `download_bundle_downloaded`
+- `request_created_confirmed`
+- `pro_apply_completed_confirmed`
+- `fee_paid_confirmed`
+- `export_package_downloaded_confirmed`
+- `download_bundle_downloaded_confirmed`
 
 Some legacy wrapper names still exist in app code, but they now normalize into the canonical event family above.
 
@@ -100,6 +112,46 @@ and click identifiers when present:
 
 This context is merged automatically into event payloads sent through the central dispatcher.
 
+`campaign_context` is also persisted in cookies now, so backend-confirmed events can recover Campaign OS identifiers after redirects or intermediate navigation.
+
+## Browser vs Server Split
+
+Current operating policy:
+
+- `browser` remains responsible for views, clicks, CTA interactions, and funnel starts
+- `server` is used only for confirmed milestones that were persisted or validated by backend logic
+- confirmed milestones use explicit names such as `fee_paid_confirmed` instead of replaying the browser event name
+
+This keeps GA4 usable without pretending there is perfect deduplication.
+
+## Current Server-Confirmed Events
+
+- `request_created_confirmed`
+- `pro_apply_completed_confirmed`
+- `fee_paid_confirmed`
+- `export_package_downloaded_confirmed`
+- `download_bundle_downloaded_confirmed`
+
+These events are emitted through GA4 Measurement Protocol with:
+
+- `event_source=server`
+- `event_id`
+- `correlation_id` when the backend has a stable identifier
+
+## Builder-Aware Propagation
+
+GA4 and Clarity stay more coherent now because owned CTA and redirect builders preserve the same Campaign OS identifiers instead of rebuilding query strings by hand.
+
+Priority migrated surfaces include:
+
+- pro apply hero CTA
+- role selection dialog
+- How To Use Handi CTA block
+- professional landing CTA
+- tracked auth redirects for pro apply, services detail, and request explore detail
+
+The new audit surface at `/admin/system/instrumentation` exposes which of these are already using central builders and which surfaces remain partial/manual.
+
 ## Clarity Session Tagging
 
 Clarity is tagged with a conservative session/page metadata set so teams can segment replay and heatmaps by:
@@ -129,9 +181,26 @@ Highest-value owned surfaces covered in this phase:
 
 - full product-wide event coverage
 - server-side GA4 events for every backend milestone
+- full attribution stitching from Stripe or other third-party webhooks back to original browser sessions
 - cross-device or cross-channel attribution stitching
 - direct Meta/Google live publish instrumentation
 - video creative analytics
+
+## Runtime Observation Note
+
+GA4 and Clarity now coexist with a small internal runtime-health layer.
+
+That layer:
+
+- records that Handi attempted a browser/server dispatch
+- stores the latest `success`, `skipped`, or `failed` state per canonical event/provider
+- powers `/admin/system/instrumentation`
+
+That layer does **not** mean:
+
+- GA4 definitely ingested the hit
+- Clarity definitely produced replay/heatmap data
+- downstream analytics data is complete
 
 ## Operational Note
 

@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { resolveCampaignAdminMode } from "@/lib/campaigns/admin-config";
 import { getCampaignDetail } from "@/lib/campaigns/repository";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 
 type Search = {
   searchParams: {
     from?: string;
+    mode?: string;
   };
 };
 
@@ -18,16 +20,21 @@ export const dynamic = "force-dynamic";
 export default async function AdminCampaignNewPage({ searchParams }: Search) {
   const admin = getAdminSupabase();
   const sourceId = (searchParams.from || "").trim();
+  const adminMode = resolveCampaignAdminMode(searchParams.mode);
   const sourceCampaign = sourceId
     ? await getCampaignDetail(admin, sourceId).catch(() => null)
     : null;
   const sourceDraft = sourceCampaign?.draft || null;
+  const campaignsHref =
+    adminMode === "advanced"
+      ? "/admin/campaigns?mode=advanced"
+      : "/admin/campaigns";
 
   return (
     <main className="mx-auto max-w-4xl space-y-6">
       <div className="space-y-2">
         <Link
-          href="/admin/campaigns"
+          href={campaignsHref}
           className="text-sm text-muted-foreground underline"
         >
           Back to campaigns
@@ -43,6 +50,23 @@ export default async function AdminCampaignNewPage({ searchParams }: Search) {
         </div>
       </div>
 
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+          <div>
+            <span className="font-medium">MVP flow:</span>{" "}
+            <span className="text-muted-foreground">
+              This brief feeds the basic operating path: overview, copy review,
+              and export handoff.
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {adminMode === "advanced"
+              ? "Advanced mode is active for deeper surfaces after generation."
+              : "Advanced surfaces stay parked unless you open them explicitly."}
+          </span>
+        </CardContent>
+      </Card>
+
       {sourceDraft ? (
         <Card>
           <CardHeader>
@@ -51,7 +75,7 @@ export default async function AdminCampaignNewPage({ searchParams }: Search) {
           <CardContent className="text-sm text-muted-foreground">
             This brief is prefilled from{" "}
             <Link
-              href={`/admin/campaigns/${sourceDraft.id}`}
+              href={`/admin/campaigns/${sourceDraft.id}${adminMode === "advanced" ? "?mode=advanced" : ""}`}
               className="underline underline-offset-2"
             >
               {sourceDraft.title}
@@ -85,6 +109,7 @@ export default async function AdminCampaignNewPage({ searchParams }: Search) {
                 />
               </>
             ) : null}
+            <input type="hidden" name="mode" value={adminMode} />
 
             <label className="grid gap-1 text-sm md:col-span-2">
               <span>Title</span>

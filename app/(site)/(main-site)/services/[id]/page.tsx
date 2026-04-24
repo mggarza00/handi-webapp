@@ -1,8 +1,10 @@
 import { notFound, redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import Breadcrumbs from "@/components/breadcrumbs";
 import { getUserOrThrow } from "@/lib/_supabase-server";
+import { buildTrackedAuthHrefFromCookieHeader } from "@/lib/analytics/cta-builders";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,9 +84,10 @@ async function loadServiceContext(
   };
 }
 
-function normalizeStatus(
-  status: AgreementRow["status"],
-): { label: string; variant: "default" | "secondary" | "destructive" | "outline" } {
+function normalizeStatus(status: AgreementRow["status"]): {
+  label: string;
+  variant: "default" | "secondary" | "destructive" | "outline";
+} {
   switch (status) {
     case "completed":
       return { label: "Completado", variant: "secondary" };
@@ -128,7 +131,17 @@ function formatCurrency(value: number | null | undefined): string {
 export default async function ServiceDetailPage({ params }: Params) {
   const client = createClient();
   const { supabase, user } = await getUserOrThrow(client).catch(() => {
-    redirect(`/login?next=/services/${params.id}`);
+    const cookieHeader = cookies()
+      .getAll()
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join("; ");
+    redirect(
+      buildTrackedAuthHrefFromCookieHeader({
+        cookieHeader,
+        authPath: "/login",
+        nextPath: `/services/${params.id}`,
+      }),
+    );
   });
 
   const { data: proProfile } = await supabase
@@ -148,9 +161,12 @@ export default async function ServiceDetailPage({ params }: Params) {
 
   const status = normalizeStatus(context.service.status);
   const hasConfirmed = Boolean(context.service.completed_by_pro);
-  const buttonWaitingFor = context.service.completed_by_client ? null : "cliente";
+  const buttonWaitingFor = context.service.completed_by_client
+    ? null
+    : "cliente";
   // El modal de reseñas se gestiona en el cliente (ConfirmAndReview)
-  const requestTitle = context.request?.title ?? `Servicio ${context.service.id}`;
+  const requestTitle =
+    context.request?.title ?? `Servicio ${context.service.id}`;
   const breadcrumbs = [
     { label: "Inicio", href: "/" },
     { label: "Servicios", href: "/services" },
@@ -170,7 +186,9 @@ export default async function ServiceDetailPage({ params }: Params) {
             Cierra el servicio, registra la calificacion y adjunta evidencias.
           </p>
         </div>
-        <Badge variant={status.variant} data-testid="status-chip">{status.label}</Badge>
+        <Badge variant={status.variant} data-testid="status-chip">
+          {status.label}
+        </Badge>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -186,13 +204,16 @@ export default async function ServiceDetailPage({ params }: Params) {
               <div className="rounded border bg-white p-4 shadow-sm">
                 <div className="space-y-2">
                   <p>
-                    <strong>Titulo:</strong> {context.request?.title ?? "Sin titulo"}
+                    <strong>Titulo:</strong>{" "}
+                    {context.request?.title ?? "Sin titulo"}
                   </p>
                   <p>
-                    <strong>Presupuesto:</strong> {formatCurrency(context.request?.budget)}
+                    <strong>Presupuesto:</strong>{" "}
+                    {formatCurrency(context.request?.budget)}
                   </p>
                   <p>
-                    <strong>Fecha requerida:</strong> {formatDate(context.request?.required_at)}
+                    <strong>Fecha requerida:</strong>{" "}
+                    {formatDate(context.request?.required_at)}
                   </p>
                 </div>
                 <div className="mt-4">
@@ -212,8 +233,8 @@ export default async function ServiceDetailPage({ params }: Params) {
                   {context.service.status === "completed"
                     ? "Ambas partes confirmaron este servicio."
                     : hasConfirmed
-                    ? "Esperando la confirmacion del cliente."
-                    : "Confirma el cierre cuando hayas terminado."}
+                      ? "Esperando la confirmacion del cliente."
+                      : "Confirma el cierre cuando hayas terminado."}
                 </div>
                 {context.service.status !== "completed" ? (
                   <p className="text-xs text-slate-500">
@@ -251,7 +272,8 @@ export default async function ServiceDetailPage({ params }: Params) {
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">
-                  Aqui veras las evidencias una vez que se integren los componentes de subida.
+                  Aqui veras las evidencias una vez que se integren los
+                  componentes de subida.
                 </div>
               )}
               <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">
@@ -316,5 +338,5 @@ export default async function ServiceDetailPage({ params }: Params) {
       </div>
       {/* Modal de reseña se renderiza dentro de ConfirmAndReview */}
     </main>
-);
+  );
 }

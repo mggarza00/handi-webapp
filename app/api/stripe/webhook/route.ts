@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
-import { getStripeForMode, type StripeMode } from "@/lib/stripe";
-import type Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath, revalidateTag } from "next/cache";
 import React from "react";
+import type Stripe from "stripe";
+
 import { ReceiptTemplate } from "@/components/pdf/ReceiptTemplate";
-import { getReceiptForPdf } from "@/lib/receipts";
-import type { Database } from "@/types/supabase";
+import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
+import { trackServerAnalyticsEvent } from "@/lib/analytics/server-events";
 import { computeClientTotalsCents } from "@/lib/payments/fees";
 import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
 import { recordPayment } from "@/lib/payments/record-payment";
-import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
+import { getReceiptForPdf } from "@/lib/receipts";
+import { getStripeForMode, type StripeMode } from "@/lib/stripe";
+import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -631,9 +633,8 @@ export async function POST(req: Request) {
                     .select("id")
                     .single();
                   try {
-                    const { notifyChatMessageByConversation } = await import(
-                      "@/lib/chat-notifier"
-                    );
+                    const { notifyChatMessageByConversation } =
+                      await import("@/lib/chat-notifier");
                     if (senderIdAttach && convIdAttach) {
                       await notifyChatMessageByConversation({
                         conversationId: convIdAttach,
@@ -833,9 +834,8 @@ export async function POST(req: Request) {
                 }
                 try {
                   if (clientId) {
-                    const { notifyChatMessageByConversation } = await import(
-                      "@/lib/chat-notifier"
-                    );
+                    const { notifyChatMessageByConversation } =
+                      await import("@/lib/chat-notifier");
                     await notifyChatMessageByConversation({
                       conversationId: convId,
                       senderId: clientId,
@@ -1435,9 +1435,8 @@ export async function POST(req: Request) {
                     },
                   } as any);
                   try {
-                    const { notifyChatMessageByConversation } = await import(
-                      "@/lib/chat-notifier"
-                    );
+                    const { notifyChatMessageByConversation } =
+                      await import("@/lib/chat-notifier");
                     if (convId && clientId) {
                       await notifyChatMessageByConversation({
                         conversationId: convId,
@@ -1478,9 +1477,8 @@ export async function POST(req: Request) {
                   payload: payload2,
                 });
                 try {
-                  const { notifyChatMessageByConversation } = await import(
-                    "@/lib/chat-notifier"
-                  );
+                  const { notifyChatMessageByConversation } =
+                    await import("@/lib/chat-notifier");
                   if (convId && clientId) {
                     await notifyChatMessageByConversation({
                       conversationId: convId,
@@ -1872,9 +1870,8 @@ export async function POST(req: Request) {
                   payload,
                 });
                 try {
-                  const { notifyChatMessageByConversation } = await import(
-                    "@/lib/chat-notifier"
-                  );
+                  const { notifyChatMessageByConversation } =
+                    await import("@/lib/chat-notifier");
                   await notifyChatMessageByConversation({
                     conversationId,
                     senderId: clientId,
@@ -1888,6 +1885,25 @@ export async function POST(req: Request) {
               /* ignore */
             }
           }
+
+          await trackServerAnalyticsEvent({
+            name: "fee_paid_confirmed",
+            request: req,
+            userId: clientId || undefined,
+            correlationId: payment_intent_id,
+            params: {
+              request_id: requestId,
+              offer_id: offerId || null,
+              conversation_id: conversationId || null,
+              professional_id: professionalId || null,
+              payment_intent_id,
+              currency,
+              total_amount_cents: total_cents,
+              service_amount_cents: service_cents,
+              commission_amount_cents: commission_cents,
+              iva_amount_cents: iva_cents,
+            },
+          });
         }
         break;
       }

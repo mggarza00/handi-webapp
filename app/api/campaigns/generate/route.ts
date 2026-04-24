@@ -27,6 +27,7 @@ const FormSchema = z.object({
   journeyTrigger: z.string(),
   tonePreference: z.string().optional().default(""),
   notes: z.string().optional().default(""),
+  mode: z.enum(["basic", "advanced"]).optional(),
   redirectTo: z.string().optional(),
 });
 
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
     const formParsed = FormSchema.safeParse({
       ...normalized,
       channels,
+      mode: raw.mode,
       redirectTo: raw.redirectTo,
     });
     const parsed = campaignGenerationInputSchema.safeParse(normalized);
@@ -142,7 +144,8 @@ export async function POST(req: Request) {
     return respondWithRedirectOrJson({
       req,
       redirectTo:
-        formParsed.data.redirectTo || `/admin/campaigns/${persisted.draft.id}`,
+        formParsed.data.redirectTo ||
+        `/admin/campaigns/${persisted.draft.id}${formParsed.data.mode === "advanced" ? "?mode=advanced" : ""}`,
       payload: {
         ok: true,
         draftId: persisted.draft.id,

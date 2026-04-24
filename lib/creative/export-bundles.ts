@@ -12,6 +12,11 @@ import {
   type ChannelCreativeExportPackage,
   type PlacementCreativeExportPackage,
 } from "@/lib/creative/export-packages";
+import {
+  buildChannelPaidDraftFromPackage,
+  buildPlacementPaidDraftFromPackage,
+  isPaidDraftChannel,
+} from "@/lib/publish/drafts";
 import { downloadCreativeAssetBuffer } from "@/lib/creative/storage";
 
 type AdminSupabase = SupabaseClient<Database>;
@@ -91,11 +96,22 @@ function buildCopyPayload(
     cta: pkg.campaign.cta,
     recommendedAngle: pkg.campaign.recommendedAngle,
     variantName: pkg.copy.variantName,
+    baseMessageId:
+      "baseMessageId" in pkg.copy ? pkg.copy.baseMessageId : pkg.copy.messageId,
+    placementMessageId:
+      "placementMessageId" in pkg.copy ? pkg.copy.placementMessageId : null,
     headline: pkg.copy.headline,
     body: pkg.copy.body,
     selectedCta: pkg.copy.cta,
     rationaleSummary: pkg.copy.rationaleSummary,
     qaScore: pkg.copy.qaScore,
+    source: "source" in pkg.copy ? pkg.copy.source : "inherited",
+    placementStatus:
+      "placementStatus" in pkg.copy ? pkg.copy.placementStatus : "approved",
+    inheritedFromChannel:
+      "inheritedFromChannel" in pkg.copy
+        ? pkg.copy.inheritedFromChannel
+        : false,
   };
 }
 
@@ -108,6 +124,14 @@ function uniqueWarnings(values: Array<string | null | undefined>) {
       ),
     ),
   );
+}
+
+function hasResolvedCopy(
+  pkg: ChannelCreativeExportPackage | PlacementCreativeExportPackage,
+) {
+  return "baseMessageId" in pkg.copy
+    ? Boolean(pkg.copy.baseMessageId)
+    : Boolean(pkg.copy.messageId);
 }
 
 function evaluatePlacementBundleDownload(
@@ -137,7 +161,7 @@ function evaluatePlacementBundleDownload(
     pkg.placementReadiness.state === "partial" ||
     pkg.placementReadiness.state === "ready_fallback" ||
     pkg.placementReadiness.state === "manual_override" ||
-    !pkg.copy.messageId
+    !hasResolvedCopy(pkg)
   ) {
     const nextWarnings = [...warnings];
     if (pkg.placementReadiness.state === "blocked") {
@@ -145,9 +169,14 @@ function evaluatePlacementBundleDownload(
         "This placement is blocked for assisted publish/export, but the currently selected visual is still being packed for manual paid handoff.",
       );
     }
-    if (!pkg.copy.messageId) {
+    if (!hasResolvedCopy(pkg)) {
       nextWarnings.push(
         "No copy variant is resolved yet. The bundle still includes campaign and placement metadata for manual completion.",
+      );
+    }
+    if (pkg.copy.inheritedFromChannel) {
+      nextWarnings.push(
+        "This placement is still inheriting channel-level copy. Review whether a placement-specific override is needed before paid handoff.",
       );
     }
     return {
@@ -159,7 +188,12 @@ function evaluatePlacementBundleDownload(
 
   return {
     status: "download_ready",
-    warnings,
+    warnings: pkg.copy.inheritedFromChannel
+      ? uniqueWarnings([
+          ...warnings,
+          "Placement is exportable, but the copy still inherits the channel-level variant.",
+        ])
+      : warnings,
     blockingReason: null,
   };
 }
@@ -217,7 +251,7 @@ function evaluateChannelBundleDownload(
     pkg.visualReadiness.state === "partial" ||
     pkg.visualReadiness.state === "ready_fallback" ||
     pkg.visualReadiness.state === "manual_override" ||
-    !pkg.copy.messageId
+    !hasResolvedCopy(pkg)
   ) {
     return {
       status: "download_warning",
@@ -237,6 +271,7 @@ function buildPlacementBundleManifest(args: {
   pkg: PlacementCreativeExportPackage;
   evaluation: ChannelCreativeDownloadEvaluation;
   assetFileName: string | null;
+  paidDraftFileName?: string | null;
 }) {
   const selectedAsset = args.pkg.placementReadiness.selectedAsset;
   return {
@@ -259,6 +294,8 @@ function buildPlacementBundleManifest(args: {
       label: args.pkg.placementLabel,
       handoff_name: args.pkg.handoffName,
     },
+    paid_handoff: args.pkg.paidHandoff,
+    paid_draft_file: args.paidDraftFileName || null,
     readiness: {
       status: args.pkg.placementReadiness.state,
       download_status: args.evaluation.status,
@@ -303,6 +340,7 @@ function buildChannelBundleManifest(args: {
   evaluation: ChannelCreativeDownloadEvaluation;
   assetFileName: string | null;
   placementManifests: Array<Record<string, unknown>>;
+  paidDraftFileName?: string | null;
 }) {
   const selectedAsset = args.pkg.creativeBundle.selectedAsset;
   return {
@@ -321,6 +359,8 @@ function buildChannelBundleManifest(args: {
     },
     channel: args.pkg.channel,
     connector: args.pkg.connector,
+    paid_draft_file: args.paidDraftFileName || null,
+    paid_handoff: args.pkg.placements.map((placement) => placement.paidHandoff),
     readiness: {
       status: args.pkg.visualReadiness.state,
       download_status: args.evaluation.status,
@@ -372,6 +412,62 @@ function buildChannelBundleManifest(args: {
   };
 }
 
+function buildPlacementReadme(args: {
+  pkg: PlacementCreativeExportPackage;
+  evaluation: ChannelCreativeDownloadEvaluation;
+}) {
+  const lines = [
+    "Handi paid handoff package",
+    "",
+    `Campaign: ${args.pkg.campaignTitle}`,
+    `Channel: ${args.pkg.channel}`,
+    `Placement: ${args.pkg.paidHandoff.operationalName}`,
+    `Placement id: ${args.pkg.placementId}`,
+    `Readiness: ${args.pkg.placementReadiness.state}`,
+    `Copy source: ${args.pkg.paidHandoff.copy.sourceLabel}`,
+    `Visual coverage: ${args.pkg.paidHandoff.visual.exact ? "Exact" : "Fallback"}`,
+    `Recommended file stem: ${args.pkg.paidHandoff.recommendedFileStem}`,
+    "",
+    "Operational notes:",
+    ...args.pkg.paidHandoff.notes.map((note) => `- ${note}`),
+  ];
+
+  if (args.evaluation.warnings.length) {
+    lines.push("", "Warnings:");
+    lines.push(...args.evaluation.warnings.map((warning) => `- ${warning}`));
+  }
+
+  return lines.join("\n");
+}
+
+function buildChannelReadme(args: {
+  pkg: ChannelCreativeExportPackage;
+  evaluation: ChannelCreativeDownloadEvaluation;
+}) {
+  const lines = [
+    "Handi channel handoff package",
+    "",
+    `Campaign: ${args.pkg.campaignTitle}`,
+    `Channel: ${args.pkg.channel}`,
+    `Connector: ${args.pkg.connector?.label || "No connector metadata"}`,
+    `Visual readiness: ${args.pkg.visualReadiness.state}`,
+    `Placement coverage: ${args.pkg.placementCoverage.overallState}`,
+    "",
+    "Paid placements included:",
+    ...args.pkg.placements.map(
+      (placement) =>
+        `- ${placement.paidHandoff.operationalName}: ${placement.placementReadiness.state} | copy ${placement.paidHandoff.copy.sourceLabel} | asset ${placement.paidHandoff.visual.exact ? "exact" : "fallback"}`,
+    ),
+  ];
+
+  if (args.evaluation.warnings.length) {
+    lines.push("", "Warnings:");
+    lines.push(...args.evaluation.warnings.map((warning) => `- ${warning}`));
+  }
+
+  return lines.join("\n");
+}
+
 async function attachPlacementToZip(args: {
   admin: AdminSupabase;
   root: JSZip;
@@ -387,6 +483,9 @@ async function attachPlacementToZip(args: {
   }
 
   let assetFileName: string | null = null;
+  const paidDraftFileName = isPaidDraftChannel(args.pkg.channel)
+    ? `draft-${args.pkg.channel}.json`
+    : null;
   if (
     evaluation.status !== "download_blocked" &&
     args.pkg.placementReadiness.selectedAsset?.storagePath
@@ -407,13 +506,30 @@ async function attachPlacementToZip(args: {
     pkg: args.pkg,
     evaluation,
     assetFileName,
+    paidDraftFileName,
   });
 
   placementFolder.file("manifest.json", JSON.stringify(manifest, null, 2));
   placementFolder.file(
+    "README.txt",
+    buildPlacementReadme({
+      pkg: args.pkg,
+      evaluation,
+    }),
+  );
+  placementFolder.file(
     "copy.json",
     JSON.stringify(buildCopyPayload(args.pkg), null, 2),
   );
+  if (
+    isPaidDraftChannel(args.pkg.channel) &&
+    args.pkg.paidHandoff.isPaidPlacement
+  ) {
+    placementFolder.file(
+      paidDraftFileName || `draft-${args.pkg.channel}.json`,
+      JSON.stringify(buildPlacementPaidDraftFromPackage(args.pkg), null, 2),
+    );
+  }
 
   return {
     evaluation,
@@ -428,6 +544,9 @@ async function attachChannelToZip(args: {
   evaluation: ChannelCreativeDownloadEvaluation;
 }) {
   let assetFileName: string | null = null;
+  const paidDraftFileName = isPaidDraftChannel(args.pkg.channel)
+    ? `draft-${args.pkg.channel}.json`
+    : null;
   const selectedAsset = args.pkg.creativeBundle.selectedAsset;
   if (selectedAsset?.storagePath) {
     const assetFolder = args.root.folder("assets");
@@ -465,12 +584,26 @@ async function attachChannelToZip(args: {
     evaluation: args.evaluation,
     assetFileName,
     placementManifests,
+    paidDraftFileName,
   });
   args.root.file("manifest.json", JSON.stringify(manifest, null, 2));
+  args.root.file(
+    "README.txt",
+    buildChannelReadme({
+      pkg: args.pkg,
+      evaluation: args.evaluation,
+    }),
+  );
   args.root.file(
     "copy.json",
     JSON.stringify(buildCopyPayload(args.pkg), null, 2),
   );
+  if (isPaidDraftChannel(args.pkg.channel)) {
+    args.root.file(
+      paidDraftFileName || `draft-${args.pkg.channel}.json`,
+      JSON.stringify(buildChannelPaidDraftFromPackage(args.pkg), null, 2),
+    );
+  }
 
   return manifest;
 }
@@ -497,7 +630,7 @@ async function buildChannelZip(args: {
   return {
     buffer,
     entries: Object.keys(zip.files).sort(),
-    fileName: `${sanitizeCreativeExportFilePart(args.pkg.campaignTitle || "campaign")}-${sanitizeCreativeExportFilePart(args.pkg.channel)}-bundle.zip`,
+    fileName: `${sanitizeCreativeExportFilePart(args.pkg.campaignTitle || "campaign")}-${sanitizeCreativeExportFilePart(args.pkg.channel)}-paid-handoff-bundle.zip`,
     manifest,
   };
 }
@@ -512,10 +645,20 @@ async function buildPlacementZip(args: {
     pkg: args.pkg,
     evaluation: args.evaluation,
     assetFileName: args.pkg.suggestedFilenames.asset,
+    paidDraftFileName: isPaidDraftChannel(args.pkg.channel)
+      ? `draft-${args.pkg.channel}.json`
+      : null,
   });
   const selectedAsset = args.pkg.placementReadiness.selectedAsset;
 
   zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+  zip.file(
+    "README.txt",
+    buildPlacementReadme({
+      pkg: args.pkg,
+      evaluation: args.evaluation,
+    }),
+  );
   zip.file("copy.json", JSON.stringify(buildCopyPayload(args.pkg), null, 2));
 
   if (
@@ -542,7 +685,7 @@ async function buildPlacementZip(args: {
   return {
     buffer,
     entries: Object.keys(zip.files).sort(),
-    fileName: `${sanitizeCreativeExportFilePart(args.pkg.campaignTitle || "campaign")}-${sanitizeCreativeExportFilePart(args.pkg.channel)}-${sanitizeCreativeExportFilePart(args.pkg.handoffName)}-bundle.zip`,
+    fileName: `${args.pkg.paidHandoff.recommendedFileStem}-bundle.zip`,
     manifest,
   };
 }
@@ -759,6 +902,28 @@ export async function buildCampaignCreativeDownloadBundle(args: {
       null,
       2,
     ),
+  );
+  for (const channelPackage of pkg.channels) {
+    if (!isPaidDraftChannel(channelPackage.channel)) continue;
+    zip.file(
+      `drafts/${channelPackage.channel}-paid-draft.json`,
+      JSON.stringify(buildChannelPaidDraftFromPackage(channelPackage), null, 2),
+    );
+  }
+  zip.file(
+    "README.txt",
+    [
+      "Handi campaign paid handoff bundle",
+      "",
+      `Campaign: ${pkg.campaignTitle}`,
+      `Included channels: ${includedChannels.join(", ") || "None"}`,
+      `Blocked channels: ${blockedChannels.join(", ") || "None"}`,
+      "",
+      "Warnings:",
+      ...(dedupedWarnings.length
+        ? dedupedWarnings.map((warning) => `- ${warning}`)
+        : ["- No operational warnings."]),
+    ].join("\n"),
   );
 
   const buffer = await zip.generateAsync({

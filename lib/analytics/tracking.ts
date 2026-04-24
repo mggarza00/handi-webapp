@@ -4,8 +4,17 @@ import {
   getAttributionEventPayload,
   getCampaignContextPayload,
 } from "@/lib/analytics/attribution";
-import { setClarityTags, trackClarityEvent } from "@/lib/analytics/clarity";
-import { trackGa4Event, trackGa4PageView } from "@/lib/analytics/ga4";
+import {
+  isClarityEnabled,
+  setClarityTags,
+  trackClarityEvent,
+} from "@/lib/analytics/clarity";
+import {
+  isGa4Enabled,
+  trackGa4Event,
+  trackGa4PageView,
+} from "@/lib/analytics/ga4";
+import { observeBrowserRuntimeDispatch } from "@/lib/analytics/runtime-health.client";
 import type {
   AnalyticsContext,
   AnalyticsEventName,
@@ -88,6 +97,7 @@ function buildBasePayload(params: AnalyticsEventParams = {}) {
   return sanitizeParams({
     ...getAttributionEventPayload(),
     ...getCampaignContextPayload(),
+    event_source: "browser",
     ...params,
   });
 }
@@ -121,9 +131,24 @@ export function trackAnalyticsEvent(
 ): void {
   if (typeof window === "undefined") return;
   const payload = buildBasePayload(params);
+  const ga4DispatchStatus = isGa4Enabled() ? "success" : "skipped";
+  const clarityDispatchStatus = isClarityEnabled() ? "success" : "skipped";
+
   trackGa4Event(name, payload);
   trackClarityEvent(name);
   setClarityTags(buildClarityTagsFromParams(payload));
+  observeBrowserRuntimeDispatch([
+    {
+      eventName: name,
+      providerTarget: "ga4",
+      dispatchStatus: ga4DispatchStatus,
+    },
+    {
+      eventName: name,
+      providerTarget: "clarity",
+      dispatchStatus: clarityDispatchStatus,
+    },
+  ]);
 }
 
 export function trackCampaignEvent(

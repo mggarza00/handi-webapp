@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { trackServerAnalyticsEvent } from "@/lib/analytics/server-events";
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
 import { buildCampaignCreativeExportPackage } from "@/lib/creative/export-packages";
 import { logAudit } from "@/lib/log-audit";
@@ -92,6 +93,77 @@ export async function GET(
         meta: {
           note: pkg.placementCoverage.summary,
           scope: "campaign",
+        },
+      });
+    }
+    const paidChannels = pkg.channels.filter(
+      (channelPkg) =>
+        channelPkg.channel === "meta" || channelPkg.channel === "google",
+    );
+    if (paidChannels.length) {
+      await logAudit({
+        actorId: gate.userId,
+        action: download ? "PAID_HANDOFF_EXPORTED" : "PAID_HANDOFF_GENERATED",
+        entity: "campaign_drafts",
+        entityId: params.id,
+        meta: {
+          note: `Campaign paid handoff ${download ? "exported" : "generated"} for ${paidChannels.map((item) => item.channel).join(", ")}.`,
+          scope: "campaign",
+        },
+      });
+      if (
+        pkg.placementCoverage.blockedCount ||
+        pkg.placementCoverage.missingCount
+      ) {
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_PLACEMENT_MISSING_DETECTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: pkg.placementCoverage.summary,
+            scope: "campaign",
+          },
+        });
+      } else if (pkg.placementCoverage.fallbackCount) {
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_PLACEMENT_WARNING_EMITTED",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: pkg.placementCoverage.summary,
+            scope: "campaign",
+          },
+        });
+      } else {
+        await logAudit({
+          actorId: gate.userId,
+          action: "PAID_PLACEMENT_READY",
+          entity: "campaign_drafts",
+          entityId: params.id,
+          meta: {
+            note: "All current paid placements in the campaign export package are ready for manual handoff.",
+            scope: "campaign",
+          },
+        });
+      }
+    }
+
+    if (download) {
+      await trackServerAnalyticsEvent({
+        name: "export_package_downloaded_confirmed",
+        request: req,
+        userId: gate.userId,
+        correlationId: `${params.id}:creative-export-package`,
+        context: {
+          campaign_id: params.id,
+          readiness_status: pkg.visualReadiness.overallState,
+        },
+        params: {
+          export_scope: "campaign",
+          blocked_channels: pkg.visualReadiness.blockedCount,
+          missing_channels: pkg.visualReadiness.missingCount,
         },
       });
     }

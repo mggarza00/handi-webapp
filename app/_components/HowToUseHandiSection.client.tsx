@@ -5,6 +5,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  buildTrackedAuthHrefFromCurrentAttribution,
+  buildTrackedClientSignInHrefFromCurrentAttribution,
+} from "@/lib/analytics/campaign-linking";
+import {
   trackProApplyStarted,
   trackRequestCreateStarted,
 } from "@/lib/analytics/track";
@@ -32,7 +36,11 @@ export default function HowToUseHandiSection() {
       title: "Inicia sesion",
       description: "Inicia sesion para solicitar tu servicio.",
     });
-    router.push("/auth/sign-in?role=client");
+    router.push(
+      buildTrackedClientSignInHrefFromCurrentAttribution({
+        role: "client",
+      }),
+    );
   };
 
   const handleProCta = () => {
@@ -41,7 +49,12 @@ export default function HowToUseHandiSection() {
       user_type: "unknown",
     });
     toast({ title: "Inicia sesion para postularte como profesional" });
-    router.push("/auth/sign-in?next=%2Fpro-apply&toast=pro-apply");
+    router.push(
+      buildTrackedAuthHrefFromCurrentAttribution({
+        nextPath: "/pro-apply",
+        authParams: { toast: "pro-apply" },
+      }),
+    );
   };
 
   return (

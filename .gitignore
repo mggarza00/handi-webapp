@@ -23,6 +23,7 @@ package-lock.json
 .aider*
 .vscode/mcp.json.local
 .mcp-auth/
+.codex-worktrees/
 playwright-report/
 test-results/
 *.tsbuildinfo
