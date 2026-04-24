@@ -1,5 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 export type RatingsAggregate = {
   ratingAvg: number;
   reviewsCount: number;
@@ -15,6 +13,34 @@ type RatingAggregateRow = {
   stars?: unknown;
   avg?: unknown;
   count?: unknown;
+};
+
+type RatingsAggregateQueryClient = {
+  from: (table: string) => {
+    select: (query: string) => {
+      in: (
+        column: string,
+        values: string[],
+      ) => Promise<{
+        data: Array<Record<string, unknown>> | null;
+        error: unknown;
+      }>;
+    };
+  };
+};
+
+type ProfessionalTargetQueryClient = {
+  from: (table: string) => {
+    select: (query: string) => {
+      in: (
+        column: string,
+        values: string[],
+      ) => Promise<{
+        data: Array<Record<string, unknown>> | null;
+        error: unknown;
+      }>;
+    };
+  };
 };
 
 const toFiniteNumber = (value: unknown): number | null => {
@@ -92,7 +118,7 @@ export function buildRatingsAggregateMap(
 }
 
 export async function fetchRatingsAggregateMap(
-  supabase: SupabaseClient,
+  supabase: RatingsAggregateQueryClient,
   ids: string[],
 ): Promise<Map<string, RatingsAggregate>> {
   const normalizedIds = Array.from(
@@ -113,7 +139,7 @@ export async function fetchRatingsAggregateMap(
 }
 
 export async function fetchProfessionalRatingTargetMap(
-  supabase: SupabaseClient,
+  supabase: ProfessionalTargetQueryClient,
   professionalIds: string[],
 ): Promise<Map<string, string>> {
   const normalizedIds = Array.from(
@@ -145,7 +171,7 @@ export async function fetchProfessionalRatingTargetMap(
   return fallbackMap;
 }
 
-export function resolveProfessionalRating(args: {
+function resolveProfessionalRating(args: {
   aggregate: RatingsAggregate | null;
   legacyRating: number | null;
 }): number | null {
