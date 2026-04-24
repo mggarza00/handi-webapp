@@ -85,7 +85,7 @@ export async function getProfessionalOverview(
     const alt = await supaClient
       .from("professionals_with_profile")
       .select(
-        "id, full_name, avatar_url, bio, years_experience, city, cities, categories, subcategories, is_featured",
+        "id, full_name, avatar_url, bio, years_experience, city, cities, categories, subcategories, rating, is_featured",
       )
       .eq("id", id)
       .maybeSingle();
@@ -98,7 +98,7 @@ export async function getProfessionalOverview(
         years_experience: row.years_experience,
         bio: row.bio,
         city: row.city ?? null,
-        rating: row.rating ?? null,
+        rating: normalizeProfessionalRating(row.rating),
         is_featured: row.is_featured ?? null,
         verified: row.is_featured ?? null, // aproximación
         profiles: {

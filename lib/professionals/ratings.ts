@@ -3,6 +3,15 @@ export type RatingsAggregate = {
   reviewsCount: number;
 };
 
+export type RatingStarsRow = {
+  stars?: unknown;
+};
+
+export type ProfessionalRatingSummary = {
+  average: number | null;
+  count: number;
+};
+
 export type ResolvedRating = {
   rating: number | null;
   reviewsCount: number;
@@ -43,6 +52,25 @@ type ProfessionalTargetQueryClient = {
   };
 };
 
+type RatingsSelectResponse = Promise<{
+  data?: Array<{ stars?: unknown }> | null;
+  count?: number | null;
+  error?: { message?: string } | null;
+}>;
+
+type RatingsSelectBuilder = {
+  eq: (column: string, value: string) => RatingsSelectResponse;
+};
+
+type RatingsSource = {
+  from: (table: string) => {
+    select: (
+      columns: string,
+      options?: { head?: boolean; count?: "exact" },
+    ) => RatingsSelectBuilder;
+  };
+};
+
 const toFiniteNumber = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -72,6 +100,27 @@ export function normalizeProfessionalRating(value: unknown): number | null {
   const numeric = toFiniteNumber(value);
   if (numeric === null || numeric < 0) return null;
   return Math.round(numeric * 10) / 10;
+}
+
+export function buildRatingsAggregateFromStars(
+  rows: RatingStarsRow[] | null | undefined,
+): RatingsAggregate | null {
+  let reviewsCount = 0;
+  let ratingSum = 0;
+
+  for (const row of rows ?? []) {
+    const stars = toFiniteNumber(row?.stars);
+    if (stars === null) continue;
+    reviewsCount += 1;
+    ratingSum += stars;
+  }
+
+  if (reviewsCount <= 0) return null;
+
+  return {
+    ratingAvg: normalizeProfessionalRating(ratingSum / reviewsCount) ?? 0,
+    reviewsCount,
+  };
 }
 
 export function buildRatingsAggregateMap(
@@ -171,7 +220,38 @@ export async function fetchProfessionalRatingTargetMap(
   return fallbackMap;
 }
 
-function resolveProfessionalRating(args: {
+export async function getProfessionalRatingSummary(
+  supabase: RatingsSource,
+  professionalId: string,
+): Promise<ProfessionalRatingSummary> {
+  const readRows = async (column: string) => {
+    const response = await supabase
+      .from("ratings")
+      .select("stars", { head: false, count: "exact" })
+      .eq(column, professionalId);
+
+    if (response?.error) return null;
+
+    const rows = Array.isArray(response?.data) ? response.data : [];
+    return {
+      rows,
+      count: typeof response?.count === "number" ? response.count : rows.length,
+    };
+  };
+
+  const primary = await readRows("to_user_id");
+  const fallback = primary || (await readRows("professional_id"));
+
+  if (!fallback) return { average: null, count: 0 };
+
+  const aggregate = buildRatingsAggregateFromStars(fallback.rows);
+  return {
+    average: aggregate?.ratingAvg ?? null,
+    count: fallback.count,
+  };
+}
+
+export function resolveProfessionalRating(args: {
   aggregate: RatingsAggregate | null;
   legacyRating: number | null;
 }): number | null {
@@ -184,10 +264,11 @@ export function resolveProfessionalRatingData(args: {
   aggregateMap?: Map<string, RatingsAggregate> | null;
   legacyRating?: number | null;
   professionalId?: string | null;
+  entityId?: string | null;
   ratingTargetId?: string | null;
   ratingTargetMap?: Map<string, string> | null;
 }): ResolvedRating {
-  const professionalId = toNormalizedId(args.professionalId);
+  const professionalId = toNormalizedId(args.professionalId ?? args.entityId);
   const explicitTargetId = toNormalizedId(args.ratingTargetId);
   const mappedTargetId =
     professionalId && args.ratingTargetMap

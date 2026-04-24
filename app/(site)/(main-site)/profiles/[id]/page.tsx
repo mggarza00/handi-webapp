@@ -262,10 +262,17 @@ export default async function PublicProfilePage({ params }: Ctx) {
   const serviceCities = overview.cities ?? [];
   const yearsExperience = getNumber(proData.years_experience) ?? null;
   const averageRating =
-    typeof reviewsData.average === "number" &&
-    Number.isFinite(reviewsData.average)
-      ? reviewsData.average
-      : null;
+    typeof overview.averageRating === "number" &&
+    Number.isFinite(overview.averageRating)
+      ? overview.averageRating
+      : typeof reviewsData.average === "number" &&
+          Number.isFinite(reviewsData.average)
+        ? reviewsData.average
+        : null;
+  const reviewsCount = Math.max(
+    typeof overview.ratingCount === "number" ? overview.ratingCount : 0,
+    typeof reviewsData.count === "number" ? reviewsData.count : 0,
+  );
   const bio = getString(proData.bio);
   const isVerified = Boolean(
     getBoolean(proData.verified) || getBoolean(proData.is_featured),
@@ -338,13 +345,12 @@ export default async function PublicProfilePage({ params }: Ctx) {
   if (
     typeof averageRating === "number" &&
     Number.isFinite(averageRating) &&
-    typeof reviewsData.count === "number" &&
-    reviewsData.count > 0
+    reviewsCount > 0
   ) {
     professionalServiceJsonLd.aggregateRating = {
       "@type": "AggregateRating",
       ratingValue: Number(averageRating.toFixed(1)),
-      reviewCount: reviewsData.count,
+      reviewCount: reviewsCount,
     };
   }
 
@@ -383,7 +389,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
         serviceCities={serviceCities}
         bio={bio}
         averageRating={averageRating}
-        reviewsCount={reviewsData.count}
+        reviewsCount={reviewsCount}
         headingClassName={stackSansHeading.className}
         isVerified={isVerified}
         rightAction={
@@ -570,7 +576,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
               professionalId={proId}
               initial={reviewsData.items}
               nextCursor={reviewsData.nextCursor}
-              total={reviewsData.count}
+              total={reviewsCount}
             />
           </div>
         </Card>

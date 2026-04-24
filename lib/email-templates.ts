@@ -212,3 +212,42 @@ export function proApplicationRejectedHtml(opts: { linkUrl?: string }) {
     fallbackLinkUrl: opts.linkUrl,
   });
 }
+
+export function payoutPaidProfessionalHtml(opts: {
+  professionalName?: string | null;
+  requestTitle?: string | null;
+  amountText: string;
+  payoutDateLabel: string;
+  estimatedArrivalText: string;
+  receiptUrl?: string | null;
+  supportEmail?: string | null;
+}) {
+  const title = "Tu payout ha sido confirmado";
+  const safeName = escapeHtml(opts.professionalName ?? "Profesional");
+  const safeRequestTitle = escapeHtml(opts.requestTitle ?? "tu servicio");
+  const safeAmountText = escapeHtml(opts.amountText);
+  const safePayoutDate = escapeHtml(opts.payoutDateLabel);
+  const safeEstimatedArrival = escapeHtml(opts.estimatedArrivalText);
+  const safeSupportEmail = escapeHtml(opts.supportEmail ?? "soporte@handi.mx");
+  const body = `
+    <p>Hola <strong>${safeName}</strong>,</p>
+    <p>Confirmamos el payout correspondiente a <strong>${safeRequestTitle}</strong>.</p>
+    <ul style="padding-left:18px; margin:16px 0; color:#1f2a44; line-height:1.7;">
+      <li>Monto enviado: <strong>${safeAmountText}</strong></li>
+      <li>Fecha de confirmación: <strong>${safePayoutDate}</strong></li>
+      <li>Tiempo estimado para reflejarse: <strong>${safeEstimatedArrival}</strong></li>
+    </ul>
+    <p>Adjuntamos el comprobante del payout en este correo para tu referencia.</p>
+    <p>Si necesitas apoyo adicional, escríbenos a <a href="mailto:${safeSupportEmail}">${safeSupportEmail}</a>.</p>
+  `;
+  return emailLayout({
+    headerLabel: "Payout",
+    title,
+    preheader: "Tu pago a profesional ya fue confirmado por Handi.",
+    bodyHtml: body,
+    cta: opts.receiptUrl
+      ? { label: "Ver comprobante", url: opts.receiptUrl }
+      : null,
+    fallbackLinkUrl: opts.receiptUrl ?? undefined,
+  });
+}

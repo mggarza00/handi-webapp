@@ -6,12 +6,17 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import RatingStars from "@/components/ui/RatingStars";
 import { toast } from "sonner";
+import { trackContactIntent } from "@/lib/analytics/track";
+import {
+  formatCompletedServicesLabel,
+  formatProfessionalRatingWithStar,
+  normalizeCompletedJobsDone,
+  normalizeProfessionalRating,
+} from "@/lib/professionals/card-display";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import ChatPanel from "@/components/chat/ChatPanel";
 import AvatarWithSkeleton from "@/components/ui/AvatarWithSkeleton";
-import { trackContactIntent } from "@/lib/analytics/track";
 
 const REQUEST_DETAIL_CHAT_HELPER_SEEN_KEY = "request_detail_chat_helper_seen";
 
@@ -22,6 +27,7 @@ type Professional = {
   headline?: string | null;
   bio?: string | null;
   rating?: number | null;
+  jobsDone: number;
 };
 
 export type ProfessionalsListProps = {
@@ -159,7 +165,8 @@ export default function ProfessionalsList({
             avatar_url: (r.avatar_url as string | null) ?? null,
             headline: (r.headline as string | null) ?? null,
             bio: (r.bio as string | null) ?? null,
-            rating: typeof r.rating === "number" ? (r.rating as number) : null,
+            rating: normalizeProfessionalRating(r.rating),
+            jobsDone: normalizeCompletedJobsDone(r.jobsDone),
           }))
           .filter((p) => p.id);
         if (onlyProfessionalId) {
@@ -276,13 +283,20 @@ export default function ProfessionalsList({
                   {p.headline ?? ""}
                 </div>
               </div>
-              {typeof p.rating === "number" && <RatingStars value={p.rating} />}
+              {formatProfessionalRatingWithStar(p.rating) ? (
+                <div className="shrink-0 text-sm font-medium text-slate-700">
+                  {formatProfessionalRatingWithStar(p.rating)}
+                </div>
+              ) : null}
             </div>
             {p.bio ? (
               <p className="mt-1 text-xs text-slate-700 line-clamp-2">
                 {p.bio}
               </p>
             ) : null}
+            <div className="mt-2 text-xs text-slate-600">
+              {formatCompletedServicesLabel(p.jobsDone)}
+            </div>
             <div className="mt-2" onClick={(e) => e.stopPropagation()}>
               <Button
                 size="sm"
