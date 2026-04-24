@@ -781,8 +781,9 @@ export default async function SiteHeader() {
           </div>
         </div>
       </header>
-      {/* Pro mobile tabbar removed as requested */}
-      {isAuth && effectiveRole === "pro" ? <ProMobileTabbar /> : null}
+      {isAuth && effectiveRole === "pro" ? (
+        <ProMobileTabbar isClientPro={is_client_pro} />
+      ) : null}
     </>
   );
 }

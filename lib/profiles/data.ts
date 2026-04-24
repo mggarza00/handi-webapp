@@ -1,7 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getProfessionalRatingSummary } from "@/lib/professionals/ratings";
+import {
+  fetchProfessionalRatingTargetMap,
+  fetchRatingsAggregateMap,
+  normalizeProfessionalRating,
+  resolveProfessionalRatingData,
+} from "@/lib/professionals/ratings";
 
 // Supabase generics intentionally relaxed to reduce type instantiation costs.
 
@@ -80,7 +85,7 @@ export async function getProfessionalOverview(
     const alt = await supaClient
       .from("professionals_with_profile")
       .select(
-        "id, full_name, avatar_url, bio, years_experience, city, cities, categories, subcategories, is_featured",
+        "id, full_name, avatar_url, bio, years_experience, city, cities, categories, subcategories, rating, is_featured",
       )
       .eq("id", id)
       .maybeSingle();
@@ -93,7 +98,7 @@ export async function getProfessionalOverview(
         years_experience: row.years_experience,
         bio: row.bio,
         city: row.city ?? null,
-        rating: row.rating ?? null,
+        rating: normalizeProfessionalRating(row.rating),
         is_featured: row.is_featured ?? null,
         verified: row.is_featured ?? null, // aproximación
         profiles: {
@@ -192,28 +197,27 @@ export async function getProfessionalOverview(
     pro = proRecord as any;
   }
 
-  // ratings agregados (alineado con getReviews: preferir ratings.to_user_id)
-  let ratingRows: Array<{ stars: number | null }> = [];
+  let averageRating: number | null = null;
   let ratingCount = 0;
-  const r1 = await supaClient
-    .from("ratings")
-    .select("stars", { head: false, count: "exact" })
-    .eq("to_user_id", id);
-  if (!r1.error) {
-    ratingRows = (r1.data as any[]) || [];
-    ratingCount = r1.count ?? ratingRows.length;
-  } else {
-    const r2 = await supaClient
-      .from("ratings")
-      .select("stars", { head: false, count: "exact" })
-      .eq("professional_id" as any, id); // TODO(schema): fallback si no existe to_user_id
-    ratingRows = (r2.data as any[]) || [];
-    ratingCount = r2.count ?? ratingRows.length;
+  try {
+    const legacyRating = normalizeProfessionalRating((pro as any)?.rating);
+    const ratingTargetId =
+      asTrimmedString((pro as any)?.user_id) ??
+      asTrimmedString((pro as any)?.id) ??
+      id;
+    const aggregateMap = await fetchRatingsAggregateMap(supa, [ratingTargetId]);
+    const resolved = resolveProfessionalRatingData({
+      aggregateMap,
+      entityId: id,
+      ratingTargetId,
+      legacyRating,
+    });
+    averageRating = resolved.rating;
+    ratingCount = resolved.reviewsCount;
+  } catch {
+    averageRating = normalizeProfessionalRating((pro as any)?.rating);
+    ratingCount = 0;
   }
-  const averageRating = ratingCount
-    ? ratingRows.reduce((a, b) => a + (Number(b?.stars ?? 0) || 0), 0) /
-      ratingCount
-    : null;
 
   // trabajos finalizados (preferido: requests por professional_id y estado)
   let jobsDone = 0;
@@ -580,11 +584,18 @@ export async function getReviews(
   average: number | null;
 }> {
   const supaClient = supa as any;
+  let ratingTargetId = id;
+  try {
+    const targetMap = await fetchProfessionalRatingTargetMap(supa, [id]);
+    ratingTargetId = targetMap.get(id) ?? id;
+  } catch {
+    ratingTargetId = id;
+  }
   // Robust two-step approach: fetch ratings by to_user_id, then enrich with client profiles
   const rsel = await supaClient
     .from("ratings")
     .select("id, from_user_id, stars, comment, created_at")
-    .eq("to_user_id", id)
+    .eq("to_user_id", ratingTargetId)
     .order("created_at", { ascending: false })
     .limit(limit);
   const rows = (rsel.data ?? []) as Array<{
@@ -637,11 +648,40 @@ export async function getReviews(
     ? `${items[items.length - 1].createdAt}|${items[items.length - 1].id}`
     : null;
 
-  const summary = await getProfessionalRatingSummary(supaClient, id);
-  return {
-    items,
-    nextCursor,
-    count: summary.count,
-    average: summary.average,
-  };
+  let count = 0;
+  let average: number | null = null;
+  try {
+    const aggregateMap = await fetchRatingsAggregateMap(supa, [ratingTargetId]);
+    const resolved = resolveProfessionalRatingData({
+      aggregateMap,
+      entityId: id,
+      ratingTargetId,
+      legacyRating: null,
+    });
+    count = resolved.reviewsCount;
+    average = resolved.rating;
+  } catch {
+    const [{ count: fallbackCount }, avgRowsRes] = await Promise.all([
+      supaClient
+        .from("ratings")
+        .select("id", { count: "exact", head: true })
+        .eq("to_user_id", ratingTargetId),
+      supaClient
+        .from("ratings")
+        .select("stars")
+        .eq("to_user_id", ratingTargetId),
+    ]);
+    const avgRows = Array.isArray(avgRowsRes.data)
+      ? (avgRowsRes.data as Array<{ stars: number | null }>)
+      : [];
+    const numericStars = avgRows
+      .map((row) => Number(row.stars ?? NaN))
+      .filter((value) => Number.isFinite(value));
+    count = fallbackCount ?? 0;
+    average = numericStars.length
+      ? numericStars.reduce((sum, value) => sum + value, 0) /
+        numericStars.length
+      : null;
+  }
+  return { items, nextCursor, count: count ?? 0, average };
 }
