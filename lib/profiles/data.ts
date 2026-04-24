@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { getProfessionalRatingSummary } from "@/lib/professionals/ratings";
+
 // Supabase generics intentionally relaxed to reduce type instantiation costs.
 
 type ProfileOverviewPro = {
@@ -635,21 +637,11 @@ export async function getReviews(
     ? `${items[items.length - 1].createdAt}|${items[items.length - 1].id}`
     : null;
 
-  const [{ count }, avgRowsRes] = await Promise.all([
-    supaClient
-      .from("ratings")
-      .select("id", { count: "exact", head: true })
-      .eq("to_user_id", id),
-    supaClient.from("ratings").select("stars").eq("to_user_id", id),
-  ]);
-  const avgRows = Array.isArray(avgRowsRes.data)
-    ? (avgRowsRes.data as Array<{ stars: number | null }>)
-    : [];
-  const numericStars = avgRows
-    .map((row) => Number(row.stars ?? NaN))
-    .filter((value) => Number.isFinite(value));
-  const average = numericStars.length
-    ? numericStars.reduce((sum, value) => sum + value, 0) / numericStars.length
-    : null;
-  return { items, nextCursor, count: count ?? 0, average };
+  const summary = await getProfessionalRatingSummary(supaClient, id);
+  return {
+    items,
+    nextCursor,
+    count: summary.count,
+    average: summary.average,
+  };
 }
