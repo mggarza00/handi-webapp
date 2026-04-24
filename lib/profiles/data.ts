@@ -197,25 +197,30 @@ export async function getProfessionalOverview(
     pro = proRecord as any;
   }
 
-  let averageRating: number | null = null;
+  const legacyRating = normalizeProfessionalRating(
+    (pro as any)?.rating ?? null,
+  );
+  let averageRating = legacyRating;
   let ratingCount = 0;
   try {
-    const legacyRating = normalizeProfessionalRating((pro as any)?.rating);
-    const ratingTargetId =
-      asTrimmedString((pro as any)?.user_id) ??
-      asTrimmedString((pro as any)?.id) ??
-      id;
-    const aggregateMap = await fetchRatingsAggregateMap(supa, [ratingTargetId]);
-    const resolved = resolveProfessionalRatingData({
-      aggregateMap,
-      entityId: id,
+    const ratingTargetMap = await fetchProfessionalRatingTargetMap(supaClient, [
+      id,
+    ]);
+    const ratingTargetId = ratingTargetMap.get(id) ?? id;
+    const aggregateMap = await fetchRatingsAggregateMap(supaClient, [
       ratingTargetId,
+    ]);
+    const summary = resolveProfessionalRatingData({
+      aggregateMap,
       legacyRating,
+      professionalId: id,
+      ratingTargetId,
+      ratingTargetMap,
     });
-    averageRating = resolved.rating;
-    ratingCount = resolved.reviewsCount;
+    averageRating = summary.rating;
+    ratingCount = summary.reviewsCount;
   } catch {
-    averageRating = normalizeProfessionalRating((pro as any)?.rating);
+    averageRating = legacyRating;
     ratingCount = 0;
   }
 
@@ -585,26 +590,46 @@ export async function getReviews(
 }> {
   const supaClient = supa as any;
   let ratingTargetId = id;
+  let ratingTargetMap = new Map<string, string>([[id, id]]);
+  let legacyRating: number | null = null;
+
   try {
-    const targetMap = await fetchProfessionalRatingTargetMap(supa, [id]);
-    ratingTargetId = targetMap.get(id) ?? id;
+    ratingTargetMap = await fetchProfessionalRatingTargetMap(supaClient, [id]);
+    ratingTargetId = ratingTargetMap.get(id) ?? id;
   } catch {
     ratingTargetId = id;
+    ratingTargetMap = new Map<string, string>([[id, id]]);
   }
-  // Robust two-step approach: fetch ratings by to_user_id, then enrich with client profiles
+
+  try {
+    const { data: professional } = await supaClient
+      .from("professionals")
+      .select("rating")
+      .eq("id", id)
+      .maybeSingle();
+    legacyRating = normalizeProfessionalRating(
+      (professional as { rating?: unknown } | null)?.rating ?? null,
+    );
+  } catch {
+    legacyRating = null;
+  }
+
   const rsel = await supaClient
     .from("ratings")
     .select("id, from_user_id, stars, comment, created_at")
     .eq("to_user_id", ratingTargetId)
     .order("created_at", { ascending: false })
     .limit(limit);
-  const rows = (rsel.data ?? []) as Array<{
-    id: string;
-    from_user_id: string;
-    stars: number | null;
-    comment: string | null;
-    created_at: string | null;
-  }>;
+  const rows =
+    !rsel.error && Array.isArray(rsel.data)
+      ? (rsel.data as Array<{
+          id: string;
+          from_user_id: string;
+          stars: number | null;
+          comment: string | null;
+          created_at: string | null;
+        }>)
+      : [];
   const authorIds = Array.from(new Set(rows.map((r) => r.from_user_id))).filter(
     Boolean,
   ) as string[];
@@ -648,40 +673,25 @@ export async function getReviews(
     ? `${items[items.length - 1].createdAt}|${items[items.length - 1].id}`
     : null;
 
+  let average: number | null = legacyRating;
   let count = 0;
-  let average: number | null = null;
   try {
-    const aggregateMap = await fetchRatingsAggregateMap(supa, [ratingTargetId]);
-    const resolved = resolveProfessionalRatingData({
-      aggregateMap,
-      entityId: id,
+    const aggregateMap = await fetchRatingsAggregateMap(supaClient, [
       ratingTargetId,
-      legacyRating: null,
-    });
-    count = resolved.reviewsCount;
-    average = resolved.rating;
-  } catch {
-    const [{ count: fallbackCount }, avgRowsRes] = await Promise.all([
-      supaClient
-        .from("ratings")
-        .select("id", { count: "exact", head: true })
-        .eq("to_user_id", ratingTargetId),
-      supaClient
-        .from("ratings")
-        .select("stars")
-        .eq("to_user_id", ratingTargetId),
     ]);
-    const avgRows = Array.isArray(avgRowsRes.data)
-      ? (avgRowsRes.data as Array<{ stars: number | null }>)
-      : [];
-    const numericStars = avgRows
-      .map((row) => Number(row.stars ?? NaN))
-      .filter((value) => Number.isFinite(value));
-    count = fallbackCount ?? 0;
-    average = numericStars.length
-      ? numericStars.reduce((sum, value) => sum + value, 0) /
-        numericStars.length
-      : null;
+    const summary = resolveProfessionalRatingData({
+      aggregateMap,
+      legacyRating,
+      professionalId: id,
+      ratingTargetId,
+      ratingTargetMap,
+    });
+    average = summary.rating;
+    count = summary.reviewsCount;
+  } catch {
+    average = legacyRating;
+    count = 0;
   }
-  return { items, nextCursor, count: count ?? 0, average };
+
+  return { items, nextCursor, count, average };
 }

@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCompletedJobsCountMapMock = vi.fn();
 
-function createQuery(result: { data?: unknown; error?: unknown; count?: number }) {
+function createQuery(result: {
+  data?: unknown;
+  error?: unknown;
+  count?: number;
+}) {
   const query: {
     or: () => typeof query;
     order: () => typeof query;

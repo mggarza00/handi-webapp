@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+
 import createClient from "@/utils/supabase/server";
 
-import { RequestCreateSchema, RequestListQuerySchema } from "@/lib/validators/requests";
-import { getAdminSupabase } from "@/lib/supabase/admin";
-import { createBearerClient } from "@/lib/supabase";
 import { getDevUserFromHeader } from "@/lib/auth-route";
-import type { Database } from "@/types/supabase";
+import { trackServerAnalyticsEvent } from "@/lib/analytics/server-events";
+import { createBearerClient } from "@/lib/supabase";
+import { getAdminSupabase } from "@/lib/supabase/admin";
+import {
+  RequestCreateSchema,
+  RequestListQuerySchema,
+} from "@/lib/validators/requests";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
 
@@ -42,9 +46,14 @@ export async function GET(req: Request) {
   const supabase = getSupabase();
   let userId: string | null = null;
 
-  const authHeader = (req.headers.get("authorization") || req.headers.get("Authorization") || "").trim();
+  const authHeader = (
+    req.headers.get("authorization") ||
+    req.headers.get("Authorization") ||
+    ""
+  ).trim();
   const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-  const token = bearerMatch?.[1] || (req.headers.get("x-access-token") || "").trim();
+  const token =
+    bearerMatch?.[1] || (req.headers.get("x-access-token") || "").trim();
   if (token) {
     try {
       const bearer = createBearerClient(token);
@@ -69,7 +78,10 @@ export async function GET(req: Request) {
     }
   }
   if (mine && !userId) {
-    return NextResponse.json({ ok: true, data: [], nextCursor: null }, { status: 200, headers: JSONH });
+    return NextResponse.json(
+      { ok: true, data: [], nextCursor: null },
+      { status: 200, headers: JSONH },
+    );
   }
   let query = supabase
     .from("requests")
@@ -136,14 +148,27 @@ export async function GET(req: Request) {
   const safe = Array.isArray(data)
     ? data.map((row: any) => {
         if (!mine) {
-          const { address_line, address_place_id, address_lat, address_lng, address_postcode, address_state, address_country, address_context, ...rest } = row || {};
+          const {
+            address_line,
+            address_place_id,
+            address_lat,
+            address_lng,
+            address_postcode,
+            address_state,
+            address_country,
+            address_context,
+            ...rest
+          } = row || {};
           return rest;
         }
         return row;
       })
     : data;
 
-  return NextResponse.json({ ok: true, data: safe, nextCursor }, { status: 200, headers: JSONH });
+  return NextResponse.json(
+    { ok: true, data: safe, nextCursor },
+    { status: 200, headers: JSONH },
+  );
 }
 
 // POST /api/requests
@@ -175,7 +200,7 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
 
   if (!actingUserId) actingUserId = user?.id ?? null;
-  
+
   // E2E fallback: allow cookie-based test session to create requests via admin client
   if ((!actingUserId && authErr) || (!actingUserId && !user)) {
     try {
@@ -191,16 +216,34 @@ export async function POST(req: Request) {
           try {
             const perPage = 200;
             for (let page = 1; page <= 10 && !foundId; page++) {
-              const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+              const { data, error } = await admin.auth.admin.listUsers({
+                page,
+                perPage,
+              });
               if (error) break;
-              const users = (data?.users ?? []) as Array<{ id: string; email?: string | null }>;
-              const match = users.find((u) => (u.email || "").toLowerCase() === email.toLowerCase());
+              const users = (data?.users ?? []) as Array<{
+                id: string;
+                email?: string | null;
+              }>;
+              const match = users.find(
+                (u) => (u.email || "").toLowerCase() === email.toLowerCase(),
+              );
               if (match) foundId = match.id;
               if (!users.length || users.length < perPage) break;
             }
             if (!foundId) {
-              const r = await admin.auth.admin.createUser({ email, email_confirm: true });
-              const u = (r as { data?: { user: { id: string; email?: string | null } | null } }).data?.user || null;
+              const r = await admin.auth.admin.createUser({
+                email,
+                email_confirm: true,
+              });
+              const u =
+                (
+                  r as {
+                    data?: {
+                      user: { id: string; email?: string | null } | null;
+                    };
+                  }
+                ).data?.user || null;
               if (u?.id) foundId = u.id;
             }
           } catch {
@@ -247,8 +290,13 @@ export async function POST(req: Request) {
   // Compat: si viene 'subcategory' como string y no hay 'subcategories', promuévelo
   try {
     const b = body as Record<string, unknown>;
-    const single = typeof b?.subcategory === "string" ? (b.subcategory as string).trim() : "";
-    const arr = Array.isArray(b?.subcategories) ? (b.subcategories as unknown[]) : [];
+    const single =
+      typeof b?.subcategory === "string"
+        ? (b.subcategory as string).trim()
+        : "";
+    const arr = Array.isArray(b?.subcategories)
+      ? (b.subcategories as unknown[])
+      : [];
     if (single && arr.length === 0) {
       (b as Record<string, unknown>).subcategories = [single];
       delete (b as Record<string, unknown>).subcategory;
@@ -280,11 +328,15 @@ export async function POST(req: Request) {
   if (payload.description) insert.description = payload.description;
   if (payload.category) insert.category = payload.category;
   // Optional AI-assisted fields
-  if (typeof payload.category_id === 'string') insert.category_id = payload.category_id;
-  if (typeof payload.subcategory_id === 'string') insert.subcategory_id = payload.subcategory_id;
-  if (typeof payload.ai_confidence === 'number') insert.ai_confidence = payload.ai_confidence;
-  if (typeof payload.ai_model === 'string') insert.ai_model = payload.ai_model;
-  if (typeof payload.ai_overridden === 'boolean') insert.ai_overridden = payload.ai_overridden;
+  if (typeof payload.category_id === "string")
+    insert.category_id = payload.category_id;
+  if (typeof payload.subcategory_id === "string")
+    insert.subcategory_id = payload.subcategory_id;
+  if (typeof payload.ai_confidence === "number")
+    insert.ai_confidence = payload.ai_confidence;
+  if (typeof payload.ai_model === "string") insert.ai_model = payload.ai_model;
+  if (typeof payload.ai_overridden === "boolean")
+    insert.ai_overridden = payload.ai_overridden;
   // conditions: aceptar string o array; normalizar y deduplicar
   try {
     const cond = (payload as { conditions?: unknown }).conditions;
@@ -341,30 +393,64 @@ export async function POST(req: Request) {
   // Meta de dirección extra (opcionales)
   try {
     const addr = payload as Record<string, unknown>;
-    if (typeof addr.address_postcode === 'string' && (addr.address_postcode as string).trim()) (insert as Record<string, unknown>).address_postcode = addr.address_postcode;
-    if (typeof addr.address_state === 'string' && (addr.address_state as string).trim()) (insert as Record<string, unknown>).address_state = addr.address_state;
-    if (typeof addr.address_country === 'string' && (addr.address_country as string).trim()) (insert as Record<string, unknown>).address_country = addr.address_country;
-    if (typeof addr.address_context !== 'undefined') (insert as Record<string, unknown>).address_context = addr.address_context;
-  } catch { /* ignore */ }
+    if (
+      typeof addr.address_postcode === "string" &&
+      (addr.address_postcode as string).trim()
+    )
+      (insert as Record<string, unknown>).address_postcode =
+        addr.address_postcode;
+    if (
+      typeof addr.address_state === "string" &&
+      (addr.address_state as string).trim()
+    )
+      (insert as Record<string, unknown>).address_state = addr.address_state;
+    if (
+      typeof addr.address_country === "string" &&
+      (addr.address_country as string).trim()
+    )
+      (insert as Record<string, unknown>).address_country =
+        addr.address_country;
+    if (typeof addr.address_context !== "undefined")
+      (insert as Record<string, unknown>).address_context =
+        addr.address_context;
+  } catch {
+    /* ignore */
+  }
   // Dirección opcional
   try {
-    const addr = (payload as Record<string, unknown>);
-    const address_line = typeof addr.address_line === "string" ? addr.address_line.trim() : "";
-    const address_place_id = typeof addr.address_place_id === "string" ? addr.address_place_id.trim() : "";
-    const address_lat = typeof addr.address_lat === "number" ? addr.address_lat : null;
-    const address_lng = typeof addr.address_lng === "number" ? addr.address_lng : null;
-    if (address_line) (insert as Record<string, unknown>).address_line = address_line;
-    if (address_place_id) (insert as Record<string, unknown>).address_place_id = address_place_id;
-    if (address_lat != null) (insert as Record<string, unknown>).address_lat = address_lat;
-    if (address_lng != null) (insert as Record<string, unknown>).address_lng = address_lng;
-  } catch { /* ignore */ }
+    const addr = payload as Record<string, unknown>;
+    const address_line =
+      typeof addr.address_line === "string" ? addr.address_line.trim() : "";
+    const address_place_id =
+      typeof addr.address_place_id === "string"
+        ? addr.address_place_id.trim()
+        : "";
+    const address_lat =
+      typeof addr.address_lat === "number" ? addr.address_lat : null;
+    const address_lng =
+      typeof addr.address_lng === "number" ? addr.address_lng : null;
+    if (address_line)
+      (insert as Record<string, unknown>).address_line = address_line;
+    if (address_place_id)
+      (insert as Record<string, unknown>).address_place_id = address_place_id;
+    if (address_lat != null)
+      (insert as Record<string, unknown>).address_lat = address_lat;
+    if (address_lng != null)
+      (insert as Record<string, unknown>).address_lng = address_lng;
+  } catch {
+    /* ignore */
+  }
 
   const attemptInsert: Record<string, unknown> = insert;
   let data: unknown;
   if (preferAdminInsert) {
     try {
       const admin = getAdminSupabase();
-      const r = await admin.from("requests").insert(attemptInsert).select("*").single();
+      const r = await admin
+        .from("requests")
+        .insert(attemptInsert)
+        .select("*")
+        .single();
       if (r.error) {
         return NextResponse.json(
           { error: r.error.message },
@@ -424,8 +510,10 @@ export async function POST(req: Request) {
   // Best-effort: guarda/actualiza dirección usada por el usuario (RPC, incrementa times_used y refresca last_used_at)
   try {
     const d = (data || {}) as Record<string, unknown>;
-    const address_line = typeof d.address_line === "string" ? d.address_line : null;
-    const address_place_id = typeof d.address_place_id === "string" ? d.address_place_id : null;
+    const address_line =
+      typeof d.address_line === "string" ? d.address_line : null;
+    const address_place_id =
+      typeof d.address_place_id === "string" ? d.address_place_id : null;
     const lat = typeof d.address_lat === "number" ? d.address_lat : null;
     const lng = typeof d.address_lng === "number" ? d.address_lng : null;
     if (actingUserId && (address_line || address_place_id)) {
@@ -439,7 +527,31 @@ export async function POST(req: Request) {
         label: null,
       });
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
+
+  const createdRequest = (data || {}) as {
+    id?: string;
+    category?: string | null;
+    city?: string | null;
+  };
+  await trackServerAnalyticsEvent({
+    name: "request_created_confirmed",
+    request: req,
+    userId: actingUserId,
+    correlationId: createdRequest.id || null,
+    params: {
+      request_id: createdRequest.id,
+      service_category: createdRequest.category || payload.category,
+      service_subcategory:
+        Array.isArray(payload.subcategories) && payload.subcategories.length > 0
+          ? payload.subcategories[0]
+          : undefined,
+      city: createdRequest.city || payload.city,
+      user_type: "client",
+    },
+  });
 
   return NextResponse.json({ ok: true, data }, { status: 201, headers: JSONH });
 }

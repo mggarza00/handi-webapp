@@ -34,11 +34,18 @@ export const CAMPAIGN_VERSION_ACTIONS = [
   "manual_edit",
   "regenerate",
 ] as const;
+export const CAMPAIGN_MESSAGE_PLACEMENT_SOURCES = [
+  "inherited",
+  "ai_generated",
+  "manual_override",
+] as const;
 
 export type CampaignWorkflowStatus =
   (typeof CAMPAIGN_WORKFLOW_STATUSES)[number];
 export type CampaignFeedbackType = (typeof CAMPAIGN_FEEDBACK_TYPES)[number];
 export type CampaignVersionAction = (typeof CAMPAIGN_VERSION_ACTIONS)[number];
+export type CampaignMessagePlacementSource =
+  (typeof CAMPAIGN_MESSAGE_PLACEMENT_SOURCES)[number];
 export type CampaignSortOrder = "updated_desc" | "updated_asc";
 
 export const CAMPAIGN_PUBLISH_STATUSES = [
@@ -247,6 +254,23 @@ export type CampaignMessageRow = {
   updated_at: string;
 };
 
+export type CampaignMessagePlacementRow = {
+  id: string;
+  campaign_draft_id: string;
+  campaign_message_id: string;
+  channel: CampaignMessageRow["channel"];
+  placement_id: string;
+  content: CampaignMessageContent;
+  rationale: string;
+  provider_metadata: ProviderMetadata;
+  qa_report: MessageQaReport;
+  status: CampaignWorkflowStatus;
+  source: CampaignMessagePlacementSource;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CampaignFeedbackRow = {
   id: string;
   campaign_draft_id: string;
@@ -336,6 +360,10 @@ export type CampaignMessageView = CampaignMessageRow & {
   regenerated_at: string | null;
 };
 
+export type CampaignMessagePlacementView = CampaignMessagePlacementRow & {
+  rationale_parts: StructuredMessageRationale;
+};
+
 export type CampaignListItem = CampaignDraftRow & {
   variant_count: number;
   change_request_count: number;
@@ -391,6 +419,22 @@ export type CampaignActivityType =
   | "placement_missing_detected"
   | "placement_export_generated"
   | "placement_bundle_downloaded"
+  | "placement_copy_generated"
+  | "placement_copy_approved"
+  | "placement_copy_rejected"
+  | "placement_copy_manual_override"
+  | "placement_copy_inherited"
+  | "placement_copy_used_in_export"
+  | "paid_handoff_generated"
+  | "paid_handoff_exported"
+  | "paid_placement_ready"
+  | "paid_placement_warning_emitted"
+  | "paid_placement_missing_detected"
+  | "paid_draft_generated"
+  | "paid_draft_downloaded"
+  | "paid_draft_warning_emitted"
+  | "paid_draft_blocked"
+  | "paid_draft_included_in_bundle"
   | "analytics_contracts_updated"
   | "attribution_mapping_prepared"
   | "message_edited"
@@ -775,6 +819,14 @@ export function labelDecisionEligibility(
 
 export function labelFeedbackType(type: CampaignFeedbackType): string {
   return type.replace(/_/g, " ");
+}
+
+export function labelPlacementCopySource(
+  source: CampaignMessagePlacementSource,
+): string {
+  if (source === "ai_generated") return "AI generated";
+  if (source === "manual_override") return "Manual override";
+  return "Inherited";
 }
 
 export function labelChannel(channel: PublishChannel): string {

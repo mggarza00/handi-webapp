@@ -354,7 +354,10 @@ export async function GET(req: Request) {
 
     try {
       const ids = mapped.map((m) => m.id).filter(Boolean);
-      const jobsMap = await getCompletedJobsCountMap(createServiceClient(), ids);
+      const jobsMap = await getCompletedJobsCountMap(
+        createServiceClient(),
+        ids,
+      );
       mapped = mapped.map((m) => ({
         ...m,
         jobsDone: jobsMap.get(m.id) ?? 0,

@@ -260,9 +260,8 @@ export async function POST(
       /* ignore in-app notification failures */
     }
     try {
-      const { notifyChatMessageByConversation } = await import(
-        "@/lib/chat-notifier"
-      );
+      const { notifyChatMessageByConversation } =
+        await import("@/lib/chat-notifier");
       await notifyChatMessageByConversation({
         conversationId,
         senderId: user.id,

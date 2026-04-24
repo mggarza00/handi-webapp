@@ -1,10 +1,12 @@
 ﻿import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import ProApplyForm from "./pro-apply-form.client";
 
 import ProApplyIntroModal from "@/components/pro-apply/ProApplyIntroModal.client";
+import { buildTrackedAuthHrefFromCookieHeader } from "@/lib/analytics/cta-builders";
 import type { Database } from "@/types/supabase";
 import createClient from "@/utils/supabase/server";
 
@@ -71,7 +73,17 @@ export default async function ProApplyPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/sign-in?next=/pro-apply");
+    const cookieHeader = cookies()
+      .getAll()
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join("; ");
+    redirect(
+      buildTrackedAuthHrefFromCookieHeader({
+        cookieHeader,
+        authPath: "/auth/sign-in",
+        nextPath: "/pro-apply",
+      }),
+    );
   }
 
   const [{ fullName, role, headline }, latestStatus] = await Promise.all([

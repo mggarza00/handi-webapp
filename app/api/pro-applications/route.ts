@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import createClient from "@/utils/supabase/server";
 import { z } from "zod";
 
-import type { Database } from "@/types/supabase";
+import createClient from "@/utils/supabase/server";
+
+import { trackServerAnalyticsEvent } from "@/lib/analytics/server-events";
 import { sendEmail } from "@/lib/email";
 import {
   SUPPORT_EMAIL,
@@ -350,6 +351,21 @@ export async function POST(req: Request) {
         { status: 500, headers: JSONH },
       );
     }
+
+    await trackServerAnalyticsEvent({
+      name: "pro_apply_completed_confirmed",
+      request: req,
+      userId: auth.user.id,
+      correlationId: `pro-apply:${auth.user.id}:${p.email.toLowerCase()}`,
+      params: {
+        user_type: "pro",
+        service_category: p.categories[0] || undefined,
+        city: p.cities[0] || undefined,
+        categories_count: p.categories.length,
+        cities_count: p.cities.length,
+        is_company: Boolean(p.empresa),
+      },
+    });
 
     // In-app notifications para admins (best-effort)
     if (admin) {

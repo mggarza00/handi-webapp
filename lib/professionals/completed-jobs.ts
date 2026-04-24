@@ -13,8 +13,14 @@ type CompletedJobsSources = {
 type SupabaseLike = {
   from: (table: string) => {
     select: (columns: string) => {
-      in: (column: string, values: readonly string[]) => {
-        in: (column: string, values: readonly string[]) => PromiseLike<{
+      in: (
+        column: string,
+        values: readonly string[],
+      ) => {
+        in: (
+          column: string,
+          values: readonly string[],
+        ) => PromiseLike<{
           data?: RowRecord[] | null;
           error?: { message?: string | null } | null;
         }>;
@@ -88,9 +94,7 @@ export async function getCompletedJobsCountMap(
   admin: SupabaseLike,
   professionalIds: string[],
 ): Promise<Map<string, number>> {
-  const ids = professionalIds
-    .map((id) => id.trim())
-    .filter(Boolean);
+  const ids = professionalIds.map((id) => id.trim()).filter(Boolean);
   if (!ids.length) return new Map();
 
   const [requestsResult, agreementsResult, calendarEventsResult] =

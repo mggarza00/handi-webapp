@@ -16,6 +16,11 @@ import type {
 } from "@/lib/campaigns/generation";
 import { analyzeCampaignQa } from "@/lib/campaigns/qa";
 import {
+  analyzePlacementCopy,
+  buildPlacementCopyGenerationInput,
+} from "@/lib/campaigns/placement-copy";
+import type { CreativePlacementId } from "@/lib/creative/placements";
+import {
   CAMPAIGN_FEEDBACK_TYPES,
   buildDefaultReviewChecklist,
   buildVariantName,
@@ -36,6 +41,9 @@ import {
   type CampaignInternalNoteRow,
   type CampaignListItem,
   type CampaignMessageContent,
+  type CampaignMessagePlacementRow,
+  type CampaignMessagePlacementSource,
+  type CampaignMessagePlacementView,
   type CampaignMessageRow,
   type CampaignVariantDecisionRow,
   type CampaignPublishJobRow,
@@ -94,6 +102,7 @@ type ListPublishQueueFilters = {
 type CampaignDetail = {
   draft: CampaignDraftRow;
   messages: CampaignMessageView[];
+  placementCopies: CampaignMessagePlacementView[];
   variantDecisions: CampaignVariantDecisionRow[];
   feedback: CampaignFeedbackRow[];
   versions: CampaignMessageVersionRow[];
@@ -148,6 +157,22 @@ type EditCampaignMessageParams = {
   body?: string;
   cta?: string;
   rationaleNote?: string;
+};
+
+type UpsertCampaignPlacementCopyParams = {
+  admin: AdminSupabase;
+  campaignId: string;
+  campaignMessageId: string;
+  placementId: string;
+  createdBy: string | null;
+  headline?: string;
+  body?: string;
+  cta?: string;
+  rationale?: string;
+  source: CampaignMessagePlacementSource;
+  status?: CampaignWorkflowStatus;
+  providerMetadata?: ProviderMetadata;
+  qaReport?: CampaignMessagePlacementRow["qa_report"];
 };
 
 type RegenerateCampaignMessageParams = {
@@ -286,6 +311,33 @@ function mapMessageRow(value: Record<string, unknown>): CampaignMessageRow {
     provider_metadata: readProviderMetadata(value.provider_metadata),
     qa_report: normalizeMessageQaReport(value.qa_report),
     status: readString(value.status) as CampaignWorkflowStatus,
+    created_at: readString(value.created_at),
+    updated_at: readString(value.updated_at),
+  };
+}
+
+function mapPlacementMessageRow(
+  value: Record<string, unknown>,
+): CampaignMessagePlacementRow {
+  return {
+    id: readString(value.id),
+    campaign_draft_id: readString(value.campaign_draft_id),
+    campaign_message_id: readString(value.campaign_message_id),
+    channel: readString(
+      value.channel,
+    ) as CampaignMessagePlacementRow["channel"],
+    placement_id: readString(value.placement_id),
+    content: {
+      headline: readString(value.headline),
+      body: readString(value.body),
+      cta: readString(value.cta),
+    },
+    rationale: readString(value.rationale),
+    provider_metadata: readProviderMetadata(value.provider_metadata),
+    qa_report: normalizeMessageQaReport(value.qa_report),
+    status: readString(value.status) as CampaignWorkflowStatus,
+    source: readString(value.source) as CampaignMessagePlacementRow["source"],
+    created_by: readNullableString(value.created_by),
     created_at: readString(value.created_at),
     updated_at: readString(value.updated_at),
   };
@@ -776,6 +828,15 @@ function mapMessageView(
   };
 }
 
+function mapPlacementMessageView(
+  placementMessage: CampaignMessagePlacementRow,
+): CampaignMessagePlacementView {
+  return {
+    ...placementMessage,
+    rationale_parts: parseMessageRationale(placementMessage.rationale),
+  };
+}
+
 function buildActivityFeed(args: {
   draft: CampaignDraftRow;
   feedback: CampaignFeedbackRow[];
@@ -1091,6 +1152,95 @@ function buildActivityFeed(args: {
         title: "Variant regenerated",
         description: note || "A new variant was generated from feedback.",
         message_id: audit.entity_id,
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_COPY_GENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_copy_generated",
+        title: "Placement copy generated",
+        description:
+          note || "A placement-specific copy proposal was generated.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_COPY_APPROVED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_copy_approved",
+        title: "Placement copy approved",
+        description: note || "A placement-level copy override was approved.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_COPY_REJECTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_copy_rejected",
+        title: "Placement copy rejected",
+        description:
+          note || "A placement-level copy override was rejected and fell back.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_COPY_MANUAL_OVERRIDE") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_copy_manual_override",
+        title: "Placement copy manually overridden",
+        description: note || "Placement copy was updated manually in admin.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_COPY_INHERITED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_copy_inherited",
+        title: "Placement copy inherited",
+        description:
+          note || "Placement export is inheriting the channel-level copy.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PLACEMENT_COPY_USED_IN_EXPORT") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "placement_copy_used_in_export",
+        title: "Placement copy used in export",
+        description:
+          note ||
+          "A placement-specific copy override was included in export output.",
+        message_id: readNullableString(audit.meta.messageId),
       });
       return;
     }
@@ -1558,6 +1708,160 @@ function buildActivityFeed(args: {
         description:
           note || "A placement-specific paid handoff manifest was generated.",
         message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_HANDOFF_GENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_handoff_generated",
+        title: "Paid handoff generated",
+        description:
+          note || "A paid-media handoff package was generated for review.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_HANDOFF_EXPORTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_handoff_exported",
+        title: "Paid handoff exported",
+        description:
+          note || "A paid-media handoff package was exported from admin.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_PLACEMENT_READY") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_placement_ready",
+        title: "Paid placement ready",
+        description:
+          note || "A paid placement now has enough exact or approved coverage.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_PLACEMENT_WARNING_EMITTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_placement_warning_emitted",
+        title: "Paid placement warning",
+        description:
+          note ||
+          "A paid placement export was generated with operational warnings.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_PLACEMENT_MISSING_DETECTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_placement_missing_detected",
+        title: "Paid placement missing",
+        description:
+          note ||
+          "A paid placement still needs tighter copy or visual coverage before handoff.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_DRAFT_GENERATED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_draft_generated",
+        title: "Paid draft generated",
+        description:
+          note || "A paid-platform draft payload was generated for review.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_DRAFT_DOWNLOADED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_draft_downloaded",
+        title: "Paid draft downloaded",
+        description:
+          note || "A paid-platform draft payload was downloaded from admin.",
+        message_id: readNullableString(audit.meta.messageId),
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_DRAFT_WARNING_EMITTED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_draft_warning_emitted",
+        title: "Paid draft warning",
+        description:
+          note || "A paid draft was generated with operational warnings.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_DRAFT_BLOCKED") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_draft_blocked",
+        title: "Paid draft blocked",
+        description:
+          note ||
+          "A paid draft could not be generated because the placement is still incomplete.",
+        message_id: null,
+      });
+      return;
+    }
+
+    if (audit.action === "PAID_DRAFT_INCLUDED_IN_BUNDLE") {
+      items.push({
+        id: audit.id,
+        timestamp: audit.created_at,
+        actor_id: audit.actor_id,
+        actor_label: actorLabel,
+        type: "paid_draft_included_in_bundle",
+        title: "Paid draft added to bundle",
+        description:
+          note ||
+          "A paid-platform draft payload was packaged into a downloadable bundle.",
+        message_id: null,
       });
       return;
     }
@@ -2703,6 +3007,30 @@ export async function getCampaignDetail(
     );
   }
 
+  let placementMessageRows: CampaignMessagePlacementView[] = [];
+  if (messageIds.length) {
+    const { data: placementRows, error: placementError } = await admin
+      .from("campaign_message_placements")
+      .select("*")
+      .eq("campaign_draft_id", campaignId)
+      .in("campaign_message_id", messageIds)
+      .order("updated_at", { ascending: false });
+
+    if (placementError) {
+      throw new Error(
+        placementError.message || "failed to load placement copy records",
+      );
+    }
+
+    placementMessageRows = (
+      Array.isArray(placementRows) ? placementRows : []
+    ).map((row) =>
+      mapPlacementMessageView(
+        mapPlacementMessageRow(row as Record<string, unknown>),
+      ),
+    );
+  }
+
   const entityIds = [campaignId, ...messageIds];
   const { data: auditRows, error: auditError } = await admin
     .from("audit_log")
@@ -2777,6 +3105,7 @@ export async function getCampaignDetail(
   return {
     draft,
     messages,
+    placementCopies: placementMessageRows,
     variantDecisions,
     feedback,
     versions: versionRows,
@@ -2922,6 +3251,105 @@ async function getCampaignMessageWithDraft(
     message,
     draft: mapDraftRow(draftRow as Record<string, unknown>),
   };
+}
+
+async function getPlacementCopyRow(args: {
+  admin: AdminSupabase;
+  campaignMessageId: string;
+  placementId: string;
+}) {
+  const { data, error } = await args.admin
+    .from("campaign_message_placements")
+    .select("*")
+    .eq("campaign_message_id", args.campaignMessageId)
+    .eq("placement_id", args.placementId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "failed to load placement copy");
+  }
+
+  return data
+    ? mapPlacementMessageView(
+        mapPlacementMessageRow(data as Record<string, unknown>),
+      )
+    : null;
+}
+
+async function upsertCampaignPlacementCopy(
+  input: UpsertCampaignPlacementCopyParams,
+): Promise<CampaignMessagePlacementView> {
+  const existing = await getPlacementCopyRow({
+    admin: input.admin,
+    campaignMessageId: input.campaignMessageId,
+    placementId: input.placementId,
+  });
+
+  const payload = {
+    campaign_draft_id: input.campaignId,
+    campaign_message_id: input.campaignMessageId,
+    channel: existing?.channel,
+    placement_id: input.placementId,
+    headline: input.headline || "",
+    body: input.body || "",
+    cta: input.cta || "",
+    rationale: input.rationale || "",
+    provider_metadata:
+      input.providerMetadata || existing?.provider_metadata || {},
+    qa_report:
+      input.qaReport || existing?.qa_report || normalizeMessageQaReport({}),
+    status: input.status || existing?.status || "proposed",
+    source: input.source,
+    created_by: actorIdOrNull(input.createdBy),
+  };
+
+  if (existing) {
+    const { data, error } = await input.admin
+      .from("campaign_message_placements")
+      .update({
+        headline: payload.headline,
+        body: payload.body,
+        cta: payload.cta,
+        rationale: payload.rationale,
+        provider_metadata: payload.provider_metadata,
+        qa_report: payload.qa_report,
+        status: payload.status,
+        source: payload.source,
+      } as never)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (error || !data) {
+      throw new Error(error?.message || "failed to update placement copy");
+    }
+
+    return mapPlacementMessageView(
+      mapPlacementMessageRow(data as Record<string, unknown>),
+    );
+  }
+
+  const { message } = await getCampaignMessageWithDraft(
+    input.admin,
+    input.campaignMessageId,
+  );
+
+  const { data, error } = await input.admin
+    .from("campaign_message_placements")
+    .insert({
+      ...payload,
+      channel: message.channel,
+    } as never)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || "failed to create placement copy");
+  }
+
+  return mapPlacementMessageView(
+    mapPlacementMessageRow(data as Record<string, unknown>),
+  );
 }
 
 export async function editCampaignMessage(
@@ -3123,6 +3551,219 @@ export async function regenerateCampaignMessage(
   return {
     draftId: draft.id,
     message: refreshedMessage,
+  };
+}
+
+export async function editCampaignPlacementCopy(input: {
+  admin: AdminSupabase;
+  campaignMessageId: string;
+  placementId: CreativePlacementId;
+  createdBy: string | null;
+  headline?: string;
+  body?: string;
+  cta?: string;
+  rationaleNote?: string | null;
+}): Promise<{ draftId: string; placementCopy: CampaignMessagePlacementView }> {
+  const { message, draft } = await getCampaignMessageWithDraft(
+    input.admin,
+    input.campaignMessageId,
+  );
+  const existing = await getPlacementCopyRow({
+    admin: input.admin,
+    campaignMessageId: input.campaignMessageId,
+    placementId: input.placementId,
+  });
+  const nextStatus = reopenStatusFrom(draft.status);
+  const nextPlacementStatus = nextStatus === "draft" ? "draft" : "proposed";
+  const content: CampaignMessageContent = {
+    headline:
+      input.headline?.trim() ||
+      existing?.content.headline ||
+      message.content.headline,
+    body: input.body?.trim() || existing?.content.body || message.content.body,
+    cta: input.cta?.trim() || existing?.content.cta || message.content.cta,
+  };
+  const rationale = buildEditRationale({
+    current: existing?.rationale || message.rationale,
+    channel: message.channel,
+    cta: content.cta,
+    note: input.rationaleNote || `Placement override for ${input.placementId}.`,
+  });
+  const providerMetadata = existing?.provider_metadata || {
+    providerName: "mock",
+    generationMode: "fallback",
+    model: null,
+    generatedAt: new Date().toISOString(),
+    fallbackReason: null,
+    requestId: null,
+    note: "Placement copy manually overridden in admin.",
+  };
+  const qaReport = analyzePlacementCopy({
+    draft,
+    message: {
+      channel: message.channel,
+      format: message.format,
+      variant_name:
+        existing?.source === "manual_override"
+          ? `${message.variant_name} placement override`
+          : message.variant_name,
+    },
+    content,
+    rationale,
+  });
+
+  const placementCopy = await upsertCampaignPlacementCopy({
+    admin: input.admin,
+    campaignId: draft.id,
+    campaignMessageId: input.campaignMessageId,
+    placementId: input.placementId,
+    createdBy: input.createdBy,
+    headline: content.headline,
+    body: content.body,
+    cta: content.cta,
+    rationale,
+    source: "manual_override",
+    status: nextPlacementStatus,
+    providerMetadata,
+    qaReport,
+  });
+
+  await setCampaignStatus(input.admin, draft.id, nextStatus);
+
+  return { draftId: draft.id, placementCopy };
+}
+
+export async function generateCampaignPlacementCopy(input: {
+  admin: AdminSupabase;
+  campaignMessageId: string;
+  placementId: CreativePlacementId;
+  createdBy: string | null;
+  feedbackNote?: string | null;
+  generator: (
+    payload: ContentGenerationInput,
+    context?: {
+      previousMessage?: CampaignMessageContent | null;
+      previousRationale?: string | null;
+      feedbackNote?: string | null;
+    },
+  ) => Promise<GeneratedContentProposal>;
+}): Promise<{ draftId: string; placementCopy: CampaignMessagePlacementView }> {
+  const { message, draft } = await getCampaignMessageWithDraft(
+    input.admin,
+    input.campaignMessageId,
+  );
+  const existing = await getPlacementCopyRow({
+    admin: input.admin,
+    campaignMessageId: input.campaignMessageId,
+    placementId: input.placementId,
+  });
+  const nextStatus = reopenStatusFrom(draft.status);
+  const nextPlacementStatus = nextStatus === "draft" ? "draft" : "proposed";
+  const generation = await input.generator(
+    buildPlacementCopyGenerationInput({
+      draft,
+      message: {
+        id: message.id,
+        channel: message.channel,
+        format: message.format,
+        variant_name: message.variant_name,
+        content: existing?.content || message.content,
+        rationale: existing?.rationale || message.rationale,
+      },
+      placementId: input.placementId,
+      feedbackNote: input.feedbackNote,
+    }),
+    {
+      previousMessage: existing?.content || message.content,
+      previousRationale: existing?.rationale || message.rationale,
+      feedbackNote: input.feedbackNote,
+    },
+  );
+
+  const nextVariant = generation.variants[0];
+  if (!nextVariant) {
+    throw new Error("failed to generate placement copy");
+  }
+
+  const qaReport = analyzePlacementCopy({
+    draft,
+    message: {
+      channel: message.channel,
+      format: message.format,
+      variant_name: `${message.variant_name} • ${input.placementId}`,
+    },
+    content: {
+      headline: nextVariant.headline,
+      body: nextVariant.body,
+      cta: nextVariant.cta,
+    },
+    rationale: nextVariant.rationale,
+  });
+
+  const placementCopy = await upsertCampaignPlacementCopy({
+    admin: input.admin,
+    campaignId: draft.id,
+    campaignMessageId: input.campaignMessageId,
+    placementId: input.placementId,
+    createdBy: input.createdBy,
+    headline: nextVariant.headline,
+    body: nextVariant.body,
+    cta: nextVariant.cta,
+    rationale: nextVariant.rationale,
+    source: "ai_generated",
+    status: nextPlacementStatus,
+    providerMetadata: nextVariant.providerMetadata,
+    qaReport,
+  });
+
+  await input.admin
+    .from("campaign_drafts")
+    .update({
+      generation_provider: generation.provider.activeProvider,
+      generation_provider_status: summarizeProviderStatus(generation.provider),
+      provider_metadata: toProviderMetadata(generation.provider),
+    } as never)
+    .eq("id", draft.id);
+
+  await setCampaignStatus(input.admin, draft.id, nextStatus);
+
+  return { draftId: draft.id, placementCopy };
+}
+
+export async function updateCampaignPlacementCopyStatus(input: {
+  admin: AdminSupabase;
+  campaignMessageId: string;
+  placementId: CreativePlacementId;
+  status: Extract<CampaignWorkflowStatus, "approved" | "rejected" | "archived">;
+}): Promise<{ draftId: string; placementCopy: CampaignMessagePlacementView }> {
+  const existing = await getPlacementCopyRow({
+    admin: input.admin,
+    campaignMessageId: input.campaignMessageId,
+    placementId: input.placementId,
+  });
+
+  if (!existing) {
+    throw new Error("placement copy not found");
+  }
+
+  const { data, error } = await input.admin
+    .from("campaign_message_placements")
+    .update({
+      status: input.status,
+    } as never)
+    .eq("id", existing.id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message || "failed to update placement copy status");
+  }
+
+  return {
+    draftId: existing.campaign_draft_id,
+    placementCopy: mapPlacementMessageView(
+      mapPlacementMessageRow(data as Record<string, unknown>),
+    ),
   };
 }
 

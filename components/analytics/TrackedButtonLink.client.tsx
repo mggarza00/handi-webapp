@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
+import { buildTrackedHrefFromCurrentAttribution } from "@/lib/analytics/campaign-linking";
+import type { AnalyticsUrlContext } from "@/lib/analytics/cta-builders";
 import type { AnalyticsEventName } from "@/lib/analytics/schemas";
 import {
   trackAnalyticsEvent,
@@ -25,6 +27,8 @@ type TrackedButtonLinkProps = {
   size?: "default" | "sm" | "lg" | "icon";
   target?: string;
   className?: string;
+  analyticsContext?: AnalyticsUrlContext;
+  preserveAnalyticsContext?: boolean;
 };
 
 export default function TrackedButtonLink({
@@ -36,18 +40,26 @@ export default function TrackedButtonLink({
   size = "default",
   target,
   className,
+  analyticsContext,
+  preserveAnalyticsContext = false,
 }: TrackedButtonLinkProps) {
+  const resolvedHref = useMemo(() => {
+    if (!preserveAnalyticsContext && !analyticsContext) return href;
+    return buildTrackedHrefFromCurrentAttribution(href, analyticsContext || {});
+  }, [analyticsContext, href, preserveAnalyticsContext]);
+
   const handleClick = () => {
     trackAnalyticsEvent(eventName, eventParams);
   };
 
-  const isDownloadLike = href.startsWith("/api/") || target === "_blank";
+  const isDownloadLike =
+    resolvedHref.startsWith("/api/") || target === "_blank";
 
   if (isDownloadLike) {
     return (
       <Button variant={variant} size={size} className={className} asChild>
         <a
-          href={href}
+          href={resolvedHref}
           target={target}
           rel={target === "_blank" ? "noreferrer" : undefined}
           onClick={handleClick}
@@ -60,7 +72,7 @@ export default function TrackedButtonLink({
 
   return (
     <Button variant={variant} size={size} className={className} asChild>
-      <Link href={href} onClick={handleClick}>
+      <Link href={resolvedHref} onClick={handleClick}>
         {children}
       </Link>
     </Button>

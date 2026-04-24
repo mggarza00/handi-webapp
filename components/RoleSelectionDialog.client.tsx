@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
+  buildTrackedAuthHrefFromCurrentAttribution,
+  buildTrackedClientSignInHrefFromCurrentAttribution,
+} from "@/lib/analytics/campaign-linking";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -65,16 +69,28 @@ export default function RoleSelectionDialog({
     }
 
     if (role === "pro") {
-      router.push("/auth/sign-in?next=%2Fpro-apply&toast=pro-apply");
+      router.push(
+        buildTrackedAuthHrefFromCurrentAttribution({
+          nextPath: "/pro-apply",
+          authParams: { toast: "pro-apply" },
+        }),
+      );
     } else {
-      const search = new URLSearchParams({ role }).toString();
-      router.push(`/auth/sign-in?${search}`);
+      router.push(
+        buildTrackedClientSignInHrefFromCurrentAttribution({
+          role,
+        }),
+      );
     }
   }, [router, selectedRole]);
 
   const handleKeyDown = useCallback(
     (role: RoleOption) => (event: React.KeyboardEvent<HTMLButtonElement>) => {
-      if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+      if (
+        event.key === "Enter" ||
+        event.key === " " ||
+        event.key === "Spacebar"
+      ) {
         event.preventDefault();
         handleSelect(role);
       }
@@ -87,7 +103,9 @@ export default function RoleSelectionDialog({
       <DialogTrigger asChild>
         <Button type="button" className={cn(triggerClassName)}>
           {triggerLabel}
-          {triggerShowCircle && <span className="btn-circle" aria-hidden="true" />}
+          {triggerShowCircle && (
+            <span className="btn-circle" aria-hidden="true" />
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md w-full rounded-2xl p-6 sm:p-7">
