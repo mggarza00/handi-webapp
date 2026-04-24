@@ -1,13 +1,22 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
 import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
 import { sendEmail } from "@/lib/email";
+import {
+  computeProfessionalPayoutBreakdown,
+  getProfessionalPayoutCommissionPercent,
+} from "@/lib/payouts/manual";
 import { getStripeForMode } from "@/lib/stripe";
 import { getAdminSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+function roundToTwo(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 export async function POST(
   _req: Request,
@@ -38,7 +47,29 @@ export async function POST(
       { status: 409, headers: JSONH },
     );
   }
-  const amount = Number(payout.amount ?? 0);
+  const payoutMetadata =
+    (payout as { metadata?: Record<string, unknown> }).metadata ?? {};
+  const commissionPercent = await getProfessionalPayoutCommissionPercent(admin);
+  const rawAmount = Number(payout.amount ?? 0);
+  const metadataGross =
+    typeof payoutMetadata.gross_amount === "number"
+      ? payoutMetadata.gross_amount
+      : typeof payoutMetadata.gross_amount === "string"
+        ? Number(payoutMetadata.gross_amount)
+        : null;
+  const amountBasis =
+    typeof payoutMetadata.amount_basis === "string"
+      ? payoutMetadata.amount_basis
+      : null;
+  const amount =
+    amountBasis === "net"
+      ? rawAmount
+      : computeProfessionalPayoutBreakdown(
+          metadataGross && Number.isFinite(metadataGross)
+            ? metadataGross
+            : rawAmount,
+          commissionPercent,
+        ).netAmount;
   if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json(
       { ok: false, error: "INVALID_AMOUNT" },
@@ -101,11 +132,23 @@ export async function POST(
     .from("payouts")
     .update({
       status: "paid",
+      amount,
       stripe_transfer_id: transferId,
       paid_at: nowIso,
       receipt_url: receiptUrl,
       metadata: {
-        ...(payout as any).metadata,
+        ...payoutMetadata,
+        amount_basis: "net",
+        gross_amount:
+          metadataGross && Number.isFinite(metadataGross)
+            ? metadataGross
+            : rawAmount,
+        commission_pro_percent: commissionPercent,
+        commission_pro_amount: roundToTwo(
+          (metadataGross && Number.isFinite(metadataGross)
+            ? metadataGross
+            : rawAmount) - amount,
+        ),
         stripe_account_id: stripeAccountId,
       },
     })
@@ -118,8 +161,9 @@ export async function POST(
       .select("email, full_name")
       .eq("id", payout.professional_id)
       .maybeSingle();
-    const proEmail = (prof as any)?.email as string | null;
-    const proName = (prof as any)?.full_name as string | null;
+    const proEmail = (prof as { email?: string | null } | null)?.email ?? null;
+    const proName =
+      (prof as { full_name?: string | null } | null)?.full_name ?? null;
     if (proEmail) {
       const html = `
         <p>Hola ${proName || "Profesional"},</p>
@@ -136,6 +180,18 @@ export async function POST(
         html,
       });
     }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    await admin.from("user_notifications").insert({
+      user_id: payout.professional_id,
+      type: "payout:paid",
+      title: "Recibiste un payout",
+      body: `Se confirmó tu payout de $${amount.toFixed(2)} ${payout.currency || "MXN"}.`,
+      link: "/pro",
+    });
   } catch {
     /* ignore */
   }
@@ -161,6 +217,16 @@ export async function POST(
       subject: "HANDI - Payout realizado",
       html,
     });
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    revalidatePath("/admin/payouts");
+    revalidatePath("/pro");
+    revalidatePath("/pro/calendar");
+    revalidatePath(`/profiles/${payout.professional_id}`);
+    revalidateTag("pro-calendar");
   } catch {
     /* ignore */
   }
