@@ -89,6 +89,25 @@ describe("professionals rating resolution", () => {
     });
   });
 
+  it("uses ratingTargetMap when professional id differs from the canonical user id", () => {
+    const aggregateMap = buildRatingsAggregateMap([
+      { to_user_id: "canonical-user", stars: 5 },
+      { to_user_id: "canonical-user", stars: 4 },
+    ]);
+
+    const resolved = resolveProfessionalRatingData({
+      aggregateMap,
+      professionalId: "professional-row",
+      ratingTargetMap: new Map([["professional-row", "canonical-user"]]),
+      legacyRating: null,
+    });
+
+    expect(resolved).toEqual({
+      rating: 4.5,
+      reviewsCount: 2,
+    });
+  });
+
   it("falls back to legacy rating when canonical reviews are missing", () => {
     expect(
       resolveProfessionalRatingData({

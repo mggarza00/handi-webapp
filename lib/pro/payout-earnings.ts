@@ -7,8 +7,12 @@ export type EarningsSeriesPoint = {
 
 export type PaidPayoutRow = {
   paid_at: string | null;
+  created_at?: string | null;
   amount: number | null;
+  status?: string | null;
 };
+
+const PAID_PAYOUT_STATUSES = new Set(["paid", "completed"]);
 
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -115,13 +119,19 @@ export function buildPayoutSeries(
   const sums = new Map<string, number>(ranges.map((range) => [range.label, 0]));
 
   for (const row of rows) {
-    if (!row.paid_at) continue;
+    const normalizedStatus =
+      typeof row.status === "string" ? row.status.trim().toLowerCase() : null;
+    if (normalizedStatus && !PAID_PAYOUT_STATUSES.has(normalizedStatus)) {
+      continue;
+    }
     const amount =
       typeof row.amount === "number" && Number.isFinite(row.amount)
         ? row.amount
         : 0;
     if (amount <= 0) continue;
-    const paidAt = new Date(row.paid_at);
+    const payoutDateSource = row.paid_at ?? row.created_at ?? null;
+    if (!payoutDateSource) continue;
+    const paidAt = new Date(payoutDateSource);
     if (Number.isNaN(paidAt.getTime())) continue;
 
     for (const range of ranges) {

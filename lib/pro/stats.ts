@@ -8,13 +8,19 @@ import {
 } from "@/lib/pro/payout-earnings";
 import {
   getProfessionalRatingSummary,
-  resolveProfessionalRating,
+  normalizeProfessionalRating,
 } from "@/lib/professionals/ratings";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import getServerClient from "@/lib/supabase/server-client";
 
 export type Interval = PayoutSeriesInterval;
 export type EarningsPoint = EarningsSeriesPoint;
+
+type ProDashboardIdentity = {
+  professionalId: string;
+  profileId: string;
+  payoutProfessionalIds: string[];
+};
 
 const getStatsSupabaseClients = (): any[] => {
   const clients: any[] = [];
@@ -46,39 +52,83 @@ async function withSupabaseFallback<T>(
   return fallback;
 }
 
+function normalizeId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
+
+function uniqueIds(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(values.filter((value): value is string => Boolean(value))),
+  );
+}
+
+async function resolveProDashboardIdentity(
+  supa: any,
+  userId: string,
+): Promise<ProDashboardIdentity> {
+  const normalizedUserId = normalizeId(userId) ?? userId;
+  const fallback: ProDashboardIdentity = {
+    professionalId: normalizedUserId,
+    profileId: normalizedUserId,
+    payoutProfessionalIds: [normalizedUserId],
+  };
+
+  const readProfessional = async (column: "id" | "user_id") => {
+    const { data, error } = await (supa as any)
+      .from("professionals")
+      .select("id, user_id")
+      .eq(column, normalizedUserId)
+      .maybeSingle();
+    if (error) return null;
+    return data as { id?: unknown; user_id?: unknown } | null;
+  };
+
+  try {
+    const professional =
+      (await readProfessional("id")) ?? (await readProfessional("user_id"));
+    if (!professional) return fallback;
+
+    const professionalId = normalizeId(professional.id) ?? normalizedUserId;
+    const profileId = normalizeId(professional.user_id) ?? normalizedUserId;
+
+    return {
+      professionalId,
+      profileId,
+      payoutProfessionalIds: uniqueIds([
+        professionalId,
+        profileId,
+        normalizedUserId,
+      ]),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 async function getAvgRating(userId: string): Promise<number> {
   return withSupabaseFallback<number>(async (supa) => {
-    const [{ data: profile, error: profileError }, summary] = await Promise.all(
-      [
-        (supa as any)
-          .from("profiles")
-          .select("rating")
-          .eq("id", userId)
-          .maybeSingle(),
-        getProfessionalRatingSummary(supa as any, userId),
-      ],
-    );
-    if (profileError) return null;
-    const rawProfileRating = (profile as { rating?: unknown } | null)?.rating;
-    const profileRating =
-      typeof rawProfileRating === "number"
-        ? rawProfileRating
-        : typeof rawProfileRating === "string"
-          ? Number(rawProfileRating)
-          : null;
-    const resolved = resolveProfessionalRating({
-      aggregate:
-        summary.average !== null && summary.count > 0
-          ? {
-              ratingAvg: summary.average,
-              reviewsCount: summary.count,
-            }
-          : null,
-      legacyRating:
-        profileRating !== null && Number.isFinite(profileRating)
-          ? profileRating
-          : null,
-    });
+    const identity = await resolveProDashboardIdentity(supa, userId);
+    const [profileResult, summaryResult] = await Promise.allSettled([
+      (supa as any)
+        .from("profiles")
+        .select("rating")
+        .eq("id", identity.profileId)
+        .maybeSingle(),
+      getProfessionalRatingSummary(supa as any, identity.professionalId),
+    ]);
+
+    const legacyRating =
+      profileResult.status === "fulfilled" && !profileResult.value.error
+        ? normalizeProfessionalRating(
+            (profileResult.value.data as { rating?: unknown } | null)?.rating,
+          )
+        : null;
+    const canonicalRating =
+      summaryResult.status === "fulfilled" ? summaryResult.value.rating : null;
+    const resolved = canonicalRating ?? legacyRating;
+
     return resolved !== null && Number.isFinite(resolved) ? resolved : 0;
   }, 0);
 }
@@ -455,16 +505,22 @@ export async function getEarningsSeries(
   interval: Interval,
 ): Promise<EarningsPoint[]> {
   return withSupabaseFallback<EarningsPoint[]>(async (supa) => {
+    const identity = await resolveProDashboardIdentity(supa, userId);
     const { data, error } = await (supa as any)
       .from("payouts")
-      .select("paid_at, amount")
-      .eq("professional_id", userId)
-      .eq("status", "paid")
+      .select("paid_at, created_at, amount, status, professional_id")
+      .in("professional_id", identity.payoutProfessionalIds)
+      .in("status", ["paid", "completed"])
       .order("paid_at", { ascending: true, nullsFirst: false });
     if (error) return null;
     return buildPayoutSeries(
       Array.isArray(data)
-        ? (data as Array<{ paid_at: string | null; amount: number | null }>)
+        ? (data as Array<{
+            paid_at: string | null;
+            created_at: string | null;
+            amount: number | null;
+            status: string | null;
+          }>)
         : [],
       interval,
     );
