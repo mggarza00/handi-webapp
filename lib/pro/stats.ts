@@ -25,12 +25,15 @@ type ProDashboardIdentity = {
 const getStatsSupabaseClients = (): any[] => {
   const clients: any[] = [];
   try {
-    clients.push(getServerClient());
+    // Dashboard aggregates should prefer admin reads. The SSR client can be
+    // RLS-limited and return empty successful responses, which would
+    // incorrectly zero out the KPIs before reaching the service-role client.
+    clients.push(getAdminSupabase());
   } catch {
     /* ignore */
   }
   try {
-    clients.push(getAdminSupabase());
+    clients.push(getServerClient());
   } catch {
     /* ignore */
   }
@@ -126,7 +129,9 @@ async function getAvgRating(userId: string): Promise<number> {
           )
         : null;
     const canonicalRating =
-      summaryResult.status === "fulfilled" ? summaryResult.value.rating : null;
+      summaryResult.status === "fulfilled" && summaryResult.value.count > 0
+        ? summaryResult.value.average
+        : null;
     const resolved = canonicalRating ?? legacyRating;
 
     return resolved !== null && Number.isFinite(resolved) ? resolved : 0;

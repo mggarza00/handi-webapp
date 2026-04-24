@@ -240,7 +240,11 @@ export async function getProfessionalRatingSummary(
   };
 
   const primary = await readRows("to_user_id");
-  const fallback = primary || (await readRows("professional_id"));
+  const hasCanonicalRows =
+    primary !== null && (primary.count > 0 || primary.rows.length > 0);
+  const fallback = hasCanonicalRows
+    ? primary
+    : ((await readRows("professional_id")) ?? primary);
 
   if (!fallback) return { average: null, count: 0 };
 
