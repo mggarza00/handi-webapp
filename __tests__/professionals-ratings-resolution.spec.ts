@@ -208,4 +208,45 @@ describe("professionals rating resolution", () => {
       count: 2,
     });
   });
+
+  it("falls back to professional_id when to_user_id returns no rows", async () => {
+    const supabase: Parameters<typeof getProfessionalRatingSummary>[0] = {
+      from() {
+        return {
+          select() {
+            return {
+              async eq(column: string) {
+                if (column === "to_user_id") {
+                  return {
+                    data: [],
+                    count: 0,
+                    error: null,
+                  };
+                }
+                if (column === "professional_id") {
+                  return {
+                    data: [{ stars: 5 }, { stars: 4 }],
+                    count: 2,
+                    error: null,
+                  };
+                }
+                return {
+                  data: [],
+                  count: 0,
+                  error: null,
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+
+    await expect(
+      getProfessionalRatingSummary(supabase, "pro-legacy"),
+    ).resolves.toEqual({
+      average: 4.5,
+      count: 2,
+    });
+  });
 });
