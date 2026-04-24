@@ -7,34 +7,58 @@ import {
   type PayoutSeriesInterval,
 } from "@/lib/pro/payout-earnings";
 import {
-  buildRatingsAggregateMap,
+  getProfessionalRatingSummary,
   resolveProfessionalRating,
 } from "@/lib/professionals/ratings";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import getServerClient from "@/lib/supabase/server-client";
 
 export type Interval = PayoutSeriesInterval;
 export type EarningsPoint = EarningsSeriesPoint;
 
-async function getAvgRating(userId: string): Promise<number> {
+const getStatsSupabaseClients = (): any[] => {
+  const clients: any[] = [];
   try {
-    const supa = getAdminSupabase();
-    const [{ data: profile }, { data, error }] = await Promise.all([
-      (supa as any)
-        .from("profiles")
-        .select("rating")
-        .eq("id", userId)
-        .maybeSingle(),
-      (supa as any)
-        .from("ratings")
-        .select("avg:avg(stars), count:count(*)")
-        .eq("to_user_id", userId)
-        .maybeSingle(),
-    ]);
-    if (error) throw error;
-    const aggregateMap = buildRatingsAggregateMap(
-      data ? [{ to_user_id: userId, avg: data.avg, count: data.count }] : [],
+    clients.push(getServerClient());
+  } catch {
+    /* ignore */
+  }
+  try {
+    clients.push(getAdminSupabase());
+  } catch {
+    /* ignore */
+  }
+  return clients;
+};
+
+async function withSupabaseFallback<T>(
+  read: (supa: any) => Promise<T | null | undefined>,
+  fallback: T,
+): Promise<T> {
+  for (const supa of getStatsSupabaseClients()) {
+    try {
+      const result = await read(supa);
+      if (result !== null && result !== undefined) return result;
+    } catch {
+      /* ignore */
+    }
+  }
+  return fallback;
+}
+
+async function getAvgRating(userId: string): Promise<number> {
+  return withSupabaseFallback<number>(async (supa) => {
+    const [{ data: profile, error: profileError }, summary] = await Promise.all(
+      [
+        (supa as any)
+          .from("profiles")
+          .select("rating")
+          .eq("id", userId)
+          .maybeSingle(),
+        getProfessionalRatingSummary(supa as any, userId),
+      ],
     );
-    const aggregate = aggregateMap.get(userId) ?? null;
+    if (profileError) return null;
     const rawProfileRating = (profile as { rating?: unknown } | null)?.rating;
     const profileRating =
       typeof rawProfileRating === "number"
@@ -43,16 +67,20 @@ async function getAvgRating(userId: string): Promise<number> {
           ? Number(rawProfileRating)
           : null;
     const resolved = resolveProfessionalRating({
-      aggregate,
+      aggregate:
+        summary.average !== null && summary.count > 0
+          ? {
+              ratingAvg: summary.average,
+              reviewsCount: summary.count,
+            }
+          : null,
       legacyRating:
         profileRating !== null && Number.isFinite(profileRating)
           ? profileRating
           : null,
     });
     return resolved !== null && Number.isFinite(resolved) ? resolved : 0;
-  } catch {
-    return 0;
-  }
+  }, 0);
 }
 
 export async function getProProfile(userId: string): Promise<{
@@ -379,8 +407,7 @@ async function getPotentialJobsTotal(userId: string): Promise<number> {
 }
 
 async function getInProgressCount(userId: string): Promise<number> {
-  try {
-    const supa = getAdminSupabase();
+  return withSupabaseFallback<number>(async (supa) => {
     try {
       const { count, error } = await (supa as any)
         .from("pro_calendar_events")
@@ -396,16 +423,13 @@ async function getInProgressCount(userId: string): Promise<number> {
       .select("id", { count: "exact", head: true })
       .eq("professional_id", userId)
       .in("status", ["in_progress", "paid", "accepted"]);
-    if (!error && typeof count === "number") return count;
-  } catch {
-    /* ignore */
-  }
-  return 0;
+    if (error) return null;
+    return typeof count === "number" ? count : 0;
+  }, 0);
 }
 
 async function getCompletedCount(userId: string): Promise<number> {
-  try {
-    const supa = getAdminSupabase();
+  return withSupabaseFallback<number>(async (supa) => {
     try {
       const { count, error } = await (supa as any)
         .from("pro_calendar_events")
@@ -421,34 +445,30 @@ async function getCompletedCount(userId: string): Promise<number> {
       .select("id", { count: "exact", head: true })
       .eq("professional_id", userId)
       .eq("status", "completed");
-    if (!error && typeof count === "number") return count;
-  } catch {
-    /* ignore */
-  }
-  return 0;
+    if (error) return null;
+    return typeof count === "number" ? count : 0;
+  }, 0);
 }
 
 export async function getEarningsSeries(
   userId: string,
   interval: Interval,
 ): Promise<EarningsPoint[]> {
-  try {
-    const supa = getAdminSupabase();
-    const { data } = await (supa as any)
+  return withSupabaseFallback<EarningsPoint[]>(async (supa) => {
+    const { data, error } = await (supa as any)
       .from("payouts")
       .select("paid_at, amount")
       .eq("professional_id", userId)
       .eq("status", "paid")
       .order("paid_at", { ascending: true, nullsFirst: false });
+    if (error) return null;
     return buildPayoutSeries(
       Array.isArray(data)
         ? (data as Array<{ paid_at: string | null; amount: number | null }>)
         : [],
       interval,
     );
-  } catch {
-    return [];
-  }
+  }, []);
 }
 
 export async function getTotals(userId: string): Promise<{
@@ -460,44 +480,41 @@ export async function getTotals(userId: string): Promise<{
   earnings_month: number;
   avg_rating: number;
 }> {
-  try {
-    const [
-      inProgressCount,
-      completedCount,
-      potentialTotal,
-      avgRating,
-      seriesWeek,
-      seriesFort,
-      seriesMonth,
-    ] = await Promise.all([
-      getInProgressCount(userId),
-      getCompletedCount(userId),
-      getPotentialJobsTotal(userId),
-      getAvgRating(userId),
-      getEarningsSeries(userId, "week"),
-      getEarningsSeries(userId, "fortnight"),
-      getEarningsSeries(userId, "month"),
-    ]);
-    const sumLast = (s: EarningsPoint[]) =>
-      s.length ? s[s.length - 1].amount : 0;
-    return {
-      completed_count: completedCount,
-      in_progress_count: inProgressCount,
-      potential_available_count: potentialTotal,
-      earnings_week: sumLast(seriesWeek),
-      earnings_fortnight: sumLast(seriesFort),
-      earnings_month: sumLast(seriesMonth),
-      avg_rating: Number.isFinite(avgRating) ? avgRating : 0,
-    };
-  } catch {
-    return {
-      completed_count: 0,
-      in_progress_count: 0,
-      potential_available_count: 0,
-      earnings_week: 0,
-      earnings_fortnight: 0,
-      earnings_month: 0,
-      avg_rating: 0,
-    };
-  }
+  const [
+    inProgressCount,
+    completedCount,
+    potentialTotal,
+    avgRating,
+    seriesWeek,
+    seriesFort,
+    seriesMonth,
+  ] = await Promise.allSettled([
+    getInProgressCount(userId),
+    getCompletedCount(userId),
+    getPotentialJobsTotal(userId),
+    getAvgRating(userId),
+    getEarningsSeries(userId, "week"),
+    getEarningsSeries(userId, "fortnight"),
+    getEarningsSeries(userId, "month"),
+  ]);
+  const sumLast = (s: EarningsPoint[]) =>
+    s.length ? s[s.length - 1].amount : 0;
+  return {
+    completed_count:
+      completedCount.status === "fulfilled" ? completedCount.value : 0,
+    in_progress_count:
+      inProgressCount.status === "fulfilled" ? inProgressCount.value : 0,
+    potential_available_count:
+      potentialTotal.status === "fulfilled" ? potentialTotal.value : 0,
+    earnings_week:
+      seriesWeek.status === "fulfilled" ? sumLast(seriesWeek.value) : 0,
+    earnings_fortnight:
+      seriesFort.status === "fulfilled" ? sumLast(seriesFort.value) : 0,
+    earnings_month:
+      seriesMonth.status === "fulfilled" ? sumLast(seriesMonth.value) : 0,
+    avg_rating:
+      avgRating.status === "fulfilled" && Number.isFinite(avgRating.value)
+        ? avgRating.value
+        : 0,
+  };
 }
