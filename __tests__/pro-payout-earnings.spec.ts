@@ -6,10 +6,25 @@ describe("pro payout earnings series", () => {
   it("groups paid payouts into the requested periods", () => {
     const now = new Date("2026-04-23T12:00:00.000Z");
     const rows = [
-      { paid_at: "2026-04-22T10:00:00.000Z", amount: 950 },
-      { paid_at: "2026-04-10T10:00:00.000Z", amount: 475 },
-      { paid_at: "2026-03-18T10:00:00.000Z", amount: 300 },
-      { paid_at: null, amount: 999 },
+      {
+        paid_at: "2026-04-22T10:00:00.000Z",
+        created_at: "2026-04-22T10:00:00.000Z",
+        amount: 950,
+        status: "paid",
+      },
+      {
+        paid_at: null,
+        created_at: "2026-04-10T10:00:00.000Z",
+        amount: 475,
+        status: "paid",
+      },
+      {
+        paid_at: "2026-03-18T10:00:00.000Z",
+        created_at: "2026-03-18T10:00:00.000Z",
+        amount: 300,
+        status: "completed",
+      },
+      { paid_at: null, created_at: null, amount: 999, status: "pending" },
     ];
 
     const week = buildPayoutSeries(rows, "week", now);
