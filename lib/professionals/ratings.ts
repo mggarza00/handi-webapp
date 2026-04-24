@@ -1,39 +1,148 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 export type RatingsAggregate = {
   ratingAvg: number;
   reviewsCount: number;
 };
 
+export type ResolvedRating = {
+  rating: number | null;
+  reviewsCount: number;
+};
+
+type RatingAggregateRow = {
+  to_user_id?: unknown;
+  stars?: unknown;
+  avg?: unknown;
+  count?: unknown;
+};
+
 const toFiniteNumber = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
 };
 
-const toNonNegativeInt = (value: unknown): number | null => {
-  const n = toFiniteNumber(value);
-  if (n === null) return null;
-  return n >= 0 ? Math.trunc(n) : null;
+const toNormalizedId = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (value == null) return null;
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : null;
 };
+
+const toNonNegativeInt = (value: unknown): number | null => {
+  const numeric = toFiniteNumber(value);
+  if (numeric === null || numeric < 0) return null;
+  return Math.trunc(numeric);
+};
+
+export function normalizeProfessionalRating(value: unknown): number | null {
+  const numeric = toFiniteNumber(value);
+  if (numeric === null || numeric < 0) return null;
+  return Math.round(numeric * 10) / 10;
+}
 
 export function buildRatingsAggregateMap(
   rows: Array<Record<string, unknown>> | null | undefined,
 ): Map<string, RatingsAggregate> {
-  const map = new Map<string, RatingsAggregate>();
-  for (const row of rows ?? []) {
-    const idRaw = row.to_user_id;
-    const id = typeof idRaw === "string" ? idRaw : String(idRaw ?? "").trim();
-    if (!id) continue;
+  const totals = new Map<string, { sum: number; count: number }>();
+  const normalizedRows = (rows ?? []) as RatingAggregateRow[];
+
+  for (const row of normalizedRows) {
+    const targetId = toNormalizedId(row.to_user_id);
+    if (!targetId) continue;
+
+    const rawStars = toFiniteNumber(row.stars);
+    if (rawStars !== null) {
+      const current = totals.get(targetId) ?? { sum: 0, count: 0 };
+      current.sum += rawStars;
+      current.count += 1;
+      totals.set(targetId, current);
+      continue;
+    }
+
     const ratingAvg = toFiniteNumber(row.avg);
     const reviewsCount = toNonNegativeInt(row.count);
     if (ratingAvg === null || reviewsCount === null || reviewsCount <= 0) {
       continue;
     }
-    map.set(id, { ratingAvg, reviewsCount });
+
+    const current = totals.get(targetId) ?? { sum: 0, count: 0 };
+    current.sum += ratingAvg * reviewsCount;
+    current.count += reviewsCount;
+    totals.set(targetId, current);
   }
-  return map;
+
+  const aggregateMap = new Map<string, RatingsAggregate>();
+  for (const [targetId, entry] of totals.entries()) {
+    if (entry.count <= 0) continue;
+    aggregateMap.set(targetId, {
+      ratingAvg: normalizeProfessionalRating(entry.sum / entry.count) ?? 0,
+      reviewsCount: entry.count,
+    });
+  }
+
+  return aggregateMap;
+}
+
+export async function fetchRatingsAggregateMap(
+  supabase: SupabaseClient,
+  ids: string[],
+): Promise<Map<string, RatingsAggregate>> {
+  const normalizedIds = Array.from(
+    new Set(ids.map((id) => toNormalizedId(id)).filter(Boolean)),
+  ) as string[];
+
+  if (normalizedIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("ratings")
+    .select("to_user_id, stars")
+    .in("to_user_id", normalizedIds);
+
+  if (error) return new Map();
+  return buildRatingsAggregateMap(
+    (Array.isArray(data) ? data : []) as Array<Record<string, unknown>>,
+  );
+}
+
+export async function fetchProfessionalRatingTargetMap(
+  supabase: SupabaseClient,
+  professionalIds: string[],
+): Promise<Map<string, string>> {
+  const normalizedIds = Array.from(
+    new Set(professionalIds.map((id) => toNormalizedId(id)).filter(Boolean)),
+  ) as string[];
+
+  const fallbackMap = new Map<string, string>(
+    normalizedIds.map((professionalId) => [professionalId, professionalId]),
+  );
+
+  if (normalizedIds.length === 0) return fallbackMap;
+
+  const { data, error } = await supabase
+    .from("professionals")
+    .select("id, user_id")
+    .in("id", normalizedIds);
+
+  if (error || !Array.isArray(data)) return fallbackMap;
+
+  for (const row of data as Array<Record<string, unknown>>) {
+    const professionalId = toNormalizedId(row.id);
+    if (!professionalId) continue;
+    fallbackMap.set(
+      professionalId,
+      toNormalizedId(row.user_id) ?? professionalId,
+    );
+  }
+
+  return fallbackMap;
 }
 
 export function resolveProfessionalRating(args: {
@@ -42,5 +151,33 @@ export function resolveProfessionalRating(args: {
 }): number | null {
   const { aggregate, legacyRating } = args;
   if (aggregate && aggregate.reviewsCount > 0) return aggregate.ratingAvg;
-  return legacyRating;
+  return normalizeProfessionalRating(legacyRating);
+}
+
+export function resolveProfessionalRatingData(args: {
+  aggregateMap?: Map<string, RatingsAggregate> | null;
+  legacyRating?: number | null;
+  professionalId?: string | null;
+  ratingTargetId?: string | null;
+  ratingTargetMap?: Map<string, string> | null;
+}): ResolvedRating {
+  const professionalId = toNormalizedId(args.professionalId);
+  const explicitTargetId = toNormalizedId(args.ratingTargetId);
+  const mappedTargetId =
+    professionalId && args.ratingTargetMap
+      ? toNormalizedId(args.ratingTargetMap.get(professionalId))
+      : null;
+  const targetId = explicitTargetId ?? mappedTargetId ?? professionalId;
+  const aggregate =
+    targetId && args.aggregateMap
+      ? (args.aggregateMap.get(targetId) ?? null)
+      : null;
+
+  return {
+    rating: resolveProfessionalRating({
+      aggregate,
+      legacyRating: args.legacyRating ?? null,
+    }),
+    reviewsCount: aggregate?.reviewsCount ?? 0,
+  };
 }
