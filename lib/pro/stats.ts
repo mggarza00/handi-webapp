@@ -1,23 +1,55 @@
 "use server";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createClient } from "@/utils/supabase/server";
 import { fetchExploreRequests } from "@/lib/db/requests";
+import {
+  buildPayoutSeries,
+  type EarningsSeriesPoint,
+  type PayoutSeriesInterval,
+} from "@/lib/pro/payout-earnings";
+import {
+  buildRatingsAggregateMap,
+  resolveProfessionalRating,
+} from "@/lib/professionals/ratings";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 
-export type Interval = "week" | "fortnight" | "month";
-export type EarningsPoint = { label: string; amount: number };
+export type Interval = PayoutSeriesInterval;
+export type EarningsPoint = EarningsSeriesPoint;
 
 async function getAvgRating(userId: string): Promise<number> {
   try {
-    const supa = createClient();
-    const { data, error } = await (supa as any)
-      .from("ratings")
-      .select("avg:avg(stars)")
-      .eq("to_user_id", userId)
-      .maybeSingle();
+    const supa = getAdminSupabase();
+    const [{ data: profile }, { data, error }] = await Promise.all([
+      (supa as any)
+        .from("profiles")
+        .select("rating")
+        .eq("id", userId)
+        .maybeSingle(),
+      (supa as any)
+        .from("ratings")
+        .select("avg:avg(stars), count:count(*)")
+        .eq("to_user_id", userId)
+        .maybeSingle(),
+    ]);
     if (error) throw error;
-    const raw = (data as { avg?: unknown } | null)?.avg;
-    const val = typeof raw === "number" ? raw : Number(raw ?? 0);
-    return Number.isFinite(val) ? val : 0;
+    const aggregateMap = buildRatingsAggregateMap(
+      data ? [{ to_user_id: userId, avg: data.avg, count: data.count }] : [],
+    );
+    const aggregate = aggregateMap.get(userId) ?? null;
+    const rawProfileRating = (profile as { rating?: unknown } | null)?.rating;
+    const profileRating =
+      typeof rawProfileRating === "number"
+        ? rawProfileRating
+        : typeof rawProfileRating === "string"
+          ? Number(rawProfileRating)
+          : null;
+    const resolved = resolveProfessionalRating({
+      aggregate,
+      legacyRating:
+        profileRating !== null && Number.isFinite(profileRating)
+          ? profileRating
+          : null,
+    });
+    return resolved !== null && Number.isFinite(resolved) ? resolved : 0;
   } catch {
     return 0;
   }
@@ -36,7 +68,7 @@ export async function getProProfile(userId: string): Promise<{
   subcategories: string[];
 }> {
   try {
-    const supa = createClient();
+    const supa = getAdminSupabase();
     const { data: prof } = await (supa as any)
       .from("profiles")
       .select(
@@ -152,7 +184,7 @@ export async function getJobsInProgress(
   }>
 > {
   try {
-    const supa = createClient();
+    const supa = getAdminSupabase();
     // Prefer calendar events when available (post-pago source of truth)
     try {
       const { data: calendar, error: calError } = await (supa as any)
@@ -222,7 +254,7 @@ export async function getJobsCompleted(
   }>
 > {
   try {
-    const supa = createClient();
+    const supa = getAdminSupabase();
     const completedStatuses = ["completed", "finalizada", "finished"];
     // Prefer calendar events when available
     try {
@@ -348,7 +380,7 @@ async function getPotentialJobsTotal(userId: string): Promise<number> {
 
 async function getInProgressCount(userId: string): Promise<number> {
   try {
-    const supa = createClient();
+    const supa = getAdminSupabase();
     try {
       const { count, error } = await (supa as any)
         .from("pro_calendar_events")
@@ -373,7 +405,7 @@ async function getInProgressCount(userId: string): Promise<number> {
 
 async function getCompletedCount(userId: string): Promise<number> {
   try {
-    const supa = createClient();
+    const supa = getAdminSupabase();
     try {
       const { count, error } = await (supa as any)
         .from("pro_calendar_events")
@@ -396,167 +428,24 @@ async function getCompletedCount(userId: string): Promise<number> {
   return 0;
 }
 
-function startOfWeek(d: Date): Date {
-  const date = new Date(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
-  );
-  const day = date.getUTCDay(); // 0..6 (Sun..Sat)
-  const diff = (day + 6) % 7; // make Monday = 0
-  date.setUTCDate(date.getUTCDate() - diff);
-  date.setUTCHours(0, 0, 0, 0);
-  return date;
-}
-
-function formatLabel(
-  date: Date,
-  interval: Interval,
-  _indexInRange: number,
-): string {
-  const y = date.getUTCFullYear();
-  if (interval === "week") {
-    // ISO week number approximation by counting Mondays since year start
-    const jan1 = new Date(Date.UTC(y, 0, 1));
-    const monday = startOfWeek(date);
-    const diffDays = Math.floor(
-      (monday.getTime() - startOfWeek(jan1).getTime()) / (1000 * 60 * 60 * 24),
-    );
-    const week = Math.floor(diffDays / 7) + 1;
-    return `${y}-W${String(week).padStart(2, "0")}`;
-  }
-  if (interval === "fortnight") {
-    const month = date.getUTCMonth() + 1;
-    const quincena = date.getUTCDate() <= 15 ? 1 : 2;
-    return `${y}-${String(month).padStart(2, "0")}-Q${quincena}`;
-  }
-  const month = date.getUTCMonth() + 1;
-  return `${y}-${String(month).padStart(2, "0")}`;
-}
-
-function getPeriodBoundaries(
-  interval: Interval,
-  periods = 6,
-): Array<{ from: Date; to: Date; label: string }> {
-  const out: Array<{ from: Date; to: Date; label: string }> = [];
-  const now = new Date();
-  let cursor: Date;
-  if (interval === "week") cursor = startOfWeek(now);
-  else if (interval === "fortnight") {
-    cursor = new Date(
-      Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() <= 15 ? 1 : 16,
-      ),
-    );
-    cursor.setUTCHours(0, 0, 0, 0);
-  } else {
-    cursor = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    cursor.setUTCHours(0, 0, 0, 0);
-  }
-  for (let i = 0; i < periods; i++) {
-    const from = new Date(cursor);
-    let to = new Date(cursor);
-    if (interval === "week") {
-      to = new Date(from.getTime() + 7 * 24 * 60 * 60 * 1000);
-    } else if (interval === "fortnight") {
-      // 1-15 and 16-end
-      if (from.getUTCDate() === 1) {
-        to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 16));
-      } else {
-        to = new Date(
-          Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1),
-        );
-      }
-    } else {
-      to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
-    }
-    out.unshift({ from, to, label: formatLabel(from, interval, i) });
-    // Move cursor to previous interval
-    if (interval === "week") {
-      cursor = new Date(from.getTime() - 7 * 24 * 60 * 60 * 1000);
-    } else if (interval === "fortnight") {
-      if (from.getUTCDate() === 1)
-        cursor = new Date(
-          Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - 1, 16),
-        );
-      else
-        cursor = new Date(
-          Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1),
-        );
-    } else {
-      cursor = new Date(
-        Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - 1, 1),
-      );
-    }
-  }
-  return out;
-}
-
 export async function getEarningsSeries(
   userId: string,
   interval: Interval,
 ): Promise<EarningsPoint[]> {
   try {
-    const supa = createClient();
-    const ranges = getPeriodBoundaries(interval, 6);
-
-    const fromMin = ranges[0].from.toISOString();
-    const toMax = ranges[ranges.length - 1].to.toISOString();
-
-    const { data: agreements } = await (supa as any)
-      .from("agreements")
-      .select("request_id, completed_at, updated_at")
+    const supa = getAdminSupabase();
+    const { data } = await (supa as any)
+      .from("payouts")
+      .select("paid_at, amount")
       .eq("professional_id", userId)
-      .eq("status", "completed")
-      .or(
-        `and(completed_at.gte.${fromMin},completed_at.lt.${toMax}),and(updated_at.gte.${fromMin},updated_at.lt.${toMax})`,
-      );
-
-    const rows = (agreements as any[]) || [];
-    const reqIds = Array.from(
-      new Set(rows.map((r) => String(r.request_id)).filter(Boolean)),
+      .eq("status", "paid")
+      .order("paid_at", { ascending: true, nullsFirst: false });
+    return buildPayoutSeries(
+      Array.isArray(data)
+        ? (data as Array<{ paid_at: string | null; amount: number | null }>)
+        : [],
+      interval,
     );
-
-    const netByRequest = new Map<string, number>();
-    if (reqIds.length > 0) {
-      const { data: receipts } = await (supa as any)
-        .from("receipts")
-        .select(
-          "request_id, service_amount_cents, commission_amount_cents, created_at, professional_id",
-        )
-        .eq("professional_id", userId)
-        .in("request_id", reqIds)
-        .order("created_at", { ascending: false });
-      for (const r of (receipts as any[]) || []) {
-        const rid = String(r.request_id || "");
-        if (!rid || netByRequest.has(rid)) continue;
-        const service = Number(r.service_amount_cents ?? 0);
-        const commission = Number(r.commission_amount_cents ?? 0);
-        const net = (service - commission) / 100;
-        netByRequest.set(rid, Number.isFinite(net) ? net : 0);
-      }
-    }
-
-    const sums = new Map<string, number>();
-    for (const r of ranges) sums.set(r.label, 0);
-    for (const a of rows) {
-      const when = a.completed_at || a.updated_at;
-      if (!when) continue;
-      const ts = new Date(when);
-      for (const r of ranges) {
-        if (ts >= r.from && ts < r.to) {
-          const cur = sums.get(r.label) || 0;
-          const net = netByRequest.get(String(a.request_id)) || 0;
-          sums.set(r.label, cur + net);
-          break;
-        }
-      }
-    }
-
-    return ranges.map((r) => ({
-      label: r.label,
-      amount: Math.max(0, Math.round((sums.get(r.label) || 0) * 100) / 100),
-    }));
   } catch {
     return [];
   }

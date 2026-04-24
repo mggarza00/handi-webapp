@@ -4,6 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
+import {
+  computeProfessionalPayoutBreakdown,
+  getProfessionalPayoutCommissionPercent,
+} from "@/lib/payouts/manual";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import createClient from "@/utils/supabase/server";
 
@@ -180,19 +184,29 @@ export async function PATCH(
 
             if (amount && amount > 0) {
               try {
+                const commissionPercent =
+                  await getProfessionalPayoutCommissionPercent(admin);
+                const breakdown = computeProfessionalPayoutBreakdown(
+                  amount,
+                  commissionPercent,
+                );
                 await admin.from("payouts").insert({
                   agreement_id: agreementId,
                   request_id: requestId,
                   professional_id: proId,
-                  amount,
+                  amount: breakdown.netAmount,
                   currency,
                   status: "pending",
                   metadata: {
                     source: "request_status",
                     request_status: normalizedNext,
+                    amount_basis: "net",
+                    gross_amount: breakdown.grossAmount,
+                    commission_pro_percent: breakdown.commissionPercent,
+                    commission_pro_amount: breakdown.commissionAmount,
                   },
                 });
-                const amountText = `$${amount.toFixed(2)} ${currency}`;
+                const amountText = `$${breakdown.netAmount.toFixed(2)} ${currency}`;
                 await notifyAdminsInApp(admin, {
                   type: "payout:pending",
                   title: "Payout pendiente",

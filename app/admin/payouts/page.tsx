@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
+import ManualPayoutDialog from "@/components/admin/payouts/ManualPayoutDialog";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -81,14 +82,17 @@ export default function AdminPayoutsPage() {
             Pendientes: {pendingCount}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchData}
-          disabled={loading}
-        >
-          Recargar
-        </Button>
+        <div className="flex items-center gap-2">
+          <ManualPayoutDialog onCreated={fetchData} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchData}
+            disabled={loading}
+          >
+            Recargar
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-xl border">
         <Table>
