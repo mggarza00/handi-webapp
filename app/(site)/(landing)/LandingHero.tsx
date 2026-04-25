@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 import Image from "next/image";
 
+import LandingHeroTextReveal from "./LandingHeroTextReveal.client";
 import LandingClientHeroControls from "./LandingClientHeroControls.client";
 import LandingGuestHeroCta from "./LandingGuestHeroCta.client";
 import {
@@ -70,23 +71,25 @@ export default function LandingHero({
             <div className="absolute inset-0 bg-gradient-to-b from-black/78 via-black/42 to-black/18 md:bg-gradient-to-r md:from-black/72 md:via-black/28 md:to-transparent" />
             <div className="absolute inset-0 px-6 pb-8 pt-32 md:px-24 md:pb-12 md:pt-44">
               <div className="max-w-[280px] md:max-w-[380px]">
-                <h1
+                <LandingHeroTextReveal
+                  as="h1"
                   className={`${stackSansMedium.className} text-[28px] font-semibold leading-[1.02] tracking-[-0.03em] text-white drop-shadow-[0_10px_26px_rgba(0,0,0,0.55)] md:text-[42px]`}
+                  subtitleClassName={`${interLight.className} mt-5 max-w-[270px] text-[15px] leading-6 text-white/96 drop-shadow-[0_6px_18px_rgba(0,0,0,0.45)] md:mt-6 md:max-w-[390px] md:text-base`}
+                  subtitle={
+                    <>
+                      <span className="block font-semibold">
+                        Conecta con profesionales
+                      </span>
+                      <span className="block">
+                        de <em className="italic">confianza</em> para cualquier
+                      </span>
+                      <span className="block">servicio en tu hogar</span>
+                    </>
+                  }
                 >
                   <span className="block">No es magia,</span>
                   <span className="block">es Handi</span>
-                </h1>
-                <p
-                  className={`${interLight.className} mt-5 max-w-[270px] text-[15px] leading-6 text-white/96 drop-shadow-[0_6px_18px_rgba(0,0,0,0.45)] md:mt-6 md:max-w-[390px] md:text-base`}
-                >
-                  <span className="block font-semibold">
-                    Conecta con profesionales
-                  </span>
-                  <span className="block">
-                    de <em className="italic">confianza</em> para cualquier
-                  </span>
-                  <span className="block">servicio en tu hogar</span>
-                </p>
+                </LandingHeroTextReveal>
               </div>
               <div className="mt-8 md:mt-12">
                 <LandingGuestHeroCta
@@ -158,7 +161,8 @@ export default function LandingHero({
                 </div>
                 <div className="mb-8 md:absolute md:left-[96px] md:top-[210px] md:mb-0 lg:top-[230px]">
                   <div className="flex flex-col gap-4">
-                    <p
+                    <LandingHeroTextReveal
+                      as="p"
                       style={{
                         fontFamily:
                           '"Stack Sans Text", system-ui, -apple-system, "Segoe UI", sans-serif',
@@ -173,7 +177,7 @@ export default function LandingHero({
                         Profesionales
                       </span>
                       <span className="block leading-[1.06]">a tu alcance</span>
-                    </p>
+                    </LandingHeroTextReveal>
                     <div className="mt-[70px] md:mt-12">
                       <LandingClientHeroControls
                         addresses={savedAddresses}
