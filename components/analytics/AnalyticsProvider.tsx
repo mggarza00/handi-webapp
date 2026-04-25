@@ -13,6 +13,7 @@ const ga4MeasurementId =
   process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID?.trim() || "";
 const clarityProjectId =
   process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID?.trim() || "";
+const googleAdsTagId = "AW-18027876784";
 
 function getLandingPayload(pathname: string) {
   if (pathname === "/") {
@@ -46,6 +47,13 @@ export default function AnalyticsProvider() {
 
   useEffect(() => {
     configureGa4();
+    if (
+      typeof window !== "undefined" &&
+      ga4MeasurementId &&
+      typeof window.gtag === "function"
+    ) {
+      window.gtag("config", googleAdsTagId);
+    }
   }, []);
 
   useEffect(() => {
