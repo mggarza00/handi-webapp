@@ -35,6 +35,9 @@ export type ProfileOverview = {
   coloredTags: ColoredTag[];
 };
 
+const COMPLETED_REQUEST_STATUSES = ["finalizada", "completed", "finished"];
+const COMPLETED_CALENDAR_STATUSES = ["finished", "completed"];
+
 export async function getProfessionalOverview(
   supa: SupabaseClient<any>,
   id: string,
@@ -224,23 +227,59 @@ export async function getProfessionalOverview(
     ratingCount = 0;
   }
 
-  // trabajos finalizados (preferido: requests por professional_id y estado)
+  const candidateProfessionalIds = Array.from(
+    new Set(
+      [
+        id,
+        asTrimmedString((pro as any)?.id),
+        asTrimmedString((pro as any)?.user_id),
+      ].filter((candidate): candidate is string => Boolean(candidate)),
+    ),
+  );
+
+  // Trabajos completados:
+  // usamos la fuente más confiable disponible entre pro_calendar_events, agreements
+  // y requests. Tomamos el máximo porque los modelos pueden coexistir para la
+  // misma operación y no debemos duplicar conteo.
   let jobsDone = 0;
-  const j1 = await supaClient
-    .from("requests")
-    .select("id", { count: "exact", head: true })
-    .eq("professional_id" as any, id) // TODO(schema): si no existe, usar agreements como fallback
-    .in("status", ["finalizada", "completed", "finished"]);
-  if (!j1.error) {
-    jobsDone = j1.count ?? 0;
-  } else {
-    const j2 = await supaClient
+  const counts: number[] = [];
+  try {
+    const calendar = await supaClient
+      .from("pro_calendar_events")
+      .select("id", { count: "exact", head: true })
+      .in("pro_id", candidateProfessionalIds)
+      .in("status", COMPLETED_CALENDAR_STATUSES as any[]);
+    if (!calendar.error && typeof calendar.count === "number") {
+      counts.push(calendar.count);
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const agreements = await supaClient
       .from("agreements")
       .select("id", { count: "exact", head: true })
-      .eq("professional_id", id)
+      .in("professional_id", candidateProfessionalIds)
       .eq("status", "completed");
-    jobsDone = j2.count ?? 0;
+    if (!agreements.error && typeof agreements.count === "number") {
+      counts.push(agreements.count);
+    }
+  } catch {
+    /* ignore */
   }
+  try {
+    const requests = await supaClient
+      .from("requests")
+      .select("id", { count: "exact", head: true })
+      .in("professional_id", candidateProfessionalIds)
+      .in("status", COMPLETED_REQUEST_STATUSES as any[]);
+    if (!requests.error && typeof requests.count === "number") {
+      counts.push(requests.count);
+    }
+  } catch {
+    /* ignore */
+  }
+  jobsDone = counts.length ? Math.max(...counts) : 0;
 
   const parseNamesArray = (input: string): unknown[] | string | null => {
     try {
@@ -443,6 +482,27 @@ export async function getPortfolio(
   limit = 18,
 ): Promise<PortfolioItem[]> {
   const supaClient = supa as any;
+  const candidateProfessionalIds = Array.from(new Set([id]));
+  try {
+    const identity = await supaClient
+      .from("professionals")
+      .select("id, user_id")
+      .or(`id.eq.${id},user_id.eq.${id}`)
+      .limit(2);
+    const rows =
+      (identity.data as Array<{
+        id?: string | null;
+        user_id?: string | null;
+      }> | null) ?? [];
+    for (const row of rows) {
+      const professionalId = typeof row?.id === "string" ? row.id.trim() : "";
+      const userId = typeof row?.user_id === "string" ? row.user_id.trim() : "";
+      if (professionalId) candidateProfessionalIds.push(professionalId);
+      if (userId) candidateProfessionalIds.push(userId);
+    }
+  } catch {
+    /* ignore */
+  }
   // First, prefer approved public gallery stored in 'professionals-gallery'
   try {
     const prefix = `${id}/`;
@@ -497,7 +557,10 @@ export async function getPortfolio(
       .select(
         "request_id, image_url, url, created_at, uploaded_at, requests!inner(title)",
       )
-      .eq("professional_id" as any, id)
+      .in(
+        "professional_id" as any,
+        Array.from(new Set(candidateProfessionalIds)),
+      )
       .order("created_at", { ascending: false })
       .limit(limit);
     if (res.error) throw res.error;
@@ -522,7 +585,7 @@ export async function getPortfolio(
     const { data } = await supaClient
       .from("service_photos")
       .select("id, request_id, image_url, uploaded_at")
-      .eq("professional_id", id)
+      .in("professional_id", Array.from(new Set(candidateProfessionalIds)))
       .order("uploaded_at", { ascending: false, nullsFirst: false })
       .limit(limit);
     const photos = (data ?? []) as Array<Record<string, unknown>>;
