@@ -3,6 +3,7 @@ import * as React from "react";
 import { Heart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const logFavoriteError = (error: unknown) => {
   if (process.env.NODE_ENV !== "production") {
@@ -11,7 +12,13 @@ const logFavoriteError = (error: unknown) => {
   }
 };
 
-export default function FavoriteProButton({ proId }: { proId: string }) {
+export default function FavoriteProButton({
+  proId,
+  className,
+}: {
+  proId: string;
+  className?: string;
+}) {
   const [loading, setLoading] = React.useState(false);
   const [added, setAdded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -21,14 +28,20 @@ export default function FavoriteProButton({ proId }: { proId: string }) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/favorites/pros?proId=${encodeURIComponent(proId)}`, { cache: 'no-store', credentials: 'include' });
+        const res = await fetch(
+          `/api/favorites/pros?proId=${encodeURIComponent(proId)}`,
+          { cache: "no-store", credentials: "include" },
+        );
         const j = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok && j && typeof j.is_favorite === 'boolean') setAdded(Boolean(j.is_favorite));
+        if (!cancelled && res.ok && j && typeof j.is_favorite === "boolean")
+          setAdded(Boolean(j.is_favorite));
       } catch (error) {
         logFavoriteError(error);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [proId]);
 
   async function addFavorite() {
@@ -45,7 +58,9 @@ export default function FavoriteProButton({ proId }: { proId: string }) {
       if (!res.ok || !j?.ok) {
         const msg = String(j?.error || "No se pudo guardar");
         if (msg.includes("MIGRATION_REQUIRED")) {
-          throw new Error("Favoritos aún no está disponible. Por favor aplica las migraciones de base de datos.");
+          throw new Error(
+            "Favoritos aún no está disponible. Por favor aplica las migraciones de base de datos.",
+          );
         }
         throw new Error(msg);
       }
@@ -71,7 +86,9 @@ export default function FavoriteProButton({ proId }: { proId: string }) {
       if (!res.ok || !j?.ok) {
         const msg = String(j?.error || "No se pudo guardar");
         if (msg.includes("MIGRATION_REQUIRED")) {
-          throw new Error("Favoritos aún no está disponible. Por favor aplica las migraciones de base de datos.");
+          throw new Error(
+            "Favoritos aún no está disponible. Por favor aplica las migraciones de base de datos.",
+          );
         }
         throw new Error(msg);
       }
@@ -84,22 +101,28 @@ export default function FavoriteProButton({ proId }: { proId: string }) {
   }
 
   const onClick = added ? removeFavorite : addFavorite;
-  const label = added ? 'Agregado' : 'Agregar a mis favoritos';
+  const label = added ? "Agregado" : "Agregar a mis favoritos";
 
   return (
-    <div className="inline-flex items-center gap-2">
+    <div className={cn("flex w-full flex-col items-stretch gap-2", className)}>
       <Button
         size="sm"
         onClick={onClick}
         disabled={loading}
         aria-pressed={added}
         variant={added ? "outline" : "default"}
-        className={`${added ? "bg-white text-primary border-primary hover:bg-primary/5 hover:text-primary" : ""} gap-1`}
+        className={cn(
+          "h-11 w-full rounded-full border-0 bg-[#082877] text-white hover:bg-[#061c53] hover:text-white",
+          added &&
+            "border border-[#082877] bg-white text-[#082877] hover:bg-[#082877]/5 hover:text-[#082877]",
+        )}
       >
         <Heart className="h-4 w-4" />
         {label}
       </Button>
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      {error ? (
+        <span className="text-center text-xs text-red-600">{error}</span>
+      ) : null}
     </div>
   );
 }

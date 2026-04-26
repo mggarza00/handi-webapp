@@ -10,16 +10,19 @@ import type { Database } from "@/types/supabase";
 import ProfessionalProfileViewTracker from "@/components/analytics/ProfessionalProfileViewTracker.client";
 import Breadcrumbs from "@/components/breadcrumbs";
 import FavoriteProButton from "@/components/profiles/FavoriteProButton.client";
+import ExpandableChipList from "@/components/profiles/ExpandableChipList.client";
+import HireProfessionalButton from "@/components/profiles/HireProfessionalButton.client";
+import PortfolioByRequest from "@/components/profiles/PortfolioByRequest.client";
 import ProfileHeaderCard from "@/components/profiles/ProfileHeaderCard";
+import ShareProfileButton from "@/components/profiles/ShareProfileButton.client";
 import ServiceTagOverflow from "@/components/profiles/ServiceTagOverflow.client";
 import CertChip from "@/components/profiles/CertChip";
-import CompletedWorks from "@/components/profiles/CompletedWorks";
-import PhotoMasonry from "@/components/profiles/PhotoMasonry";
 import ReviewsListClient from "@/components/profiles/ReviewsList.client";
 import ProActivityRefresher from "@/components/realtime/ProActivityRefresher.client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  type ColoredTag,
   getProfessionalOverview,
   getPortfolio as loadPortfolio,
   getReviews as loadReviews,
@@ -80,6 +83,24 @@ const toRecord = (value: unknown): Record<string, unknown> | null =>
 const getProfileRecord = (value: unknown): Record<string, unknown> | null => {
   if (Array.isArray(value)) return toRecord(value[0]);
   return toRecord(value);
+};
+
+type WorkGalleryItem = {
+  requestId: string;
+  title: string;
+  photos: string[];
+  sortDate: string | null;
+};
+
+const pickMostRecentDate = (
+  current: string | null,
+  candidate: string | null | undefined,
+): string | null => {
+  const next =
+    typeof candidate === "string" && candidate.trim().length ? candidate : null;
+  if (!next) return current;
+  if (!current) return next;
+  return current < next ? next : current;
 };
 
 function getBaseUrl() {
@@ -149,6 +170,7 @@ export async function generateMetadata({
     };
   }
 }
+
 export default async function PublicProfilePage({ params }: Ctx) {
   const supa = getAdminSupabase() as SupabaseClient<Database>;
   const proId = params.id;
@@ -168,31 +190,11 @@ export default async function PublicProfilePage({ params }: Ctx) {
     return notFound();
   }
 
-  const coloredTags = overview.coloredTags;
-
-  const [portfolio, reviewsData] = await Promise.all([
-    loadPortfolio(supa, proId, 18),
+  const [reviewsData, jobsWithPhotos, portfolio] = await Promise.all([
     loadReviews(supa, proId, 5),
+    getProJobsWithPhotos(supa, proId, 12),
+    loadPortfolio(supa, proId, 24),
   ]);
-
-  const jobsWithPhotos = await getProJobsWithPhotos(supa, proId, 6);
-
-  const rls = createClient();
-  const { data: auth } = await rls.auth.getUser();
-  let showFavorite = false;
-  const isOwner = auth?.user?.id === proId;
-  if (auth?.user) {
-    const uid = auth.user.id;
-    if (uid !== proId) {
-      const { data: viewerProfile } = await rls
-        .from("profiles")
-        .select("id, role")
-        .eq("id", uid)
-        .maybeSingle<{ id: string; role: "client" | "pro" | "admin" | null }>();
-      const vrole = viewerProfile?.role ?? null;
-      showFavorite = vrole === "client";
-    }
-  }
 
   const jobsDone = overview.jobsDone;
 
@@ -205,22 +207,23 @@ export default async function PublicProfilePage({ params }: Ctx) {
       .maybeSingle();
     const raw = (prow.data as { certifications?: unknown } | null)
       ?.certifications;
-    const toArray = (v: unknown): unknown[] => {
-      if (Array.isArray(v)) return v;
-      if (typeof v === "string") {
-        const s = v.trim();
+    const toArray = (value: unknown): unknown[] => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
         try {
-          const parsed = JSON.parse(s);
+          const parsed = JSON.parse(trimmed);
           if (Array.isArray(parsed)) return parsed as unknown[];
         } catch {
-          /* ignore */
+          // ignore
         }
-        if (s.includes(","))
-          return s
+        if (trimmed.includes(",")) {
+          return trimmed
             .split(",")
-            .map((x) => x.trim())
+            .map((item) => item.trim())
             .filter(Boolean);
-        return s ? [s] : [];
+        }
+        return trimmed ? [trimmed] : [];
       }
       return [];
     };
@@ -233,15 +236,43 @@ export default async function PublicProfilePage({ params }: Ctx) {
       return null;
     };
     certifications = toArray(raw)
-      .map((x) => toName(x))
-      .filter((s): s is string => typeof s === "string" && s.length > 0)
-      .map((s) => s.trim());
+      .map((item) => toName(item))
+      .filter(
+        (item): item is string => typeof item === "string" && item.length > 0,
+      )
+      .map((item) => item.trim());
   } catch {
-    /* ignore */
+    // ignore
   }
 
   const proData = pro;
   const profileData = getProfileRecord(proData.profiles);
+  const proUserId = getString(proData.user_id) || null;
+  const rls = createClient();
+  const { data: auth } = await rls.auth.getUser();
+  const viewerId = auth?.user?.id ?? null;
+  const isOwner = Boolean(
+    viewerId && (viewerId === proId || (proUserId && viewerId === proUserId)),
+  );
+
+  let viewerRole: "client" | "pro" | "admin" | null = null;
+  let viewerIsClientPro = false;
+  let showFavorite = false;
+  if (viewerId && !isOwner) {
+    const { data: viewerProfile } = await rls
+      .from("profiles")
+      .select("id, role, is_client_pro")
+      .eq("id", viewerId)
+      .maybeSingle<{
+        id: string;
+        role: "client" | "pro" | "admin" | null;
+        is_client_pro: boolean | null;
+      }>();
+    viewerRole = viewerProfile?.role ?? null;
+    viewerIsClientPro = viewerProfile?.is_client_pro === true;
+    showFavorite = viewerRole === "client" || viewerIsClientPro;
+  }
+
   let resolvedDisplayName = getPreferredName(proData, profileData);
   if (!resolvedDisplayName) {
     const fallbackProfile = await supa
@@ -251,6 +282,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
       .maybeSingle<{ full_name: string | null }>();
     resolvedDisplayName = getNamePart(fallbackProfile.data?.full_name);
   }
+
   const displayName = resolvedDisplayName || "Profesional";
   const avatarUrl =
     getString(profileData?.avatar_url) ||
@@ -273,12 +305,91 @@ export default async function PublicProfilePage({ params }: Ctx) {
     typeof overview.ratingCount === "number" ? overview.ratingCount : 0,
     typeof reviewsData.count === "number" ? reviewsData.count : 0,
   );
+  const canHireAsClient = Boolean(
+    viewerId && !isOwner && (viewerRole === "client" || viewerIsClientPro),
+  );
   const bio = getString(proData.bio);
   const isVerified = Boolean(
     getBoolean(proData.verified) || getBoolean(proData.is_featured),
   );
+  const categoryTags = overview.coloredTags.filter(
+    (tag) => tag.type === "category",
+  );
+  const primaryCategoryTag = categoryTags[0] ?? null;
+  const subcategoryTags = overview.subcategories.map((name) => {
+    const matchingTag = overview.coloredTags.find(
+      (tag) =>
+        tag.type === "subcategory" &&
+        tag.name.trim().toLowerCase() === name.trim().toLowerCase(),
+    );
+    if (matchingTag) {
+      return {
+        ...matchingTag,
+        bgColor: matchingTag.bgColor ?? primaryCategoryTag?.bgColor ?? null,
+        textColor:
+          matchingTag.textColor ?? primaryCategoryTag?.textColor ?? null,
+        borderColor:
+          matchingTag.borderColor ?? primaryCategoryTag?.borderColor ?? null,
+      } satisfies ColoredTag;
+    }
+    return {
+      name,
+      type: "subcategory" as const,
+      bgColor: primaryCategoryTag?.bgColor ?? null,
+      textColor: primaryCategoryTag?.textColor ?? null,
+      borderColor: primaryCategoryTag?.borderColor ?? null,
+    } satisfies ColoredTag;
+  });
+  const worksByRequest = new Map<string, WorkGalleryItem>();
+  for (const job of jobsWithPhotos) {
+    worksByRequest.set(job.request_id, {
+      requestId: job.request_id,
+      title: job.request_title || "Solicitud",
+      photos: Array.from(new Set(job.photos.filter(Boolean))).slice(0, 6),
+      sortDate: job.completed_at ?? null,
+    });
+  }
+  for (const item of portfolio) {
+    const requestId =
+      typeof item.requestId === "string" && item.requestId.trim().length
+        ? item.requestId.trim()
+        : `portfolio:${item.title || item.url}`;
+    const existing = worksByRequest.get(requestId);
+    if (!existing) {
+      worksByRequest.set(requestId, {
+        requestId,
+        title: item.title?.trim() || "Solicitud",
+        photos: item.url ? [item.url] : [],
+        sortDate: item.createdAt ?? null,
+      });
+      continue;
+    }
+    if (
+      item.url &&
+      !existing.photos.includes(item.url) &&
+      existing.photos.length < 6
+    ) {
+      existing.photos.push(item.url);
+    }
+    if (
+      (!existing.title || existing.title === "Solicitud") &&
+      item.title?.trim()
+    ) {
+      existing.title = item.title.trim();
+    }
+    existing.sortDate = pickMostRecentDate(existing.sortDate, item.createdAt);
+    worksByRequest.set(requestId, existing);
+  }
+  const workGalleryItems = Array.from(worksByRequest.values())
+    .sort((a, b) => {
+      const av = a.sortDate || "";
+      const bv = b.sortDate || "";
+      return av < bv ? 1 : av > bv ? -1 : 0;
+    })
+    .slice(0, 12);
   const baseUrl = getBaseUrl();
   const canonicalProfileUrl = `${baseUrl}/profiles/${proId}`;
+
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -303,6 +414,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
       },
     ],
   };
+
   const personJsonLd: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Person",
@@ -329,8 +441,9 @@ export default async function PublicProfilePage({ params }: Ctx) {
     },
   };
   if (bio && bio.trim()) professionalServiceJsonLd.description = bio.trim();
-  if (normalizedAvatarUrl)
+  if (normalizedAvatarUrl) {
     professionalServiceJsonLd.image = normalizedAvatarUrl;
+  }
   if (serviceCities.length > 0) {
     professionalServiceJsonLd.areaServed = serviceCities.map((city) => ({
       "@type": "City",
@@ -355,7 +468,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-6">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 pb-28 md:px-6 md:pb-8">
       <ProActivityRefresher proId={proId} />
       <ProfessionalProfileViewTracker profileId={proId} />
       <script
@@ -372,6 +485,7 @@ export default async function PublicProfilePage({ params }: Ctx) {
           __html: JSON.stringify(professionalServiceJsonLd),
         }}
       />
+
       <Breadcrumbs
         items={[
           { label: "Inicio", href: "/" },
@@ -392,204 +506,225 @@ export default async function PublicProfilePage({ params }: Ctx) {
         reviewsCount={reviewsCount}
         headingClassName={stackSansHeading.className}
         isVerified={isVerified}
-        rightAction={
+        primaryAction={
           isOwner ? (
-            <Button asChild variant="outline" size="sm">
-              <Link href="/profile/setup">Editar</Link>
+            <Button
+              asChild
+              className="h-11 rounded-full bg-[#082877] hover:bg-[#061c53]"
+            >
+              <Link href="/profile/setup">Editar perfil</Link>
             </Button>
-          ) : showFavorite ? (
-            <FavoriteProButton proId={proId} />
+          ) : (
+            <HireProfessionalButton
+              professionalId={proId}
+              professionalName={displayName}
+              cities={serviceCities}
+              categories={overview.categories}
+              subcategories={overview.subcategories}
+              categoryTags={categoryTags}
+              subcategoryTags={subcategoryTags}
+              isAuthenticated={Boolean(viewerId)}
+              canHireAsClient={canHireAsClient}
+              stickyMobile
+              className="w-full"
+              buttonClassName="w-full"
+            />
+          )
+        }
+        secondaryAction={
+          <ShareProfileButton
+            title={`${displayName} | Perfil profesional en Handi`}
+            className="w-full"
+          />
+        }
+        tertiaryAction={
+          !isOwner && showFavorite ? (
+            <FavoriteProButton proId={proId} className="w-full" />
           ) : null
         }
       />
 
-      {!isOwner ? (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-slate-900">
-            Servicios locales populares
-          </h2>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            <Link
-              href="/servicios/plomero/monterrey"
-              className="text-sm font-medium text-[#082877] hover:underline"
-            >
-              Plomero en Monterrey
-            </Link>
-            <Link
-              href="/servicios/plomero/san-pedro-garza-garcia"
-              className="text-sm font-medium text-[#082877] hover:underline"
-            >
-              Plomero en San Pedro
-            </Link>
-            <Link
-              href="/servicios/electricista/monterrey"
-              className="text-sm font-medium text-[#082877] hover:underline"
-            >
-              Electricista en Monterrey
-            </Link>
-            <Link
-              href="/servicios/electricista/san-pedro-garza-garcia"
-              className="text-sm font-medium text-[#082877] hover:underline"
-            >
-              Electricista en San Pedro
-            </Link>
-            <Link
-              href="/servicios/limpieza/monterrey"
-              className="text-sm font-medium text-[#082877] hover:underline"
-            >
-              Limpieza en Monterrey
-            </Link>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="space-y-4">
-        <Card className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5 space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.85fr)]">
+        <div className="space-y-6">
+          <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+            <div className="space-y-5 p-5 sm:p-6">
               <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Servicios y experiencia
+                <h2 className="text-xl font-semibold text-slate-950">
+                  Servicios y cobertura
                 </h2>
-                <p className="text-sm text-slate-600">
-                  Experiencia, calidad y alcance del profesional.
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Categorías, subcategorías y zonas donde este profesional
+                  ofrece sus servicios.
                 </p>
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <StatPill
-                label="Experiencia"
-                value={
-                  typeof yearsExperience === "number"
-                    ? `${yearsExperience} a\u00f1os`
-                    : "-"
-                }
-              />
-              <StatPill
-                label="Trabajos finalizados"
-                value={typeof jobsDone === "number" ? jobsDone.toString() : "-"}
-              />
-              <StatPill
-                label="Calificacion"
-                value={
-                  typeof averageRating === "number"
-                    ? averageRating.toFixed(1)
-                    : "-"
-                }
-              />
-            </div>
-            <div className="space-y-3 text-sm text-slate-700">
-              {coloredTags.length ? (
-                <ServiceTagOverflow tags={coloredTags} maxVisible={7} />
-              ) : null}
-              {serviceCities.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {serviceCities.map((city) => (
-                    <span
-                      key={`city-${city}`}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-slate-800"
-                    >
-                      {city}
-                    </span>
-                  ))}
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Categorías
+                  </p>
+                  <div className="mt-3">
+                    {categoryTags.length ? (
+                      <ServiceTagOverflow
+                        tags={categoryTags}
+                        maxVisible={4}
+                        overflowLabel="Ver todas"
+                      />
+                    ) : (
+                      <CompactEmptyState text="Sin categorías registradas" />
+                    )}
+                  </div>
                 </div>
-              ) : null}
-              {!coloredTags.length && !serviceCities.length ? (
-                <p className="text-sm text-muted-foreground">
-                  Este profesional aun no ha agregado categorias ni ciudades de
-                  servicio.
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </Card>
 
-        <Card className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Trabajos realizados
-            </h2>
-            <div className="mt-3">
-              {jobsWithPhotos.length ? (
-                <CompletedWorks
-                  items={jobsWithPhotos.map((j) => ({
-                    request_id: j.request_id,
-                    title: j.request_title || "Solicitud",
-                    photos: j.photos.slice(0, 6).map((u, i) => ({
-                      id: `${j.request_id}-${i}`,
-                      url: u,
-                      alt: `Foto del trabajo: ${j.request_title || "Solicitud"}`,
-                    })),
-                  }))}
-                />
-              ) : (
-                <p className="text-sm text-slate-600">
-                  Aun no hay trabajos realizados.
-                </p>
-              )}
-            </div>
-          </div>
-        </Card>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Subcategorías
+                  </p>
+                  <div className="mt-3">
+                    {subcategoryTags.length ? (
+                      <ServiceTagOverflow
+                        tags={subcategoryTags}
+                        maxVisible={4}
+                        overflowLabel="Ver todas"
+                      />
+                    ) : (
+                      <CompactEmptyState text="Sin subcategorías registradas" />
+                    )}
+                  </div>
+                </div>
 
-        <Card className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Certificaciones
-            </h2>
-            <div className="mt-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Ciudades de atención
+                  </p>
+                  <div className="mt-3">
+                    <ExpandableChipList
+                      items={serviceCities}
+                      maxVisible={5}
+                      singleLine
+                      emptyText="Este profesional aún no ha definido sus zonas de atención."
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+            <div className="space-y-4 p-5 sm:p-6">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-950">
+                  Certificaciones
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Documentos o credenciales visibles para los clientes.
+                </p>
+              </div>
               {certifications.length ? (
                 <div className="flex flex-wrap gap-2">
-                  {certifications.map((c) => (
-                    <CertChip key={c}>{c}</CertChip>
+                  {certifications.map((certification) => (
+                    <CertChip key={certification}>{certification}</CertChip>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">
-                  Sin certificaciones registradas.
-                </p>
+                <CompactEmptyState text="Sin certificaciones registradas por el momento." />
               )}
             </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Galeria de trabajos
+          {!isOwner ? (
+            <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+              <div className="space-y-3 p-5 sm:p-6">
+                <h2 className="text-lg font-semibold text-slate-950">
+                  Explora servicios relacionados
+                </h2>
+                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  <Link
+                    href="/servicios/plomero/monterrey"
+                    className="text-sm font-medium text-[#082877] hover:underline"
+                  >
+                    Plomero en Monterrey
+                  </Link>
+                  <Link
+                    href="/servicios/plomero/san-pedro-garza-garcia"
+                    className="text-sm font-medium text-[#082877] hover:underline"
+                  >
+                    Plomero en San Pedro
+                  </Link>
+                  <Link
+                    href="/servicios/electricista/monterrey"
+                    className="text-sm font-medium text-[#082877] hover:underline"
+                  >
+                    Electricista en Monterrey
+                  </Link>
+                  <Link
+                    href="/servicios/limpieza/monterrey"
+                    className="text-sm font-medium text-[#082877] hover:underline"
+                  >
+                    Limpieza en Monterrey
+                  </Link>
+                </div>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </section>
+
+      <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+        <div className="space-y-4 p-5 sm:p-6">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">
+              Trabajos realizados
             </h2>
-            <div className="mt-3">
-              {portfolio && portfolio.length ? (
-                <PhotoMasonry photos={portfolio} />
-              ) : (
-                <p className="text-sm text-slate-600">
-                  Aun no hay fotos en el portafolio.
-                </p>
-              )}
-            </div>
+            <p className="mt-1 text-sm text-slate-600">
+              Solicitudes agrupadas con fotos reales compartidas por el
+              profesional.
+            </p>
           </div>
-        </Card>
+          {workGalleryItems.length ? (
+            <PortfolioByRequest
+              items={workGalleryItems.map((job) => ({
+                requestId: job.requestId,
+                title: job.title || "Solicitud",
+                photos: job.photos.slice(0, 6),
+              }))}
+            />
+          ) : (
+            <CompactEmptyState text="Todavía no hay trabajos realizados publicados en este perfil." />
+          )}
+        </div>
+      </Card>
 
-        <Card className="rounded-2xl border bg-white shadow-sm">
-          <div className="p-5 space-y-3">
-            <h2 className="text-lg font-semibold text-slate-900">Resenas</h2>
+      <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+        <div className="space-y-4 p-5 sm:p-6">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">Reseñas</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Opiniones de clientes que ya contrataron a este profesional.
+            </p>
+          </div>
+          {reviewsData.items.length || reviewsCount > 0 ? (
             <ReviewsListClient
               professionalId={proId}
               initial={reviewsData.items}
               nextCursor={reviewsData.nextCursor}
               total={reviewsCount}
             />
-          </div>
-        </Card>
-      </section>
+          ) : (
+            <CompactEmptyState text="Todavía no hay reseñas publicadas en este perfil." />
+          )}
+        </div>
+      </Card>
     </main>
   );
 }
 
-function StatPill({ label, value }: { label: string; value: string }) {
+function CompactEmptyState({ text }: { text: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-xl border bg-slate-50 px-3 py-3 text-center shadow-sm">
-      <span className="text-lg font-semibold text-slate-900">{value}</span>
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-sm leading-6 text-slate-500">
+      {text}
     </div>
   );
 }
