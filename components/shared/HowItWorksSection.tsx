@@ -9,11 +9,13 @@ import DeferOnIdle from "@/components/DeferOnIdle.client";
 import MobileCarousel from "@/components/MobileCarousel";
 
 type HowItWorksSectionProps = {
+  bypassVisualDefer?: boolean;
   className?: string;
   id?: string;
 };
 
 export default function HowItWorksSection({
+  bypassVisualDefer = false,
   className = "border-b border-slate-200 bg-gradient-to-b from-white via-white to-[#e8e8e8]",
   id = "como-funciona",
 }: HowItWorksSectionProps) {
@@ -35,9 +37,7 @@ export default function HowItWorksSection({
         </div>
 
         <div className="md:hidden -mx-4 overflow-x-hidden">
-          <DeferOnIdle
-            fallback={<div className="h-[340px]" aria-hidden="true" />}
-          >
+          {bypassVisualDefer ? (
             <MobileCarousel
               className="px-0 pt-6"
               gap={16}
@@ -67,7 +67,41 @@ export default function HowItWorksSection({
                 rightImageSrc="/images/chat-mockup-short.png"
               />
             </MobileCarousel>
-          </DeferOnIdle>
+          ) : (
+            <DeferOnIdle
+              fallback={<div className="h-[340px]" aria-hidden="true" />}
+            >
+              <MobileCarousel
+                className="px-0 pt-6"
+                gap={16}
+                padding={16}
+                autoplay
+                autoplayDelay={4000}
+                loop
+                pauseOnHover
+                threeD={false}
+              >
+                <StepCard
+                  step="1"
+                  title="Crea tu solicitud de servicio"
+                  desc="Describe el servicio que necesitas, presupuesto, lugar y fecha."
+                  rightImageSrc="/images/nueva-solicitud-mockup-short.png"
+                />
+                <StepCard
+                  step="2"
+                  title="Compara profesionales"
+                  desc="Revisa perfiles de profesionales disponibles dentro de tu solicitud."
+                  rightImageSrc="/images/profesionals-list-mockup-short.png"
+                />
+                <StepCard
+                  step="3"
+                  title="Contrata con confianza"
+                  desc="Chatea con los profesionales dentro de la app, pide cotizaciones y contrata a traves del chat."
+                  rightImageSrc="/images/chat-mockup-short.png"
+                />
+              </MobileCarousel>
+            </DeferOnIdle>
+          )}
         </div>
 
         <div className="hidden md:grid grid-cols-1 gap-6 md:grid-cols-3">

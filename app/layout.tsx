@@ -6,10 +6,19 @@ import dynamicImport from "next/dynamic";
 import type { Metadata } from "next";
 import ClientToaster from "@/components/ClientToaster";
 import AnalyticsProvider from "@/components/analytics/AnalyticsProvider";
+import AssistantPanelDirect from "@/components/assistant/AssistantPanel";
 import MobileClientTabBar from "@/components/mobile-client-tabbar";
+import InstallAppBannerDirect from "@/components/pwa/InstallAppBanner";
+import RequestNotificationsToastDirect from "@/components/pwa/RequestNotificationsToast";
+import RenderDiagnosticLogger from "@/components/render-diagnostics/RenderDiagnosticLogger.client";
 import { concertOne, inter, nunito, rubik, varelaRound } from "@/lib/fonts";
 import RegisterSW from "@/app/register-sw";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
+import {
+  isRenderDiagnosticModeEnabled,
+  shouldBypassGlobalVisualDefer,
+  shouldDisableFloatingWidgets,
+} from "@/lib/renderDiagnostics";
 import { getAppBaseUrl } from "@/lib/seo/site-url";
 
 export const runtime = "nodejs";
@@ -120,6 +129,9 @@ export default function RootLayout({
 }) {
   const disableAssistant =
     (process.env.NEXT_PUBLIC_DISABLE_ASSISTANT || "").trim() === "1";
+  const diagnosticModeEnabled = isRenderDiagnosticModeEnabled();
+  const bypassGlobalVisualDefer = shouldBypassGlobalVisualDefer();
+  const disableFloatingWidgets = shouldDisableFloatingWidgets();
   return (
     <html
       lang="es"
@@ -217,34 +229,48 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-background text-foreground antialiased font-sans">
         <AnalyticsProvider />
+        {diagnosticModeEnabled ? <RenderDiagnosticLogger /> : null}
         <DeferOnIdle timeoutMs={1500}>
           <AndroidWebViewControls />
           <VercelLiveGuard />
         </DeferOnIdle>
         {children}
         <ClientToaster />
-        {disableAssistant ? null : (
+        {disableAssistant ||
+        disableFloatingWidgets ? null : bypassGlobalVisualDefer ? (
+          <AssistantPanelDirect />
+        ) : (
           <DeferOnIdle delayMs={900} timeoutMs={2200}>
             <AssistantPanel />
           </DeferOnIdle>
         )}
         {/* Mobile-only bottom tab bar for clients */}
-        <MobileClientTabBar />
+        {disableFloatingWidgets ? null : <MobileClientTabBar />}
         <CreateRequestWizardRoot />
         {/* Ensure Service Worker is registered (place above install/notify banners) */}
         <RegisterSW />
         {/* Updater deshabilitado para no mostrar banner de nueva version */}
         {/* PWA install banner (Android native + iOS simulated) */}
-        <DeferOnIdle delayMs={1200} timeoutMs={2400}>
-          <InstallAppBanner />
-          {/* First-use notifications permission toast/help */}
-          <RequestNotificationsToast />
-          {/* Auto-subscribe to Web Push when permission is granted */}
+        {disableFloatingWidgets ? (
           <PushAutoSubscribeOnGrant />
-        </DeferOnIdle>
+        ) : bypassGlobalVisualDefer ? (
+          <>
+            <InstallAppBannerDirect />
+            {/* First-use notifications permission toast/help */}
+            <RequestNotificationsToastDirect />
+            {/* Auto-subscribe to Web Push when permission is granted */}
+            <PushAutoSubscribeOnGrant />
+          </>
+        ) : (
+          <DeferOnIdle delayMs={1200} timeoutMs={2400}>
+            <InstallAppBanner />
+            {/* First-use notifications permission toast/help */}
+            <RequestNotificationsToast />
+            {/* Auto-subscribe to Web Push when permission is granted */}
+            <PushAutoSubscribeOnGrant />
+          </DeferOnIdle>
+        )}
       </body>
     </html>
   );
 }
-/* eslint-disable import/order */
-/* eslint-disable @next/next/no-page-custom-font */

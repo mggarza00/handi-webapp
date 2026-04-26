@@ -8,9 +8,12 @@ import LandingPageStyles from "./LandingPageStyles";
 import { normalizeMediaUrl, type CategoryCard, type Subcat } from "./catalog";
 import { stackSansMedium } from "./landing-fonts";
 
+import HowToUseHandiSectionDirect from "@/app/_components/HowToUseHandiSection.client";
 import DeferOnIdle from "@/components/DeferOnIdle.client";
+import NearbyCarouselDirect from "@/components/professionals/NearbyCarousel.client";
 import HowItWorksSection from "@/components/shared/HowItWorksSection";
 import ProtectedPaymentsCard from "@/components/shared/ProtectedPaymentsCard";
+import { shouldBypassHomeVisualDefer } from "@/lib/renderDiagnostics";
 
 const HowToUseHandiSection = dynamic(
   () => import("@/app/_components/HowToUseHandiSection.client"),
@@ -79,13 +82,19 @@ export default function LandingPage({
   subcategories = [],
 }: LandingPageProps) {
   const isClientVariant = variant === "client";
+  const bypassHomeVisualDefer = shouldBypassHomeVisualDefer();
   const categoryList =
     topCategoryCards.length > 0 ? topCategoryCards : categoryCards;
 
   const featuresSection = (
     <>
-      {!isClientVariant && <HowToUseHandiSection />}
-      <HowItWorksSection />
+      {!isClientVariant &&
+        (bypassHomeVisualDefer ? (
+          <HowToUseHandiSectionDirect />
+        ) : (
+          <HowToUseHandiSection />
+        ))}
+      <HowItWorksSection bypassVisualDefer={bypassHomeVisualDefer} />
     </>
   );
 
@@ -245,19 +254,23 @@ export default function LandingPage({
 
         <div className="space-y-3" id="profesionales-cerca-de-ti">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-600"></p>
-          <DeferOnIdle
-            fallback={
-              <div
-                className="mt-12 rounded-[32px] bg-white px-4 py-12 shadow-[0_22px_70px_-40px_rgba(8,40,119,0.45)] ring-1 ring-slate-100/80 md:px-8"
-                aria-hidden="true"
-              >
-                <div className="mx-auto h-8 w-56 rounded-full bg-slate-200" />
-                <div className="mt-10 h-[320px] rounded-3xl bg-slate-100" />
-              </div>
-            }
-          >
-            <NearbyCarousel />
-          </DeferOnIdle>
+          {bypassHomeVisualDefer ? (
+            <NearbyCarouselDirect />
+          ) : (
+            <DeferOnIdle
+              fallback={
+                <div
+                  className="mt-12 rounded-[32px] bg-white px-4 py-12 shadow-[0_22px_70px_-40px_rgba(8,40,119,0.45)] ring-1 ring-slate-100/80 md:px-8"
+                  aria-hidden="true"
+                >
+                  <div className="mx-auto h-8 w-56 rounded-full bg-slate-200" />
+                  <div className="mt-10 h-[320px] rounded-3xl bg-slate-100" />
+                </div>
+              }
+            >
+              <NearbyCarousel />
+            </DeferOnIdle>
+          )}
         </div>
       </div>
     </section>
