@@ -21,6 +21,19 @@ type OnsiteRow = {
   deposit_payment_intent_id: string | null;
 };
 
+type ConversationRow = {
+  id: string;
+  customer_id: string | null;
+  pro_id: string | null;
+};
+
+const DEBUG_ONSITE_PAYMENT = process.env.DEBUG_ONSITE_PAYMENT === "1";
+
+function logOnsitePayment(stage: string, data: Record<string, unknown>) {
+  if (!DEBUG_ONSITE_PAYMENT) return;
+  console.info(`[onsite-payment] ${JSON.stringify({ stage, ...data })}`);
+}
+
 function supaAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -77,7 +90,22 @@ export async function POST(
       );
     }
     const onsite = onsiteRow as OnsiteRow;
-    if (!onsite.client_id || onsite.client_id !== userId) {
+    const { data: conversationRow, error: conversationError } =
+      onsite.conversation_id
+        ? await supabase
+            .from("conversations")
+            .select("id, customer_id, pro_id")
+            .eq("id", onsite.conversation_id)
+            .single()
+        : { data: null, error: null };
+    if (conversationError) {
+      return NextResponse.json(
+        { error: "ONSITE_CONVERSATION_NOT_FOUND" },
+        { status: 404, headers: JSONH },
+      );
+    }
+    const conversation = (conversationRow ?? null) as ConversationRow | null;
+    if (!conversation?.customer_id || conversation.customer_id !== userId) {
       return NextResponse.json(
         { error: "FORBIDDEN" },
         { status: 403, headers: JSONH },
@@ -124,7 +152,9 @@ export async function POST(
       onsite_quote_request_id: onsite.id,
       onsite_request_id: onsite.id,
       conversation_id: onsite.conversation_id || "",
+      conversationId: onsite.conversation_id || "",
       request_id: onsite.request_id || "",
+      requestId: onsite.request_id || "",
       is_remunerable: onsite.is_remunerable ? "true" : "false",
       base_cents: String(baseCents),
       commission_cents: String(feeCents),
@@ -135,8 +165,22 @@ export async function POST(
       deposit_iva_cents: String(ivaCents),
       deposit_total_cents: String(amountCents),
       proId: onsite.professional_id || "",
+      professional_id: conversation?.pro_id || "",
+      professionalId: conversation?.pro_id || "",
+      client_id: conversation?.customer_id || "",
+      clientId: conversation?.customer_id || "",
       payment_mode: mode,
     };
+    logOnsitePayment("payment-intent.metadata", {
+      onsiteRequestId: onsite.id,
+      paymentIntentId: onsite.deposit_payment_intent_id ?? null,
+      conversationId: onsite.conversation_id ?? null,
+      requestId: onsite.request_id ?? null,
+      customerId: conversation?.customer_id ?? null,
+      professionalId: conversation?.pro_id ?? null,
+      metadata,
+      status: onsite.status,
+    });
 
     let intentId: string | null = onsite.deposit_payment_intent_id;
     let paymentIntent: Awaited<

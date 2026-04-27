@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
+
 import getRouteClient from "@/lib/supabase/route-client";
-import type { Database } from "@/types/supabase";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ export async function GET(_req: NextRequest) {
       const { data, error } = await (supabase as any)
         .from("pro_calendar_events")
         .select(
-          "request_id, pro_id, title, scheduled_date, scheduled_time, status",
+          "request_id, pro_id, title, scheduled_date, scheduled_time, status, event_kind",
         )
         .eq("pro_id", user.id)
         .order("scheduled_date", { ascending: true, nullsFirst: false });
@@ -83,6 +84,10 @@ export async function GET(_req: NextRequest) {
             title: req?.title || row?.title || "Servicio",
             city: req?.city ?? null,
             client_name: clientName,
+            event_kind:
+              typeof row?.event_kind === "string" && row.event_kind.length
+                ? row.event_kind
+                : "service",
           };
         });
         return NextResponse.json(
@@ -97,14 +102,15 @@ export async function GET(_req: NextRequest) {
     // 2) Fallback directo a requests (compatible con professional_id o accepted_professional_id)
     try {
       // prefer accepted_professional_id si existe; caso contrario professional_id
-      let { data, error } = await (supabase as any)
+      const primary = await (supabase as any)
         .from("requests")
         .select(
           "id, title, status, scheduled_date, scheduled_time, accepted_professional_id, created_by, city",
         )
         .eq("accepted_professional_id", user.id)
         .in("status", ["scheduled", "in_process"]);
-      if (error) {
+      let data = primary.data;
+      if (primary.error) {
         const alt = await (supabase as any)
           .from("requests")
           .select(
@@ -119,7 +125,7 @@ export async function GET(_req: NextRequest) {
             .map((r: any) => r?.created_by)
             .filter((id: unknown) => typeof id === "string" && id.length)
         : [];
-      let profilesMap = new Map<string, string | null>();
+      const profilesMap = new Map<string, string | null>();
       if (userIds.length) {
         const { data: profRows } = await (supabase as any)
           .from("profiles")
@@ -142,6 +148,7 @@ export async function GET(_req: NextRequest) {
         scheduled_time: r.scheduled_time || null,
         status: r.status || null,
         city: r.city || null,
+        event_kind: "service",
         client_name:
           r.created_by && profilesMap.has(String(r.created_by))
             ? profilesMap.get(String(r.created_by))

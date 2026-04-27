@@ -62,6 +62,19 @@ type OnsiteRow = {
   deposit_total_cents: number | null;
 };
 
+type ConversationRow = {
+  id: string;
+  customer_id: string | null;
+  pro_id: string | null;
+};
+
+const DEBUG_ONSITE_PAYMENT = process.env.DEBUG_ONSITE_PAYMENT === "1";
+
+function logOnsitePayment(stage: string, data: Record<string, unknown>) {
+  if (!DEBUG_ONSITE_PAYMENT) return;
+  console.info(`[onsite-payment] ${JSON.stringify({ stage, ...data })}`);
+}
+
 export async function POST(
   req: Request,
   { params }: { params: { id: string } },
@@ -113,7 +126,22 @@ export async function POST(
     }
 
     const row = onsite as OnsiteRow;
-    if (!row.client_id || row.client_id !== user.id) {
+    const { data: conversationRow, error: conversationError } =
+      row.conversation_id
+        ? await supabase
+            .from("conversations")
+            .select("id, customer_id, pro_id")
+            .eq("id", row.conversation_id)
+            .single()
+        : { data: null, error: null };
+    if (conversationError) {
+      return NextResponse.json(
+        { error: "ONSITE_CONVERSATION_NOT_FOUND" },
+        { status: 404, headers: JSONH },
+      );
+    }
+    const conversation = (conversationRow ?? null) as ConversationRow | null;
+    if (!conversation?.customer_id || conversation.customer_id !== user.id) {
       return NextResponse.json(
         { error: "FORBIDDEN" },
         { status: 403, headers: JSONH },
@@ -176,7 +204,9 @@ export async function POST(
         onsite_quote_request_id: row.id,
         onsite_request_id: row.id,
         conversation_id: row.conversation_id || "",
+        conversationId: row.conversation_id || "",
         request_id: row.request_id || "",
+        requestId: row.request_id || "",
         is_remunerable: row.is_remunerable ? "true" : "false",
         deposit_base_cents: String(baseCents),
         deposit_fee_cents: String(feeCents),
@@ -186,7 +216,21 @@ export async function POST(
         commission_cents: String(feeCents),
         iva_cents: String(ivaCents),
         total_cents: String(unitAmount),
+        professional_id: conversation?.pro_id || "",
+        professionalId: conversation?.pro_id || "",
+        client_id: conversation?.customer_id || "",
+        clientId: conversation?.customer_id || "",
       },
+    });
+    logOnsitePayment("checkout.metadata", {
+      onsiteRequestId: row.id,
+      conversationId: row.conversation_id ?? null,
+      requestId: row.request_id ?? null,
+      customerId: conversation?.customer_id ?? null,
+      professionalId: conversation?.pro_id ?? null,
+      status: row.status,
+      checkoutSessionId: session.id,
+      metadata: session.metadata ?? null,
     });
 
     const checkoutUrl = normalizeCheckoutUrl(session.url || null);

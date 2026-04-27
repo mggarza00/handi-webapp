@@ -40,6 +40,7 @@ type ApiCalendarRow = {
   status?: string | null;
   client_name?: string | null;
   city?: string | null;
+  event_kind?: string | null;
 };
 
 function formatStatusLabel(status?: string | null): string {
@@ -117,6 +118,8 @@ export default function ServiceList({
                 typeof row?.client_name === "string" ? row.client_name : null,
               city: typeof row?.city === "string" ? row.city : null,
               status: typeof row?.status === "string" ? row.status : null,
+              event_kind:
+                row?.event_kind === "onsite_quote" ? "onsite_quote" : "service",
             } as ScheduledService;
           })
           .filter(Boolean) as ScheduledService[];
@@ -213,7 +216,13 @@ export default function ServiceList({
   }, []);
 
   const ensureConversationAndOpen = React.useCallback(
-    async (requestId: string, prefillMessage?: string) => {
+    async (
+      requestId: string,
+      options?: {
+        prefillMessage?: string;
+        openQuote?: boolean;
+      },
+    ) => {
       const proId = await resolveMyId();
       if (!proId) {
         router.push("/mensajes");
@@ -236,9 +245,21 @@ export default function ServiceList({
           router.push("/mensajes");
           return;
         }
-        if (prefillMessage && prefillMessage.trim().length > 0) {
+        const search = new URLSearchParams();
+        if (
+          options?.prefillMessage &&
+          options.prefillMessage.trim().length > 0
+        ) {
+          search.set("prefill", options.prefillMessage.trim());
+        }
+        if (options?.openQuote) {
+          search.set("openQuote", "1");
+          search.set("quoteContext", "onsite_visit");
+        }
+        const suffix = search.toString();
+        if (suffix.length > 0) {
           router.push(
-            `/mensajes/${encodeURIComponent(conversationId)}?prefill=${encodeURIComponent(prefillMessage.trim())}`,
+            `/mensajes/${encodeURIComponent(conversationId)}?${suffix}`,
           );
           return;
         }
@@ -274,10 +295,10 @@ export default function ServiceList({
     setHelpBusy("no-response");
     try {
       setHelpOpen(false);
-      await ensureConversationAndOpen(
-        helpContext.requestId,
-        "Hola, intento confirmar el servicio programado pero no he recibido respuesta. ¿Podemos confirmar o reprogramar el horario?",
-      );
+      await ensureConversationAndOpen(helpContext.requestId, {
+        prefillMessage:
+          "Hola, intento confirmar el servicio programado pero no he recibido respuesta. ¿Podemos confirmar o reprogramar el horario?",
+      });
     } finally {
       setHelpBusy(null);
     }
@@ -345,6 +366,10 @@ export default function ServiceList({
                 const isFinished = ["finished", "completed"].includes(
                   String(ev.status || "").toLowerCase(),
                 );
+                const isOnsite = ev.event_kind === "onsite_quote";
+                const overdueLabel = isOnsite
+                  ? "Levantamiento atrasado"
+                  : "Servicio atrasado";
                 return (
                   <li key={`${ev.id}-${i}`}>
                     <Card
@@ -363,6 +388,14 @@ export default function ServiceList({
                           <span className="truncate">
                             {ev.title || "Servicio"}
                           </span>
+                          {isOnsite ? (
+                            <Badge
+                              variant="outline"
+                              className="border-amber-200 bg-amber-50 text-amber-700"
+                            >
+                              Cotización en sitio
+                            </Badge>
+                          ) : null}
                           <Badge
                             variant="secondary"
                             className={
@@ -396,10 +429,38 @@ export default function ServiceList({
                               <span className="text-xs font-semibold uppercase text-emerald-600">
                                 Servicio finalizado
                               </span>
+                            ) : isOnsite ? (
+                              <>
+                                {ev.isPast ? (
+                                  <span className="text-xs font-semibold uppercase text-orange-500">
+                                    {overdueLabel}
+                                  </span>
+                                ) : null}
+                                <div className="flex flex-wrap justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="bg-brand text-white hover:opacity-90"
+                                    onClick={() =>
+                                      void ensureConversationAndOpen(ev.id, {
+                                        openQuote: true,
+                                      })
+                                    }
+                                  >
+                                    Levantamiento realizado
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleViewRequest(ev.id)}
+                                  >
+                                    Ver solicitud
+                                  </Button>
+                                </div>
+                              </>
                             ) : ev.isPast ? (
                               <>
                                 <span className="text-xs font-semibold uppercase text-orange-500">
-                                  Servicio atrasado
+                                  {overdueLabel}
                                 </span>
                                 <div className="flex flex-wrap justify-end gap-2">
                                   <FinishJobTrigger

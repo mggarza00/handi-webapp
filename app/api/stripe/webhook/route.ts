@@ -8,6 +8,7 @@ import { ReceiptTemplate } from "@/components/pdf/ReceiptTemplate";
 import { notifyAdminsEmail, notifyAdminsInApp } from "@/lib/admin/admin-notify";
 import { trackServerAnalyticsEvent } from "@/lib/analytics/server-events";
 import { computeClientTotalsCents } from "@/lib/payments/fees";
+import { finalizeOnsiteDepositPayment } from "@/lib/payments/finalize-onsite-deposit-payment";
 import { finalizeOfferPayment } from "@/lib/payments/finalize-offer-payment";
 import { recordPayment } from "@/lib/payments/record-payment";
 import { getReceiptForPdf } from "@/lib/receipts";
@@ -15,6 +16,29 @@ import { getStripeForMode, type StripeMode } from "@/lib/stripe";
 import type { Database } from "@/types/supabase";
 
 const JSONH = { "Content-Type": "application/json; charset=utf-8" } as const;
+const DEBUG_ONSITE_PAYMENT = process.env.DEBUG_ONSITE_PAYMENT === "1";
+
+function logOnsitePayment(stage: string, data: Record<string, unknown>) {
+  if (!DEBUG_ONSITE_PAYMENT) return;
+  console.info(`[onsite-payment] ${JSON.stringify({ stage, ...data })}`);
+}
+
+function serializeUnknownError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return { name: error.name, message: error.message };
+  }
+  if (typeof error === "object" && error) {
+    const obj = error as Record<string, unknown>;
+    return {
+      code: obj.code ?? null,
+      message: obj.message ?? null,
+      details: obj.details ?? null,
+      hint: obj.hint ?? null,
+      status: obj.status ?? null,
+    };
+  }
+  return { message: String(error) };
+}
 
 function formatMoney(amount: number, currency: string) {
   const safe = Number.isFinite(amount) ? amount : 0;
@@ -106,6 +130,28 @@ export async function POST(req: Request) {
 
   try {
     let requestIdTouched: string | null = null;
+    if (
+      DEBUG_ONSITE_PAYMENT &&
+      (event.type === "checkout.session.completed" ||
+        event.type === "payment_intent.succeeded" ||
+        event.type === "payment_intent.payment_failed")
+    ) {
+      const object = event.data.object as {
+        id?: string;
+        metadata?: Record<string, unknown>;
+        payment_intent?: string | { id?: string } | null;
+      };
+      logOnsitePayment("webhook.event", {
+        eventType: event.type,
+        eventId: event.id,
+        objectId: object?.id ?? null,
+        paymentIntentId:
+          typeof object?.payment_intent === "string"
+            ? object.payment_intent
+            : (object?.payment_intent?.id ?? null),
+        metadata: object?.metadata ?? null,
+      });
+    }
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
@@ -526,6 +572,7 @@ export async function POST(req: Request) {
                 (reqRow as { title?: string | null } | null)?.title ?? null;
             }
             const paymentMeta = {
+              payment_type: "offer_payment",
               offer_id: offerId || null,
               checkout_session_id: session.id,
               payment_mode: eventMode,
@@ -759,6 +806,40 @@ export async function POST(req: Request) {
             /* ignore */
           }
           if (metadataType === "onsite_deposit" && onsiteIdMeta) {
+            try {
+              const finalized = await finalizeOnsiteDepositPayment({
+                onsiteRequestId: onsiteIdMeta,
+                paymentIntentId: payment_intent_id,
+                metadata: (session.metadata as Record<string, unknown>) ?? null,
+                amountTotalCents:
+                  typeof session.amount_total === "number"
+                    ? session.amount_total
+                    : null,
+                source: "checkout.session.completed",
+                admin: admin as never,
+              });
+              logOnsitePayment("webhook.checkout.finalize-result", {
+                eventType: event.type,
+                onsiteRequestId: onsiteIdMeta,
+                paymentIntentId: payment_intent_id,
+                metadata: session.metadata ?? null,
+                result: finalized,
+              });
+              if (finalized.requestId) requestIdTouched = finalized.requestId;
+            } catch (error) {
+              logOnsitePayment("webhook.checkout.finalize-error", {
+                eventType: event.type,
+                onsiteRequestId: onsiteIdMeta,
+                paymentIntentId: payment_intent_id,
+                metadata: session.metadata ?? null,
+                error: serializeUnknownError(error),
+              });
+            }
+          }
+          if (
+            metadataType === "__legacy_onsite_deposit_disabled__" &&
+            onsiteIdMeta
+          ) {
             // Depósito de cotización en sitio
             const onsiteBaseCents = Number(
               (session.metadata as any)?.deposit_base_cents ??
@@ -1104,6 +1185,7 @@ export async function POST(req: Request) {
                               (scheduledTimeMeta as any) ||
                               null,
                             status: "scheduled",
+                            event_kind: "service",
                           },
                           { onConflict: "request_id" },
                         );
@@ -1230,6 +1312,7 @@ export async function POST(req: Request) {
                           scheduled_date: finalDate || null,
                           scheduled_time: finalTime || null,
                           status: "scheduled",
+                          event_kind: "service",
                         },
                         { onConflict: "request_id" },
                       );
@@ -1398,6 +1481,7 @@ export async function POST(req: Request) {
                         scheduled_time:
                           scheduled_time || (scheduledTimeMeta as any) || null,
                         status: "scheduled",
+                        event_kind: "service",
                       },
                       { onConflict: "request_id" },
                     );
@@ -1514,6 +1598,50 @@ export async function POST(req: Request) {
             string,
             string | undefined
           >;
+          const metadataType = ((meta["type"] as string | undefined) || "")
+            .trim()
+            .toLowerCase();
+          const onsiteRequestId = (
+            (meta["onsite_quote_request_id"] as string | undefined) ||
+            (meta["onsite_request_id"] as string | undefined) ||
+            ""
+          ).trim();
+          if (metadataType === "onsite_deposit" && onsiteRequestId) {
+            try {
+              const finalized = await finalizeOnsiteDepositPayment({
+                onsiteRequestId,
+                paymentIntentId: intent.id,
+                metadata: meta as Record<string, unknown>,
+                amountTotalCents:
+                  typeof intent.amount_received === "number" &&
+                  Number.isFinite(intent.amount_received)
+                    ? intent.amount_received
+                    : typeof intent.amount === "number" &&
+                        Number.isFinite(intent.amount)
+                      ? intent.amount
+                      : null,
+                source: "payment_intent.succeeded",
+                admin: admin as never,
+              });
+              logOnsitePayment("webhook.payment-intent.finalize-result", {
+                eventType: event.type,
+                onsiteRequestId,
+                paymentIntentId: intent.id,
+                metadata: meta,
+                result: finalized,
+              });
+              if (finalized.requestId) requestIdTouched = finalized.requestId;
+            } catch (error) {
+              logOnsitePayment("webhook.payment-intent.finalize-error", {
+                eventType: event.type,
+                onsiteRequestId,
+                paymentIntentId: intent.id,
+                metadata: meta,
+                error: serializeUnknownError(error),
+              });
+            }
+            break;
+          }
           const offerId = (
             (meta["offer_id"] as string | undefined) || ""
           ).trim();
@@ -1769,6 +1897,7 @@ export async function POST(req: Request) {
                 (reqRow as { title?: string | null } | null)?.title ?? null;
             }
             const paymentMeta = {
+              payment_type: "offer_payment",
               offer_id: offerId || null,
               payment_mode: eventMode,
               receipt_url,
@@ -1908,7 +2037,23 @@ export async function POST(req: Request) {
         break;
       }
       case "payment_intent.payment_failed": {
-        // TODO: logging/alertas
+        const intent = event.data.object as Stripe.PaymentIntent;
+        logOnsitePayment("webhook.payment-intent.failed", {
+          eventType: event.type,
+          eventId: event.id,
+          paymentIntentId: intent.id,
+          metadata: intent.metadata ?? null,
+          status: intent.status,
+          lastPaymentError:
+            typeof intent.last_payment_error === "object" &&
+            intent.last_payment_error
+              ? {
+                  code: intent.last_payment_error.code ?? null,
+                  message: intent.last_payment_error.message ?? null,
+                  type: intent.last_payment_error.type ?? null,
+                }
+              : null,
+        });
         break;
       }
       default:

@@ -12,7 +12,8 @@ export type OnsiteBlockingRow = {
 
 export type OnsiteBlockerCode =
   | "ONSITE_ACTIVE_REQUEST_EXISTS"
-  | "ONSITE_ELIGIBLE_CREDIT_EXISTS";
+  | "ONSITE_ELIGIBLE_CREDIT_EXISTS"
+  | "ONSITE_PAID_REQUEST_EXISTS";
 
 export type OnsiteBlockerResult = {
   code: OnsiteBlockerCode;
@@ -82,6 +83,16 @@ export function findOnsiteRequestBlocker(
     return {
       code: "ONSITE_ELIGIBLE_CREDIT_EXISTS",
       blocker: normalizeBlockerRow(eligibleCreditRow),
+    };
+  }
+
+  const paidRow = normalizedRows.find(
+    (row) => normalizeStatus(row.status) === "deposit_paid",
+  );
+  if (paidRow) {
+    return {
+      code: "ONSITE_PAID_REQUEST_EXISTS",
+      blocker: normalizeBlockerRow(paidRow),
     };
   }
 

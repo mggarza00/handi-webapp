@@ -69,6 +69,11 @@ type MessageListProps = {
     amount?: number | null;
     currency?: string | null;
   }) => void;
+  onsiteSummaryById?: Record<string, Record<string, unknown>>;
+  onOnsitePaymentSuccess?: (args?: {
+    onsiteRequestId?: string | null;
+    paymentIntentId?: string | null;
+  }) => void;
 };
 
 type OfferState = {
@@ -132,6 +137,14 @@ const toTrimmedString = (value: unknown): string | null => {
   const trimmed = value.trim();
   return trimmed.length ? trimmed : null;
 };
+
+const normalizeLegacyMojibake = (value: string): string =>
+  value
+    .replaceAll("CotizaciÃ³n", "Cotización")
+    .replaceAll("cotizaciÃ³n", "cotización")
+    .replaceAll("ActualizaciÃ³n", "Actualización")
+    .replaceAll("PrevisualizaciÃ³n", "Previsualización")
+    .replaceAll("automÃ¡tico", "automático");
 
 const isCustomerRole = (role: MessageListProps["viewerRole"]): boolean =>
   role === "customer" || role === "client";
@@ -261,6 +274,8 @@ export default function MessageList({
   dataPrefix = "chat",
   hideQuoteCta = false,
   onOpenOfferDialog,
+  onsiteSummaryById,
+  onOnsitePaymentSuccess,
 }: MessageListProps) {
   const bgStyle = React.useMemo<React.CSSProperties>(
     () => ({
@@ -467,8 +482,18 @@ export default function MessageList({
       }
       context.set(onsiteId, merged);
     }
+    if (onsiteSummaryById) {
+      for (const [onsiteId, summary] of Object.entries(onsiteSummaryById)) {
+        if (!onsiteId) continue;
+        const prev = context.get(onsiteId) ?? {};
+        context.set(onsiteId, {
+          ...prev,
+          ...(summary as SystemMessagePayload),
+        });
+      }
+    }
     return context;
-  }, [items]);
+  }, [items, onsiteSummaryById]);
   const paidContextByOfferId = React.useMemo(() => {
     const context = new Map<string, SystemMessagePayload>();
     for (const message of items) {
@@ -773,7 +798,7 @@ export default function MessageList({
                   className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
                 >
                   Los servicios agendados se agregan a tu calendario en
-                  automÃ¡tico.
+                  automático.
                 </Badge>
               </div>
             </div>
@@ -786,7 +811,7 @@ export default function MessageList({
     const payload = message.payload || {};
     const baseOfferId =
       typeof payload.offer_id === "string" ? payload.offer_id : null;
-    if (!baseOfferId) return <div>{message.body}</div>;
+    if (!baseOfferId) return <div>{normalizeLegacyMojibake(message.body)}</div>;
     const state = offerStates.get(baseOfferId) ?? {
       offerId: baseOfferId,
       title: typeof payload.title === "string" ? payload.title : null,
@@ -1022,12 +1047,12 @@ export default function MessageList({
       return (
         <div className="space-y-1">
           <div className="text-sm font-medium text-slate-800">
-            CotizaciÃ³n enviada
+            Cotización enviada
           </div>
           {totalFmt ? (
             <div className="text-sm text-slate-700">Total: {totalFmt}</div>
           ) : null}
-          {/* Fallback: si aÃºn no hay adjunto, muestra la imagen renderizada por API */}
+          {/* Fallback: si aún no hay adjunto, muestra la imagen renderizada por API */}
           {canRenderRemoteImage ? (
             <div className="pt-1">
               <button
@@ -1038,14 +1063,14 @@ export default function MessageList({
                   )
                 }
                 className="block overflow-hidden rounded-md border hover:opacity-90"
-                aria-label="Abrir cotizaciÃ³n"
-                title="Abrir cotizaciÃ³n"
+                aria-label="Abrir cotización"
+                title="Abrir cotización"
               >
                 {!hasImgError ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={`/api/quotes/${encodeURIComponent(qid)}/image`}
-                    alt="CotizaciÃ³n"
+                    alt="Cotización"
                     className="block max-h-56 object-contain"
                     style={{ maxWidth: 300 }}
                     onError={() =>
@@ -1057,7 +1082,7 @@ export default function MessageList({
                   />
                 ) : (
                   <div className="flex h-40 w-full max-w-[300px] items-center justify-center rounded-md bg-slate-50 text-slate-500 text-sm border border-slate-200">
-                    Ver cotizaciÃ³n
+                    Ver cotización
                   </div>
                 )}
               </button>
@@ -1090,8 +1115,8 @@ export default function MessageList({
         toTrimmedString(payloadRecord.onsite_quote_request_id);
       if (onsiteRequestId) {
         const onsitePayload: SystemMessagePayload = {
-          ...(onsiteContextById.get(onsiteRequestId) ?? {}),
           ...payloadRecord,
+          ...(onsiteContextById.get(onsiteRequestId) ?? {}),
         };
         const status = (
           toTrimmedString(onsitePayload.status) || "deposit_pending"
@@ -1345,7 +1370,7 @@ export default function MessageList({
             : null);
         return (
           <div className="text-sm text-slate-800">
-            {message.body}
+            {normalizeLegacyMojibake(message.body)}
             {Array.isArray(message.attachments) &&
             message.attachments.length > 0 ? null : link ? (
               <>
@@ -1423,7 +1448,7 @@ export default function MessageList({
             : null);
         return (
           <div className="text-sm text-slate-800">
-            {message.body}
+            {normalizeLegacyMojibake(message.body)}
             {Array.isArray(message.attachments) &&
             message.attachments.length > 0 ? null : link ? (
               <>
@@ -1442,7 +1467,7 @@ export default function MessageList({
         );
       }
     }
-    return <div>{message.body}</div>;
+    return <div>{normalizeLegacyMojibake(message.body)}</div>;
   }
 
   return (
@@ -1522,7 +1547,7 @@ export default function MessageList({
                 className="bg-white text-black border-slate-200 shadow-sm whitespace-normal break-words overflow-visible max-w-[90%] sm:max-w-[70%] text-center !py-1"
               >
                 Los servicios agendados se agregan a tu calendario en
-                automÃ¡tico.
+                automático.
               </Badge>
             </div>
           </div>
@@ -1660,9 +1685,9 @@ export default function MessageList({
             className="max-w-3xl p-0 sm:p-0 border-0 shadow-none bg-transparent"
           >
             <DialogHeader className="sr-only">
-              <DialogTitle>PrevisualizaciÃ³n de cotizaciÃ³n</DialogTitle>
+              <DialogTitle>Previsualización de cotización</DialogTitle>
               <DialogDescription>
-                Imagen generada de la cotizaciÃ³n enviada.
+                Imagen generada de la cotización enviada.
               </DialogDescription>
             </DialogHeader>
             {quoteLightbox ? (
@@ -1678,7 +1703,7 @@ export default function MessageList({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={quoteLightbox}
-                  alt="CotizaciÃ³n"
+                  alt="Cotización"
                   className="h-auto w-full rounded object-contain"
                   onLoad={() => setQuoteImgLoading(false)}
                   onError={() => setQuoteImgLoading(false)}
@@ -1705,8 +1730,12 @@ export default function MessageList({
           onsiteRequestId={onsitePaymentCtx?.onsiteRequestId ?? null}
           amount={onsitePaymentCtx?.amount ?? 0}
           isRemunerable={onsitePaymentCtx?.isRemunerable ?? false}
-          onSuccess={() => {
+          onSuccess={(paymentIntentId) => {
             setOnsitePaymentOpen(false);
+            onOnsitePaymentSuccess?.({
+              onsiteRequestId: onsitePaymentCtx?.onsiteRequestId ?? null,
+              paymentIntentId,
+            });
             setOnsitePaymentCtx(null);
           }}
         />

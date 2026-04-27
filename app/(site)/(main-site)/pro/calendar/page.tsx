@@ -24,6 +24,7 @@ type ApiCalendarItem = {
   status?: string | null;
   client_name?: string | null;
   city?: string | null;
+  event_kind?: string | null;
 };
 
 async function getScheduledFromApi(
@@ -60,6 +61,8 @@ async function getScheduledFromApi(
         client_name: r.client_name ?? null,
         city: r.city ?? null,
         status: r.status ?? null,
+        event_kind:
+          r.event_kind === "onsite_quote" ? "onsite_quote" : "service",
       });
     });
     return out;

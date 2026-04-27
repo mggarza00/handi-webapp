@@ -263,6 +263,7 @@ export async function POST(req: NextRequest) {
             scheduled_date: requestScheduledDate,
             scheduled_time: requestScheduledTime,
             status: statusAfter === "finished" ? "finished" : "in_process",
+            event_kind: "service",
           } as any,
           { onConflict: "request_id" },
         );

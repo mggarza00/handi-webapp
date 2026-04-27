@@ -34,7 +34,7 @@ type OnsitePaymentDialogProps = {
   amount: number | null;
   currency?: string;
   isRemunerable?: boolean;
-  onSuccess?: () => void;
+  onSuccess?: (paymentIntentId?: string | null) => void;
 };
 
 type IntentState = {
@@ -530,9 +530,27 @@ export default function OnsitePaymentDialog({
   }, [intent.clientSecret]);
 
   const close = React.useCallback(() => onOpenChange(false), [onOpenChange]);
-  const handleSuccess = React.useCallback(async () => {
-    onSuccess?.();
-  }, [onSuccess]);
+  const handleSuccess = React.useCallback(
+    async (paymentIntentId?: string | null) => {
+      if (onsiteRequestId && paymentIntentId) {
+        try {
+          await fetch(
+            `/api/onsite-quote-requests/${encodeURIComponent(onsiteRequestId)}/sync-payment-intent`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json; charset=utf-8" },
+              body: JSON.stringify({ paymentIntentId }),
+            },
+          );
+        } catch {
+          /* webhook should still cover this; this is a best-effort sync */
+        }
+      }
+      onSuccess?.(paymentIntentId);
+    },
+    [onsiteRequestId, onSuccess],
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

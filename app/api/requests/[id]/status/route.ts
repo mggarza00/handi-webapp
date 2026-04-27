@@ -131,6 +131,7 @@ export async function PATCH(
             pro_id: proId,
             title: requestTitle || "Servicio",
             status: normalizedNext,
+            event_kind: "service",
           } as any,
           { onConflict: "request_id" },
         );
@@ -138,11 +139,13 @@ export async function PATCH(
 
       if (normalizedNext === "finished" && proId) {
         try {
-          const { data: existingPayout } = await admin
+          const adminPayouts = admin as any;
+          const { data: existingPayout } = await adminPayouts
             .from("payouts")
             .select("id")
             .eq("request_id", requestId)
             .eq("professional_id", proId)
+            .eq("payout_type", "service_offer")
             .maybeSingle();
           if (!existingPayout?.id) {
             let agreementId: string | null = null;
@@ -190,15 +193,17 @@ export async function PATCH(
                   amount,
                   commissionPercent,
                 );
-                await admin.from("payouts").insert({
+                await adminPayouts.from("payouts").insert({
                   agreement_id: agreementId,
                   request_id: requestId,
                   professional_id: proId,
                   amount: breakdown.netAmount,
                   currency,
                   status: "pending",
+                  payout_type: "service_offer",
                   metadata: {
                     source: "request_status",
+                    payout_type: "service_offer",
                     request_status: normalizedNext,
                     amount_basis: "net",
                     gross_amount: breakdown.grossAmount,

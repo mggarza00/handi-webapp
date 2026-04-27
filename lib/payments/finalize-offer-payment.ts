@@ -553,6 +553,7 @@ export async function finalizeOfferPayment(
       if (paymentIntentId && amount > 0) {
         const totals = computeClientTotals(amount);
         const paymentMeta: Record<string, unknown> = {
+          payment_type: "offer_payment",
           offer_id: offer.id,
           payment_mode: offer.payment_mode || null,
           receipt_id: receiptId,
@@ -801,6 +802,7 @@ export async function finalizeOfferPayment(
             scheduled_date: scheduledDate || null,
             scheduled_time: scheduledTimeForDb || null,
             status: "scheduled",
+            event_kind: "service",
           },
           { onConflict: "request_id" },
         );

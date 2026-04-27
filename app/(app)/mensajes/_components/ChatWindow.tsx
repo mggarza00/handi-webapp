@@ -35,10 +35,23 @@ export default function ChatWindow({
   const [customerId, setCustomerId] = React.useState<string | null>(null);
   const [proId, setProId] = React.useState<string | null>(null);
   const [isMobile, setIsMobile] = React.useState(false);
+  const [openQuoteSignal, setOpenQuoteSignal] = React.useState<number>(0);
   const composerPrefillText = React.useMemo(() => {
     const value = searchParams?.get("prefill");
     return typeof value === "string" && value.trim().length > 0 ? value : null;
   }, [searchParams]);
+
+  React.useEffect(() => {
+    if (searchParams?.get("openQuote") !== "1") return;
+    setOpenQuoteSignal(Date.now());
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("openQuote");
+    next.delete("quoteContext");
+    const query = next.toString();
+    router.replace(
+      `/mensajes/${encodeURIComponent(conversationId)}${query ? `?${query}` : ""}`,
+    );
+  }, [conversationId, router, searchParams]);
 
   React.useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
@@ -333,6 +346,7 @@ export default function ChatWindow({
           userId={meId}
           dataPrefix="chat"
           requestId={requestId}
+          openQuoteDialogSignal={openQuoteSignal}
           hideClientCtas={(() => {
             const st = (requestStatus || "").toLowerCase();
             return (

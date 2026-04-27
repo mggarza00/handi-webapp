@@ -10,14 +10,18 @@ function supaAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
   if (!url || !key) throw new Error("SERVER_MISCONFIGURED:SUPABASE");
-  return createClient<Database>(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient<Database>(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 }
 
 type AgreementsUpdate = Database["public"]["Tables"]["agreements"]["Update"];
 type RequestsUpdate = Database["public"]["Tables"]["requests"]["Update"];
 type MessagesInsert = Database["public"]["Tables"]["messages"]["Insert"];
-type MessageAttachmentsInsert = Database["public"]["Tables"]["message_attachments"]["Insert"];
-type ProCalendarEventsInsert = Database["public"]["Tables"]["pro_calendar_events"]["Insert"];
+type MessageAttachmentsInsert =
+  Database["public"]["Tables"]["message_attachments"]["Insert"];
+type ProCalendarEventsInsert =
+  Database["public"]["Tables"]["pro_calendar_events"]["Insert"];
 type ReceiptPayload = {
   receipt_id: string;
   status: string;
@@ -31,8 +35,16 @@ type PaidNotificationPayload = {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const sessionId = (url.searchParams.get("session_id") || "").trim();
-  const ridParam = (url.searchParams.get("rid") || url.searchParams.get("request_id") || "").trim();
-  const cidParam = (url.searchParams.get("cid") || url.searchParams.get("conversation_id") || "").trim();
+  const ridParam = (
+    url.searchParams.get("rid") ||
+    url.searchParams.get("request_id") ||
+    ""
+  ).trim();
+  const cidParam = (
+    url.searchParams.get("cid") ||
+    url.searchParams.get("conversation_id") ||
+    ""
+  ).trim();
 
   let conversationId: string | null = cidParam || null;
   let requestId: string | null = ridParam || null;
@@ -46,13 +58,18 @@ export async function GET(req: Request) {
   const stripe = await getStripe();
   if (stripe && sessionId) {
     try {
-      const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["payment_intent"] });
-      const meta = (session.metadata || {}) as Record<string, string | undefined>;
-      conversationId = conversationId || (meta["conversation_id"] || null);
+      const session = await stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ["payment_intent"],
+      });
+      const meta = (session.metadata || {}) as Record<
+        string,
+        string | undefined
+      >;
+      conversationId = conversationId || meta["conversation_id"] || null;
       offerId = (meta["offer_id"] || "").trim() || null;
-      proIdMeta = (meta['proId'] || '').trim() || null;
-      scheduled_date = (meta['scheduled_date'] || '').trim() || null;
-      scheduled_time = (meta['scheduled_time'] || '').trim() || null;
+      proIdMeta = (meta["proId"] || "").trim() || null;
+      scheduled_date = (meta["scheduled_date"] || "").trim() || null;
+      scheduled_time = (meta["scheduled_time"] || "").trim() || null;
       // Si no recibimos rid, derivarlo por conversation u offer
       if (!requestId) {
         const admin = supaAdmin();
@@ -69,9 +86,13 @@ export async function GET(req: Request) {
             .from("offers")
             .select("conversation_id, service_date")
             .eq("id", offerId)
-            .maybeSingle<{ conversation_id: string | null; service_date: string | null }>();
+            .maybeSingle<{
+              conversation_id: string | null;
+              service_date: string | null;
+            }>();
           const conv = (data?.conversation_id || null) as string | null;
-          if (!offerServiceDate && data?.service_date) offerServiceDate = data.service_date;
+          if (!offerServiceDate && data?.service_date)
+            offerServiceDate = data.service_date;
           if (conv) {
             const { data: convRow } = await admin
               .from("conversations")
@@ -93,19 +114,27 @@ export async function GET(req: Request) {
   try {
     if (stripe && sessionId && process.env.SUPABASE_SERVICE_ROLE_KEY) {
       const s = await stripe.checkout.sessions.retrieve(sessionId);
-      const agreementId = ((s?.metadata || {}) as Record<string, string | undefined>)["agreement_id"] || "";
+      const agreementId =
+        ((s?.metadata || {}) as Record<string, string | undefined>)[
+          "agreement_id"
+        ] || "";
       const agrId = (agreementId || "").trim();
       if (agrId) {
         const admin = supaAdmin();
         const agreementUpdate: AgreementsUpdate = { status: "paid" };
         try {
-          await admin.from("agreements").update(agreementUpdate).eq("id", agrId);
+          await admin
+            .from("agreements")
+            .update(agreementUpdate)
+            .eq("id", agrId);
         } catch {
           /* ignore */
         }
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // 2) Marcar la request como 'in_process' (idempotente). Si no hay env SRK, omite silenciosamente.
   try {
@@ -130,9 +159,13 @@ export async function GET(req: Request) {
             .from("offers")
             .select("conversation_id, service_date")
             .eq("id", offerId)
-            .maybeSingle<{ conversation_id: string | null; service_date: string | null }>();
+            .maybeSingle<{
+              conversation_id: string | null;
+              service_date: string | null;
+            }>();
           const conv = off?.conversation_id ?? undefined;
-          if (!offerServiceDate && off?.service_date) offerServiceDate = off.service_date;
+          if (!offerServiceDate && off?.service_date)
+            offerServiceDate = off.service_date;
           if (conv) {
             const { data: convRow } = await admin
               .from("conversations")
@@ -176,7 +209,10 @@ export async function GET(req: Request) {
                 .from("requests")
                 .select("scheduled_date, required_at")
                 .eq("id", requestId)
-                .maybeSingle<{ scheduled_date: string | null; required_at: string | null }>();
+                .maybeSingle<{
+                  scheduled_date: string | null;
+                  required_at: string | null;
+                }>();
               let sd: string | null = r0?.scheduled_date ?? null;
               if (!sd) sd = r0?.required_at ?? null;
               if (!sd) sd = new Date().toISOString().slice(0, 10);
@@ -199,22 +235,27 @@ export async function GET(req: Request) {
             .maybeSingle<{ title: string | null }>();
           const title = titleRow?.title ?? "Servicio";
           if (proId) {
-            const event: ProCalendarEventsInsert = {
+            const event = {
               pro_id: proId,
               request_id: requestId,
               title,
               scheduled_date: scheduled_date ?? patch.scheduled_date ?? null,
               scheduled_time: scheduled_time ?? patch.scheduled_time ?? null,
               status: "scheduled",
-            };
-            await admin.from("pro_calendar_events").upsert(event, { onConflict: "request_id" });
+              event_kind: "service",
+            } as ProCalendarEventsInsert & { event_kind: "service" };
+            await admin.from("pro_calendar_events").upsert(event as never, {
+              onConflict: "request_id",
+            });
           }
         } catch {
           /* ignore */
         }
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // 3) Calcular conversationId final para redirigir
   if (!conversationId && requestId) {
@@ -248,7 +289,10 @@ export async function GET(req: Request) {
               .maybeSingle<{ client_id: string | null }>();
             const senderId = off?.client_id ?? undefined;
             if (senderId) {
-              const payload: PaidNotificationPayload = { offer_id: offerId, status: "paid" };
+              const payload: PaidNotificationPayload = {
+                offer_id: offerId,
+                status: "paid",
+              };
               const messageInsert: MessagesInsert = {
                 conversation_id: conversationId,
                 sender_id: senderId,
@@ -258,7 +302,8 @@ export async function GET(req: Request) {
               };
               await admin.from("messages").insert(messageInsert);
               try {
-                const { notifyChatMessageByConversation } = await import("@/lib/chat-notifier");
+                const { notifyChatMessageByConversation } =
+                  await import("@/lib/chat-notifier");
                 await notifyChatMessageByConversation({
                   conversationId,
                   senderId,
@@ -311,11 +356,15 @@ export async function GET(req: Request) {
           .maybeSingle<{ id: string }>();
         let messageId: string | undefined = existingMessage?.id ?? undefined;
         if (!messageId) {
-          const payload: ReceiptPayload = { receipt_id: receiptId, status: "receipt" };
+          const payload: ReceiptPayload = {
+            receipt_id: receiptId,
+            status: "receipt",
+          };
           // Provide helpful URLs so UI can link even if attachment upload fails
           try {
             const baseUrl = url.origin;
-            if (baseUrl) payload.download_url = `${baseUrl}/api/receipts/${encodeURIComponent(receiptId)}/pdf`;
+            if (baseUrl)
+              payload.download_url = `${baseUrl}/api/receipts/${encodeURIComponent(receiptId)}/pdf`;
           } catch {
             /* ignore */
           }
@@ -338,7 +387,9 @@ export async function GET(req: Request) {
         let pdfBuffer: Buffer | null = null;
         try {
           const base = url.origin;
-          const resPdf = await fetch(`${base}/api/receipts/${encodeURIComponent(receiptId)}/pdf`);
+          const resPdf = await fetch(
+            `${base}/api/receipts/${encodeURIComponent(receiptId)}/pdf`,
+          );
           if (resPdf.ok) {
             const arr = await resPdf.arrayBuffer();
             pdfBuffer = Buffer.from(arr);
@@ -351,19 +402,26 @@ export async function GET(req: Request) {
           await sleep(700);
           try {
             const base = url.origin;
-            const resPdf2 = await fetch(`${base}/api/receipts/${encodeURIComponent(receiptId)}/pdf`);
+            const resPdf2 = await fetch(
+              `${base}/api/receipts/${encodeURIComponent(receiptId)}/pdf`,
+            );
             if (resPdf2.ok) {
               const arr2 = await resPdf2.arrayBuffer();
               pdfBuffer = Buffer.from(arr2);
             }
-          } catch { pdfBuffer = null; }
+          } catch {
+            pdfBuffer = null;
+          }
         }
 
         if (messageId && pdfBuffer) {
           const filePath = `conversation/${conversationId}/${messageId}/handi-recibo-${receiptId}.pdf`;
           const up = await admin.storage
             .from("message-attachments")
-            .upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+            .upload(filePath, pdfBuffer, {
+              contentType: "application/pdf",
+              upsert: true,
+            });
           if (!up.error) {
             const attachment: MessageAttachmentsInsert = {
               message_id: messageId,
@@ -388,14 +446,19 @@ export async function GET(req: Request) {
                   .maybeSingle<{ id: string | null }>();
                 const realId2 = rec2?.id ?? undefined;
                 if (realId2 && realId2 !== receiptId) {
-                  const payloadUpdate: MessagesInsert["payload"] = { receipt_id: realId2, status: "receipt" };
+                  const payloadUpdate: MessagesInsert["payload"] = {
+                    receipt_id: realId2,
+                    status: "receipt",
+                  };
                   await admin
                     .from("messages")
                     .update({ payload: payloadUpdate })
                     .eq("id", messageId)
                     .eq("conversation_id", conversationId);
                 }
-              } catch { /* ignore */ }
+              } catch {
+                /* ignore */
+              }
             }
           }
         }
@@ -409,9 +472,11 @@ export async function GET(req: Request) {
   try {
     if (requestId) revalidatePath(`/requests/${requestId}`);
     if (conversationId) revalidatePath(`/mensajes/${conversationId}`);
-    revalidatePath('/pro/calendar');
-    revalidateTag('pro-calendar');
-  } catch { /* ignore */ }
+    revalidatePath("/pro/calendar");
+    revalidateTag("pro-calendar");
+  } catch {
+    /* ignore */
+  }
   const target = conversationId ? `/mensajes/${conversationId}` : "/mensajes";
   return NextResponse.redirect(new URL(target, url.origin), { status: 302 });
 }

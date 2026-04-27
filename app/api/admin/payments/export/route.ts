@@ -1,27 +1,48 @@
 import { NextResponse } from "next/server";
 
 import { assertAdminOrJson, JSONH } from "@/lib/auth-admin";
+import {
+  listAdminPayments,
+  type AdminPaymentListItem,
+} from "@/lib/admin/admin-payments";
 import { getAdminSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type Row = {
-  id: string;
-  amount: number;
-  currency: string;
-  status: "pending" | "paid" | "refunded" | "failed" | "canceled" | "disputed";
-  customer: string;
-  created_at: string;
-};
-
-function toCSV(rows: Row[]): string {
+function toCSV(rows: AdminPaymentListItem[]): string {
   const escape = (v: unknown) => {
     const s = (v ?? "").toString();
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const header = ["id", "amount", "currency", "status", "customer", "created_at"].join(",");
-  const lines = rows.map((r) => [r.id, r.amount, r.currency, r.status, r.customer, r.created_at].map(escape).join(","));
+  const header = [
+    "id",
+    "type",
+    "remuneration",
+    "amount",
+    "currency",
+    "status",
+    "customer",
+    "request_title",
+    "relation",
+    "created_at",
+  ].join(",");
+  const lines = rows.map((row) =>
+    [
+      row.id,
+      row.type_label,
+      row.remuneration_label || "",
+      row.amount,
+      row.currency,
+      row.status,
+      row.customer,
+      row.request_title || "",
+      row.relation_label || "",
+      row.created_at,
+    ]
+      .map(escape)
+      .join(","),
+  );
   return [header, ...lines].join("\n");
 }
 
@@ -36,14 +57,29 @@ export async function GET(req: Request) {
 
   if (!svcKey) {
     const now = new Date();
-    const mock: Row[] = Array.from({ length: 15 }).map((_, i) => ({
-      id: `pi_${Math.random().toString(36).slice(2, 10)}`,
-      amount: Math.floor(200 + Math.random() * 5000),
-      currency: "MXN",
-      status: "paid",
-      customer: `Cliente ${i + 1}`,
-      created_at: new Date(now.getTime() - i * 7200_000).toISOString(),
-    }));
+    const mock: AdminPaymentListItem[] = Array.from({ length: 15 }).map(
+      (_, i) => ({
+        id: `pi_${Math.random().toString(36).slice(2, 10)}`,
+        amount: Math.floor(200 + Math.random() * 5000),
+        currency: "MXN",
+        status: "paid",
+        customer: `Cliente ${i + 1}`,
+        created_at: new Date(now.getTime() - i * 7200_000).toISOString(),
+        payment_kind: i % 3 === 0 ? "onsite_quote" : "offer_payment",
+        type_label:
+          i % 3 === 0 ? "Cotización en sitio" : "Oferta de contratación",
+        remuneration_label:
+          i % 3 === 0 ? (i % 2 === 0 ? "Remunerable" : "No remunerable") : null,
+        request_id: `req_${Math.floor(i / 2)}`,
+        request_title: `Servicio ${Math.floor(i / 2) + 1}`,
+        related_group_key: `req_${Math.floor(i / 2)}`,
+        relation_label:
+          i % 3 === 0
+            ? "Relacionado con contratación"
+            : "Relacionado con cotización onsite",
+        onsite_credit_amount: i % 3 === 0 ? null : 200,
+      }),
+    );
     const csv = toCSV(mock);
     return new NextResponse(csv, {
       status: 200,
@@ -56,47 +92,27 @@ export async function GET(req: Request) {
   }
 
   const admin = getAdminSupabase();
-  let q = admin
-    .from("payments")
-    .select("id, request_id, amount, currency, status, payment_intent_id, created_at")
-    .order("created_at", { ascending: false })
-    .limit(2000);
-  if (from) q = q.gte("created_at", new Date(from).toISOString());
-  if (to) q = q.lte("created_at", new Date(to).toISOString());
-
-  const { data, error } = await q;
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500, headers: JSONH });
-
-  // Resolve customer via requests.created_by
-  const reqIds = Array.from(new Set((data || []).map((p) => p.request_id as string).filter(Boolean)));
-  let reqToCustomer = new Map<string, string>();
-  if (reqIds.length > 0) {
-    const { data: reqs } = await admin.from("requests").select("id, created_by").in("id", reqIds);
-    const customerIds = Array.from(new Set((reqs || []).map((r) => r.created_by as string).filter(Boolean)));
-    let names = new Map<string, string>();
-    if (customerIds.length > 0) {
-      const { data: profs } = await admin.from("profiles").select("id, full_name").in("id", customerIds);
-      names = new Map((profs || []).map((p) => [p.id as string, (p.full_name as string | null) || "Cliente"]));
-    }
-    reqToCustomer = new Map((reqs || []).map((r) => [r.id as string, names.get(r.created_by as string) || (r.created_by as string) || "—"]));
+  try {
+    const rows = await listAdminPayments({
+      admin,
+      from,
+      to,
+      limit: 2000,
+    });
+    const csv = toCSV(rows);
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": "attachment; filename=payments.csv",
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "UNKNOWN";
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status: 500, headers: JSONH },
+    );
   }
-
-  const rows: Row[] = (data || []).map((p) => ({
-    id: (p.payment_intent_id as string | null) || (p.id as string),
-    amount: Number(p.amount as number),
-    currency: (p.currency as string) || "MXN",
-    status: (p.status as Row["status"]) || "paid",
-    customer: p.request_id ? (reqToCustomer.get(p.request_id as string) || "—") : "—",
-    created_at: p.created_at as string,
-  }));
-
-  const csv = toCSV(rows);
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": "attachment; filename=payments.csv",
-      "Cache-Control": "no-store",
-    },
-  });
 }

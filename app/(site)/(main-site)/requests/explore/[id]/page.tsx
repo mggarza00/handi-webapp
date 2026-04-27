@@ -17,6 +17,10 @@ import { buildTrackedAuthHrefFromCookieHeader } from "@/lib/analytics/cta-builde
 import RatingStars from "@/components/ui/RatingStars";
 import PhotoGallery from "@/components/ui/PhotoGallery";
 import { normalizeAvatarUrl } from "@/lib/avatar";
+import {
+  buildClientProfilePath,
+  resolveRequestClientProfileId,
+} from "@/lib/clients/client-profile-link";
 import { mapConditionToLabel } from "@/lib/conditions";
 import { UI_STATUS_LABELS } from "@/lib/request-status";
 import FinishJobTrigger from "@/components/services/FinishJobTrigger.client";
@@ -194,8 +198,16 @@ export default async function ProRequestDetailPage({ params }: Params) {
   const _createdAt = (d.created_at as string | null) ?? null; // sin uso en UI
   // Usa helper con service role para obtener client_id y perfil (bypass RLS en server)
   const { client: clientFromAdmin } = await getRequestWithClient(params.id);
-  const clientId =
-    clientFromAdmin?.id ?? (d as { created_by?: string }).created_by ?? null;
+  const clientId = resolveRequestClientProfileId({
+    clientProfileId: clientFromAdmin?.id,
+    requestClientId: (d as { client_id?: string | null }).client_id ?? null,
+    createdBy: (d as { created_by?: string | null }).created_by ?? null,
+  });
+  const clientProfilePath = buildClientProfilePath({
+    clientProfileId: clientFromAdmin?.id,
+    requestClientId: (d as { client_id?: string | null }).client_id ?? null,
+    createdBy: (d as { created_by?: string | null }).created_by ?? null,
+  });
 
   // Cargar perfil básico del cliente
   const supabaseS = createClient();
@@ -345,9 +357,9 @@ export default async function ProRequestDetailPage({ params }: Params) {
                   <div className="font-medium leading-none truncate">
                     {nombre}
                   </div>
-                  {(clientProfile?.id ?? clientId) ? (
+                  {clientProfilePath ? (
                     <Link
-                      href={`/clients/${clientProfile?.id ?? clientId}`}
+                      href={clientProfilePath}
                       className="text-xs underline hover:no-underline text-slate-600"
                     >
                       ver perfil y reseñas
@@ -466,9 +478,9 @@ export default async function ProRequestDetailPage({ params }: Params) {
                   <div className="font-medium leading-none truncate">
                     {nombre}
                   </div>
-                  {(clientProfile?.id ?? clientId) ? (
+                  {clientProfilePath ? (
                     <Link
-                      href={`/clients/${clientProfile?.id ?? clientId}`}
+                      href={clientProfilePath}
                       className="text-xs underline hover:no-underline text-slate-600"
                     >
                       ver perfil y reseñas
