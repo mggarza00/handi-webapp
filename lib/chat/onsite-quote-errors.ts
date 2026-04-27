@@ -44,6 +44,8 @@ export function getOnsiteQuoteRequestUserMessage(
       return "Ya existe una cotización en sitio activa en este chat.";
     case "ONSITE_ELIGIBLE_CREDIT_EXISTS":
       return "Ya existe una cotización en sitio remunerable pendiente de aplicarse para esta solicitud.";
+    case "ONSITE_PAID_REQUEST_EXISTS":
+      return "Ya existe una cotización en sitio pagada en este chat. Continúa con la cotización final.";
     case "ONLY_PRO_CAN_REQUEST_ONSITE":
       return "Solo el profesional puede solicitar una cotización en sitio.";
     case "INVALID_SCHEDULE_RANGE":

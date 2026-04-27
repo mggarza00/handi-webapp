@@ -34,18 +34,35 @@ describe("onsite request blockers", () => {
     expect(result?.blocker.id).toBe("onsite-2");
   });
 
-  it("does not block when the remunerable credit was already applied", () => {
+  it("blocks when a non-remunerable onsite deposit was already paid", () => {
     const result = findOnsiteRequestBlocker([
       {
         id: "onsite-3",
         conversation_id: "conv-3",
         request_id: "req-3",
         status: "deposit_paid",
+        is_remunerable: false,
+        remuneration_applied_at: null,
+      },
+    ]);
+
+    expect(result?.code).toBe("ONSITE_PAID_REQUEST_EXISTS");
+    expect(result?.blocker.id).toBe("onsite-3");
+  });
+
+  it("blocks when the remunerable credit was already applied but the onsite visit is still paid", () => {
+    const result = findOnsiteRequestBlocker([
+      {
+        id: "onsite-4",
+        conversation_id: "conv-4",
+        request_id: "req-4",
+        status: "deposit_paid",
         is_remunerable: true,
         remuneration_applied_at: "2026-04-10T18:00:00.000Z",
       },
     ]);
 
-    expect(result).toBeNull();
+    expect(result?.code).toBe("ONSITE_PAID_REQUEST_EXISTS");
+    expect(result?.blocker.id).toBe("onsite-4");
   });
 });

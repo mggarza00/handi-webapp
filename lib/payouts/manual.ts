@@ -28,6 +28,7 @@ type PayoutRow = {
   receipt_url: string | null;
   metadata: JsonRecord | null;
   created_at: string | null;
+  payout_type?: string | null;
 };
 
 type ReceiptRow = {
@@ -270,6 +271,11 @@ export function buildManualPayoutCandidates(
   }
 
   for (const payout of args.payouts) {
+    const payoutType =
+      normalizeString((payout as { payout_type?: unknown }).payout_type) ||
+      getMetadataString(getMetadataRecord(payout.metadata), "payout_type") ||
+      "service_offer";
+    if (payoutType === "onsite_quote") continue;
     const requestId = normalizeString(payout.request_id);
     const professionalId = normalizeString(payout.professional_id);
     if (!requestId || !professionalId) continue;
@@ -409,7 +415,7 @@ export async function getManualPayoutCandidates(
     admin
       .from("payouts")
       .select(
-        "id, agreement_id, request_id, professional_id, amount, currency, status, paid_at, receipt_url, metadata, created_at",
+        "id, agreement_id, request_id, professional_id, amount, currency, status, paid_at, receipt_url, metadata, created_at, payout_type",
       )
       .order("created_at", { ascending: false }),
     admin

@@ -5,6 +5,7 @@ import {
   buildRatingsAggregateMap,
   fetchRatingsAggregateMap,
   getProfessionalRatingSummary,
+  getUserRatingSummary,
   normalizeProfessionalRating,
   resolveProfessionalRatingData,
 } from "@/lib/professionals/ratings";
@@ -205,6 +206,40 @@ describe("professionals rating resolution", () => {
       getProfessionalRatingSummary(supabase, "pro-1"),
     ).resolves.toEqual({
       average: 5,
+      count: 2,
+    });
+  });
+
+  it("reads a client rating summary from to_user_id without depending on profiles.rating", async () => {
+    const supabase: Parameters<typeof getUserRatingSummary>[0] = {
+      from() {
+        return {
+          select() {
+            return {
+              async eq(column: string) {
+                if (column === "to_user_id") {
+                  return {
+                    data: [{ stars: 5 }, { stars: 4 }],
+                    count: 2,
+                    error: null,
+                  };
+                }
+                return {
+                  data: [],
+                  count: 0,
+                  error: null,
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+
+    await expect(
+      getUserRatingSummary(supabase, "client-user-1"),
+    ).resolves.toEqual({
+      average: 4.5,
       count: 2,
     });
   });

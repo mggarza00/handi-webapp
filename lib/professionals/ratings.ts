@@ -220,15 +220,15 @@ export async function fetchProfessionalRatingTargetMap(
   return fallbackMap;
 }
 
-export async function getProfessionalRatingSummary(
+export async function getUserRatingSummary(
   supabase: RatingsSource,
-  professionalId: string,
+  userId: string,
 ): Promise<ProfessionalRatingSummary> {
   const readRows = async (column: string) => {
     const response = await supabase
       .from("ratings")
       .select("stars", { head: false, count: "exact" })
-      .eq(column, professionalId);
+      .eq(column, userId);
 
     if (response?.error) return null;
 
@@ -253,6 +253,13 @@ export async function getProfessionalRatingSummary(
     average: aggregate?.ratingAvg ?? null,
     count: fallback.count,
   };
+}
+
+export async function getProfessionalRatingSummary(
+  supabase: RatingsSource,
+  professionalId: string,
+): Promise<ProfessionalRatingSummary> {
+  return getUserRatingSummary(supabase, professionalId);
 }
 
 export function resolveProfessionalRating(args: {

@@ -190,7 +190,9 @@ export async function POST(req: Request) {
 
     let payoutId = candidate.payoutId;
     if (candidate.payoutId) {
-      const { error: updateError } = await admin
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminPayouts = admin as any;
+      const { error: updateError } = await adminPayouts
         .from("payouts")
         .update({
           agreement_id: candidate.agreementId,
@@ -199,6 +201,7 @@ export async function POST(req: Request) {
           amount: breakdown.netAmount,
           currency: candidate.currency,
           status: "paid",
+          payout_type: "service_offer",
           paid_at: nowIso,
           receipt_url: receiptUrl,
           metadata,
@@ -211,7 +214,7 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      const { data: inserted, error: insertError } = await admin
+      const { data: inserted, error: insertError } = await adminPayouts
         .from("payouts")
         .insert({
           agreement_id: candidate.agreementId,
@@ -220,6 +223,7 @@ export async function POST(req: Request) {
           amount: breakdown.netAmount,
           currency: candidate.currency,
           status: "paid",
+          payout_type: "service_offer",
           paid_at: nowIso,
           receipt_url: receiptUrl,
           metadata,

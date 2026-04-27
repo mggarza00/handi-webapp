@@ -32,6 +32,20 @@ describe("onsite quote errors", () => {
     );
   });
 
+  it("maps paid onsite duplicate to a friendly message", () => {
+    const message = getOnsiteQuoteRequestUserMessage(
+      {
+        message: "ONSITE_PAID_REQUEST_EXISTS",
+        status: 409,
+      },
+      "chat.onsite-quote.create",
+    );
+
+    expect(message).toBe(
+      "Ya existe una cotización en sitio pagada en este chat. Continúa con la cotización final.",
+    );
+  });
+
   it("keeps detail and status for downstream logging", () => {
     const details = getOnsiteQuoteRequestErrorDetails({
       message: "ONSITE_QUOTE_REQUEST_INSERT_FAILED",

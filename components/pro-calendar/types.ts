@@ -6,6 +6,7 @@ export type ScheduledService = {
   client_name?: string | null;
   city?: string | null;
   status?: string | null; // 'scheduled' | 'in_process' | ...
+  event_kind?: "service" | "onsite_quote" | null;
 };
 
 export type CalendarEvent = ScheduledService & { dateKey: string };
